@@ -1,0 +1,65 @@
+services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:15
+    container_name: hotel_db
+    environment:
+      POSTGRES_DB: hotel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - hotel_network
+
+  # Backend Django
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hotel_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    networks:
+      - hotel_network
+
+  # Frontend React
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hotel_frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - hotel_network
+
+  # Redis para cache y tareas asíncronas
+  redis:
+    image: redis:7-alpine
+    container_name: hotel_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - hotel_network
+
+volumes:
+  postgres_data:
+
+networks:
+  hotel_network:
+    driver: bridge
