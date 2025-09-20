@@ -15,15 +15,11 @@ import { getApiURL } from "./utils";
  *                                      se encontro el recurso.
  */
 
-export const updateResources = async (resource, id, body) => {
+export const updateResources = async (resource, id, body, { method = "PATCH" } = {}) => {
   const isFormData = body instanceof FormData;
-
-  return await fetchWithAuth(getApiURL() + `/api/${resource}/${id}/`, {
-    method: "PUT",
-    headers: isFormData
-      ? undefined // No se necesita encabezado para FormData
-      : { "Content-Type": "application/json" },
+  return fetchWithAuth(`${getApiURL()}/api/${resource}/${id}/`, {
+    method,
+    headers: isFormData ? undefined : { "Content-Type": "application/json" },
     body: isFormData ? body : JSON.stringify(body),
   });
 };
-
