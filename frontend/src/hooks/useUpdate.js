@@ -1,0 +1,26 @@
+import { useMutation } from "@tanstack/react-query";
+import { showSuccess, showErrorConfirm } from "src/services/toast";
+import { updateResources } from "../services/updateResources";
+
+// Servicio mínimo para update (PUT/PATC
+/**
+ * useUpdate({ resource, onSuccess, method })
+ * method: "PATCH" (default) o "PUT"
+ */
+export const useUpdate = ({ resource, onSuccess, method = "PATCH" }) => {
+  const { mutate, isPending, isError, isSuccess } = useMutation({
+    mutationFn: ({ id, body }) => updateResources(resource, id, body, { method }),
+    onSuccess: (data) => {
+      showSuccess("Se actualizó correctamente");
+      onSuccess && onSuccess(data);
+    },
+    onError: (error) => {
+      const msg = typeof error?.message === "string" ? error.message : "Ocurrió un error";
+      showErrorConfirm(msg);
+    },
+  });
+
+  return { mutate, isPending, isError, isSuccess };
+};
+
+
