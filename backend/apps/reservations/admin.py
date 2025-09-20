@@ -1,3 +1,19 @@
 from django.contrib import admin
+from .models import Reservation, RoomBlock
 
-# Register your models here.
+@admin.register(Reservation)
+
+class ReservationAdmin(admin.ModelAdmin):
+    list_display = ["hotel", "room", "guest_name", "check_in", "check_out", "status", "total_price"]
+    list_filter = ["hotel", "room", "status"]
+    search_fields = ["guest_name", "room__name", "hotel__name", "guest_email"]
+    list_editable = ["status"]
+    list_select_related = ["hotel", "room"]
+
+
+@admin.register(RoomBlock)
+class RoomBlockAdmin(admin.ModelAdmin):
+    list_display = ["hotel", "room", "block_type", "start_date", "end_date", "is_active"]
+    list_filter = ["hotel", "block_type", "is_active"]
+    search_fields = ["room__name", "reason"]
+    list_select_related = ["hotel", "room"]

@@ -1,34 +1,24 @@
-"""
-URL configuration for hotel project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-# backend/hotel/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from apps.core.views import HotelViewSet
+
+from apps.core.views import HotelViewSet, StatusSummaryView
 from apps.rooms.views import RoomViewSet
+from apps.reservations.views import ReservationViewSet, AvailabilityView
+from apps.locations.views import CountryViewSet, StateViewSet, CityViewSet
 
 router = DefaultRouter()
 router.register(r"hotels", HotelViewSet, basename="hotel")
 router.register(r"rooms", RoomViewSet, basename="room")
+router.register(r"reservations", ReservationViewSet, basename="reservation")
+router.register(r"countries", CountryViewSet, basename="country")
+router.register(r"states", StateViewSet, basename="state")
+router.register(r"cities", CityViewSet, basename="city")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", include("apps.core.urls")),
-    path("api/", include("apps.rooms.urls")),
-    path("api/", include("apps.locations.urls")),
+    path("api/", include(router.urls)),  # <- ÚNICO include de router
+    path("api/status/summary/", StatusSummaryView.as_view(), name="status-summary"),
+    path("api/reservations/availability/", AvailabilityView.as_view(), name="reservations-availability"),
     path("api/auth/", include("rest_framework.urls")),
 ]
