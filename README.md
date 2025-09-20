@@ -123,9 +123,3 @@ frontend/          # React (Vite)
 - Multi-hotel desde el inicio (FKs y filtros por hotel)
 - Automatización con Celery + Redis (worker y beat en Docker)
 - Endpoints REST claros y navegables, con filtros básicos
-
-## Próximos pasos sugeridos
-- Respetar `check_in_time`/`check_out_time` por hotel en el auto check-in/out
-- JWT y roles (admin/recepción)
-- Reportes y dashboard extendidos
-- Notificaciones (email/WhatsApp) y multi-idioma
