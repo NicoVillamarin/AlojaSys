@@ -27,5 +27,8 @@ router.register(r"rooms", RoomViewSet, basename="room")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", include(router.urls)),
+    path("api/", include("apps.core.urls")),
+    path("api/", include("apps.rooms.urls")),
+    path("api/", include("apps.locations.urls")),
+    path("api/auth/", include("rest_framework.urls")),
 ]

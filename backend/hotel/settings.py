@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "apps.reservations",
     "apps.users",
     "apps.core",
+    "apps.locations",
 ]
 
 MIDDLEWARE = [

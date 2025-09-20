@@ -1,10 +1,18 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets
 from .models import Hotel
 from .serializers import HotelSerializer
 
 class HotelViewSet(viewsets.ModelViewSet):
-    queryset = Hotel.objects.all().order_by("name")
     serializer_class = HotelSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["name", "city", "country", "legal_name"]
-    ordering_fields = ["name", "city", "country", "created_at"]
+    def get_queryset(self):
+        qs = Hotel.objects.select_related("city", "city__state", "city__state__country").order_by("name")
+        city = self.request.query_params.get("city")
+        state = self.request.query_params.get("state")
+        country = self.request.query_params.get("country")
+        if city and city.isdigit():
+            qs = qs.filter(city_id=city)
+        if state and state.isdigit():
+            qs = qs.filter(city__state_id=state)
+        if country:
+            qs = qs.filter(city__state__country__code2=country.upper())
+        return qs
