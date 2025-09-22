@@ -1,12 +1,12 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.core.views import HotelViewSet, StatusSummaryView
 from apps.rooms.views import RoomViewSet
 from apps.reservations.views import ReservationViewSet, AvailabilityView
 from apps.locations.views import CountryViewSet, StateViewSet, CityViewSet
-
+from apps.users.views import me_view
 router = DefaultRouter()
 router.register(r"hotels", HotelViewSet, basename="hotel")
 router.register(r"rooms", RoomViewSet, basename="room")
@@ -21,4 +21,7 @@ urlpatterns = [
     path("api/status/summary/", StatusSummaryView.as_view(), name="status-summary"),
     path("api/reservations/availability/", AvailabilityView.as_view(), name="reservations-availability"),
     path("api/auth/", include("rest_framework.urls")),
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/me/", me_view, name="me"),
 ]

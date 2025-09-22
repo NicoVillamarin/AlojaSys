@@ -1,0 +1,37 @@
+Distribución de Colores para la Web
+1. Blanco / Gris Claro (Dominante - 80-85% de la web)
+Uso principal: Fondos, cuerpo del texto, áreas de contenido y tarjetas (cards).
+
+Función: Transmite limpieza, claridad y usabilidad. Garantiza que el contenido sea fácil de leer y que el sistema parezca intuitivo y moderno.
+
+2. Azul Petróleo / Navy (Color Principal de Marca - 10-15% de la web)
+Este es tu color de confianza y profesionalismo. Debe ser muy visible.
+
+Botones Principales (CTA): Úsalo en los botones de acción clave (por ejemplo, "Iniciar Sesión", "Registrarse", "Ver Demo"). Esto dirige la mirada del usuario.
+
+Navegación: Fondo de la barra de navegación superior (header) y del menú lateral, o como color de los enlaces y la tipografía principal del menú.
+
+Tipografía de Títulos: Para los titulares de las secciones más importantes (H1, H2) y los textos que requieren autoridad.
+
+Iconografía: Relleno de los iconos principales del sistema.
+
+3. Dorado / Mostaza Suave (Color de Acento y Elegancia - 3-5% de la web)
+Este color es el acento "premium". Úsalo con mucha moderación para que destaque. Si lo usas demasiado, puede saturar la página y perder su efecto de distinción.
+
+Acento en el Logo: El elemento curvo de tu logo y el "Sys" de "AlojaSys".
+
+Elementos Interactivos: Pasa el cursor sobre un botón o un enlace ("hover state"). Por ejemplo, el botón principal es azul, y al pasar el ratón se ilumina con un sutil borde o sombra dorada.
+
+Textos Destacados: Pequeños textos o etiquetas que quieras resaltar como "Nuevo", "Premium", o para diferenciar el precio de un plan especial.
+
+Separadores o Detalles Gráficos: Líneas divisorias sutiles bajo títulos o pequeños detalles decorativos para añadir esa sensación de lujo.
+
+Paleta de Colores en Código (Ejemplo)
+Para asegurarte que los colores son consistentes, te sugiero usar códigos hexadecimales específicos:
+
+Color	Nombre Sugerido	Código Hex (Ejemplo)	Uso en la Web
+Azul Petróleo / Navy	Azul Principal	#0A304A o #002D62	Botones, Títulos, Header, Enlaces.
+Dorado / Mostaza Suave	Dorado Acento	#D4AF37 (Dorado) o #FFD700 (Mostaza)	Acentos, Hover States, Detalles del Logo.
+Blanco	Fondo Primario	#FFFFFF	Fondos de secciones, Contenido.
+Gris Claro	Fondo Secundario	#F5F5F5 o #EEEEEE	Fondos de cards o áreas de contenido que necesitan un ligero contraste.
+Gris Oscuro	Texto Cuerpo	#333333	Para el texto del cuerpo principal y subtítulos, para asegurar alta legibilidad.

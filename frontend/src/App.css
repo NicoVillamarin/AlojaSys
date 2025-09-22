@@ -1,9 +1,5 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
+/* Desactivar estilos del template que estorban el layout full width/height */
+#root { all: unset; }
 
 .logo {
   height: 6em;
