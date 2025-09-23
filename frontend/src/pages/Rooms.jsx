@@ -1,8 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import TableGeneric from "src/components/TableGeneric";
+import { getStatusMeta } from "src/utils/statusList";
 import { useList } from "src/hooks/useList";
 
 export default function Rooms() {
   const [filters, setFilters] = useState({ search: "", hotel: "" });
+  const didMountRef = useRef(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel } });
@@ -16,11 +19,43 @@ export default function Rooms() {
     return { total, occupied, available, checkins };
   }, [results, count]);
 
+  // Filtrado en cliente para respuesta inmediata al escribir
+  const displayResults = useMemo(() => {
+    const q = (filters.search || "").trim().toLowerCase();
+    if (!q) return results;
+    return (results || []).filter((r) => {
+      const idStr = String(r.id ?? "");
+      const numberStr = String(r.number ?? "");
+      const nameStr = String(r.name ?? "");
+      const typeStr = String(r.room_type ?? "");
+      const statusStr = String(r.status ?? "");
+      return (
+        idStr.includes(q) ||
+        numberStr.toLowerCase().includes(q) ||
+        nameStr.toLowerCase().includes(q) ||
+        typeStr.toLowerCase().includes(q) ||
+        statusStr.toLowerCase().includes(q)
+      );
+    });
+  }, [results, filters.search]);
+
   const onSearch = () => refetch();
   const onClear = () => {
     setFilters({ search: "", hotel: "" });
     setTimeout(() => refetch(), 0);
   };
+
+  // Debounce de búsqueda al escribir
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    const id = setTimeout(() => {
+      refetch();
+    }, 400);
+    return () => clearTimeout(id);
+  }, [filters.search, filters.hotel, refetch]);
 
   return (
     <div className="space-y-5">
@@ -50,70 +85,73 @@ export default function Rooms() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2 bg-white rounded-xl shadow p-3">
-        <input
-          className="border rounded-md px-3 py-2 text-sm w-56"
-          placeholder="Buscar…"
-          value={filters.search}
-          onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-          onKeyDown={(e) => e.key === "Enter" && onSearch()}
-        />
-        <input
-          className="border rounded-md px-3 py-2 text-sm w-40"
-          placeholder="Hotel ID"
-          value={filters.hotel}
-          onChange={(e) => setFilters((f) => ({ ...f, hotel: e.target.value }))}
-          onKeyDown={(e) => e.key === "Enter" && onSearch()}
-        />
-        <button className="px-3 py-2 rounded-md bg-aloja-navy text-white" onClick={onSearch}>
-          Buscar
-        </button>
-        <button className="px-3 py-2 rounded-md border" onClick={onClear}>
-          Limpiar
-        </button>
+      <div className="bg-white rounded-xl shadow p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l3.387 3.387a1 1 0 01-1.414 1.414l-3.387-3.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+            <input
+              className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
+              placeholder="Buscar habitaciones…"
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              onKeyDown={(e) => e.key === "Enter" && onSearch()}
+            />
+            {filters.search && (
+              <button
+                className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
+                onClick={() => {
+                  setFilters((f) => ({ ...f, search: "" }));
+                  setTimeout(() => refetch(), 0);
+                }}
+                aria-label="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50 transition"
+              onClick={onClear}
+            >
+              Limpiar
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Tabla */}
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
-        {isPending ? (
-          <div className="p-6 text-sm text-aloja-gray-800/70">Cargando…</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-aloja-gray-800/70 border-b">
-                <th className="py-2 px-3">Habitación</th>
-                <th className="py-2 px-3">Tipo</th>
-                <th className="py-2 px-3">Estado</th>
-                <th className="py-2 px-3">Precio base</th>
-                <th className="py-2 px-3">Capacidad</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((r) => (
-                <tr key={r.id} className="border-b last:border-0">
-                  <td className="py-2 px-3">{r.name || r.number || `#${r.id}`}</td>
-                  <td className="py-2 px-3">{r.room_type}</td>
-                  <td className="py-2 px-3">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        (r.status || "").toLowerCase() === "available"
-                          ? "bg-green-100 text-green-700"
-                          : (r.status || "").toLowerCase() === "occupied"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-aloja-gray-100 text-aloja-gray-800"
-                      }`}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3">{r.base_price}</td>
-                  <td className="py-2 px-3">{r.capacity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <TableGeneric
+        isLoading={isPending}
+        data={displayResults}
+        getRowId={(r) => r.id}
+        columns={[
+          {
+            key: "name",
+            header: "Habitación",
+            sortable: true,
+            accessor: (r) => r.name || r.number || `#${r.id}`,
+            render: (r) => r.name || r.number || `#${r.id}`,
+          },
+          { key: "room_type", header: "Tipo", sortable: true },
+          {
+            key: "status",
+            header: "Estado",
+            sortable: true,
+            accessor: (r) => (r.status || "").toLowerCase(),
+            render: (r) => {
+              const meta = getStatusMeta(r.status);
+              return <span className={`px-2 py-1 rounded text-xs ${meta.className}`}>{meta.label}</span>;
+            },
+          },
+          { key: "base_price", header: "Precio base", sortable: true },
+          { key: "capacity", header: "Capacidad", sortable: true },
+        ]}
+      />
 
       {hasNextPage && (
         <div>
