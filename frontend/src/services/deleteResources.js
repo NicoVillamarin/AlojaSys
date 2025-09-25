@@ -20,7 +20,8 @@ export const deleteResource = async (resource, id) => {
         "Content-Type": "application/json",
       },
     });
-    return response; 
+    // Algunas APIs devuelven 204 sin cuerpo; normalizamos a un objeto simple
+    return response ?? { success: true, id };
   } catch (error) {
     // Captura el error lanzado desde fetchWithAuth y muestra el mensaje adecuado
     throw new Error(error.message || "Ocurrió un error inesperado.");

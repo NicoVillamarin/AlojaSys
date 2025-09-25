@@ -1,25 +1,21 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import TableGeneric from "src/components/TableGeneric";
-import { getStatusMeta } from "src/utils/statusList";
 import { useList } from "src/hooks/useList";
+import { getStatusMeta } from "src/utils/statusList";
+import RoomsModal from "src/components/modals/RoomsModal";
+import EditIcon from "src/assets/icons/EditIcon";
+import DeleteButton from "src/components/DeleteButton";
+import Button from "src/components/Button";
 
 export default function Rooms() {
+  const [showModal, setShowModal] = useState(false);
+  const [editRoom, setEditRoom] = useState(null);
   const [filters, setFilters] = useState({ search: "", hotel: "" });
   const didMountRef = useRef(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel } });
 
-  const kpi = useMemo(() => {
-    const total = count ?? 0;
-    const page = results || [];
-    const occupied = page.filter((r) => r.status === "occupied" || r.status === "OCCUPIED").length;
-    const available = page.filter((r) => r.status === "available" || r.status === "AVAILABLE").length;
-    const checkins = page.filter((r) => r.current_reservation?.status === "check_in" || r.current_reservation?.status === "CHECK_IN").length;
-    return { total, occupied, available, checkins };
-  }, [results, count]);
-
-  // Filtrado en cliente para respuesta inmediata al escribir
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
     if (!q) return results;
@@ -39,13 +35,13 @@ export default function Rooms() {
     });
   }, [results, filters.search]);
 
+
   const onSearch = () => refetch();
   const onClear = () => {
     setFilters({ search: "", hotel: "" });
     setTimeout(() => refetch(), 0);
   };
 
-  // Debounce de búsqueda al escribir
   useEffect(() => {
     if (!didMountRef.current) {
       didMountRef.current = true;
@@ -60,31 +56,18 @@ export default function Rooms() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-aloja-navy">Gestión de Habitaciones</h1>
-        <div className="text-sm text-aloja-gray-800/70">{kpi.total} habitaciones</div>
+        <div>
+          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">Habitaciones</h1>
+        </div>
+        <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
+          Crear habitación
+        </Button>
       </div>
 
-      {/* KPIs (rápidos, sobre la página actual) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Total</div>
-          <div className="text-2xl font-semibold">{kpi.total}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Ocupadas (página)</div>
-          <div className="text-2xl font-semibold">{kpi.occupied}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Disponibles (página)</div>
-          <div className="text-2xl font-semibold">{kpi.available}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Check-ins activos (página)</div>
-          <div className="text-2xl font-semibold">{kpi.checkins}</div>
-        </div>
-      </div>
+      <RoomsModal isOpen={showModal} onClose={() => setShowModal(false)} isEdit={false} onSuccess={refetch} />
+      <RoomsModal isOpen={!!editRoom} onClose={() => setEditRoom(null)} isEdit={true} room={editRoom} onSuccess={refetch} />
 
-      {/* Filtros */}
       <div className="bg-white rounded-xl shadow p-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
@@ -113,18 +96,9 @@ export default function Rooms() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50 transition"
-              onClick={onClear}
-            >
-              Limpiar
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Tabla */}
       <TableGeneric
         isLoading={isPending}
         data={displayResults}
@@ -148,8 +122,20 @@ export default function Rooms() {
               return <span className={`px-2 py-1 rounded text-xs ${meta.className}`}>{meta.label}</span>;
             },
           },
-          { key: "base_price", header: "Precio base", sortable: true },
-          { key: "capacity", header: "Capacidad", sortable: true },
+          { key: "base_price", header: "Precio base", sortable: true, right: true },
+          { key: "capacity", header: "Capacidad", sortable: true, right: true },
+          {
+            key: "actions",
+            header: "Acciones",
+            sortable: false,
+            right: true,
+            render: (r) => (
+              <div className="flex justify-end items-center gap-x-2">
+                <EditIcon size="18" onClick={() => setEditRoom(r)} className="cursor-pointer" />
+                <DeleteButton resource="rooms" id={r.id} onDeleted={refetch} className="cursor-pointer" />
+              </div>
+            ),
+          },
         ]}
       />
 
@@ -163,3 +149,5 @@ export default function Rooms() {
     </div>
   );
 }
+
+

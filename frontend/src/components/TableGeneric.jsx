@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import SpinnerData from "src/components/SpinnerData";
 
 export default function TableGeneric({
   columns = [],
@@ -82,7 +83,9 @@ export default function TableGeneric({
   return (
     <div className={`bg-white rounded-xl shadow overflow-x-auto ${className}`}>
       {isLoading ? (
-        <div className="p-6 text-sm text-aloja-gray-800/70">Cargando…</div>
+        <div className="p-6 flex items-center justify-center">
+          <SpinnerData label="Cargando datos…" />
+        </div>
       ) : (
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead className="sticky top-0 bg-aloja-gray-100 backdrop-blur z-10">
@@ -95,12 +98,12 @@ export default function TableGeneric({
                     key={col.key}
                     className={`py-3 px-3 font-semibold select-none whitespace-nowrap ${
                       col.sortable ? "cursor-pointer hover:text-aloja-navy" : ""
-                    } border-r border-gray-200 last:border-r-0`}
+                    } ${col.right ? "text-right" : "text-left"} border-r border-gray-200 last:border-r-0`}
                     onClick={() => onToggleSort(col.key, col.sortable)}
                     aria-sort={ariaSort}
                     scope="col"
                   >
-                    <div className="flex items-center gap-1">
+                    <div className={`flex items-center gap-1 ${col.right ? "justify-end" : ""}`}>
                       <span>{col.header}</span>
                       {col.sortable && (
                         <span className={`inline-flex w-3 h-3 text-aloja-gray-800/70 ${isActive ? "" : "opacity-40"}`}>
@@ -157,7 +160,10 @@ export default function TableGeneric({
                   className="odd:bg-white even:bg-gray-50 hover:bg-gray-50 transition-colors"
                 >
                   {columns.map((col) => (
-                    <td key={col.key} className="py-2.5 px-3 whitespace-nowrap border-b border-r border-gray-100 last:border-r-0">
+                    <td
+                      key={col.key}
+                      className={`py-2.5 px-3 whitespace-nowrap border-b border-r border-gray-100 last:border-r-0 ${col.right ? "text-right" : "text-left"}`}
+                    >
                       {col.render ? col.render(row) : row[col.key]}
                     </td>
                   ))}
@@ -180,6 +186,7 @@ TableGeneric.propTypes = {
       sortable: PropTypes.bool,
       accessor: PropTypes.func,
       render: PropTypes.func,
+          right: PropTypes.bool,
     })
   ),
   data: PropTypes.array,

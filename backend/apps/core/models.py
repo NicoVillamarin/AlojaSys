@@ -10,6 +10,8 @@ class Hotel(models.Model):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
     address = models.CharField(max_length=200, blank=True)
+    country = models.ForeignKey("locations.Country", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
+    state = models.ForeignKey("locations.State", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
     city = models.ForeignKey("locations.City", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
     timezone = models.CharField(max_length=60, default="America/Argentina/Buenos_Aires")
     check_in_time = models.TimeField(default=time(15, 0))

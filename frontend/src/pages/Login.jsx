@@ -6,6 +6,7 @@ import fondo from "../assets/img/fondo.png";
 import fondo2 from "../assets/img/fondo_2.png";
 import fondo3 from "../assets/img/fondo_3.png";
 import logo from "../assets/img/logo_clean.png";
+import SpinnerLoading from "src/components/SpinnerLoading";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -72,7 +73,14 @@ export default function Login() {
               disabled={loading}
               className="w-full bg-aloja-navy hover:bg-aloja-navy2 text-white rounded-md py-2 transition"
             >
-              {loading ? "Ingresando..." : "Ingresar"}
+              {loading ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <SpinnerLoading inline size={18} label={null} />
+                  <span>Ingresando…</span>
+                </span>
+              ) : (
+                "Ingresar"
+              )}
             </button>
             <div className="text-center">
               <button type="button" className="text-xs text-aloja-navy hover:text-aloja-navy2">¿Olvidaste tu contraseña?</button>
@@ -88,6 +96,13 @@ export default function Login() {
       <div className="pointer-events-none absolute bottom-6 right-6 text-white/90 drop-shadow-sm text-xs">
         AlojaSys
       </div>
+
+      {/* Overlay de envío */}
+      {loading && (
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center z-10">
+          <SpinnerLoading size={96} label="Autenticando…" />
+        </div>
+      )}
     </div>
   );
 }

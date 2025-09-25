@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { createResource } from "src/services/createResource";
+import { createResource } from "src/services/createResources";
 import { showSuccess, showErrorConfirm } from "src/services/toast";
 
 /**

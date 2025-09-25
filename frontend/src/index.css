@@ -28,6 +28,17 @@ body {
   width: 100%;
 }
 
+/* Neutralizar autofill amarillo de Chrome y evitar focus raro */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px white inset;
+  box-shadow: 0 0 0px 1000px white inset;
+  -webkit-text-fill-color: inherit;
+  caret-color: inherit;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 /* Design tokens (Tailwind v4): colores de marca */
 @theme {
   --color-aloja-navy: #0A304A;
