@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.rooms",
     "apps.reservations",
     "apps.users",
+    "apps.enterprises",
     "apps.core",
     "apps.locations",
 ]

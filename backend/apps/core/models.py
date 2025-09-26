@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 
 class Hotel(models.Model):
+    enterprise = models.ForeignKey("enterprises.Enterprise", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
     name = models.CharField(max_length=120, unique=True)
     legal_name = models.CharField(max_length=200, blank=True)
     tax_id = models.CharField(max_length=50, blank=True)

@@ -18,6 +18,7 @@ router.register(r"cities", CityViewSet, basename="city")
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),  # <- ÚNICO include de router
+    path("api/", include("apps.enterprises.urls")),
     path("api/status/summary/", StatusSummaryView.as_view(), name="status-summary"),
     path("api/reservations/availability/", AvailabilityView.as_view(), name="reservations-availability"),
     path("api/auth/", include("rest_framework.urls")),
