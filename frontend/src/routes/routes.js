@@ -7,6 +7,7 @@ import Cities from "src/pages/configurations/locations/Cities";
 import Countries from "src/pages/configurations/locations/Countries";
 import States from "src/pages/configurations/locations/States";
 
+
 export const appRoutes = [
   {
     path: "/",
