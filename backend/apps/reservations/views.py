@@ -3,6 +3,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from datetime import date
+from django.core.exceptions import ValidationError
 from apps.rooms.models import Room, RoomStatus
 from apps.rooms.serializers import RoomSerializer
 from .models import Reservation, ReservationStatus, RoomBlock
@@ -25,6 +26,36 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
         return qs
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except ValidationError as e:
+            # Convertir ValidationError a formato JSON
+            if hasattr(e, 'message_dict'):
+                # Error de validación de campo específico
+                return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+            elif hasattr(e, 'messages'):
+                # Error de validación general
+                return Response({'__all__': list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Error simple
+                return Response({'__all__': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        try:
+            return super().update(request, *args, **kwargs)
+        except ValidationError as e:
+            # Convertir ValidationError a formato JSON
+            if hasattr(e, 'message_dict'):
+                # Error de validación de campo específico
+                return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+            elif hasattr(e, 'messages'):
+                # Error de validación general
+                return Response({'__all__': list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Error simple
+                return Response({'__all__': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["post"])
     def check_in(self, request, pk=None):

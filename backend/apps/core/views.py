@@ -51,11 +51,15 @@ class StatusSummaryView(APIView):
         occupied = rooms_qs.filter(status=RoomStatus.OCCUPIED).count()
         maintenance = rooms_qs.filter(status=RoomStatus.MAINTENANCE).count()
         out_of_service = rooms_qs.filter(status=RoomStatus.OUT_OF_SERVICE).count()
+        
+        # Calcular capacidades
+        total_capacity = sum(room.capacity for room in rooms_qs)
+        max_capacity = sum(room.max_capacity for room in rooms_qs)
 
         arrivals_today = Reservation.objects.filter(
             hotel=hotel,
             check_in=today,
-            status__in=[ReservationStatus.CONFIRMED],
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
         ).count()
 
         inhouse_today = Reservation.objects.filter(
@@ -83,6 +87,15 @@ class StatusSummaryView(APIView):
             .order_by("room__name")
             .values("id", "room__name", "guest_name", "status", "check_in", "check_out")
         )
+        
+        # Calcular huéspedes actuales sumando los guests de las reservas activas
+        active_reservations = Reservation.objects.filter(
+            hotel=hotel,
+            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CONFIRMED],
+            check_in__lte=today,
+            check_out__gt=today,
+        )
+        current_guests = sum(reservation.guests for reservation in active_reservations)
 
         # Bloqueos que solapan hoy (opcional)
         blocks_today = RoomBlock.objects.filter(
@@ -106,6 +119,9 @@ class StatusSummaryView(APIView):
                 "occupied": occupied,
                 "maintenance": maintenance,
                 "out_of_service": out_of_service,
+                "total_capacity": total_capacity,
+                "max_capacity": max_capacity,
+                "current_guests": current_guests,
             },
             "today": {
                 "date": today,

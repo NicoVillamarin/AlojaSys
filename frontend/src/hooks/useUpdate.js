@@ -15,7 +15,8 @@ export const useUpdate = ({ resource, onSuccess, method = "PATCH" }) => {
       onSuccess && onSuccess(data);
     },
     onError: (error) => {
-      const msg = typeof error?.message === "string" ? error.message : "Ocurrió un error";
+      // fetchWithAuth ya extrae el mensaje correctamente y lo pone en error.message
+      const msg = error?.message || "Ocurrió un error";
       showErrorConfirm(msg);
     },
   });

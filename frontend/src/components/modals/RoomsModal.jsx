@@ -44,6 +44,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     floor: room?.floor ?? '',
     room_type: room?.room_type ?? '',
     capacity: room?.capacity ?? '',
+    max_capacity: room?.max_capacity ?? '',
     base_price: room?.base_price != null ? String(room.base_price) : '0',
     status: room?.status ?? 'available',
     description: room?.description ?? '',
@@ -61,6 +62,12 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     .integer('Capacidad debe ser un entero')
     .min(1, 'Capacidad debe ser al menos 1')
     .required('Capacidad es requerido'),
+    max_capacity: Yup.number()
+    .transform((v, o) => (o === '' ? undefined : v))
+    .typeError('Capacidad máxima debe ser un número')
+    .integer('Capacidad máxima debe ser un entero')
+    .min(1, 'Capacidad máxima debe ser al menos 1')
+    .required('Capacidad máxima es requerido'),
     base_price: Yup.number()
     .transform((val, original) => (original === '' ? undefined : val))
     .typeError('Precio base debe ser un número')
@@ -90,6 +97,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
           floor: values.floor !== '' ? Number(values.floor) : undefined,
           room_type: values.room_type || undefined,
           capacity: values.capacity ? Number(values.capacity) : undefined,
+          max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
           base_price: values.base_price ? Number(values.base_price) : undefined,
           status: values.status || undefined,
           description: values.description || undefined,
@@ -137,6 +145,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
               ]}
             />
             <InputText title='Capacidad *' name='capacity' placeholder='2' />
+            <InputText title='Capacidad máxima *' name='max_capacity' placeholder='2' />
             <InputText title='Precio base *' name='base_price' placeholder='100.00' />
             <SelectBasic
               title='Estado *'

@@ -2,6 +2,21 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import TableGeneric from "src/components/TableGeneric";
 import { getStatusMeta } from "src/utils/statusList";
 import { useList } from "src/hooks/useList";
+import { useAction } from "src/hooks/useAction";
+import Select from "react-select";
+import { format, parseISO } from "date-fns";
+import Kpis from "src/components/Kpis";
+import HomeIcon from "src/assets/icons/HomeIcon";
+import UsersIcon from "src/assets/icons/UsersIcon";
+import BedAvailableIcon from "src/assets/icons/BedAvailableIcon";
+import WrenchScrewdriverIcon from "src/assets/icons/WrenchScrewdriverIcon";
+import ExclamationTriangleIcon from "src/assets/icons/ExclamationTriangleIcon";
+import ChartBarIcon from "src/assets/icons/ChartBarIcon";
+import PleopleOccupatedIcon from "src/assets/icons/PleopleOccupatedIcon";
+import CheckIcon from "src/assets/icons/CheckIcon";
+import ConfigurateIcon from "src/assets/icons/ConfigurateIcon";
+import CheckoutIcon from "src/assets/icons/CheckoutIcon";
+import CheckinIcon from "src/assets/icons/CheckinIcon";
 
 export default function RoomsGestion() {
   const [filters, setFilters] = useState({ search: "", hotel: "" });
@@ -10,14 +25,202 @@ export default function RoomsGestion() {
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel } });
 
+  // Lista de hoteles para el filtro
+  const { results: hotels } = useList({ resource: "hotels" });
+
+  // KPIs de hotel (solo cuando hay hotel seleccionado)
+  const { results: summary, isPending: kpiLoading } = useAction({
+    resource: 'status',
+    action: 'summary',
+    params: { hotel: filters.hotel || undefined },
+    enabled: !!filters.hotel,
+  });
+
   const kpi = useMemo(() => {
-    const total = count ?? 0;
-    const page = results || [];
-    const occupied = page.filter((r) => r.status === "occupied" || r.status === "OCCUPIED").length;
-    const available = page.filter((r) => r.status === "available" || r.status === "AVAILABLE").length;
-    const checkins = page.filter((r) => r.current_reservation?.status === "check_in" || r.current_reservation?.status === "CHECK_IN").length;
-    return { total, occupied, available, checkins };
-  }, [results, count]);
+    if (filters.hotel && summary) {
+      // Usar datos del summary del hotel cuando hay filtro
+      return {
+        total: summary.rooms?.total ?? 0,
+        occupied: summary.rooms?.occupied ?? 0,
+        available: summary.rooms?.available ?? 0,
+        maintenance: summary.rooms?.maintenance ?? 0,
+        outOfService: summary.rooms?.out_of_service ?? 0,
+        totalCapacity: summary.rooms?.total_capacity ?? 0,
+        maxCapacity: summary.rooms?.max_capacity ?? 0,
+        currentGuests: summary.rooms?.current_guests ?? 0,
+        arrivals: summary.today?.arrivals ?? 0,
+        inhouse: summary.today?.inhouse ?? 0,
+        departures: summary.today?.departures ?? 0,
+        occupancyRate: summary.rooms?.total > 0 
+          ? Math.round((summary.rooms?.occupied / summary.rooms?.total) * 100) 
+          : 0,
+      };
+    } else {
+      // Usar datos de la página actual cuando no hay filtro de hotel
+      const total = count ?? 0;
+      const page = results || [];
+      const occupied = page.filter((r) => r.status === "occupied" || r.status === "OCCUPIED").length;
+      const available = page.filter((r) => r.status === "available" || r.status === "AVAILABLE").length;
+      const maintenance = page.filter((r) => r.status === "maintenance" || r.status === "MAINTENANCE").length;
+      const outOfService = page.filter((r) => r.status === "out_of_service" || r.status === "OUT_OF_SERVICE").length;
+
+      // Calcular capacidad total y huéspedes actuales
+      const totalCapacity = page.reduce((sum, r) => sum + (r.capacity || 0), 0);
+      const maxCapacity = page.reduce((sum, r) => sum + (r.max_capacity || 0), 0);
+      const currentGuests = page.reduce((sum, r) => sum + (r.current_guests || 0), 0);
+
+      return {
+        total,
+        occupied,
+        available,
+        maintenance,
+        outOfService,
+        totalCapacity,
+        maxCapacity,
+        currentGuests,
+        arrivals: 0,
+        inhouse: 0,
+        departures: 0,
+        occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : 0,
+      };
+    }
+  }, [results, count, filters.hotel, summary]);
+
+  // Crear KPIs para RoomsGestion
+  const roomsGestionKpis = useMemo(() => {
+    if (!kpi) return [];
+    
+    return [
+      {
+        title: "Habitaciones Totales",
+        value: kpi.total,
+        icon: HomeIcon,
+        color: "from-indigo-500 to-indigo-600",
+        bgColor: "bg-indigo-100",
+        iconColor: "text-indigo-600",
+        change: "+2",
+        changeType: "positive",
+        subtitle: "capacidad total del hotel",
+        showProgress: false
+      },
+      {
+        title: "Habitaciones Ocupadas",
+        value: kpi.occupied,
+        icon: PleopleOccupatedIcon,
+        color: "from-emerald-500 to-emerald-600",
+        bgColor: "bg-emerald-100",
+        iconColor: "text-emerald-600",
+        change: "+1",
+        changeType: "positive",
+        subtitle: `de ${kpi.total} totales`,
+        progressWidth: kpi.total > 0 ? `${Math.min((kpi.occupied / kpi.total) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "Habitaciones Disponibles",
+        value: kpi.available,
+        icon: CheckIcon,
+        color: "from-blue-500 to-blue-600",
+        bgColor: "bg-blue-100",
+        iconColor: "text-blue-600",
+        change: "-1",
+        changeType: "negative",
+        subtitle: "listas para ocupar",
+        progressWidth: kpi.total > 0 ? `${Math.min((kpi.available / kpi.total) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "En Mantenimiento",
+        value: kpi.maintenance,
+        icon: ConfigurateIcon,
+        color: "from-orange-500 to-orange-600",
+        bgColor: "bg-orange-100",
+        iconColor: "text-orange-600",
+        change: kpi.maintenance > 0 ? "+1" : "0",
+        changeType: kpi.maintenance > 0 ? "positive" : "neutral",
+        subtitle: "requieren reparación",
+        progressWidth: kpi.total > 0 ? `${Math.min((kpi.maintenance / kpi.total) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "Huéspedes Hospedados",
+        value: kpi.currentGuests,
+        icon: PleopleOccupatedIcon,
+        color: "from-purple-500 to-purple-600",
+        bgColor: "bg-purple-100",
+        iconColor: "text-purple-600",
+        change: "+3",
+        changeType: "positive",
+        subtitle: "personas hoy",
+        showProgress: false
+      },
+      {
+        title: "Tasa de Ocupación",
+        value: `${kpi.occupancyRate}%`,
+        icon: ChartBarIcon,
+        color: "from-indigo-500 to-indigo-600",
+        bgColor: "bg-indigo-100",
+        iconColor: "text-indigo-600",
+        change: "+5%",
+        changeType: "positive",
+        subtitle: "promedio del hotel",
+        progressWidth: `${kpi.occupancyRate}%`
+      }
+    ];
+  }, [kpi]);
+
+  // KPIs adicionales cuando hay hotel seleccionado
+  const additionalKpis = useMemo(() => {
+    if (!filters.hotel || !kpi) return [];
+    
+    return [
+      {
+        title: "Fuera de Servicio",
+        value: kpi.outOfService,
+        icon: ExclamationTriangleIcon,
+        color: "from-rose-500 to-rose-600",
+        bgColor: "bg-rose-100",
+        iconColor: "text-rose-600",
+        change: "0",
+        changeType: "neutral",
+        subtitle: "no disponibles",
+        progressWidth: kpi.total > 0 ? `${Math.min((kpi.outOfService / kpi.total) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "Hospedados",
+        value: kpi.inhouse,
+        icon: PleopleOccupatedIcon,
+        color: "from-blue-500 to-blue-600",
+        bgColor: "bg-blue-100",
+        iconColor: "text-blue-600",
+        change: "+1",
+        changeType: "positive",
+        subtitle: "en el hotel",
+        showProgress: false
+      },
+      {
+        title: "Check-ins Hoy",
+        value: kpi.arrivals,
+        icon: CheckinIcon,
+        color: "from-green-500 to-green-600",
+        bgColor: "bg-green-100",
+        iconColor: "text-green-600",
+        change: "+2",
+        changeType: "positive",
+        subtitle: "llegadas hoy",
+        showProgress: false
+      },
+      {
+        title: "Check-outs Hoy",
+        value: kpi.departures,
+        icon: CheckoutIcon,
+        color: "from-orange-500 to-orange-600",
+        bgColor: "bg-orange-100",
+        iconColor: "text-orange-600",
+        change: "-1",
+        changeType: "negative",
+        subtitle: "salidas hoy",
+        showProgress: false
+      }
+    ];
+  }, [filters.hotel, kpi]);
 
   // Filtrado en cliente para respuesta inmediata al escribir
   const displayResults = useMemo(() => {
@@ -64,29 +267,17 @@ export default function RoomsGestion() {
         <div className="text-sm text-aloja-gray-800/70">{kpi.total} habitaciones</div>
       </div>
 
-      {/* KPIs (rápidos, sobre la página actual) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Total</div>
-          <div className="text-2xl font-semibold">{kpi.total}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Ocupadas (página)</div>
-          <div className="text-2xl font-semibold">{kpi.occupied}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Disponibles (página)</div>
-          <div className="text-2xl font-semibold">{kpi.available}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="text-xs text-aloja-gray-800/70">Check-ins activos (página)</div>
-          <div className="text-2xl font-semibold">{kpi.checkins}</div>
-        </div>
-      </div>
+      {/* KPIs principales */}
+      <Kpis kpis={roomsGestionKpis} loading={filters.hotel && kpiLoading} />
+     
+      {/* KPIs adicionales cuando hay hotel seleccionado */}
+      {filters.hotel && (
+        <Kpis kpis={additionalKpis} loading={kpiLoading} />
+      )}
 
       {/* Filtros */}
       <div className="bg-white rounded-xl shadow p-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -113,6 +304,43 @@ export default function RoomsGestion() {
               </button>
             )}
           </div>
+          <div className="w-56">
+            <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Hotel</label>
+            <Select
+              value={hotels?.find(h => String(h.id) === String(filters.hotel)) || null}
+              onChange={(option) => setFilters((f) => ({ ...f, hotel: option ? String(option.id) : '' }))}
+              options={hotels || []}
+              getOptionLabel={(h) => h?.name}
+              getOptionValue={(h) => h?.id}
+              placeholder="Todos"
+              isClearable
+              isSearchable
+              classNamePrefix="rs"
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  minHeight: 36,
+                  borderRadius: 6,
+                  borderColor: '#e5e7eb',
+                  fontSize: 14,
+                }),
+                valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
+                indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
+                dropdownIndicator: (base) => ({ ...base, padding: 6 }),
+                clearIndicator: (base) => ({ ...base, padding: 6 }),
+                menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 60 }),
+                menuList: (base) => ({ ...base, paddingTop: 4, paddingBottom: 4 }),
+                option: (base, state) => ({
+                  ...base,
+                  fontSize: 14,
+                  backgroundColor: state.isSelected ? '#132344' : state.isFocused ? '#eef2ff' : 'white',
+                  color: state.isSelected ? '#fff' : '#111827',
+                  ':active': { backgroundColor: state.isSelected ? '#132344' : '#e5e7eb' },
+                }),
+                placeholder: (base) => ({ ...base, color: '#6b7280' }),
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -122,6 +350,13 @@ export default function RoomsGestion() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
+          {
+            key: "updated_at",
+            header: "Última actualización",
+            sortable: true,
+            accessor: (r) => r.updated_at ? format(parseISO(r.updated_at), 'dd/MM/yyyy HH:mm') : '',
+            render: (r) => r.updated_at ? format(parseISO(r.updated_at), 'dd/MM/yyyy HH:mm') : '',
+          },
           {
             key: "name",
             header: "Habitación",
@@ -141,7 +376,27 @@ export default function RoomsGestion() {
             },
           },
           { key: "base_price", header: "Precio base", sortable: true },
-          { key: "capacity", header: "Capacidad", sortable: true },
+          {
+            key: "capacity",
+            header: "Capacidad",
+            sortable: true,
+            render: (r) => {
+              const capacity = r.capacity || 0;
+              const maxCapacity = r.max_capacity || 0;
+              const extraFee = r.extra_guest_fee || 0;
+
+              return (
+                <div className="text-center flex-row gap-x-1">
+                  <div className="font-semibold text-sm">
+                    {capacity}{maxCapacity > capacity ? `-${maxCapacity}` : ''}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {maxCapacity > capacity ? `+$${extraFee} extra` : 'personas'}
+                  </div>
+                </div>
+              );
+            }
+          },
         ]}
       />
 

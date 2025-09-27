@@ -53,6 +53,12 @@ function extractErrorMessage(body) {
   if (!body) return null;
   if (typeof body === "string") return body;
   if (typeof body.detail === "string") return body.detail;
+  
+  // Django ValidationError: { '__all__': ['mensaje'] }
+  if (body.__all__ && Array.isArray(body.__all__)) {
+    return body.__all__[0];
+  }
+  
   // DRF validation errors: { field: ["error1", ...], ... }
   const firstKey = Object.keys(body)[0];
   if (firstKey) {

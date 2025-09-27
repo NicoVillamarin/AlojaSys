@@ -3,23 +3,37 @@ import { useState, useEffect } from "react";
 import logo from "../assets/img/logo_white_alone.png";
 import logo_name from "../assets/img/name_white.png";
 import { Chevron } from "src/assets/icons/Chevron";
+import DashboardIcon from "src/assets/icons/DashboardIcon";
+import BellIcon from "src/assets/icons/BellIcon";
+import RoomsIcon from "src/assets/icons/RoomsIcon";
+import ConfigurateIcon from "src/assets/icons/ConfigurateIcon";
+import CurrencyIcon from "src/assets/icons/CurrencyIcon";
+import ClientsIcon from "src/assets/icons/ClientsIcon";
+import fondo from "src/assets/img/fondo_3.png";
 
 const Item = ({ to, children }) => (
   <NavLink
     to={to}
     className={({ isActive }) =>
-      `relative flex items-center gap-3 h-10 px-4 text-sm rounded-md transition-colors ${isActive
-        ? "text-white bg-white/5"
-        : "text-white/80 hover:text-white hover:bg-white/5"
+      `relative overflow-hidden flex items-center gap-3 h-10 px-4 text-sm rounded-md transition-colors ${isActive
+        ? "text-white"
+        : "text-white/80 hover:text-white"
       }`
     }
   >
     {({ isActive }) => (
       <>
+        {/* Highlight de fondo con efecto barrido */}
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute left-0 top-0 h-full bg-white/5 rounded-md transition-[width] duration-250 ease-out ${isActive ? 'w-full' : 'w-0'}`}
+          style={{ zIndex: 0 }}
+        />
+        {/* Barra dorada fija a la izquierda */}
         {isActive && (
           <span className="absolute left-0 top-0 h-full w-1.5 bg-aloja-gold rounded-r" />
         )}
-        <span>{children}</span>
+        <span className="inline-flex items-center gap-2" style={{ zIndex: 1 }}>{children}</span>
       </>
     )}
   </NavLink>
@@ -37,17 +51,25 @@ export default function Sidebar() {
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
-    <aside className="hidden md:flex md:flex-col md:w-64 bg-aloja-navy text-white p-3 gap-2 overflow-y-auto">
+    <aside className="hidden md:flex md:flex-col md:w-64 bg-aloja-navy text-white p-3 gap-2 overflow-y-auto relative">
+      {/* Fondo decorativo sutil como background fijo */}
+      <div
+        aria-hidden
+        className="pointer-events-none select-none absolute inset-0 opacity-[0.1] bg-contain bg-no-repeat bg-left-bottom bg-fixed"
+        style={{
+          backgroundImage: `linear-gradient(135deg, rgba(212,175,55,0.14), rgba(0,0,0,0)), url(${fondo})`,
+        }}
+      />
       <div className="flex items-center justify-center h-16 px-2 shrink-0">
         <img src={logo} alt="AlojaSys" className="block h-23 w-auto object-contain" />
         <img src={logo_name} alt="AlojaSys" className="block h-20 w-auto object-contain" />
       </div>
       <nav className="mt-2 flex flex-col gap-1">
-        <Item to="/">Dashboard</Item>
-        <Item to="/clients">Clientes</Item>
-        <Item to="/reservations">Gestión de Reservas</Item>
-        <Item to="/rooms-gestion">Gestión de Habitaciones</Item>
-        <Item to="/rates">Gestión de Tarifas</Item>
+        <Item to="/"><DashboardIcon size="16" /> <span>Dashboard</span></Item>
+        <Item to="/clients"><ClientsIcon size="16" /> <span>Clientes</span></Item>
+        <Item to="/reservations-gestion"><BellIcon size="16" /> <span>Gestión de Reservas</span></Item>
+        <Item to="/rooms-gestion"><RoomsIcon size="16" /> <span>Gestión de Habitaciones</span></Item>
+        <Item to="/rates"><CurrencyIcon size="16" /> <span>Gestión de Tarifas</span></Item>
         <div className="mt-1">
           <button
             type="button"
@@ -58,6 +80,7 @@ export default function Sidebar() {
             aria-expanded={openGroups.settings}
           >
             <span className="inline-flex items-center gap-2">
+              <ConfigurateIcon size="16" />
               <span>Configuración</span>
             </span>
             <Chevron open={openGroups.settings} />
@@ -67,6 +90,7 @@ export default function Sidebar() {
               openGroups.settings ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
             }`}
           >
+            <Item to="/settings/enterprises">Empresas</Item>
             <Item to="/settings/rooms">Habitaciones</Item>
             <Item to="/settings/hotels">Hoteles</Item>
             <div className="mt-1 ml-2">

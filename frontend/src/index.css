@@ -65,3 +65,11 @@ select:-webkit-autofill {
 
 .animate-intro-pop { animation: intro-pop 900ms cubic-bezier(.22,.61,.36,1) forwards; }
 .animate-window-blink { animation: window-blink 1200ms ease-in-out infinite alternate; }
+
+/* Animación para selección de item en sidebar */
+@keyframes sidebar-select {
+  0% { transform: translateX(-6px); opacity: 0.6; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.animate-sidebar-select { animation: sidebar-select 220ms cubic-bezier(.22,.61,.36,1) both; }

@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { AlertsComponent } from "src/pages/utils";
-import { dispatchResources } from "src/services/dispatchResource";
+import { dispatchResources } from "src/services/dispatchResources";
 import { showSuccess, showErrorConfirm } from "src/services/toast";
 
 /**
@@ -52,7 +52,9 @@ export const useDispatchAction = ({ resource, onSuccess, onError }) => {
       if (onSuccess) onSuccess(data);
     },
     onError: (error) => {
-        showErrorConfirm(error.message);
+      // fetchWithAuth ya extrae el mensaje correctamente y lo pone en error.message
+      const msg = error?.message || "Ocurrió un error";
+      showErrorConfirm(msg);
       if (onError) onError(error);
     },
   });

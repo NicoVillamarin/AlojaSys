@@ -23,6 +23,7 @@ class Reservation(models.Model):
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="reservations")
     guest_name = models.CharField(max_length=120)
     guest_email = models.EmailField(blank=True, null=True)
+    guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
     check_in = models.DateField()
     check_out = models.DateField()
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
@@ -37,6 +38,13 @@ class Reservation(models.Model):
 
         if self.hotel_id is None and self.room_id:
             self.hotel = self.room.hotel
+
+        # Validar número de huéspedes
+        if self.room_id and self.guests:
+            if self.guests > self.room.max_capacity:
+                raise ValidationError(f"La habitación {self.room.name} tiene una capacidad máxima de {self.room.max_capacity} huéspedes.")
+            if self.guests < 1:
+                raise ValidationError("Debe haber al menos 1 huésped.")
 
         active_status = [
             ReservationStatus.PENDING,

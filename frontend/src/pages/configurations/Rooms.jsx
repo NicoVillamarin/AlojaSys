@@ -6,6 +6,20 @@ import RoomsModal from "src/components/modals/RoomsModal";
 import EditIcon from "src/assets/icons/EditIcon";
 import DeleteButton from "src/components/DeleteButton";
 import Button from "src/components/Button";
+import SelectAsync from "src/components/selects/SelectAsync";
+import { useAction } from "src/hooks/useAction";
+import { Formik } from "formik";
+import Kpis from "src/components/Kpis";
+import UsersIcon from "src/assets/icons/UsersIcon";
+import HomeIcon from "src/assets/icons/HomeIcon";
+import ChartBarIcon from "src/assets/icons/ChartBarIcon";
+import WrenchScrewdriverIcon from "src/assets/icons/WrenchScrewdriverIcon";
+import ExclamationTriangleIcon from "src/assets/icons/ExclamationTriangleIcon";
+import ConfigurateIcon from "src/assets/icons/ConfigurateIcon";
+import BedAvailableIcon from "src/assets/icons/BedAvailableIcon";
+import CheckinIcon from "src/assets/icons/CheckinIcon";
+import CheckIcon from "src/assets/icons/CheckIcon";
+import PleopleOccupatedIcon from "src/assets/icons/PleopleOccupatedIcon";
 
 export default function Rooms() {
   const [showModal, setShowModal] = useState(false);
@@ -15,6 +29,100 @@ export default function Rooms() {
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel } });
+
+  const { results: summary, isPending: kpiLoading } = useAction({
+    resource: 'status',
+    action: 'summary',
+    params: { hotel: filters.hotel || undefined },
+    enabled: !!filters.hotel,
+  });
+
+
+  const roomsKpis = useMemo(() => {
+    if (!filters.hotel || !summary) return [];
+
+    const totalRooms = summary?.rooms?.total ?? 0
+    const occupiedRooms = summary?.rooms?.occupied ?? 0
+    const availableRooms = summary?.rooms?.available ?? 0
+    const maintenanceRooms = summary?.rooms?.maintenance ?? 0
+    const outOfServiceRooms = summary?.rooms?.out_of_service ?? 0
+    const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+
+    return [
+      {
+        title: "Habitaciones Totales",
+        value: totalRooms,
+        icon: HomeIcon,
+        color: "from-indigo-500 to-indigo-600",
+        bgColor: "bg-indigo-100",
+        iconColor: "text-indigo-600",
+        change: "+2",
+        changeType: "positive",
+        subtitle: "Capacidad total del hotel",
+        showProgress: false
+      },
+      {
+        title: "Habitaciones Ocupadas",
+        value: occupiedRooms,
+        icon: PleopleOccupatedIcon,
+        color: "from-emerald-500 to-emerald-600",
+        bgColor: "bg-emerald-100",
+        iconColor: "text-emerald-600",
+        change: "+2",
+        changeType: "positive",
+        subtitle: `De ${totalRooms} totales`,
+        progressWidth: totalRooms > 0 ? `${Math.min((occupiedRooms / totalRooms) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "Habitaciones Disponibles",
+        value: availableRooms,
+        icon: CheckIcon,
+        color: "from-blue-500 to-blue-600",
+        bgColor: "bg-blue-100",
+        iconColor: "text-blue-600",
+        change: "-2",
+        changeType: "negative",
+        subtitle: "Listas para ocupar",
+        progressWidth: totalRooms > 0 ? `${Math.min((availableRooms / totalRooms) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "En Mantenimiento",
+        value: maintenanceRooms,
+        icon: ConfigurateIcon,
+        color: "from-orange-500 to-orange-600",
+        bgColor: "bg-orange-100",
+        iconColor: "text-orange-600",
+        change: maintenanceRooms > 0 ? "+1" : "0",
+        changeType: maintenanceRooms > 0 ? "positive" : "neutral",
+        subtitle: "Requieren reparación",
+        progressWidth: totalRooms > 0 ? `${Math.min((maintenanceRooms / totalRooms) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "Fuera de Servicio",
+        value: outOfServiceRooms,
+        icon: ExclamationTriangleIcon,
+        color: "from-rose-500 to-rose-600",
+        bgColor: "bg-rose-100",
+        iconColor: "text-rose-600",
+        change: "0",
+        changeType: "neutral",
+        subtitle: "No disponibles",
+        progressWidth: totalRooms > 0 ? `${Math.min((outOfServiceRooms / totalRooms) * 100, 100)}%` : '0%'
+      },
+      {
+        title: "Tasa de Ocupación",
+        value: `${occupancyRate}%`,
+        icon: ChartBarIcon,
+        color: "from-purple-500 to-purple-600",
+        bgColor: "bg-purple-100",
+        iconColor: "text-purple-600",
+        change: "+5%",
+        changeType: "positive",
+        subtitle: "Promedio del hotel",
+        progressWidth: `${occupancyRate}%`
+      }
+    ];
+  }, [filters.hotel, summary]);
 
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
@@ -69,7 +177,7 @@ export default function Rooms() {
       <RoomsModal isOpen={!!editRoom} onClose={() => setEditRoom(null)} isEdit={true} room={editRoom} onSuccess={refetch} />
 
       <div className="bg-white rounded-xl shadow p-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -96,9 +204,32 @@ export default function Rooms() {
               </button>
             )}
           </div>
+          <div className="w-56">
+            <Formik
+              enableReinitialize
+              initialValues={{}}
+              onSubmit={() => { }}
+            >
+              <SelectAsync
+                title="Hotel"
+                name="hotel"
+                resource="hotels"
+                placeholder="Todos"
+                getOptionLabel={(h) => h?.name}
+                getOptionValue={(h) => h?.id}
+                onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
+              />
+            </Formik>
+          </div>
         </div>
       </div>
 
+      {filters.hotel && (
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">Estado de Habitaciones</h2>
+          <Kpis kpis={roomsKpis} loading={kpiLoading} />
+        </div>
+      )}
       <TableGeneric
         isLoading={isPending}
         data={displayResults}
@@ -124,6 +255,7 @@ export default function Rooms() {
           },
           { key: "base_price", header: "Precio base", sortable: true, right: true },
           { key: "capacity", header: "Capacidad", sortable: true, right: true },
+          { key: "max_capacity", header: "Capacidad máxima", sortable: true, right: true },
           {
             key: "actions",
             header: "Acciones",
