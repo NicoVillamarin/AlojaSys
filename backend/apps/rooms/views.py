@@ -11,6 +11,16 @@ class RoomViewSet(viewsets.ModelViewSet):
         hotel_id = self.request.query_params.get("hotel")
         if hotel_id:
             qs = qs.filter(hotel_id=hotel_id)
+        
+        # Filtro por capacidad mínima de huéspedes
+        min_capacity = self.request.query_params.get("min_capacity")
+        if min_capacity:
+            try:
+                min_capacity = int(min_capacity)
+                qs = qs.filter(max_capacity__gte=min_capacity)
+            except (ValueError, TypeError):
+                pass  # Ignorar valores inválidos
+        
         return qs
 
     def destroy(self, request, *args, **kwargs):

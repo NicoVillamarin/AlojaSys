@@ -76,17 +76,33 @@ class StatusSummaryView(APIView):
         ).count()
 
         # Lista compacta de reservas actuales
-        current_reservations = list(
-            Reservation.objects.filter(
-                hotel=hotel,
-                check_in__lte=today,
-                check_out__gt=today,
-                status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-            )
-            .select_related("room")
-            .order_by("room__name")
-            .values("id", "room__name", "guest_name", "status", "check_in", "check_out")
-        )
+        reservations_qs = Reservation.objects.filter(
+            hotel=hotel,
+            check_in__lte=today,
+            check_out__gt=today,
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).select_related("room").order_by("room__name")
+        
+        # Procesar las reservas para extraer el nombre del huésped principal
+        current_reservations = []
+        for reservation in reservations_qs:
+            guest_name = ""
+            if reservation.guests_data and isinstance(reservation.guests_data, list):
+                # Buscar el huésped principal
+                primary_guest = next((guest for guest in reservation.guests_data if guest.get('is_primary', False)), None)
+                if not primary_guest and reservation.guests_data:
+                    # Si no hay huésped principal marcado, tomar el primero
+                    primary_guest = reservation.guests_data[0]
+                guest_name = primary_guest.get('name', '') if primary_guest else ''
+            
+            current_reservations.append({
+                "id": reservation.id,
+                "room__name": reservation.room.name,
+                "guest_name": guest_name,
+                "status": reservation.status,
+                "check_in": reservation.check_in,
+                "check_out": reservation.check_out
+            })
         
         # Calcular huéspedes actuales sumando los guests de las reservas activas
         active_reservations = Reservation.objects.filter(

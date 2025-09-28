@@ -46,9 +46,28 @@ class RoomSerializer(serializers.ModelSerializer):
         qs = (obj.reservations
               .filter(check_out__gt=today)
               .order_by("check_in")
-              .values("id", "status", "guest_name", "check_in", "check_out")
+              .values("id", "status", "guests_data", "check_in", "check_out")
         )
-        return list(qs)
+        # Procesar los resultados para extraer el nombre del huésped principal
+        reservations = []
+        for res in qs:
+            guest_name = ""
+            if res.get('guests_data') and isinstance(res['guests_data'], list):
+                # Buscar el huésped principal
+                primary_guest = next((guest for guest in res['guests_data'] if guest.get('is_primary', False)), None)
+                if not primary_guest and res['guests_data']:
+                    # Si no hay huésped principal marcado, tomar el primero
+                    primary_guest = res['guests_data'][0]
+                guest_name = primary_guest.get('name', '') if primary_guest else ''
+            
+            reservations.append({
+                "id": res['id'],
+                "status": res['status'],
+                "guest_name": guest_name,
+                "check_in": res['check_in'],
+                "check_out": res['check_out']
+            })
+        return reservations
 
     def get_current_reservation(self, obj):
         today = timezone.localdate()
@@ -57,9 +76,27 @@ class RoomSerializer(serializers.ModelSerializer):
         res = (obj.reservations
                .filter(check_in__lte=today, check_out__gt=today, status__in=active_status)
                .order_by("-status")
-               .values("id", "status", "guest_name", "check_in", "check_out")
+               .values("id", "status", "guests_data", "check_in", "check_out")
                .first())
-        return res
+        
+        if res:
+            guest_name = ""
+            if res.get('guests_data') and isinstance(res['guests_data'], list):
+                # Buscar el huésped principal
+                primary_guest = next((guest for guest in res['guests_data'] if guest.get('is_primary', False)), None)
+                if not primary_guest and res['guests_data']:
+                    # Si no hay huésped principal marcado, tomar el primero
+                    primary_guest = res['guests_data'][0]
+                guest_name = primary_guest.get('name', '') if primary_guest else ''
+            
+            return {
+                "id": res['id'],
+                "status": res['status'],
+                "guest_name": guest_name,
+                "check_in": res['check_in'],
+                "check_out": res['check_out']
+            }
+        return None
 
     def get_current_guests(self, obj):
         today = timezone.localdate()

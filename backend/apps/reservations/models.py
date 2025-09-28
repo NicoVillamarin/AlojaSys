@@ -21,9 +21,8 @@ class RoomBlockType(models.TextChoices):
 class Reservation(models.Model):
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="reservations")
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="reservations")
-    guest_name = models.CharField(max_length=120)
-    guest_email = models.EmailField(blank=True, null=True)
     guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
+    guests_data = models.JSONField(default=list, help_text="Información de todos los huéspedes")
     check_in = models.DateField()
     check_out = models.DateField()
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
@@ -79,8 +78,34 @@ class Reservation(models.Model):
             models.Index(fields=["status"]),
         ]
 
+    @property
+    def guest_name(self):
+        """Obtiene el nombre del huésped principal"""
+        primary_guest = self.get_primary_guest()
+        return primary_guest.get('name', '') if primary_guest else ''
+    
+    @property
+    def guest_email(self):
+        """Obtiene el email del huésped principal"""
+        primary_guest = self.get_primary_guest()
+        return primary_guest.get('email', '') if primary_guest else ''
+    
+    def get_primary_guest(self):
+        """Obtiene el huésped principal (is_primary=True)"""
+        if not self.guests_data:
+            return None
+        return next((guest for guest in self.guests_data if guest.get('is_primary', False)), None)
+    
+    def get_all_guests(self):
+        """Obtiene todos los huéspedes ordenados (principal primero)"""
+        if not self.guests_data:
+            return []
+        return sorted(self.guests_data, key=lambda x: (not x.get('is_primary', False), x.get('name', '')))
+
     def __str__(self):
-        return f"{self.guest_name} - {self.room.name} - {self.check_in} -> {self.check_out}"
+        primary_guest = self.get_primary_guest()
+        guest_name = primary_guest.get('name', 'Sin nombre') if primary_guest else 'Sin huésped'
+        return f"{guest_name} - {self.room.name} - {self.check_in} -> {self.check_out}"
 
 class RoomBlock(models.Model):
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="room_blocks")

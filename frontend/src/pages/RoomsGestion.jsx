@@ -184,18 +184,6 @@ export default function RoomsGestion() {
         progressWidth: kpi.total > 0 ? `${Math.min((kpi.outOfService / kpi.total) * 100, 100)}%` : '0%'
       },
       {
-        title: "Hospedados",
-        value: kpi.inhouse,
-        icon: PleopleOccupatedIcon,
-        color: "from-blue-500 to-blue-600",
-        bgColor: "bg-blue-100",
-        iconColor: "text-blue-600",
-        change: "+1",
-        changeType: "positive",
-        subtitle: "en el hotel",
-        showProgress: false
-      },
-      {
         title: "Check-ins Hoy",
         value: kpi.arrivals,
         icon: CheckinIcon,

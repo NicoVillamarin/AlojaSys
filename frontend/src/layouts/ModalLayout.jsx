@@ -84,11 +84,13 @@ export default function ModalLayout({
   };
 
   const sizes = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-2xl",
-    xl: "max-w-4xl",
-    full: "max-w-[95vw]",
+    sm: "max-w-sm w-full",
+    md: "max-w-md w-full", 
+    wmedium: "w-1/2",
+    lg: "max-w-2xl w-full",
+    lg2: "w-3/4",
+    xl: "max-w-4xl w-full",
+    full: "max-w-[95vw] w-full",
   };
 
   if (!render) return null;
@@ -103,7 +105,7 @@ export default function ModalLayout({
   return createPortal(
     (
       <div
-        className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center"
+        className="fixed inset-0 z-[1000] flex items-start justify-center pt-10 px-4 pb-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -114,16 +116,22 @@ export default function ModalLayout({
           <div className={`absolute inset-0 bg-black/45 backdrop-blur-sm ${backdropAnim}`} />
         )}
 
-        <div
-          ref={dialogRef}
-          tabIndex={-1}
-          className={`relative w-full ${sizes[size]} mx-2 sm:mx-4 bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 outline-none ${panelAnim}`}
-          onAnimationEnd={(e) => {
-            if (!show && e.animationName === 'popOut') {
-              setRender(false);
-            }
-          }}
-        >
+        <div className="w-full max-h-[calc(100vh-2.5rem)] flex justify-center items-start overflow-y-auto py-10 px-4">
+          <div
+            ref={dialogRef}
+            tabIndex={-1}
+            className={`relative ${sizes[size]} bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 outline-none flex flex-col ${panelAnim}`}
+            style={{
+              marginTop: 'auto',
+              marginBottom: 'auto',
+              minHeight: 'fit-content'
+            }}
+            onAnimationEnd={(e) => {
+              if (!show && e.animationName === 'popOut') {
+                setRender(false);
+              }
+            }}
+          >
           {(header || title) && (
             <div className="flex items-center justify-between gap-4 px-5 pt-4 pb-3 border-b border-gray-100">
               <div className="text-base font-semibold text-aloja-navy" id={labelledBy}>
@@ -144,7 +152,7 @@ export default function ModalLayout({
             </div>
           )}
 
-          <div className="px-5 py-4 text-sm text-aloja-gray-800" id={describedBy}>
+          <div className="flex-1 px-5 py-4 text-sm text-aloja-gray-800" id={describedBy}>
             {children}
           </div>
 
@@ -174,6 +182,7 @@ export default function ModalLayout({
               )}
             </div>
           )}
+          </div>
         </div>
 
         <style>{`
