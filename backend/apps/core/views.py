@@ -148,3 +148,102 @@ class StatusSummaryView(APIView):
             },
             "current_reservations": current_reservations,
         }, status=status.HTTP_200_OK)
+
+
+class GlobalSummaryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Fecha local
+        today = timezone.localdate()
+        
+        # Obtener todos los hoteles activos
+        hotels = Hotel.objects.filter(is_active=True)
+        
+        # Calcular métricas globales de habitaciones
+        rooms_qs = Room.objects.filter(hotel__in=hotels)
+        total_rooms = rooms_qs.count()
+        available = rooms_qs.filter(status=RoomStatus.AVAILABLE).count()
+        occupied = rooms_qs.filter(status=RoomStatus.OCCUPIED).count()
+        maintenance = rooms_qs.filter(status=RoomStatus.MAINTENANCE).count()
+        out_of_service = rooms_qs.filter(status=RoomStatus.OUT_OF_SERVICE).count()
+        
+        # Calcular capacidades globales
+        total_capacity = sum(room.capacity for room in rooms_qs)
+        max_capacity = sum(room.max_capacity for room in rooms_qs)
+        
+        # Calcular métricas globales de reservas
+        arrivals_today = Reservation.objects.filter(
+            hotel__in=hotels,
+            check_in=today,
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).count()
+        
+        inhouse_today = Reservation.objects.filter(
+            hotel__in=hotels,
+            check_in__lte=today,
+            check_out__gt=today,
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).count()
+        
+        departures_today = Reservation.objects.filter(
+            hotel__in=hotels,
+            check_out=today,
+            status=ReservationStatus.CHECK_IN,
+        ).count()
+        
+        # Calcular huéspedes actuales globales
+        active_reservations = Reservation.objects.filter(
+            hotel__in=hotels,
+            check_in__lte=today,
+            check_out__gt=today,
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).select_related('hotel', 'room')
+        
+        current_guests = sum(reservation.guests for reservation in active_reservations)
+        
+        # Bloqueos globales de hoy
+        blocks_today = RoomBlock.objects.filter(
+            hotel__in=hotels,
+            is_active=True,
+            start_date__lte=today,
+            end_date__gt=today,
+        ).count()
+        
+        # Lista de reservas actuales globales (limitada para performance)
+        current_reservations = []
+        for reservation in active_reservations[:50]:  # Limitar a 50 para performance
+            current_reservations.append({
+                "id": reservation.id,
+                "guest_name": reservation.guest_name,
+                "room": reservation.room.name,
+                "hotel_name": reservation.hotel.name,
+                "check_in": reservation.check_in.isoformat(),
+                "check_out": reservation.check_out.isoformat(),
+                "status": reservation.status,
+                "total_price": float(reservation.total_price),
+                "guests": reservation.guests,
+            })
+        
+        return Response({
+            "summary_type": "global",
+            "hotels_count": hotels.count(),
+            "rooms": {
+                "total": total_rooms,
+                "available": available,
+                "occupied": occupied,
+                "maintenance": maintenance,
+                "out_of_service": out_of_service,
+                "total_capacity": total_capacity,
+                "max_capacity": max_capacity,
+                "current_guests": current_guests,
+            },
+            "today": {
+                "date": today.isoformat(),
+                "arrivals": arrivals_today,
+                "inhouse": inhouse_today,
+                "departures": departures_today,
+                "blocks": blocks_today,
+            },
+            "current_reservations": current_reservations,
+        }, status=status.HTTP_200_OK)

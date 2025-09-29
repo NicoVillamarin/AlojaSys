@@ -8,6 +8,7 @@ import Enterprises from "src/pages/configurations/Enterprises";
 import Cities from "src/pages/configurations/locations/Cities";
 import Countries from "src/pages/configurations/locations/Countries";
 import States from "src/pages/configurations/locations/States";
+import Dashboard from "src/pages/Dashboard";
 
 
 export const appRoutes = [
@@ -15,7 +16,7 @@ export const appRoutes = [
     path: "/",
     element: React.createElement(MainLayout),
     children: [
-      { index: true, element: React.createElement("div", { className: "p-4" }, "Inicio AlojaSys") },
+      { index: true, element: React.createElement(Dashboard) },
       { path: "rooms-gestion", element: React.createElement(RoomsGestion) },
       { path: "reservations-gestion", element: React.createElement(ReservationsGestions) },
       { path: "settings/rooms", element: React.createElement(Rooms) },

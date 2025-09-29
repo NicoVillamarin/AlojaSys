@@ -41,7 +41,7 @@ const Item = ({ to, children }) => (
 
 
 
-export default function Sidebar() {
+export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen }) {
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState({ settings: false, locations: false });
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function Sidebar() {
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
-    <aside className="hidden md:flex md:flex-col md:w-64 bg-aloja-navy text-white p-3 gap-2 overflow-y-auto relative">
+    <aside className="flex flex-col bg-aloja-navy text-white p-3 gap-2 overflow-y-auto h-screen w-full relative">
       {/* Fondo decorativo sutil como background fijo */}
       <div
         aria-hidden
@@ -61,30 +61,33 @@ export default function Sidebar() {
         }}
       />
       <div className="flex items-center justify-center h-16 px-2 shrink-0">
-        <img src={logo} alt="AlojaSys" className="block h-23 w-auto object-contain" />
-        <img src={logo_name} alt="AlojaSys" className="block h-20 w-auto object-contain" />
+        <div className="flex items-center gap-2">
+          <img src={logo} alt="AlojaSys" className="block h-23 w-auto object-contain" />
+          {!isMini && <img src={logo_name} alt="AlojaSys" className="block h-20 w-auto object-contain" />}
+        </div>
       </div>
       <nav className="mt-2 flex flex-col gap-1">
-        <Item to="/"><DashboardIcon size="16" /> <span>Dashboard</span></Item>
-        <Item to="/clients"><ClientsIcon size="16" /> <span>Clientes</span></Item>
-        <Item to="/reservations-gestion"><BellIcon size="16" /> <span>Gestión de Reservas</span></Item>
-        <Item to="/rooms-gestion"><RoomsIcon size="16" /> <span>Gestión de Habitaciones</span></Item>
-        <Item to="/rates"><CurrencyIcon size="16" /> <span>Gestión de Tarifas</span></Item>
-        <div className="mt-1">
-          <button
-            type="button"
-            onClick={() => toggleGroup("settings")}
-            className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${
-              openGroups.settings ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-            }`}
-            aria-expanded={openGroups.settings}
-          >
-            <span className="inline-flex items-center gap-2">
-              <ConfigurateIcon size="16" />
-              <span>Configuración</span>
-            </span>
-            <Chevron open={openGroups.settings} />
-          </button>
+        <Item to="/"><DashboardIcon size="20" /> {!isMini && <span>Dashboard</span>}</Item>
+        <Item to="/reservations-gestion"><BellIcon size="20" /> {!isMini && <span>Gestión de Reservas</span>}</Item>
+        <Item to="/rooms-gestion"><RoomsIcon size="20" /> {!isMini && <span>Gestión de Habitaciones</span>}</Item>
+        <Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>
+        <Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>
+        {!isMini && (
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => toggleGroup("settings")}
+              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${
+                openGroups.settings ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+              }`}
+              aria-expanded={openGroups.settings}
+            >
+              <span className="inline-flex items-center gap-2">
+                <ConfigurateIcon size="20" />
+                <span>Configuración</span>
+              </span>
+              <Chevron open={openGroups.settings} />
+            </button>
           <div
             className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
               openGroups.settings ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
@@ -117,9 +120,14 @@ export default function Sidebar() {
             </div>
             {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}
           </div>
-        </div>
+          </div>
+        )}
       </nav>
-      <div className="mt-auto text-[10px] text-white/50 px-2">v0.1</div>
+      
+      {!isMini && (
+        <div className="mt-auto text-[10px] text-white/50 px-2">v0.1</div>
+      )}
+      
     </aside>
   );
 }
