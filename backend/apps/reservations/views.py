@@ -18,6 +18,7 @@ from decimal import Decimal
 from django.db.models import Sum
 from .services.pricing import compute_nightly_rate, recalc_reservation_totals
 from django.shortcuts import get_object_or_404
+from .middleware import get_current_user
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -79,6 +80,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation.room.status = RoomStatus.OCCUPIED
         reservation.room.save(update_fields=["status"])
         reservation.save(update_fields=["status"]) 
+        # log explícito con autor
+        from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+        ReservationChangeLog.objects.create(
+            reservation=reservation,
+            event_type=ReservationChangeEvent.CHECK_IN,
+            changed_by=request.user if request.user.is_authenticated else None,
+        )
         return Response({"detail": "Check-in realizado."}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"])
@@ -99,6 +107,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
             reservation.room.status = RoomStatus.AVAILABLE
             reservation.room.save(update_fields=["status"])
         reservation.save(update_fields=["status"]) 
+        from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+        ReservationChangeLog.objects.create(
+            reservation=reservation,
+            event_type=ReservationChangeEvent.CHECK_OUT,
+            changed_by=request.user if request.user.is_authenticated else None,
+        )
         return Response({"detail": "Check-out realizado."}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"])
@@ -108,6 +122,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Solo se pueden cancelar reservas pendientes o confirmadas."}, status=status.HTTP_400_BAD_REQUEST)
         reservation.status = ReservationStatus.CANCELLED
         reservation.save(update_fields=["status"]) 
+        from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+        ReservationChangeLog.objects.create(
+            reservation=reservation,
+            event_type=ReservationChangeEvent.CANCEL,
+            changed_by=request.user if request.user.is_authenticated else None,
+        )
         return Response({"detail": "Reserva cancelada."}, status=status.HTTP_200_OK)
 
 
@@ -332,6 +352,13 @@ def reservation_charges(request, pk: int):
     ser.is_valid(raise_exception=True)
     charge = reservation.charges.create(**ser.validated_data)
     recalc_reservation_totals(reservation)
+    from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+    ReservationChangeLog.objects.create(
+        reservation=reservation,
+        event_type=ReservationChangeEvent.CHARGE_ADDED,
+        changed_by=request.user if request.user.is_authenticated else None,
+        message=f"+ {ser.validated_data.get('description', '')} ${ser.validated_data.get('amount')}"
+    )
     return Response(ReservationChargeSerializer(charge).data, status=status.HTTP_201_CREATED)
 
 
@@ -341,6 +368,13 @@ def reservation_charge_delete(request, pk: int, charge_id: int):
     charge = get_object_or_404(reservation.charges, pk=charge_id)
     charge.delete()
     recalc_reservation_totals(reservation)
+    from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+    ReservationChangeLog.objects.create(
+        reservation=reservation,
+        event_type=ReservationChangeEvent.CHARGE_REMOVED,
+        changed_by=request.user if request.user.is_authenticated else None,
+        message=f"- cargo #{charge_id}"
+    )
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -354,6 +388,13 @@ def reservation_payments(request, pk: int):
     ser = PaymentSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     payment = reservation.payments.create(**ser.validated_data)
+    from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+    ReservationChangeLog.objects.create(
+        reservation=reservation,
+        event_type=ReservationChangeEvent.PAYMENT_ADDED,
+        changed_by=request.user if request.user.is_authenticated else None,
+        message=f"+ pago ${ser.validated_data.get('amount')} ({ser.validated_data.get('method')})"
+    )
     return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
 
 
@@ -380,4 +421,45 @@ def reservation_commission(request, pk: int):
         comm.rate_percent = rate
         comm.amount = amount
         comm.save(update_fields=['rate_percent', 'amount'])
+    from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+    ReservationChangeLog.objects.create(
+        reservation=reservation,
+        event_type=ReservationChangeEvent.COMMISSION_UPDATED,
+        changed_by=request.user if request.user.is_authenticated else None,
+        message=f"commission {comm.channel} {comm.rate_percent}% (${comm.amount})"
+    )
     return Response(ChannelCommissionSerializer(comm).data, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+def reservation_history(request, pk: int):
+    reservation = get_object_or_404(Reservation, pk=pk)
+
+    status_changes_qs = reservation.status_changes.select_related("changed_by").order_by("-changed_at")
+    changes_qs = reservation.change_logs.select_related("changed_by").order_by("-changed_at")
+
+    def serialize_user(u):
+        if not u:
+            return None
+        return {"id": u.id, "username": getattr(u, "username", None), "email": getattr(u, "email", None)}
+
+    timeline = []
+    for sc in status_changes_qs:
+        timeline.append({
+            "type": "status_change",
+            "changed_at": sc.changed_at,
+            "changed_by": serialize_user(sc.changed_by),
+            "detail": {"from": sc.from_status, "to": sc.to_status},
+        })
+    for cl in changes_qs:
+        timeline.append({
+            "type": "change_log",
+            "changed_at": cl.changed_at,
+            "changed_by": serialize_user(cl.changed_by),
+            "detail": {
+                "event_type": cl.event_type,
+                "fields_changed": cl.fields_changed,
+                "message": cl.message,
+            },
+        })
+    timeline.sort(key=lambda x: x["changed_at"], reverse=True)
+    return Response({"reservation_id": reservation.id, "timeline": timeline})

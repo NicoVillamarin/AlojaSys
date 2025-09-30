@@ -155,7 +155,7 @@ const Dashboard = () => {
     isLoading: dashboardLoading,
     error: dashboardError,
     refreshMetrics: refreshDashboardMetrics
-  } = useDashboardMetrics(selectedHotel, dateRange.end, dateRange.start, dateRange.end)
+  } = useDashboardMetrics(selectedHotel, dateRange.start)
 
   // Debug: Log para verificar parámetros
   console.log('Dashboard Debug:', {
@@ -607,7 +607,6 @@ const Dashboard = () => {
             dateRange={dateRange}
             isLoading={isLoading}
             selectedPeriod={selectedPeriod}
-            trends={dashboardMetrics?.trends}
           />
         </div>
 
@@ -617,7 +616,6 @@ const Dashboard = () => {
             rooms={rooms}
             dateRange={dateRange}
             isLoading={isLoading}
-            occupancyByType={dashboardMetrics?.occupancyByType}
           />
         </div>
       </div>
@@ -643,7 +641,6 @@ const Dashboard = () => {
           dateRange={dateRange}
           isLoading={isLoading}
           selectedPeriod={selectedPeriod}
-          revenueAnalysis={dashboardMetrics?.revenueAnalysis}
         />
       </div>
 

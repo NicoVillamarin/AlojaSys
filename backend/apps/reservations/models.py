@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 from apps.core.models import Hotel
 from apps.rooms.models import Room
 from decimal import Decimal
@@ -192,3 +193,47 @@ class Payment(models.Model):
     method = models.CharField(max_length=30, default='cash')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
+
+class ReservationStatusChange(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='status_changes')
+    from_status = models.CharField(max_length=20, choices=ReservationStatus.choices, null=True, blank=True)
+    to_status = models.CharField(max_length=20, choices=ReservationStatus.choices)
+    changed_at = models.DateTimeField(auto_now_add=True)
+    changed_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.CharField(max_length=300, null=True, blank=True)
+
+    class Meta:
+        ordering = ["-changed_at"]
+        indexes = [
+            models.Index(fields=['reservation', 'changed_at']),
+            models.Index(fields=['to_status']),
+        ]
+    
+class ReservationChangeEvent(models.TextChoices):
+    CREATED = "created", "Creada"
+    UPDATED = "updated", "Actualizada"
+    STATUS_CHANGED = "status_changed", "Cambio de estado"
+    CHECK_IN = "check_in", "Check-in"
+    CHECK_OUT = "check_out", "Check-out"
+    CANCEL = "cancel", "Cancelación"
+    CHARGE_ADDED = "charge_added", "Cargo agregado"
+    CHARGE_REMOVED = "charge_removed", "Cargo eliminado"
+    PAYMENT_ADDED = "payment_added", "Pago agregado"
+    COMMISSION_UPDATED = "commission_updated", "Comisión actualizada"
+    NIGHTS_REGENERATED = "nights_regenerated", "Noches regeneradas"
+
+class ReservationChangeLog(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='change_logs')
+    event_type = models.CharField(max_length=30, choices=ReservationChangeEvent.choices)
+    changed_at = models.DateTimeField(auto_now_add=True)
+    changed_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True)
+    fields_changed = models.JSONField(default=list, help_text="Campos modificados", null=True, blank=True)
+    snapshot = models.JSONField(default=dict, help_text="Snapshot del estado anterior", null=True, blank=True)
+    message = models.CharField(max_length=300, null=True, blank=True)
+
+    class Meta:
+        ordering = ["-changed_at"]
+        indexes = [
+            models.Index(fields=['reservation', 'changed_at']),
+            models.Index(fields=['event_type']),
+        ]

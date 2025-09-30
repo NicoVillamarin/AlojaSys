@@ -10,6 +10,7 @@ from .views import (
     reservation_charge_delete,
     reservation_payments,
     reservation_commission,
+    reservation_history,
 )
 
 router = DefaultRouter()
@@ -23,5 +24,6 @@ urlpatterns = [
     path("reservations/<int:pk>/charges/<int:charge_id>/", reservation_charge_delete, name="reservation-charge-delete"),
     path("reservations/<int:pk>/payments/", reservation_payments, name="reservation-payments"),
     path("reservations/<int:pk>/commission/", reservation_commission, name="reservation-commission"),
+    path("reservations/<int:pk>/history/", reservation_history, name="reservation-history"),
     path("", include(router.urls)),
 ]

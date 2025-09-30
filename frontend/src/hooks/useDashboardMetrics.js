@@ -8,7 +8,7 @@ import { useList } from './useList'
  * @param {string} date - Fecha en formato YYYY-MM-DD (opcional, por defecto hoy)
  * @returns {Object} Objeto con métricas y estado de carga
  */
-export const useDashboardMetrics = (hotelId = null, date = null, startDate = null, endDate = null) => {
+export const useDashboardMetrics = (hotelId = null, date = null) => {
   const [metrics, setMetrics] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -35,11 +35,7 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
       ...(hotelId && { hotel_id: hotelId }),
       date: (date || new Date().toISOString().split('T')[0])
     },
-    enabled: true,
-    // Mantener los datos en caché al refocus/retry para evitar parpadeos al refrescar
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1
+    enabled: true
   })
 
   // Debug: Log para verificar respuesta
@@ -49,71 +45,17 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
     error: summary?.error
   })
 
-  // Tendencias (global u hotel segun presencia de hotelId)
-  const { 
-    results: trends, 
-    isPending: trendsLoading, 
-    refetch: refetchTrends 
-  } = useAction({
-    resource: 'dashboard',
-    action: 'trends',
-    params: {
-      ...(hotelId && { hotel_id: hotelId }),
-      ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : { days: 30 })
-    },
-    enabled: true,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1
-  })
-
-  // Ocupación por tipo
-  const { 
-    results: occupancyByType, 
-    isPending: occupancyLoading, 
-    refetch: refetchOccupancy 
-  } = useAction({
-    resource: 'dashboard',
-    action: 'occupancy-by-room-type',
-    params: {
-      ...(hotelId && { hotel_id: hotelId }),
-      date: date || new Date().toISOString().split('T')[0]
-    },
-    enabled: true,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1
-  })
-
-  // Revenue analysis (solo si hay hotel)
-  const { 
-    results: revenueAnalysis, 
-    isPending: revenueLoading, 
-    refetch: refetchRevenue 
-  } = useAction({
-    resource: 'dashboard',
-    action: 'revenue-analysis',
-    params: {
-      ...(hotelId ? { hotel_id: hotelId } : {}),
-      ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : { days: 30 })
-    },
-    enabled: true,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1
-  })
-
   // Procesar métricas cuando cambien los datos
   useEffect(() => {
     if (summary) {
       setMetrics({
         summary,
-        trends: Array.isArray(trends) ? trends : [],
-        occupancyByType: occupancyByType || {},
-        revenueAnalysis: revenueAnalysis || null
+        trends: [],
+        occupancyByType: {},
+        revenueAnalysis: null
       })
     }
-  }, [summary, trends, occupancyByType, revenueAnalysis])
+  }, [summary])
 
   // Función para refrescar métricas
   const refreshMetrics = async () => {
@@ -121,12 +63,7 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
     setError(null)
     
     try {
-      await Promise.all([
-        refetchSummary(),
-        refetchTrends(),
-        refetchOccupancy(),
-        refetchRevenue?.()
-      ])
+      await refetchSummary()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -136,13 +73,10 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
 
   return {
     metrics,
-    isLoading: summaryLoading || trendsLoading || occupancyLoading || revenueLoading || isLoading,
+    isLoading: summaryLoading || isLoading,
     error,
     refreshMetrics,
-    refetchSummary,
-    refetchTrends,
-    refetchOccupancy,
-    refetchRevenue
+    refetchSummary
   }
 }
 
