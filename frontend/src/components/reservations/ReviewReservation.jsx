@@ -1,8 +1,216 @@
 import React from 'react'
+import { useFormikContext } from 'formik'
+import { format, parseISO, isValid } from 'date-fns'
+import { es } from 'date-fns/locale'
+import CheckCircleIcon from 'src/assets/icons/CheckCircleIcon'
+import CandelarClock from 'src/assets/icons/CandelarClock'
+import PeopleIcon from 'src/assets/icons/PeopleIcon'
 
 const ReviewReservation = () => {
+  const { values } = useFormikContext()
+
+  // Función helper para formatear fechas correctamente
+  const formatDate = (dateString, formatStr = 'dd MMM') => {
+    if (!dateString) return ''
+    try {
+      // Si es una fecha en formato ISO, usar parseISO
+      if (dateString.includes('T') || dateString.includes('Z')) {
+        const parsed = parseISO(dateString)
+        return isValid(parsed) ? format(parsed, formatStr, { locale: es }) : ''
+      }
+      // Si es una fecha en formato YYYY-MM-DD, crear Date directamente
+      const date = new Date(dateString + 'T00:00:00')
+      return isValid(date) ? format(date, formatStr, { locale: es }) : ''
+    } catch (error) {
+      console.error('Error formatting date:', error)
+      return ''
+    }
+  }
+
+  // Calcular duración de la estadía
+  const calculateStayDuration = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return 0
+    try {
+      const checkInDate = checkIn.includes('T') ? parseISO(checkIn) : new Date(checkIn + 'T00:00:00')
+      const checkOutDate = checkOut.includes('T') ? parseISO(checkOut) : new Date(checkOut + 'T00:00:00')
+      
+      if (!isValid(checkInDate) || !isValid(checkOutDate)) return 0
+      
+      const diffTime = checkOutDate - checkInDate
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    } catch (error) {
+      console.error('Error calculating stay duration:', error)
+      return 0
+    }
+  }
+
+  const stayDuration = calculateStayDuration(values.check_in, values.check_out)
+
   return (
-    <div>ReviewReservation</div>
+    <div className="space-y-6">
+      {/* Resumen Principal */}
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200 shadow-sm">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <CheckCircleIcon className="w-6 h-6 text-green-600" />
+          </div>
+          <h3 className="text-xl font-bold text-green-900">Resumen de la Reserva</h3>
+        </div>
+
+        {/* Rango de fechas destacado */}
+        <div className="bg-white p-6 rounded-lg border border-green-200 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <div className="text-center">
+                <div className="text-sm font-medium text-gray-600 mb-2">Check-in</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatDate(values.check_in, 'dd MMM')}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formatDate(values.check_in, 'EEEE, yyyy')}
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-0.5 bg-green-300"></div>
+                <div className="bg-green-100 px-3 py-1 rounded-full">
+                  <span className="text-green-700 font-bold text-sm">
+                    {stayDuration} {stayDuration === 1 ? 'noche' : 'noches'}
+                  </span>
+                </div>
+                <div className="w-12 h-0.5 bg-green-300"></div>
+              </div>
+              
+              <div className="text-center">
+                <div className="text-sm font-medium text-gray-600 mb-2">Check-out</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatDate(values.check_out, 'dd MMM')}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formatDate(values.check_out, 'EEEE, yyyy')}
+                </div>
+              </div>
+            </div>
+            
+            <div className="text-right">
+              <div className="text-sm text-gray-600 mb-1">Duración total</div>
+              <div className="text-3xl font-bold text-green-600">{stayDuration}</div>
+              <div className="text-sm text-gray-500">noches</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Información de la habitación y huéspedes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white p-4 rounded-lg border border-green-200">
+            <div className="flex items-center space-x-2 mb-3">
+              <CandelarClock className="w-5 h-5 text-green-600" />
+              <h4 className="font-semibold text-gray-800">Habitación</h4>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <span className="text-sm text-gray-600">Hotel: </span>
+                <span className="font-medium">{values.hotel || 'No seleccionado'}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Habitación: </span>
+                <span className="font-medium">
+                  {values.room_data?.name || values.room || 'No seleccionada'}
+                </span>
+              </div>
+              {values.room_data && (
+                <div>
+                  <span className="text-sm text-gray-600">Tipo: </span>
+                  <span className="font-medium">{values.room_data.room_type}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg border border-green-200">
+            <div className="flex items-center space-x-2 mb-3">
+              <PeopleIcon className="w-5 h-5 text-green-600" />
+              <h4 className="font-semibold text-gray-800">Huéspedes</h4>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <span className="text-sm text-gray-600">Total: </span>
+                <span className="font-medium text-lg">{values.guests || 0}</span>
+                {values.room_data && (
+                  <span className="text-sm text-gray-500 ml-1">
+                    / {values.room_data.max_capacity} máximo
+                  </span>
+                )}
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Principal: </span>
+                <span className="font-medium">{values.guest_name || 'No especificado'}</span>
+              </div>
+              {values.other_guests && values.other_guests.length > 0 && (
+                <div>
+                  <span className="text-sm text-gray-600">Adicionales: </span>
+                  <span className="font-medium">{values.other_guests.length}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Información del huésped principal */}
+      {values.guest_name && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
+          <h4 className="text-lg font-bold text-blue-900 mb-4">Huésped Principal</h4>
+          <div className="bg-white p-4 rounded-lg border border-blue-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <span className="text-sm text-gray-600">Nombre: </span>
+                <span className="font-medium">{values.guest_name}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Email: </span>
+                <span className="font-medium">{values.guest_email}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Teléfono: </span>
+                <span className="font-medium">{values.guest_phone}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Documento: </span>
+                <span className="font-medium">{values.guest_document}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notas */}
+      {values.notes && (
+        <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+          <h4 className="text-lg font-bold text-gray-900 mb-4">Notas Adicionales</h4>
+          <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <p className="text-gray-700">{values.notes}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Validación final */}
+      <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-4 rounded-xl border border-yellow-200">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-yellow-100 rounded-lg">
+            <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="font-bold text-yellow-900">Verificación Final</h4>
+            <p className="text-yellow-700 text-sm">
+              Revisa todos los datos antes de confirmar la reserva. Una vez creada, podrás editarla desde el panel de gestión.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

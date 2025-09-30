@@ -1,12 +1,13 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import TableGeneric from "src/components/TableGeneric";
 import { useList } from "src/hooks/useList";
-import { getStatusMeta } from "src/utils/statusList";
+import { getStatusMeta, statusList } from "src/utils/statusList";
 import RoomsModal from "src/components/modals/RoomsModal";
 import EditIcon from "src/assets/icons/EditIcon";
 import DeleteButton from "src/components/DeleteButton";
 import Button from "src/components/Button";
 import SelectAsync from "src/components/selects/SelectAsync";
+import Select from "react-select";
 import { useAction } from "src/hooks/useAction";
 import { Formik } from "formik";
 import Kpis from "src/components/Kpis";
@@ -20,15 +21,16 @@ import BedAvailableIcon from "src/assets/icons/BedAvailableIcon";
 import CheckinIcon from "src/assets/icons/CheckinIcon";
 import CheckIcon from "src/assets/icons/CheckIcon";
 import PleopleOccupatedIcon from "src/assets/icons/PleopleOccupatedIcon";
+import Filter from "src/components/Filter";
 
 export default function Rooms() {
   const [showModal, setShowModal] = useState(false);
   const [editRoom, setEditRoom] = useState(null);
-  const [filters, setFilters] = useState({ search: "", hotel: "" });
+  const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
   const didMountRef = useRef(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
-    useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel } });
+    useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel, status: filters.status } });
 
   const { results: summary, isPending: kpiLoading } = useAction({
     resource: 'status',
@@ -146,7 +148,7 @@ export default function Rooms() {
 
   const onSearch = () => refetch();
   const onClear = () => {
-    setFilters({ search: "", hotel: "" });
+    setFilters({ search: "", hotel: "", status: "" });
     setTimeout(() => refetch(), 0);
   };
 
@@ -159,7 +161,7 @@ export default function Rooms() {
       refetch();
     }, 400);
     return () => clearTimeout(id);
-  }, [filters.search, filters.hotel, refetch]);
+  }, [filters.search, filters.hotel, filters.status, refetch]);
 
   return (
     <div className="space-y-5">
@@ -175,8 +177,7 @@ export default function Rooms() {
 
       <RoomsModal isOpen={showModal} onClose={() => setShowModal(false)} isEdit={false} onSuccess={refetch} />
       <RoomsModal isOpen={!!editRoom} onClose={() => setEditRoom(null)} isEdit={true} room={editRoom} onSuccess={refetch} />
-
-      <div className="bg-white rounded-xl shadow p-3">
+        <Filter>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
@@ -204,25 +205,56 @@ export default function Rooms() {
               </button>
             )}
           </div>
-          <div className="w-56">
-            <Formik
-              enableReinitialize
-              initialValues={{}}
-              onSubmit={() => { }}
-            >
-              <SelectAsync
-                title="Hotel"
-                name="hotel"
-                resource="hotels"
+          <div className="flex gap-3">
+            <div className="w-56">
+              <Formik
+                enableReinitialize
+                initialValues={{}}
+                onSubmit={() => { }}
+              >
+                <SelectAsync
+                  title="Hotel"
+                  name="hotel"
+                  resource="hotels"
+                  placeholder="Todos"
+                  getOptionLabel={(h) => h?.name}
+                  getOptionValue={(h) => h?.id}
+                  onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
+                />
+              </Formik>
+            </div>
+            <div className="w-48">
+              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Estado</label>
+              <Select
+                value={statusList.find(s => String(s.value) === String(filters.status)) || null}
+                onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
+                options={[
+                  { value: "", label: "Todos" },
+                  ...statusList
+                ]}
                 placeholder="Todos"
-                getOptionLabel={(h) => h?.name}
-                getOptionValue={(h) => h?.id}
-                onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
+                isClearable
+                isSearchable
+                classNamePrefix="rs"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    minHeight: 36,
+                    borderRadius: 6,
+                    borderColor: '#e5e7eb',
+                    fontSize: 14,
+                  }),
+                  valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
+                  indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
+                  dropdownIndicator: (base) => ({ ...base, padding: 6 }),
+                  clearIndicator: (base) => ({ ...base, padding: 6 }),
+                  menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
+                }}
               />
-            </Formik>
+            </div>
           </div>
         </div>
-      </div>
+        </Filter>
 
       {filters.hotel && (
         <div className="mb-6">

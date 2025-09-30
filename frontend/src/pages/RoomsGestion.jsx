@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import TableGeneric from "src/components/TableGeneric";
-import { getStatusMeta } from "src/utils/statusList";
+import { getStatusMeta, statusList } from "src/utils/statusList";
 import { useList } from "src/hooks/useList";
 import { useAction } from "src/hooks/useAction";
 import Select from "react-select";
 import { format, parseISO } from "date-fns";
 import Kpis from "src/components/Kpis";
+import Filter from "src/components/Filter";
 import HomeIcon from "src/assets/icons/HomeIcon";
 import UsersIcon from "src/assets/icons/UsersIcon";
 import BedAvailableIcon from "src/assets/icons/BedAvailableIcon";
@@ -17,13 +18,14 @@ import CheckIcon from "src/assets/icons/CheckIcon";
 import ConfigurateIcon from "src/assets/icons/ConfigurateIcon";
 import CheckoutIcon from "src/assets/icons/CheckoutIcon";
 import CheckinIcon from "src/assets/icons/CheckinIcon";
+import SelectBasic from "src/components/selects/SelectBasic";
 
 export default function RoomsGestion() {
-  const [filters, setFilters] = useState({ search: "", hotel: "" });
+  const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
   const didMountRef = useRef(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
-    useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel } });
+    useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel, status: filters.status } });
 
   // Lista de hoteles para el filtro
   const { results: hotels } = useList({ resource: "hotels" });
@@ -232,7 +234,7 @@ export default function RoomsGestion() {
 
   const onSearch = () => refetch();
   const onClear = () => {
-    setFilters({ search: "", hotel: "" });
+    setFilters({ search: "", hotel: "", status: "" });
     setTimeout(() => refetch(), 0);
   };
 
@@ -246,7 +248,7 @@ export default function RoomsGestion() {
       refetch();
     }, 400);
     return () => clearTimeout(id);
-  }, [filters.search, filters.hotel, refetch]);
+  }, [filters.search, filters.hotel, filters.status, refetch]);
 
   return (
     <div className="space-y-5">
@@ -264,7 +266,7 @@ export default function RoomsGestion() {
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl shadow p-3">
+      <Filter title="Filtros de Habitaciones">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
@@ -292,6 +294,36 @@ export default function RoomsGestion() {
               </button>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+          <div className="w-56">
+            <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Estado</label>
+            <Select
+              value={statusList.find(s => String(s.value) === String(filters.status)) || null}
+              onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
+              options={[
+                { value: "", label: "Todos" },
+                ...statusList
+              ]}
+              placeholder="Todos"
+              isClearable
+              isSearchable
+              classNamePrefix="rs"
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  minHeight: 36,
+                  borderRadius: 6,
+                  borderColor: '#e5e7eb',
+                  fontSize: 14,
+                }),
+                valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
+                indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
+                dropdownIndicator: (base) => ({ ...base, padding: 6 }),
+                clearIndicator: (base) => ({ ...base, padding: 6 }),
+                menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
+              }}
+            />
+          </div>
           <div className="w-56">
             <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Hotel</label>
             <Select
@@ -316,21 +348,13 @@ export default function RoomsGestion() {
                 indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
                 dropdownIndicator: (base) => ({ ...base, padding: 6 }),
                 clearIndicator: (base) => ({ ...base, padding: 6 }),
-                menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 60 }),
-                menuList: (base) => ({ ...base, paddingTop: 4, paddingBottom: 4 }),
-                option: (base, state) => ({
-                  ...base,
-                  fontSize: 14,
-                  backgroundColor: state.isSelected ? '#132344' : state.isFocused ? '#eef2ff' : 'white',
-                  color: state.isSelected ? '#fff' : '#111827',
-                  ':active': { backgroundColor: state.isSelected ? '#132344' : '#e5e7eb' },
-                }),
-                placeholder: (base) => ({ ...base, color: '#6b7280' }),
+                menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
               }}
             />
           </div>
+          </div>
         </div>
-      </div>
+      </Filter>
 
       {/* Tabla */}
       <TableGeneric

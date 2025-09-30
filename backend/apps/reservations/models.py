@@ -2,6 +2,8 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from apps.core.models import Hotel
 from apps.rooms.models import Room
+from decimal import Decimal
+from datetime import timedelta
 
 class ReservationStatus(models.TextChoices):
     PENDING = "pending", "Pendiente"
@@ -18,11 +20,18 @@ class RoomBlockType(models.TextChoices):
     OUT_OF_SERVICE = "out_of_service", "Fuera de servicio"
     HOLD = "hold", "Bloqueo"
 
+class ReservationChannel(models.TextChoices):
+    DIRECT = "direct", "Directo"
+    BOOKING = "booking", "Booking"
+    EXPEDIA = "expedia", "Expedia"
+    OTHER = "other", "Otro"
+
 class Reservation(models.Model):
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="reservations")
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="reservations")
     guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
     guests_data = models.JSONField(default=list, help_text="Información de todos los huéspedes")
+    channel = models.CharField(max_length=20, choices=ReservationChannel.choices, default=ReservationChannel.DIRECT)
     check_in = models.DateField()
     check_out = models.DateField()
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
@@ -65,7 +74,14 @@ class Reservation(models.Model):
     def save(self, *args, **kwargs):
         if self.room_id and self.check_in and self.check_out:
             nights = (self.check_out - self.check_in).days
-            self.total_price = max(nights, 0) * self.room.base_price
+            # Precio base por noche desde la habitación
+            base_nightly = self.room.base_price or Decimal('0.00')
+            # Extra por huéspedes por encima de la capacidad incluida
+            included = self.room.capacity or 1
+            extra_guests = max((self.guests or 1) - included, 0)
+            extra_fee = (self.room.extra_guest_fee or Decimal('0.00')) * Decimal(extra_guests)
+            # Total aproximado: (tarifa base + extra x noche) * noches
+            self.total_price = (Decimal(max(nights, 0)) * (Decimal(base_nightly) + Decimal(extra_fee))).quantize(Decimal('0.01'))
             if self.hotel_id is None:
                 self.hotel = self.room.hotel
         super().save(*args, **kwargs)
@@ -130,3 +146,49 @@ class RoomBlock(models.Model):
             models.Index(fields=["hotel", "start_date"]),
             models.Index(fields=["is_active"]),
         ]
+
+
+# --- Pricing primitives ---
+class ReservationNight(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='nights')
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='reservation_nights')
+    room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name='reservation_nights')
+    date = models.DateField()
+    base_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    extra_guest_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_night = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('reservation', 'date')
+        indexes = [
+            models.Index(fields=['hotel', 'date']),
+            models.Index(fields=['room', 'date']),
+        ]
+
+
+class ReservationCharge(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='charges')
+    date = models.DateField()
+    description = models.CharField(max_length=200)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    taxable = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ChannelCommission(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='commissions')
+    channel = models.CharField(max_length=50, default='direct')
+    rate_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Payment(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='payments')
+    date = models.DateField()
+    method = models.CharField(max_length=30, default='cash')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)

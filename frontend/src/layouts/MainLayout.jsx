@@ -88,7 +88,7 @@ export default function MainLayout() {
         }}
       >
         <Navbar />
-        <main className="flex-1 p-6">
+        <main className="flex-1 py-6 px-8">
           <Outlet />
         </main>
       </div>

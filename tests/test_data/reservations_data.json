@@ -1,0 +1,144 @@
+{
+  "hotel_id": 35,
+  "hotel_name": "Hotel Test",
+  "reservations": [
+    {
+      "id": 93,
+      "guest": "Laura Martínez",
+      "room": "Habitación 101",
+      "check_in": "2025-10-22",
+      "check_out": "2025-10-23",
+      "status": "confirmed"
+    },
+    {
+      "id": 94,
+      "guest": "Carlos Sánchez",
+      "room": "Habitación 11",
+      "check_in": "2025-10-23",
+      "check_out": "2025-10-27",
+      "status": "confirmed"
+    },
+    {
+      "id": 95,
+      "guest": "Carmen Flores",
+      "room": "Habitación 6",
+      "check_in": "2025-10-21",
+      "check_out": "2025-10-23",
+      "status": "confirmed"
+    },
+    {
+      "id": 96,
+      "guest": "María Martínez",
+      "room": "Habitación 18",
+      "check_in": "2025-10-14",
+      "check_out": "2025-10-17",
+      "status": "confirmed"
+    },
+    {
+      "id": 97,
+      "guest": "Carlos Martínez",
+      "room": "Habitación 13",
+      "check_in": "2025-10-14",
+      "check_out": "2025-10-15",
+      "status": "confirmed"
+    },
+    {
+      "id": 98,
+      "guest": "Juan González",
+      "room": "Habitación 6",
+      "check_in": "2025-10-23",
+      "check_out": "2025-10-27",
+      "status": "confirmed"
+    },
+    {
+      "id": 99,
+      "guest": "Carlos Martínez",
+      "room": "Habitación 9",
+      "check_in": "2025-10-21",
+      "check_out": "2025-10-23",
+      "status": "confirmed"
+    },
+    {
+      "id": 100,
+      "guest": "Sofia Martínez",
+      "room": "Habitación 3",
+      "check_in": "2025-10-18",
+      "check_out": "2025-10-23",
+      "status": "confirmed"
+    },
+    {
+      "id": 101,
+      "guest": "Laura Flores",
+      "room": "Habitación 16",
+      "check_in": "2025-10-24",
+      "check_out": "2025-10-30",
+      "status": "confirmed"
+    },
+    {
+      "id": 102,
+      "guest": "Carmen Ramírez",
+      "room": "Habitación 14",
+      "check_in": "2025-10-04",
+      "check_out": "2025-10-08",
+      "status": "confirmed"
+    },
+    {
+      "id": 103,
+      "guest": "María Rodríguez",
+      "room": "Habitación 101",
+      "check_in": "2025-10-29",
+      "check_out": "2025-11-03",
+      "status": "confirmed"
+    },
+    {
+      "id": 104,
+      "guest": "Diego González",
+      "room": "Habitación 12",
+      "check_in": "2025-10-13",
+      "check_out": "2025-10-16",
+      "status": "confirmed"
+    },
+    {
+      "id": 105,
+      "guest": "Juan Sánchez",
+      "room": "Habitación 2",
+      "check_in": "2025-10-20",
+      "check_out": "2025-10-21",
+      "status": "confirmed"
+    },
+    {
+      "id": 106,
+      "guest": "María García",
+      "room": "Habitación 101",
+      "check_in": "2025-10-09",
+      "check_out": "2025-10-10",
+      "status": "confirmed"
+    },
+    {
+      "id": 107,
+      "guest": "Diego Martínez",
+      "room": "Habitación 15",
+      "check_in": "2025-10-06",
+      "check_out": "2025-10-10",
+      "status": "confirmed"
+    },
+    {
+      "id": 108,
+      "guest": "Ana González",
+      "room": "Habitación 3",
+      "check_in": "2025-10-04",
+      "check_out": "2025-10-08",
+      "status": "confirmed"
+    },
+    {
+      "id": 109,
+      "guest": "Sofia Cruz",
+      "room": "Habitación 1",
+      "check_in": "2025-10-12",
+      "check_out": "2025-10-15",
+      "status": "confirmed"
+    }
+  ],
+  "created_at": "2025-09-29T19:46:10.713552",
+  "description": "Reservas de prueba para testing automatizado"
+}

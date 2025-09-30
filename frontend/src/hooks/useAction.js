@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { actionResources } from "src/services/actionResources";
 
-export const useAction = ({ resource, action, params, enabled = true }) => {
+export const useAction = ({ resource, action, params, enabled = true, ...options }) => {
   /**
    * @module Hooks
    * Hook para realizar llamadas a recursos con acciones y parametros opcionales.
@@ -42,6 +42,7 @@ export const useAction = ({ resource, action, params, enabled = true }) => {
     queryKey: [resource, action, params],
     queryFn: actionResources,
     enabled,
+    ...options,
   });
 
   return {

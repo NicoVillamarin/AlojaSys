@@ -7,6 +7,7 @@ from apps.rooms.views import RoomViewSet
 from apps.reservations.views import ReservationViewSet, AvailabilityView
 from apps.locations.views import CountryViewSet, StateViewSet, CityViewSet
 from apps.users.views import me_view
+from apps.dashboard.views import DashboardMetricsListCreateView, DashboardMetricsDetailView
 router = DefaultRouter()
 router.register(r"hotels", HotelViewSet, basename="hotel")
 router.register(r"rooms", RoomViewSet, basename="room")
@@ -19,6 +20,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),  # <- ÚNICO include de router
     path("api/", include("apps.enterprises.urls")),
+    path("api/", include("apps.reservations.urls")),
+    path("api/dashboard/", include("apps.dashboard.urls")),
     path("api/status/summary/", StatusSummaryView.as_view(), name="status-summary"),
     path("api/status/global-summary/", GlobalSummaryView.as_view(), name="global-summary"),
     path("api/reservations/availability/", AvailabilityView.as_view(), name="reservations-availability"),

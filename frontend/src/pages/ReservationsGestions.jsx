@@ -7,22 +7,10 @@ import Button from 'src/components/Button'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import { Formik } from 'formik'
 import { format, parseISO } from 'date-fns'
+import { getStatusLabel, RES_STATUS } from './utils'
+import Filter from 'src/components/Filter'
 
-const RES_STATUS = [
-  { value: 'pending', label: 'Pendiente' },
-  { value: 'confirmed', label: 'Confirmada' },
-  { value: 'check_in', label: 'Check-in' },
-  { value: 'check_out', label: 'Check-out' },
-  { value: 'cancelled', label: 'Cancelada' },
-  { value: 'no_show', label: 'No-show' },
-  { value: 'early_check_in', label: 'Check-in anticipado' },
-  { value: 'late_check_out', label: 'Check-out tardío' },
-]
 
-function getStatusLabel(value) {
-  const found = RES_STATUS.find((s) => s.value === value)
-  return found ? found.label : (value || '-')
-}
 
 export default function ReservationsGestions() {
   const [showModal, setShowModal] = useState(false)
@@ -111,7 +99,7 @@ export default function ReservationsGestions() {
       <ReservationsModal isOpen={showModal} onClose={() => setShowModal(false)} onSuccess={refetch} />
       <ReservationsModal isOpen={!!editReservation} onClose={() => setEditReservation(null)} isEdit={true} reservation={editReservation} onSuccess={refetch} />
 
-      <div className="bg-white rounded-xl shadow p-3">
+     <Filter>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
             <label className="text-xs text-aloja-gray-800/60">Buscar</label>
@@ -193,7 +181,7 @@ export default function ReservationsGestions() {
             </button>
           </div>
         </div>
-      </div>
+     </Filter>
 
       <TableGeneric
         isLoading={isPending}

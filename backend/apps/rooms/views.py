@@ -21,6 +21,11 @@ class RoomViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 pass  # Ignorar valores inválidos
         
+        # Filtro por estado de habitación
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        
         return qs
 
     def destroy(self, request, *args, **kwargs):

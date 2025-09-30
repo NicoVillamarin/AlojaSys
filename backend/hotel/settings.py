@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.enterprises",
     "apps.core",
     "apps.locations",
+    "apps.dashboard",
 ]
 
 MIDDLEWARE = [
@@ -146,4 +147,15 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reservations.tasks.sync_room_occupancy_for_today",
         "schedule": crontab(hour=6, minute=0),
     },
+    "calculate_dashboard_metrics_daily": {
+        "task": "apps.dashboard.tasks.calculate_dashboard_metrics_daily",
+        "schedule": crontab(hour=6, minute=10),
+    },
+}
+
+CHANNEL_COMMISSION_RATES = {
+    "direct": 0,
+    "booking": 15,     # %
+    "expedia": 18,     # %
+    "other": 0,
 }

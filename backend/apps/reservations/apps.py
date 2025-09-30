@@ -6,6 +6,5 @@ class ReservationsConfig(AppConfig):
     verbose_name = 'Reservas'
 
     def ready(self):
-        # Si necesitas signals:
-        # from . import signals
+        import apps.reservations.signals
         pass

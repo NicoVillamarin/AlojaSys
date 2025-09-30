@@ -1,6 +1,8 @@
 import { Formik } from 'formik'
 import * as Yup from 'yup'
 import { useEffect, useState, useRef } from 'react'
+import { format, parseISO, isValid } from 'date-fns'
+import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -30,6 +32,41 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   const [modalKey, setModalKey] = useState(0)
   const [activeTab, setActiveTab] = useState('basic')
   const formikRef = useRef(null)
+
+  // Función helper para formatear fechas correctamente
+  const formatDate = (dateString, formatStr = 'dd MMM') => {
+    if (!dateString) return ''
+    try {
+      // Si es una fecha en formato ISO, usar parseISO
+      if (dateString.includes('T') || dateString.includes('Z')) {
+        const parsed = parseISO(dateString)
+        return isValid(parsed) ? format(parsed, formatStr, { locale: es }) : ''
+      }
+      // Si es una fecha en formato YYYY-MM-DD, crear Date directamente
+      const date = new Date(dateString + 'T00:00:00')
+      return isValid(date) ? format(date, formatStr, { locale: es }) : ''
+    } catch (error) {
+      console.error('Error formatting date:', error)
+      return ''
+    }
+  }
+
+  // Función para calcular duración de estadía
+  const calculateStayDuration = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return 0
+    try {
+      const checkInDate = checkIn.includes('T') ? parseISO(checkIn) : new Date(checkIn + 'T00:00:00')
+      const checkOutDate = checkOut.includes('T') ? parseISO(checkOut) : new Date(checkOut + 'T00:00:00')
+      
+      if (!isValid(checkInDate) || !isValid(checkOutDate)) return 0
+      
+      const diffTime = checkOutDate - checkInDate
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    } catch (error) {
+      console.error('Error calculating stay duration:', error)
+      return 0
+    }
+  }
 
   const { mutate: createReservation, isPending: creating } = useCreate({
     resource: 'reservations',
@@ -162,8 +199,49 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         return true
       })
       .required('Número de huéspedes es requerido'),
-    check_in: Yup.date().required('Check-in es requerido'),
-    check_out: Yup.date().required('Check-out es requerido'),
+    check_in: Yup.date()
+      .required('Check-in es requerido')
+      .test('not-before-today', 'La fecha de check-in no puede ser anterior a hoy', function (value) {
+        if (!value) return true
+        const today = new Date()
+        const checkInDate = new Date(value)
+        
+        // Establecer ambas fechas a medianoche para comparar solo la fecha
+        today.setHours(0, 0, 0, 0)
+        checkInDate.setHours(0, 0, 0, 0)
+        
+        return checkInDate >= today
+      }),
+    check_out: Yup.date()
+      .required('Check-out es requerido')
+      .test('is-after-checkin', 'Check-out debe ser posterior al check-in', function (value) {
+        const { check_in } = this.parent
+        if (!check_in || !value) return true
+        
+        const checkInDate = new Date(check_in)
+        const checkOutDate = new Date(value)
+        
+        // Establecer ambas fechas a medianoche para comparar solo la fecha
+        checkInDate.setHours(0, 0, 0, 0)
+        checkOutDate.setHours(0, 0, 0, 0)
+        
+        return checkOutDate > checkInDate
+      })
+      .test('min-stay', 'La estadía mínima es de 1 noche', function (value) {
+        const { check_in } = this.parent
+        if (!check_in || !value) return true
+        
+        const checkInDate = new Date(check_in)
+        const checkOutDate = new Date(value)
+        
+        // Establecer ambas fechas a medianoche para comparar solo la fecha
+        checkInDate.setHours(0, 0, 0, 0)
+        checkOutDate.setHours(0, 0, 0, 0)
+        
+        const diffTime = checkOutDate - checkInDate
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return diffDays >= 1
+      }),
     room: Yup.number().required('Habitación es requerida'),
     // Validación del huésped principal
     guest_name: Yup.string().required('Nombre del huésped principal es requerido'),
@@ -195,7 +273,21 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     <ModalLayout
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Editar reserva' : 'Crear reserva'}
+      title={
+        <div className="flex flex-col">
+          <span>{isEdit ? 'Editar reserva' : 'Crear reserva'}</span>
+          {formikRef.current?.values?.check_in && formikRef.current?.values?.check_out && (
+            <div className="text-sm font-normal text-gray-600 mt-1">
+              {(() => {
+                const checkIn = formikRef.current.values.check_in
+                const checkOut = formikRef.current.values.check_out
+                const duration = calculateStayDuration(checkIn, checkOut)
+                return `${formatDate(checkIn, 'dd/MM/yyyy')} - ${formatDate(checkOut, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? 'noche' : 'noches'})`
+              })()}
+            </div>
+          )}
+        </div>
+      }
       onSubmit={() => {
         // Obtener los valores de Formik y enviar
         if (formikRef.current) {
@@ -363,6 +455,49 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                     />
                   </div>
                   
+                  {/* Resumen del rango de estadía */}
+                  {values.check_in && values.check_out && (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 w-1/2 mx-auto">
+                      <div className="flex items-center justify-center space-x-6">
+                        {/* Check-in */}
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Check-in</div>
+                          <div className="text-lg font-bold text-blue-600">
+                            {formatDate(values.check_in, 'EEE, dd MMM')}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDate(values.check_in, 'yyyy')}
+                          </div>
+                        </div>
+                        
+                        {/* Línea conectora y duración */}
+                        <div className="flex items-center space-x-3">
+                          <div className="w-6 h-0.5 bg-blue-300"></div>
+                          <div className="bg-blue-100 px-3 py-1 rounded-full">
+                            <span className="text-blue-700 font-semibold text-sm">
+                              {(() => {
+                                const duration = calculateStayDuration(values.check_in, values.check_out)
+                                return `${duration} ${duration === 1 ? 'noche' : 'noches'}`
+                              })()}
+                            </span>
+                          </div>
+                          <div className="w-6 h-0.5 bg-blue-300"></div>
+                        </div>
+                        
+                        {/* Check-out */}
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Check-out</div>
+                          <div className="text-lg font-bold text-blue-600">
+                            {formatDate(values.check_out, 'EEE, dd MMM')}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDate(values.check_out, 'yyyy')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Mensajes informativos */}
                   {values.guests && values.hotel && (
                     <div className="text-sm text-blue-600 mt-1">

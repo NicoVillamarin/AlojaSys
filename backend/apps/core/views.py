@@ -72,7 +72,7 @@ class StatusSummaryView(APIView):
         departures_today = Reservation.objects.filter(
             hotel=hotel,
             check_out=today,
-            status=ReservationStatus.CHECK_IN,
+            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
         ).count()
 
         # Lista compacta de reservas actuales
@@ -189,7 +189,7 @@ class GlobalSummaryView(APIView):
         departures_today = Reservation.objects.filter(
             hotel__in=hotels,
             check_out=today,
-            status=ReservationStatus.CHECK_IN,
+            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
         ).count()
         
         # Calcular huéspedes actuales globales

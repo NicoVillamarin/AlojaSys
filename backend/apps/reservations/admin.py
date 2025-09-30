@@ -4,8 +4,8 @@ from .models import Reservation, RoomBlock
 @admin.register(Reservation)
 
 class ReservationAdmin(admin.ModelAdmin):
-    list_display = ["hotel", "room", "guest_name", "check_in", "check_out", "status", "total_price"]
-    list_filter = ["hotel", "room", "status"]
+    list_display = ["hotel", "room", "guest_name", "check_in", "check_out", "status", "total_price", "channel"]
+    list_filter = ["hotel", "room", "status", "channel"]
     search_fields = ["guest_name", "room__name", "hotel__name", "guest_email"]
     list_editable = ["status"]
     list_select_related = ["hotel", "room"]

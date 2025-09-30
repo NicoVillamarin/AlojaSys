@@ -2,13 +2,23 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from datetime import date
+from datetime import date, timedelta
 from django.core.exceptions import ValidationError
 from apps.rooms.models import Room, RoomStatus
 from apps.rooms.serializers import RoomSerializer
-from .models import Reservation, ReservationStatus, RoomBlock
-from .serializers import ReservationSerializer
-from rest_framework.decorators import action
+from .models import Reservation, ReservationStatus, RoomBlock, ReservationNight
+from .serializers import (
+    ReservationSerializer,
+    PaymentSerializer,
+    ChannelCommissionSerializer,
+    ReservationChargeSerializer,
+)
+from rest_framework.decorators import action, api_view
+from decimal import Decimal
+from django.db.models import Sum
+from .services.pricing import compute_nightly_rate, recalc_reservation_totals
+from django.shortcuts import get_object_or_404
+
 
 class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
@@ -151,3 +161,223 @@ class AvailabilityView(GenericAPIView):
 
         serializer = self.get_serializer(rooms, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def pricing_quote(request):
+    room_id = int(request.query_params.get("room_id"))
+    guests = int(request.query_params.get("guests", 1))
+    check_in = date.fromisoformat(request.query_params.get("check_in"))
+    check_out = date.fromisoformat(request.query_params.get("check_out"))
+
+    room = Room.objects.get(id=room_id)
+    nights = []
+    total = Decimal('0.00')
+
+    current = check_in
+
+    while current < check_out:
+        parts = compute_nightly_rate(room, guests)
+        nights.append({
+            'date': current,
+            'base_rate': parts['base_rate'],
+            'extra_guest_fee': parts['extra_guest_fee'],
+            'discount': parts['discount'],
+            'tax': parts['tax'],
+            'total_night': parts['total_night'],
+        })
+        total += parts['total_night']
+        current += timedelta(days=1)
+
+    return Response({
+        'room_id': room_id,
+        'guests': guests,
+        'check_in': check_in,
+        'check_out': check_out,
+        'nights': nights,
+        'total': total,
+    })
+
+@api_view(['GET'])
+def pricing_daily_summary(request):
+    hotel_id_str = request.query_params.get("hotel_id")
+    start_date_str = request.query_params.get("start_date")
+    end_date_str = request.query_params.get("end_date")
+    mode = request.query_params.get("mode", "check_in")
+    metric = request.query_params.get("metric", "gross")
+    
+    # Validación básica de parámetros
+    if not hotel_id_str or not start_date_str or not end_date_str:
+        return Response(
+            {"detail": "Parámetros requeridos: hotel_id, start_date, end_date"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        hotel_id = int(hotel_id_str)
+        start_date = date.fromisoformat(start_date_str)
+        end_date = date.fromisoformat(end_date_str)
+    except (ValueError, TypeError):
+        return Response(
+            {"detail": "Parámetros inválidos. Formatos: hotel_id=int, fechas=YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if mode == "check_in":
+        qs = Reservation.objects.filter(
+            hotel_id=hotel_id,
+            check_in__range=[start_date, end_date],
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
+        )
+        # Gross por día (suma de total_price en fecha de check-in)
+        per = qs.values('check_in').annotate(revenue=Sum('total_price')).order_by('check_in')
+        daily_map = {r['check_in']: (r['revenue'] or Decimal('0.00')) for r in per}
+        total = sum(daily_map.values()) if daily_map else Decimal('0.00')
+
+        # Net: restar comisiones imputadas al día de check-in
+        if metric == "net":
+            from apps.reservations.models import ChannelCommission
+            comm_per = ChannelCommission.objects.filter(
+                reservation__in=qs
+            ).values('reservation__check_in').annotate(comm=Sum('amount'))
+            for row in comm_per:
+                d = row['reservation__check_in']
+                comm = row['comm'] or Decimal('0.00')
+                daily_map[d] = (daily_map.get(d, Decimal('0.00')) - comm)
+            total = sum(daily_map.values()) if daily_map else Decimal('0.00')
+
+        daily = [{'date': d, 'revenue': v} for d, v in sorted(daily_map.items())]
+    else:
+        # Modo devengo por noche usando ReservationNight
+        qs = ReservationNight.objects.filter(
+            hotel_id=hotel_id,
+            date__range=[start_date, end_date],
+        )
+        total = qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
+        per = qs.values('date').annotate(revenue=Sum('total_night')).order_by('date')
+        daily = [{'date': r['date'], 'revenue': r['revenue']} for r in per]
+    
+    return Response({
+        'hotel_id': hotel_id,
+        'period': {'start_date': start_date, 'end_date': end_date},
+        'mode': mode,
+        'metric': metric,
+        'total': total,
+        'daily': daily,
+    })
+
+
+@api_view(['GET'])
+def reservation_pricing_summary(request, pk: int):
+    try:
+        reservation = Reservation.objects.get(pk=pk)
+    except Reservation.DoesNotExist:
+        return Response({"detail": "Reserva no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+
+    nights = reservation.nights.order_by('date').values(
+        'date', 'base_rate', 'extra_guest_fee', 'discount', 'tax', 'total_night'
+    )
+    charges = reservation.charges.order_by('date').values('date', 'description', 'amount')
+    payments = reservation.payments.order_by('date').values('date', 'method', 'amount')
+
+    from django.db.models import Sum
+    from decimal import Decimal
+    totals = {
+        'nights_total': reservation.nights.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00'),
+        'charges_total': reservation.charges.aggregate(s=Sum('amount'))['s'] or Decimal('0.00'),
+        'payments_total': reservation.payments.aggregate(s=Sum('amount'))['s'] or Decimal('0.00'),
+    }
+    nights_count = reservation.nights.count()
+    adr = (totals['nights_total'] / nights_count).quantize(Decimal('0.01')) if nights_count else Decimal('0.00')
+    # Comisión por canal (si existe)
+    commission = reservation.commissions.order_by('-created_at').first()
+    commission_amount = commission.amount if commission else Decimal('0.00')
+
+    net_total = (reservation.total_price or Decimal('0.00')) - commission_amount
+    balance = (totals['payments_total'] or Decimal('0.00')) - (reservation.total_price or Decimal('0.00'))
+    data = {
+        'reservation_id': reservation.id,
+        'hotel_id': reservation.hotel_id,
+        'room_id': reservation.room_id,
+        'guest_name': reservation.guest_name,
+        'check_in': reservation.check_in,
+        'check_out': reservation.check_out,
+        'status': reservation.status,
+        'nights': list(nights),
+        'charges': list(charges),
+        'payments': list(payments),
+        'totals': {
+            **totals,
+            'total_price': reservation.total_price,
+            'adr': adr,
+            'nights_count': nights_count,
+            'commission_amount': commission_amount,
+            'net_total': net_total,
+            'balance': balance,
+        }
+    }
+    return Response(data)
+
+
+# ----- Charges / Payments / Commission -----
+
+@api_view(['GET', 'POST'])
+def reservation_charges(request, pk: int):
+    reservation = get_object_or_404(Reservation, pk=pk)
+    if request.method == 'GET':
+        ser = ReservationChargeSerializer(reservation.charges.order_by('-date'), many=True)
+        return Response(ser.data)
+    # POST
+    ser = ReservationChargeSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    charge = reservation.charges.create(**ser.validated_data)
+    recalc_reservation_totals(reservation)
+    return Response(ReservationChargeSerializer(charge).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['DELETE'])
+def reservation_charge_delete(request, pk: int, charge_id: int):
+    reservation = get_object_or_404(Reservation, pk=pk)
+    charge = get_object_or_404(reservation.charges, pk=charge_id)
+    charge.delete()
+    recalc_reservation_totals(reservation)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'POST'])
+def reservation_payments(request, pk: int):
+    reservation = get_object_or_404(Reservation, pk=pk)
+    if request.method == 'GET':
+        ser = PaymentSerializer(reservation.payments.order_by('-date'), many=True)
+        return Response(ser.data)
+    # POST
+    ser = PaymentSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    payment = reservation.payments.create(**ser.validated_data)
+    return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+def reservation_commission(request, pk: int):
+    reservation = get_object_or_404(Reservation, pk=pk)
+    if request.method == 'GET':
+        comm = reservation.commissions.order_by('-created_at').first()
+        if not comm:
+            return Response({'detail': 'Sin comisión'}, status=status.HTTP_200_OK)
+        return Response(ChannelCommissionSerializer(comm).data)
+
+    # POST: { "channel": "booking", "rate_percent": 15.0 }
+    ser = ChannelCommissionSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    data = ser.validated_data
+    rate = data.get('rate_percent') or Decimal('0.00')
+    amount = (reservation.total_price or Decimal('0.00')) * (Decimal(rate) / Decimal('100'))
+    comm, created = reservation.commissions.get_or_create(
+        channel=data.get('channel', 'direct'),
+        defaults={'rate_percent': rate, 'amount': amount},
+    )
+    if not created:
+        comm.rate_percent = rate
+        comm.amount = amount
+        comm.save(update_fields=['rate_percent', 'amount'])
+    return Response(ChannelCommissionSerializer(comm).data, status=status.HTTP_201_CREATED)

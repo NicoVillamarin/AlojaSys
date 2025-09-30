@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from django.db import transaction
-from .models import Reservation, ReservationStatus
+from .models import Reservation, ReservationStatus, ReservationCharge, Payment, ChannelCommission
 from apps.rooms.models import RoomStatus
 
 class ReservationSerializer(serializers.ModelSerializer):
@@ -17,6 +17,7 @@ class ReservationSerializer(serializers.ModelSerializer):
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "notes",
+            "channel",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "created_at", "updated_at", "guest_name", "guest_email", "room_data"]
@@ -55,3 +56,18 @@ class ReservationSerializer(serializers.ModelSerializer):
             instance.full_clean()
             instance.save()
             return instance
+
+class ReservationChargeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReservationCharge
+        fields = ['id', 'date', 'description', 'amount']
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['id', 'date', 'method', 'amount']
+
+class ChannelCommissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChannelCommission
+        fields = ['id', 'channel', 'rate_percent', 'amount']
