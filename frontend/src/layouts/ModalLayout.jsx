@@ -43,6 +43,7 @@ export default function ModalLayout({
   submitDisabled = false,
   customFooter,
   submitLoading = false,
+  isDetail = false,
 }) {
   const root = ensureModalRoot();
   const dialogRef = useRef(null);
@@ -105,7 +106,7 @@ export default function ModalLayout({
   return createPortal(
     (
       <div
-        className="fixed inset-0 z-[1000] flex items-start justify-center pt-10 px-4 pb-4"
+        className="fixed inset-0 z-[1000] flex items-start justify-center"
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -116,7 +117,8 @@ export default function ModalLayout({
           <div className={`absolute inset-0 bg-black/45 backdrop-blur-sm ${backdropAnim}`} />
         )}
 
-        <div className="w-full max-h-[calc(100vh-2.5rem)] flex justify-center items-start overflow-y-auto py-10 px-4">
+        {/* Contenedor de scroll sobre el backdrop (el backdrop no scrollea) */}
+        <div className="relative z-10 w-full h-full flex justify-center items-start overflow-y-auto py-10 px-4">
           <div
             ref={dialogRef}
             tabIndex={-1}
@@ -167,7 +169,7 @@ export default function ModalLayout({
                       {cancelText}
                     </Button>
                   )}
-                  {onSubmit && (
+                  {onSubmit && !isDetail && (
                     <Button
                       variant="success"
                       size="md"

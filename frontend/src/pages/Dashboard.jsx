@@ -31,6 +31,7 @@ import { getStatusLabel } from './utils'
 const Dashboard = () => {
   const [selectedHotel, setSelectedHotel] = useState(null) // null = todos los hoteles
   const [activeTab, setActiveTab] = useState('global') // global o hotel_id
+  const [revenueMetric, setRevenueMetric] = useState('gross') // 'gross' | 'net'
   
   // Usar el hook de período personalizado
   const { 
@@ -113,6 +114,43 @@ const Dashboard = () => {
     enabled: activeTab !== 'global' && !!selectedHotel
   })
 
+  // Fecha de hoy para KPIs directos de reservas
+  const todayISO = new Date().toISOString().split('T')[0]
+
+  // Llegadas de HOY desde API de reservas
+  const { results: arrivalsToday, isPending: arrivalsTodayLoading } = useList({
+    resource: 'reservations',
+    params: {
+      ...(activeTab !== 'global' && selectedHotel ? { hotel: selectedHotel } : {}),
+      check_in: todayISO,
+      page_size: 1000
+    },
+    enabled: true
+  })
+
+  // Salidas de HOY desde API de reservas
+  const { results: departuresToday, isPending: departuresTodayLoading } = useList({
+    resource: 'reservations',
+    params: {
+      ...(activeTab !== 'global' && selectedHotel ? { hotel: selectedHotel } : {}),
+      check_out: todayISO,
+      page_size: 1000
+    },
+    enabled: true
+  })
+
+  // In-house de HOY (check_in <= hoy y check_out > hoy)
+  const { results: inHouseToday, isPending: inHouseTodayLoading } = useList({
+    resource: 'reservations',
+    params: {
+      ...(activeTab !== 'global' && selectedHotel ? { hotel: selectedHotel } : {}),
+      check_in__lte: todayISO,
+      check_out__gt: todayISO,
+      page_size: 1000
+    },
+    enabled: true
+  })
+
   // Obtener resúmenes de todos los hoteles para datos globales
   const { results: allHotelsSummary, isPending: allHotelsLoading } = useList({
     resource: 'hotels',
@@ -155,7 +193,12 @@ const Dashboard = () => {
     isLoading: dashboardLoading,
     error: dashboardError,
     refreshMetrics: refreshDashboardMetrics
-  } = useDashboardMetrics(selectedHotel, dateRange.start)
+  } = useDashboardMetrics(
+    selectedHotel,
+    dateRange.end,            // date para summary
+    dateRange.start,          // start_date para trends/revenue
+    dateRange.end             // end_date para trends/revenue
+  )
 
   // Debug: Log para verificar parámetros
   console.log('Dashboard Debug:', {
@@ -259,15 +302,31 @@ const Dashboard = () => {
       const futureConfirmedCount = futureReservationsData?.length || 0
       const futureRevenue = futureReservationsData?.reduce((sum, res) => sum + (parseFloat(res.total_price) || 0), 0) || 0
       
+      // Contar estados desde el listado de reservas del período (para no depender del summary)
+      const baseReservations = (activeTab === 'global' ? globalReservations : filteredReservations) || []
+      const pendingReservations = (baseReservations || []).filter(r => r.status === 'pending').length
+      const confirmedReservations = (baseReservations || []).filter(r => r.status === 'confirmed').length
+      const cancelledReservations = (baseReservations || []).filter(r => r.status === 'cancelled').length
+
+      // KPIs de HOY desde API reservas
+      const arrivalsAllowed = ['pending', 'confirmed', 'check_in']
+      const departuresAllowed = ['check_in', 'check_out']
+      const arrivalsFiltered = (arrivalsToday || []).filter(r => arrivalsAllowed.includes(r.status))
+      const departuresFiltered = (departuresToday || []).filter(r => departuresAllowed.includes(r.status))
+      const inHouseFiltered = (inHouseToday || []).filter(r => r.status === 'check_in')
+      const arrivalsCount = arrivalsFiltered.length
+      const departuresCount = departuresFiltered.length
+      const currentGuestsCount = inHouseFiltered.reduce((sum, r) => sum + (parseInt(r.guests || 0, 10)), 0)
+
       metrics = {
         totalRooms: dashboardSummary.total_rooms || 0,
         occupiedRooms: dashboardSummary.occupied_rooms || 0,
         availableRooms: dashboardSummary.available_rooms || 0,
         maintenanceRooms: dashboardSummary.maintenance_rooms || 0,
         outOfServiceRooms: dashboardSummary.out_of_service_rooms || 0,
-        arrivalsToday: dashboardSummary.check_in_today || 0,
-        departuresToday: dashboardSummary.check_out_today || 0,
-        currentGuests: dashboardSummary.guests_checked_in || 0,
+        arrivalsToday: arrivalsCount,
+        departuresToday: departuresCount,
+        currentGuests: currentGuestsCount,
         futureReservations: futureConfirmedCount,
         futureRevenue: futureRevenue,
         totalRevenue: parseFloat(dashboardSummary.total_revenue) || 0,
@@ -275,27 +334,47 @@ const Dashboard = () => {
         averageRoomRate: parseFloat(dashboardSummary.average_room_rate) || 0,
         totalGuests: dashboardSummary.total_guests || 0,
         guestsExpectedToday: dashboardSummary.guests_expected_today || 0,
-        guestsDepartingToday: dashboardSummary.guests_departing_today || 0
+        guestsDepartingToday: dashboardSummary.guests_departing_today || 0,
+        pendingReservations,
+        confirmedReservations,
+        cancelledReservations
       }
     } else if (activeTab !== 'global' && selectedHotel && hotelSummary) {
       // Fallback a métricas del summary API para hotel específico
       const futureConfirmedCount = futureReservationsData?.length || 0
       const futureRevenue = futureReservationsData?.reduce((sum, res) => sum + (parseFloat(res.total_price) || 0), 0) || 0
       
+      const baseReservationsHotel = filteredReservations || []
+      const pendingHotel = (baseReservationsHotel || []).filter(r => r.status === 'pending').length
+      const confirmedHotel = (baseReservationsHotel || []).filter(r => r.status === 'confirmed').length
+      const cancelledHotel = (baseReservationsHotel || []).filter(r => r.status === 'cancelled').length
+
+      const arrivalsAllowedH = ['pending', 'confirmed', 'check_in']
+      const departuresAllowedH = ['check_in', 'check_out']
+      const arrivalsFilteredH = (arrivalsToday || []).filter(r => arrivalsAllowedH.includes(r.status))
+      const departuresFilteredH = (departuresToday || []).filter(r => departuresAllowedH.includes(r.status))
+      const inHouseFilteredH = (inHouseToday || []).filter(r => r.status === 'check_in')
+      const arrivalsCountH = arrivalsFilteredH.length
+      const departuresCountH = departuresFilteredH.length
+      const currentGuestsCountH = inHouseFilteredH.reduce((sum, r) => sum + (parseInt(r.guests || 0, 10)), 0)
+
       metrics = {
         totalRooms: hotelSummary.rooms?.total || 0,
         occupiedRooms: hotelSummary.rooms?.occupied || 0,
         availableRooms: hotelSummary.rooms?.available || 0,
         maintenanceRooms: hotelSummary.rooms?.maintenance || 0,
         outOfServiceRooms: hotelSummary.rooms?.out_of_service || 0,
-        arrivalsToday: hotelSummary.today?.arrivals || 0,
-        departuresToday: hotelSummary.today?.departures || 0,
-        currentGuests: hotelSummary.rooms?.current_guests || 0,
+        arrivalsToday: arrivalsCountH,
+        departuresToday: departuresCountH,
+        currentGuests: currentGuestsCountH,
         futureReservations: futureConfirmedCount,
         futureRevenue: futureRevenue,
         totalRevenue: 0, // Se calculará por separado
         occupancyRate: hotelSummary.rooms?.total > 0 ? 
-          Math.round((hotelSummary.rooms.occupied / hotelSummary.rooms.total) * 100) : 0
+          Math.round((hotelSummary.rooms.occupied / hotelSummary.rooms.total) * 100) : 0,
+        pendingReservations: pendingHotel,
+        confirmedReservations: confirmedHotel,
+        cancelledReservations: cancelledHotel
       }
     } else {
       // Fallback a métricas globales del summary API
@@ -365,6 +444,36 @@ const Dashboard = () => {
         bgColor: "bg-red-50",
         iconColor: "text-red-600",
         subtitle: "reservas",
+        showProgress: false
+      },
+      {
+        title: "A Confirmar",
+        value: metrics.pendingReservations,
+        icon: CheckCircleIcon,
+        color: "from-amber-500 to-amber-600",
+        bgColor: "bg-amber-50",
+        iconColor: "text-amber-600",
+        subtitle: "pendientes",
+        showProgress: false
+      },
+      {
+        title: "Confirmadas",
+        value: metrics.confirmedReservations,
+        icon: CheckCircleIcon,
+        color: "from-blue-500 to-blue-600",
+        bgColor: "bg-blue-50",
+        iconColor: "text-blue-600",
+        subtitle: "totales",
+        showProgress: false
+      },
+      {
+        title: "Canceladas",
+        value: metrics.cancelledReservations,
+        icon: CheckCircleIcon,
+        color: "from-slate-500 to-slate-600",
+        bgColor: "bg-slate-50",
+        iconColor: "text-slate-600",
+        subtitle: "totales",
         showProgress: false
       },
       {
@@ -607,6 +716,7 @@ const Dashboard = () => {
             dateRange={dateRange}
             isLoading={isLoading}
             selectedPeriod={selectedPeriod}
+            trends={dashboardMetrics?.trends}
           />
         </div>
 
@@ -635,12 +745,33 @@ const Dashboard = () => {
 
       {/* Gráfico de ingresos */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-700">Ingresos</h2>
+          <div className="inline-flex rounded-md shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => setRevenueMetric('gross')}
+              className={`px-3 py-1.5 text-sm font-medium border border-gray-200 ${revenueMetric === 'gross' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-l-md`}
+            >
+              Bruto
+            </button>
+            <button
+              type="button"
+              onClick={() => setRevenueMetric('net')}
+              className={`px-3 py-1.5 text-sm font-medium border border-gray-200 border-l-0 ${revenueMetric === 'net' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-r-md`}
+            >
+              Neto
+            </button>
+          </div>
+        </div>
         <RevenueChart
-          key={`revenue-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
+          key={`revenue-${selectedPeriod}-${dateRange.start}-${dateRange.end}-${revenueMetric}`}
           reservations={reservations}
           dateRange={dateRange}
           isLoading={isLoading}
           selectedPeriod={selectedPeriod}
+          revenueAnalysis={dashboardMetrics?.revenueAnalysis}
+          metric={revenueMetric}
         />
       </div>
 

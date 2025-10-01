@@ -73,3 +73,6 @@ select:-webkit-autofill {
 }
 
 .animate-sidebar-select { animation: sidebar-select 220ms cubic-bezier(.22,.61,.36,1) both; }
+.link {
+  @apply text-blue-500 hover:text-blue-700 cursor-pointer transition-all duration-200;
+}

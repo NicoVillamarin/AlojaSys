@@ -59,14 +59,14 @@ class StatusSummaryView(APIView):
         arrivals_today = Reservation.objects.filter(
             hotel=hotel,
             check_in=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
         ).count()
 
         inhouse_today = Reservation.objects.filter(
             hotel=hotel,
             check_in__lte=today,
             check_out__gt=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+            status__in=[ReservationStatus.CHECK_IN],
         ).count()
 
         departures_today = Reservation.objects.filter(
@@ -75,11 +75,10 @@ class StatusSummaryView(APIView):
             status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
         ).count()
 
-        # Lista compacta de reservas actuales
+        # Lista de CHECK-INS DE HOY (llegadas del día): incluye confirmadas (pendientes de check-in) y ya check-in
         reservations_qs = Reservation.objects.filter(
             hotel=hotel,
-            check_in__lte=today,
-            check_out__gt=today,
+            check_in=today,
             status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
         ).select_related("room").order_by("room__name")
         
@@ -97,21 +96,22 @@ class StatusSummaryView(APIView):
             
             current_reservations.append({
                 "id": reservation.id,
-                "room__name": reservation.room.name,
+                "room": reservation.room.name,
                 "guest_name": guest_name,
                 "status": reservation.status,
                 "check_in": reservation.check_in,
-                "check_out": reservation.check_out
+                "check_out": reservation.check_out,
+                "total_price": float(reservation.total_price or 0),
             })
         
-        # Calcular huéspedes actuales sumando los guests de las reservas activas
+        # Calcular huéspedes actuales (in-house) para KPI general
         active_reservations = Reservation.objects.filter(
             hotel=hotel,
-            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CONFIRMED],
+            status__in=[ReservationStatus.CHECK_IN],
             check_in__lte=today,
             check_out__gt=today,
         )
-        current_guests = sum(reservation.guests for reservation in active_reservations)
+        current_guests = sum(r.guests for r in active_reservations)
 
         # Bloqueos que solapan hoy (opcional)
         blocks_today = RoomBlock.objects.filter(
@@ -176,14 +176,14 @@ class GlobalSummaryView(APIView):
         arrivals_today = Reservation.objects.filter(
             hotel__in=hotels,
             check_in=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
         ).count()
         
         inhouse_today = Reservation.objects.filter(
             hotel__in=hotels,
             check_in__lte=today,
             check_out__gt=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+            status__in=[ReservationStatus.CHECK_IN],
         ).count()
         
         departures_today = Reservation.objects.filter(
@@ -210,18 +210,30 @@ class GlobalSummaryView(APIView):
             end_date__gt=today,
         ).count()
         
-        # Lista de reservas actuales globales (limitada para performance)
+        # Lista de CHECK-INS DE HOY global (limitada para performance)
         current_reservations = []
-        for reservation in active_reservations[:50]:  # Limitar a 50 para performance
+        checkins_today_qs = Reservation.objects.filter(
+            hotel__in=hotels,
+            check_in=today,
+            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).select_related('hotel', 'room').order_by('hotel__name', 'room__name')
+        for reservation in checkins_today_qs[:50]:
+            # Obtener huésped principal si existe
+            guest_name = ""
+            if reservation.guests_data and isinstance(reservation.guests_data, list):
+                primary_guest = next((g for g in reservation.guests_data if g.get('is_primary')), None)
+                if not primary_guest and reservation.guests_data:
+                    primary_guest = reservation.guests_data[0]
+                guest_name = primary_guest.get('name', '') if primary_guest else ''
             current_reservations.append({
                 "id": reservation.id,
-                "guest_name": reservation.guest_name,
+                "guest_name": guest_name,
                 "room": reservation.room.name,
                 "hotel_name": reservation.hotel.name,
                 "check_in": reservation.check_in.isoformat(),
                 "check_out": reservation.check_out.isoformat(),
                 "status": reservation.status,
-                "total_price": float(reservation.total_price),
+                "total_price": float(reservation.total_price or 0),
                 "guests": reservation.guests,
             })
         

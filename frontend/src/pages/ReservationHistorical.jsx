@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import TableGeneric from 'src/components/TableGeneric'
+import ReservationHistoricalModal from 'src/components/modals/ReservationHistoricalModal'
 import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
@@ -12,21 +13,17 @@ import Filter from 'src/components/Filter'
 
 
 
-export default function ReservationsGestions() {
+export default function ReservationHistorical() {
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
+  const [historyReservationId, setHistoryReservationId] = useState(null)
+  const [historyReservation, setHistoryReservation] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
 
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'reservations',
-    params: { 
-      search: filters.search,
-      hotel: filters.hotel || undefined,
-      room: filters.room || undefined,
-      status: filters.status || undefined,
-      show_historical: true,
-    },
+    params: { search: filters.search, hotel: filters.hotel || undefined, room: filters.room || undefined, status: filters.status || undefined },
   })
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ resource: 'reservations', onSuccess: () => refetch() })
@@ -36,8 +33,6 @@ export default function ReservationsGestions() {
     const from = filters.dateFrom ? new Date(filters.dateFrom) : null
     const to = filters.dateTo ? new Date(filters.dateTo) : null
     let arr = results || []
-    // Excluir reservas finalizadas (check_out) de la gestión
-    arr = arr.filter((r) => r.status !== 'check_out' && r.status !== 'cancelled' && r.status !== 'no_show')
     if (q) {
       arr = arr.filter((r) => {
         const guest = String(r.guest_name ?? '').toLowerCase()
@@ -97,15 +92,19 @@ export default function ReservationsGestions() {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs text-aloja-gray-800/60">Operación</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Gestión de Reservas</h1>
+          <h1 className="text-2xl font-semibold text-aloja-navy">Histórico de Reservas</h1>
         </div>
-        <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear reserva
-        </Button>
       </div>
 
       <ReservationsModal isOpen={showModal} onClose={() => setShowModal(false)} onSuccess={refetch} />
       <ReservationsModal isOpen={!!editReservation} onClose={() => setEditReservation(null)} isEdit={true} reservation={editReservation} onSuccess={refetch} />
+      {!!historyReservationId && (
+        <ReservationHistoricalModal
+          reservationId={historyReservationId}
+          displayName={historyReservation?.display_name}
+          onClose={() => { setHistoryReservationId(null); setHistoryReservation(null) }}
+        />
+      )}
 
      <Filter>
         <div className="flex flex-wrap items-end gap-3">
@@ -196,7 +195,14 @@ export default function ReservationsGestions() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
-          { key: 'display_name', header: 'Reserva', sortable: true },
+          { key: 'display_name', header: 'Reserva', sortable: true, render: (r) => (
+            <button
+              className="link"
+              onClick={() => { setHistoryReservation(r); setHistoryReservationId(r.id) }}
+            >
+              {r.display_name}
+            </button>
+          ) },
           { key: 'guest_name', header: 'Huésped', sortable: true },
           { key: 'hotel_name', header: 'Hotel', sortable: true },
           { key: 'room_name', header: 'Habitación', sortable: true },
@@ -224,72 +230,10 @@ export default function ReservationsGestions() {
           { key: 'guests', header: 'Cantidad de huéspedes', sortable: true, right: true },
           { key: 'total_price', header: 'Total', sortable: true, right: true },
           { key: 'status', header: 'Estado', sortable: true, render: (r) => <span>{getStatusLabel(r.status)}</span> },
-          {
-            key: 'actions', header: 'Acciones', sortable: false, right: true,
-            render: (r) => (
-              <div className="flex justify-end items-center gap-2">
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canEdit(r)
-                      ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
-                      : 'opacity-40 cursor-not-allowed bg-blue-50 text-blue-700 border-blue-300'}
-                  `}
-                  disabled={!canEdit(r) || acting}
-                  onClick={() => onEdit(r)}
-                >
-                  Editar
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canConfirm(r)
-                      ? 'bg-aloja-navy text-white border-aloja-navy hover:bg-aloja-navy2'
-                      : 'opacity-40 cursor-not-allowed bg-aloja-navy text-white border-aloja-navy'}
-                  `}
-                  disabled={!canConfirm(r) || acting}
-                  onClick={() => onConfirm(r)}
-                >
-                  Confirmar
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canCheckIn(r)
-                      ? 'bg-aloja-gold text-aloja-navy border-aloja-gold hover:brightness-95'
-                      : 'opacity-40 cursor-not-allowed bg-aloja-gold text-aloja-navy border-aloja-gold'}
-                  `}
-                  disabled={!canCheckIn(r) || acting}
-                  onClick={() => onCheckIn(r)}
-                >
-                  Check-in
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canCheckOut(r)
-                      ? 'bg-white text-aloja-navy border-aloja-navy hover:bg-aloja-navy/5'
-                      : 'opacity-40 cursor-not-allowed bg-white text-aloja-navy border-aloja-navy'}
-                  `}
-                  disabled={!canCheckOut(r) || acting}
-                  onClick={() => onCheckOut(r)}
-                >
-                  Check-out
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canCancel(r)
-                      ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100'
-                      : 'opacity-40 cursor-not-allowed bg-red-50 text-red-700 border-red-300'}
-                  `}
-                  disabled={!canCancel(r) || acting}
-                  onClick={() => onCancel(r)}
-                >
-                  Cancelar
-                </button>
-              </div>
-            )
-          }
         ]}
       />
 
-      {hasNextPage && (displayResults?.length >= 50) && (
+      {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
             Cargar más

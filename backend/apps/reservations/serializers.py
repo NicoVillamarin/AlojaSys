@@ -10,6 +10,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     room_data = serializers.SerializerMethodField()  # Datos completos de la habitación
     guest_name = serializers.CharField(read_only=True)  # Propiedad del modelo
     guest_email = serializers.CharField(read_only=True)  # Propiedad del modelo
+    display_name = serializers.CharField(read_only=True)
 
     class Meta:
         model = Reservation
@@ -18,9 +19,9 @@ class ReservationSerializer(serializers.ModelSerializer):
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "notes",
             "channel",
-            "created_at", "updated_at",
+            "display_name", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "total_price", "created_at", "updated_at", "guest_name", "guest_email", "room_data"]
+        read_only_fields = ["id", "total_price", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
 
     def get_room_data(self, obj):
         """Devuelve los datos completos de la habitación"""

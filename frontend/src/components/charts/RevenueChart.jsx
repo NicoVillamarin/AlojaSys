@@ -7,16 +7,17 @@ const RevenueChart = ({
   dateRange = {}, 
   isLoading = false,
   selectedPeriod = '30-days',
-  revenueAnalysis = null
+  revenueAnalysis = null,
+  metric = 'gross' // 'gross' | 'net'
 }) => {
   // Procesar datos para gráfico de ingresos
   const getRevenueData = () => {
     // Preferir datos diarios de la API de dashboard si están disponibles
     if (revenueAnalysis && Array.isArray(revenueAnalysis.daily_revenue)) {
       const categories = revenueAnalysis.daily_revenue.map(d => d.date)
-      const data = revenueAnalysis.daily_revenue.map(d => parseFloat(d.revenue || 0))
+      const data = revenueAnalysis.daily_revenue.map(d => parseFloat((metric === 'net' ? (d.net ?? d.revenue) : d.revenue) || 0))
       return {
-        series: [{ name: 'Ingresos', data }],
+        series: [{ name: metric === 'net' ? 'Ingresos Netos' : 'Ingresos Brutos', data }],
         categories
       }
     }

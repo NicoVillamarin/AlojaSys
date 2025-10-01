@@ -36,3 +36,6 @@
 .read-the-docs {
   color: #888;
 }
+.link {
+  @apply text-blue-500 hover:underline cursor-pointer;
+}

@@ -68,6 +68,12 @@ class DashboardSummarySerializer(serializers.Serializer):
     # Resumen financiero
     total_revenue = serializers.DecimalField(max_digits=10, decimal_places=2)
     average_room_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+    # Extensiones de pricing
+    revenue_night = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    nights_sold = serializers.IntegerField(required=False)
+    adr_night = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    commissions_checkin = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    revenue_net_checkin = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
 class DashboardTrendsSerializer(serializers.Serializer):
     """Serializer para tendencias y comparaciones de métricas"""
@@ -78,3 +84,8 @@ class DashboardTrendsSerializer(serializers.Serializer):
     total_guests = serializers.IntegerField()
     check_in_today = serializers.IntegerField()
     check_out_today = serializers.IntegerField()
+    # Extensiones: métricas financieras detalladas
+    net_revenue = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    commissions = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    nights_sold = serializers.IntegerField(required=False)
+    adr_night = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)

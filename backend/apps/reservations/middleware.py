@@ -8,7 +8,10 @@ def set_current_user(user):
 
 
 def get_current_user():
-    return getattr(_request_local, "user", None)
+    user = getattr(_request_local, "user", None)
+    if getattr(user, "is_authenticated", False):
+        return user
+    return None
 
 
 class CurrentUserMiddleware:
@@ -18,7 +21,8 @@ class CurrentUserMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        _request_local.user = getattr(request, "user", None)
+        # Solo persistimos usuarios autenticados; si es AnonymousUser guardamos None
+        _request_local.user = request.user if getattr(request.user, "is_authenticated", False) else None
         try:
             response = self.get_response(request)
         finally:

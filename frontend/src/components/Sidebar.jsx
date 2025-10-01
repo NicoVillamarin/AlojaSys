@@ -10,6 +10,7 @@ import ConfigurateIcon from "src/assets/icons/ConfigurateIcon";
 import CurrencyIcon from "src/assets/icons/CurrencyIcon";
 import ClientsIcon from "src/assets/icons/ClientsIcon";
 import fondo from "src/assets/img/fondo_3.png";
+import BitacoraIcon from "src/assets/icons/BitacoraIcon";
 
 const Item = ({ to, children }) => (
   <NavLink
@@ -70,6 +71,8 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         <Item to="/"><DashboardIcon size="20" /> {!isMini && <span>Dashboard</span>}</Item>
         <Item to="/reservations-gestion"><BellIcon size="20" /> {!isMini && <span>Gestión de Reservas</span>}</Item>
         <Item to="/rooms-gestion"><RoomsIcon size="20" /> {!isMini && <span>Gestión de Habitaciones</span>}</Item>
+        {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
+        <Item to="/reservations/1/history"><BitacoraIcon size="20" /> {!isMini && <span>Histórico de Reservas</span>}</Item>
         <Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>
         <Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>
         {!isMini && (

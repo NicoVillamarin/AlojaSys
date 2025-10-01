@@ -11,7 +11,8 @@ const usePeriod = (initialPeriod = 'current-month') => {
     switch (period) {
       case '7-days':
         const sevenDaysAgo = new Date(now)
-        sevenDaysAgo.setDate(now.getDate() - 7)
+        // Incluir hoy como último día: restar 6
+        sevenDaysAgo.setDate(now.getDate() - 6)
         return {
           start: sevenDaysAgo.toISOString().split('T')[0],
           end: now.toISOString().split('T')[0],
@@ -20,7 +21,7 @@ const usePeriod = (initialPeriod = 'current-month') => {
       
       case '15-days':
         const fifteenDaysAgo = new Date(now)
-        fifteenDaysAgo.setDate(now.getDate() - 15)
+        fifteenDaysAgo.setDate(now.getDate() - 14)
         return {
           start: fifteenDaysAgo.toISOString().split('T')[0],
           end: now.toISOString().split('T')[0],
@@ -29,7 +30,7 @@ const usePeriod = (initialPeriod = 'current-month') => {
       
       case '30-days':
         const thirtyDaysAgo = new Date(now)
-        thirtyDaysAgo.setDate(now.getDate() - 30)
+        thirtyDaysAgo.setDate(now.getDate() - 29)
         return {
           start: thirtyDaysAgo.toISOString().split('T')[0],
           end: now.toISOString().split('T')[0],
@@ -38,7 +39,7 @@ const usePeriod = (initialPeriod = 'current-month') => {
       
       case '90-days':
         const ninetyDaysAgo = new Date(now)
-        ninetyDaysAgo.setDate(now.getDate() - 90)
+        ninetyDaysAgo.setDate(now.getDate() - 89)
         return {
           start: ninetyDaysAgo.toISOString().split('T')[0],
           end: now.toISOString().split('T')[0],
@@ -47,10 +48,10 @@ const usePeriod = (initialPeriod = 'current-month') => {
       
       case 'current-month':
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
         return {
           start: firstDay.toISOString().split('T')[0],
-          end: lastDay.toISOString().split('T')[0],
+          // Lo que va del mes: hasta HOY
+          end: now.toISOString().split('T')[0],
           label: now.toLocaleString('es-ES', { month: 'long', year: 'numeric' })
         }
       
@@ -72,7 +73,7 @@ const usePeriod = (initialPeriod = 'current-month') => {
       
       default:
         return {
-          start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          start: new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           end: now.toISOString().split('T')[0],
           label: 'Últimos 30 días'
         }

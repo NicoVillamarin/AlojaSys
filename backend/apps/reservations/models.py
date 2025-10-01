@@ -119,10 +119,13 @@ class Reservation(models.Model):
             return []
         return sorted(self.guests_data, key=lambda x: (not x.get('is_primary', False), x.get('name', '')))
 
+    @property
+    def display_name(self):
+        """Nombre descriptivo generado dinámicamente para la reserva"""
+        return f"Reserva N° {self.id}"
+
     def __str__(self):
-        primary_guest = self.get_primary_guest()
-        guest_name = primary_guest.get('name', 'Sin nombre') if primary_guest else 'Sin huésped'
-        return f"{guest_name} - {self.room.name} - {self.check_in} -> {self.check_out}"
+        return f"{self.display_name} ({self.check_in} -> {self.check_out})"
 
 class RoomBlock(models.Model):
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="room_blocks")

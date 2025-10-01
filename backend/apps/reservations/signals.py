@@ -57,13 +57,19 @@ def reservation_post_save_log(sender, instance: Reservation, created, **kwargs):
     user = get_current_user()
 
     if created:
+        room_name = getattr(getattr(instance, "room", None), "name", "Habitación")
+        msg = (
+            f"Reserva #{instance.id} creada: "
+            f"{instance.guest_name or 'Sin nombre'} • {room_name} • "
+            f"{instance.check_in} → {instance.check_out}"
+        )
         ReservationChangeLog.objects.create(
             reservation=instance,
             event_type=ReservationChangeEvent.CREATED,
-            changed_by=user,
-            fields_changed=AUDIT_FIELDS,
+            changed_by=user if user is not None else None,
+            fields_changed={},
             snapshot=build_snapshot(instance),
-            message=f"Reserva creada: {instance.id}",
+            message=msg,
         )
         return
 
@@ -72,7 +78,7 @@ def reservation_post_save_log(sender, instance: Reservation, created, **kwargs):
         ReservationChangeLog.objects.create(
             reservation=instance,
             event_type=ReservationChangeEvent.UPDATED,
-            changed_by=user,
+            changed_by=user if user is not None else None,
             fields_changed=changed,
             snapshot=build_snapshot(instance),
             message=f"Reserva actualizada: {instance.id}",
@@ -83,13 +89,13 @@ def reservation_post_save_log(sender, instance: Reservation, created, **kwargs):
             reservation=instance,
             from_status=prev.status,
             to_status=instance.status,
-            changed_by=user,
+            changed_by=user if user is not None else None,
             notes=f"Estado actualizado: {instance.status}",
         )
         ReservationChangeLog.objects.create(
             reservation=instance,
             event_type=ReservationChangeEvent.STATUS_CHANGED,
-            changed_by=user,
+            changed_by=user if user is not None else None,
             fields_changed={"status": {"old": prev.status, "new": instance.status}},
             snapshot=build_snapshot(instance),
         )

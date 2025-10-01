@@ -90,9 +90,10 @@ class DashboardMetrics(models.Model):
         metrics.cancelled_reservations = reservations.filter(status=ReservationStatus.CANCELLED).count()
         
         # Reservas para el día específico
+        # Llegadas de hoy (programadas + realizadas)
         metrics.check_in_today = reservations.filter(
             check_in=target_date,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN]
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN]
         ).count()
         
         metrics.check_out_today = reservations.filter(
@@ -118,7 +119,7 @@ class DashboardMetrics(models.Model):
         
         metrics.guests_expected_today = reservations.filter(
             check_in=target_date,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN]
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN]
         ).aggregate(
             total=Sum('guests')
         )['total'] or 0
