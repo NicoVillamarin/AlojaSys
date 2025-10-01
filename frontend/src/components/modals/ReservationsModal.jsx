@@ -15,6 +15,7 @@ import WalletIcon from 'src/assets/icons/WalletIcon'
 import CheckCircleIcon from 'src/assets/icons/CheckCircleIcon'
 import CandelarClock from 'src/assets/icons/CandelarClock'
 import CheckIcon from 'src/assets/icons/CheckIcon'
+import Button from 'src/components/Button'
 import GuestInformation from '../reservations/GuestInformation'
 import PaymentInformation from '../reservations/PaymentInformation'
 import ReviewReservation from '../reservations/ReviewReservation'
@@ -268,122 +269,216 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     { id: 'review', label: 'Revisar', icon: <CheckIcon /> }
   ]
 
+  // Helpers de pasos
+  const getEffectiveGuests = (vals) => {
+    const raw = vals?.guests
+    if (raw === 0) return 0
+    if (raw === '' || raw === null || raw === undefined) return 1
+    const num = Number(raw)
+    return Number.isNaN(num) ? 1 : num
+  }
 
-  return (
-    <ModalLayout
-      isOpen={isOpen}
-      onClose={onClose}
-      title={
-        <div className="flex flex-col">
-          <span>{isEdit ? 'Editar reserva' : 'Crear reserva'}</span>
-          {formikRef.current?.values?.check_in && formikRef.current?.values?.check_out && (
-            <div className="text-sm font-normal text-gray-600 mt-1">
-              {(() => {
-                const checkIn = formikRef.current.values.check_in
-                const checkOut = formikRef.current.values.check_out
-                const duration = calculateStayDuration(checkIn, checkOut)
-                return `${formatDate(checkIn, 'dd/MM/yyyy')} - ${formatDate(checkOut, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? 'noche' : 'noches'})`
-              })()}
-            </div>
+  const isBasicComplete = () => {
+    const { values } = formikRef.current || { values: {} }
+    const effGuests = getEffectiveGuests(values)
+    return Boolean(values?.hotel && values?.room && values?.check_in && values?.check_out && effGuests >= 1)
+  }
+
+  const isGuestsComplete = () => {
+    const { values } = formikRef.current || { values: {} }
+    return Boolean(values?.guest_name && values?.guest_email && values?.guest_phone && values?.guest_document)
+  }
+
+  const getStepStatus = (stepId) => {
+    switch (stepId) {
+      case 'basic':
+        return isBasicComplete()
+      case 'guests':
+        return isGuestsComplete()
+      case 'payment':
+        return isBasicComplete()
+      case 'review':
+        return isBasicComplete() && isGuestsComplete()
+      default:
+        return false
+    }
+  }
+
+  const canProceedToNext = () => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTab)
+    if (currentIndex === -1 || currentIndex >= tabs.length - 1) return false
+    return getStepStatus(tabs[currentIndex].id)
+  }
+
+  const goToNextStep = () => {
+    const idx = tabs.findIndex(t => t.id === activeTab)
+    if (idx < tabs.length - 1) setActiveTab(tabs[idx + 1].id)
+  }
+
+  const goToPreviousStep = () => {
+    const idx = tabs.findIndex(t => t.id === activeTab)
+    if (idx > 0) setActiveTab(tabs[idx - 1].id)
+  }
+
+  // Footer personalizado con stepper y acciones
+  const CustomFooter = () => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTab)
+    const isLast = currentIndex === tabs.length - 1
+    const canNext = canProceedToNext()
+
+    const handleCreate = () => {
+      if (!formikRef.current) return
+      const values = formikRef.current.values
+
+      const guestsData = []
+      if (values.guest_name) {
+        guestsData.push({
+          name: values.guest_name,
+          email: values.guest_email || '',
+          phone: values.guest_phone || '',
+          document: values.guest_document || '',
+          address: values.contact_address || '',
+          is_primary: true,
+        })
+      }
+      if (values.other_guests && values.other_guests.length > 0) {
+        values.other_guests.forEach((guest) => {
+          if (guest.name) {
+            guestsData.push({
+              name: guest.name,
+              email: guest.email || '',
+              phone: guest.phone || '',
+              document: guest.document || '',
+              address: guest.address || '',
+              is_primary: false,
+            })
+          }
+        })
+      }
+
+      const payload = {
+        hotel: values.hotel ? Number(values.hotel) : undefined,
+        room: values.room ? Number(values.room) : undefined,
+        guests: values.guests ? Number(values.guests) : 1,
+        guests_data: guestsData,
+        check_in: values.check_in || undefined,
+        check_out: values.check_out || undefined,
+        notes: values.notes || undefined,
+        status: values.status || 'pending',
+      }
+
+      if (isEdit && reservation?.id) {
+        updateReservation({ id: reservation.id, body: payload })
+      } else {
+        createReservation(payload)
+      }
+    }
+
+    return (
+      <div className="w-full flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="danger" size="md" onClick={onClose}>Cancelar</Button>
+          {currentIndex > 0 && (
+            <Button variant="secondary" size="md" onClick={goToPreviousStep}>← Anterior</Button>
           )}
         </div>
-      }
-      onSubmit={() => {
-        // Obtener los valores de Formik y enviar
-        if (formikRef.current) {
-          const values = formikRef.current.values
 
-          // Preparar datos de huéspedes
-          const guestsData = []
+        <div className="flex items-center space-x-2">
+          {tabs.map((tab, index) => {
+            const isActive = tab.id === activeTab
+            const isCompleted = getStepStatus(tab.id)
+            const isAccessible = index === 0 || getStepStatus(tabs[index - 1].id)
+            return (
+              <div key={tab.id} className={`flex items-center space-x-2 ${!isAccessible ? 'opacity-50' : ''}`}>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : isCompleted
+                      ? 'bg-green-500 text-white'
+                      : isAccessible
+                      ? 'bg-gray-200 text-gray-600'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  {isCompleted ? '✓' : index + 1}
+                </div>
+                {index < tabs.length - 1 && (
+                  <div className={`w-8 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                )}
+              </div>
+            )
+          })}
+        </div>
 
-          // Agregar huésped principal
-          if (values.guest_name) {
-            guestsData.push({
-              name: values.guest_name,
-              email: values.guest_email || '',
-              phone: values.guest_phone || '',
-              document: values.guest_document || '',
-              address: values.contact_address || '',
-              is_primary: true
-            })
-          }
+        <div className="flex items-center gap-2">
+          {isLast ? (
+            <Button
+              variant="success"
+              size="md"
+              onClick={handleCreate}
+              disabled={creating || updating || !(isBasicComplete() && isGuestsComplete())}
+              loadingText={creating || updating ? 'Creando...' : undefined}
+            >
+              {isEdit ? 'Guardar cambios' : 'Crear reserva'}
+            </Button>
+          ) : (
+            <Button variant="primary" size="md" disabled={!canNext} onClick={goToNextStep}>Siguiente →</Button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
-          // Agregar otros huéspedes
-          if (values.other_guests && values.other_guests.length > 0) {
-            values.other_guests.forEach(guest => {
-              if (guest.name) {
-                guestsData.push({
-                  name: guest.name,
-                  email: guest.email || '',
-                  phone: guest.phone || '',
-                  document: guest.document || '',
-                  address: guest.address || '',
-                  is_primary: false
-                })
-              }
-            })
-          }
+  return (
+    <Formik
+      key={isEdit ? `edit-${reservation?.id ?? 'new'}` : `create-${modalKey}`}
+      enableReinitialize
+      initialValues={initialValues}
+      validationSchema={validationSchema}
+      onSubmit={() => { }}
+    >
+      {({ values, setFieldValue, errors, touched }) => {
+        // Guardar referencia a Formik para helpers del footer
+        formikRef.current = { values, setFieldValue, errors, touched }
 
-          // Solo enviar los campos que existen en el backend
-          const payload = {
-            hotel: values.hotel ? Number(values.hotel) : undefined,
-            room: values.room ? Number(values.room) : undefined,
-            guests: values.guests ? Number(values.guests) : 1,
-            guests_data: guestsData,
-            check_in: values.check_in || undefined,
-            check_out: values.check_out || undefined,
-            notes: values.notes || undefined,
-            status: values.status || 'pending',
-          }
-
-          console.log('Enviando payload:', payload)
-
-          if (isEdit && reservation?.id) {
-            updateReservation({ id: reservation.id, body: payload })
-          } else {
-            createReservation(payload)
+        // Limpiar habitación si cambió el número de huéspedes y la habitación actual no tiene capacidad suficiente
+        if (values.guests !== previousGuests) {
+          setPreviousGuests(values.guests)
+          if (values.guests && values.room_data && values.guests > values.room_data.max_capacity) {
+            setFieldValue('room', '')
+            setFieldValue('room_data', null)
           }
         }
-      }}
-      submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-      cancelText='Cancelar'
-      submitDisabled={creating || updating}
-      submitLoading={creating || updating}
-      size='lg2'
-    >
-      <Formik
-        key={isEdit ? `edit-${reservation?.id ?? 'new'}` : `create-${modalKey}`}
-        enableReinitialize
-        initialValues={initialValues}
-        validationSchema={validationSchema}
-        onSubmit={() => { }} // El submit se maneja en ModalLayout
-      >
-        {({ values, setFieldValue, errors, touched }) => {
-          // Guardar referencia a Formik
-          formikRef.current = { values, setFieldValue, errors, touched }
 
-          // Limpiar habitación si cambió el número de huéspedes y la habitación actual no tiene capacidad suficiente
-          if (values.guests !== previousGuests) {
-            setPreviousGuests(values.guests)
-            if (values.guests && values.room_data && values.guests > values.room_data.max_capacity) {
-              setFieldValue('room', '')
-              setFieldValue('room_data', null)
-            }
-          }
+        const titleNode = (
+          <div className="flex flex-col">
+            <span>{isEdit ? 'Editar reserva' : 'Crear reserva'}</span>
+            {values.check_in && values.check_out && (
+              <div className="text-sm font-normal text-gray-600 mt-1">
+                {(() => {
+                  const duration = calculateStayDuration(values.check_in, values.check_out)
+                  return `${formatDate(values.check_in, 'dd/MM/yyyy')} - ${formatDate(values.check_out, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? 'noche' : 'noches'})`
+                })()}
+              </div>
+            )}
+          </div>
+        )
 
-          return (
+        return (
+          <ModalLayout
+            isOpen={isOpen}
+            onClose={onClose}
+            title={titleNode}
+            customFooter={<CustomFooter />}
+            size='lg2'
+          >
             <div className="space-y-6">
-              {/* Pestañas */}
-              <Tabs
-                tabs={tabs}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-              />
+              <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
               {activeTab === 'basic' && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* 1. Selección de Hotel */}
                     <SelectAsync
                       title='Hotel *'
                       name='hotel'
@@ -395,8 +490,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       onChange={(option) => setFieldValue('hotel', option?.value || null)}
                       error={touched.hotel && errors.hotel}
                     />
-                    
-                    {/* 2. Número de huéspedes */}
+
                     <InputText
                       title='Número de huéspedes *'
                       name='guests'
@@ -408,8 +502,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       onChange={(e) => setFieldValue('guests', Number(e.target.value))}
                       error={touched.guests && errors.guests}
                     />
-                    
-                    {/* 3. Fechas de estadía */}
+
                     <InputText
                       title='Check-in *'
                       name='check_in'
@@ -426,8 +519,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       onChange={(e) => setFieldValue('check_out', e.target.value)}
                       error={touched.check_out && errors.check_out}
                     />
-                    
-                    {/* 4. Selección de habitación */}
+
                     <SelectAsync
                       title='Habitación *'
                       name='room'
@@ -443,7 +535,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       getOptionValue={(r) => r?.id}
                       extraParams={{
                         hotel: values.hotel || undefined,
-                        min_capacity: values.guests || undefined
+                        min_capacity: getEffectiveGuests(values) || undefined,
                       }}
                       value={values.room}
                       onValueChange={(option) => {
@@ -451,26 +543,18 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         setFieldValue('room_data', option || null)
                       }}
                       error={touched.room && errors.room}
-                      disabled={!values.hotel || !values.guests}
+                      disabled={!values.hotel || getEffectiveGuests(values) === 0}
                     />
                   </div>
-                  
-                  {/* Resumen del rango de estadía */}
+
                   {values.check_in && values.check_out && (
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 w-1/2 mx-auto">
                       <div className="flex items-center justify-center space-x-6">
-                        {/* Check-in */}
                         <div className="text-center">
                           <div className="text-sm font-medium text-gray-600 mb-1">Check-in</div>
-                          <div className="text-lg font-bold text-blue-600">
-                            {formatDate(values.check_in, 'EEE, dd MMM')}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatDate(values.check_in, 'yyyy')}
-                          </div>
+                          <div className="text-lg font-bold text-blue-600">{formatDate(values.check_in, 'EEE, dd MMM')}</div>
+                          <div className="text-xs text-gray-500">{formatDate(values.check_in, 'yyyy')}</div>
                         </div>
-                        
-                        {/* Línea conectora y duración */}
                         <div className="flex items-center space-x-3">
                           <div className="w-6 h-0.5 bg-blue-300"></div>
                           <div className="bg-blue-100 px-3 py-1 rounded-full">
@@ -483,31 +567,20 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                           </div>
                           <div className="w-6 h-0.5 bg-blue-300"></div>
                         </div>
-                        
-                        {/* Check-out */}
                         <div className="text-center">
                           <div className="text-sm font-medium text-gray-600 mb-1">Check-out</div>
-                          <div className="text-lg font-bold text-blue-600">
-                            {formatDate(values.check_out, 'EEE, dd MMM')}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatDate(values.check_out, 'yyyy')}
-                          </div>
+                          <div className="text-lg font-bold text-blue-600">{formatDate(values.check_out, 'EEE, dd MMM')}</div>
+                          <div className="text-xs text-gray-500">{formatDate(values.check_out, 'yyyy')}</div>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Mensajes informativos */}
                   {values.guests && values.hotel && (
-                    <div className="text-sm text-blue-600 mt-1">
-                      💡 Se mostrarán solo habitaciones con capacidad para {values.guests} huésped{values.guests > 1 ? 'es' : ''} o más
-                    </div>
+                    <div className="text-sm text-blue-600 mt-1">💡 Se mostrarán solo habitaciones con capacidad para {values.guests} huésped{values.guests > 1 ? 'es' : ''} o más</div>
                   )}
                   {values.room_data && (
-                    <div className="text-sm text-gray-600 mt-1">
-                      Capacidad máxima: {values.room_data.max_capacity} huéspedes
-                    </div>
+                    <div className="text-sm text-gray-600 mt-1">Capacidad máxima: {values.room_data.max_capacity} huéspedes</div>
                   )}
                   <div>
                     <InputText
@@ -524,26 +597,14 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                 </>
               )}
 
-              {activeTab === 'guests' && (
-                <GuestInformation />
-              )}
-
-              {activeTab === 'payment' && (
-                <div className="text-center py-8 text-gray-500">
-                  <PaymentInformation />
-                </div>
-              )}
-
-              {activeTab === 'review' && (
-                <div className="text-center py-8 text-gray-500">
-                  <ReviewReservation />
-                </div>
-              )}
+              {activeTab === 'guests' && <GuestInformation />}
+              {activeTab === 'payment' && <PaymentInformation />}
+              {activeTab === 'review' && <ReviewReservation />}
             </div>
-          )
-        }}
-      </Formik>
-    </ModalLayout>
+          </ModalLayout>
+        )
+      }}
+    </Formik>
   )
 }
 

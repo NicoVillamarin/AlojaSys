@@ -1,7 +1,7 @@
 import React from 'react'
 import Chart from 'react-apexcharts'
 import SpinnerLoading from 'src/components/SpinnerLoading'
-import { format } from 'date-fns'
+import { format, parseISO, addDays } from 'date-fns'
 
 const FutureReservationsChart = ({ 
   futureReservations = [], 
@@ -11,21 +11,48 @@ const FutureReservationsChart = ({
 }) => {
   // Procesar datos para gráfico de reservas futuras
   const getFutureReservationsData = () => {
+    console.log('📅 Reservas Futuras - Procesando datos')
+    console.log('Total de futureReservations recibidas:', futureReservations?.length || 0)
+    
     if (!futureReservations || futureReservations.length === 0) {
+      console.log('⚠️ No hay reservas futuras disponibles')
       return { series: [], categories: [] }
     }
 
-    // Filtrar reservas futuras que estén dentro del rango de fechas
+    // Calcular fecha de MAÑANA para filtrar en el frontend
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(0, 0, 0, 0) // Resetear a medianoche
+    
+    console.log('Fecha de mañana para filtrar:', format(tomorrow, 'yyyy-MM-dd'))
+
+    // FILTRAR EN EL FRONTEND: Solo reservas desde mañana en adelante
     const filteredReservations = futureReservations.filter(reservation => {
-      const checkInDate = new Date(reservation.check_in)
-      const startDate = new Date(dateRange.start)
-      const endDate = new Date(dateRange.end)
-      return checkInDate >= startDate && checkInDate <= endDate
+      const checkInDate = parseISO(reservation.check_in)
+      const isFuture = checkInDate >= tomorrow
+      
+      if (!isFuture) {
+        console.log('❌ Descartando reserva antigua:', reservation.check_in, reservation.status)
+      }
+      
+      return isFuture
     })
 
-    console.log('FutureReservationsChart - Reservas filtradas:', filteredReservations.length, 'de', futureReservations.length)
+    console.log('✅ Reservas filtradas (desde mañana):', filteredReservations.length, 'de', futureReservations.length)
 
-    // Agrupar reservas futuras por fecha de check-in
+    if (filteredReservations.length === 0) {
+      console.log('⚠️ No hay reservas realmente futuras (desde mañana)')
+      return { series: [], categories: [] }
+    }
+
+    // Mostrar primeras 5 reservas filtradas
+    console.log('Primeras 5 reservas filtradas:', filteredReservations.slice(0, 5).map(r => ({
+      check_in: r.check_in,
+      status: r.status,
+      guest: r.guests_data?.[0]?.name || 'N/A'
+    })))
+
+    // Agrupar reservas filtradas por fecha
     const reservationsByDate = {}
     filteredReservations.forEach(reservation => {
       const date = reservation.check_in
@@ -35,19 +62,24 @@ const FutureReservationsChart = ({
       reservationsByDate[date]++
     })
 
-    // Crear arrays para el gráfico
+    console.log('Reservas agrupadas por fecha:', reservationsByDate)
+
+    // Crear arrays para el gráfico - ordenar fechas correctamente
     const dates = Object.keys(reservationsByDate).sort((a, b) => new Date(a) - new Date(b))
     const counts = dates.map(date => reservationsByDate[date])
     
-    // Formatear fechas para mostrar en DD-MM-YYYY
+    // Formatear fechas para mostrar en DD-MM-YYYY usando parseISO
     const formattedDates = dates.map(date => {
       try {
-        const parsedDate = new Date(date)
+        const parsedDate = parseISO(date)
         return format(parsedDate, 'dd-MM-yyyy')
       } catch (error) {
-        return date // Si hay error, mantener la fecha original
+        console.error('Error formateando fecha:', date, error)
+        return date
       }
     })
+
+    console.log('✅ Gráfico con', dates.length, 'fechas, total reservas:', counts.reduce((a, b) => a + b, 0))
 
     return {
       series: [{
@@ -61,14 +93,28 @@ const FutureReservationsChart = ({
   // Configuración del gráfico
   const options = {
     chart: {
-      type: 'line',
+      type: 'bar',
       height: 350,
       toolbar: { show: true },
       zoom: { enabled: true }
     },
-    stroke: {
-      curve: 'smooth',
-      width: 3
+    plotOptions: {
+      bar: {
+        borderRadius: 4,
+        columnWidth: '60%',
+        dataLabels: {
+          position: 'top'
+        }
+      }
+    },
+    dataLabels: {
+      enabled: false,
+      formatter: (val) => val,
+      offsetY: -20,
+      style: {
+        fontSize: '12px',
+        colors: ['#304758']
+      }
     },
     colors: ['#8B5CF6'],
     xaxis: {
@@ -90,7 +136,7 @@ const FutureReservationsChart = ({
       }
     },
     title: {
-      text: `Reservas Confirmadas Futuras - ${dateRange.label || 'Período seleccionado'}`,
+      text: `Reservas Futuras (Desde Mañana)`,
       align: 'left',
       style: { fontSize: '16px', fontWeight: 'bold' }
     },
@@ -113,7 +159,7 @@ const FutureReservationsChart = ({
     <Chart
       options={options}
       series={getFutureReservationsData().series}
-      type="line"
+      type="bar"
       height={350}
     />
   )

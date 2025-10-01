@@ -39,13 +39,15 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
   })
 
   // Tendencias del dashboard (por rango con fallback a últimos 30 días)
+  const trendsParams = {
+    ...(hotelId && { hotel_id: hotelId }),
+    ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {})
+  }
+  
   const { results: trends, isPending: trendsLoading, refetch: refetchTrends } = useAction({
     resource: 'dashboard',
     action: 'trends',
-    params: {
-      ...(hotelId && { hotel_id: hotelId }),
-      ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {})
-    },
+    params: trendsParams,
     enabled: true,
   })
 

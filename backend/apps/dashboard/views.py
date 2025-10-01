@@ -297,20 +297,13 @@ def dashboard_trends(request):
 
             daily_metrics = DashboardMetrics.objects.filter(hotel__in=hotels, date=current_date)
             if not daily_metrics.exists():
-                # Fallback rápido cuando no hay métricas persistidas para esa fecha
-                daily_total_revenue = _compute_revenue_for_day(hotels, current_date)
-                # Calcular check-ins y check-outs del día para alimentar tendencias
-                daily_check_in = Reservation.objects.filter(
-                    hotel__in=hotels,
-                    check_in=current_date,
-                    status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN]
-                ).count()
-                daily_check_out = Reservation.objects.filter(
-                    hotel__in=hotels,
-                    check_out=current_date,
-                    status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
-                ).count()
-            else:
+                # Calcular métricas para cada hotel si no existen
+                for hotel in hotels:
+                    DashboardMetrics.calculate_metrics(hotel, current_date)
+                # Volver a consultar las métricas recién creadas
+                daily_metrics = DashboardMetrics.objects.filter(hotel__in=hotels, date=current_date)
+            
+            if daily_metrics.exists():
                 for metric in daily_metrics:
                     daily_total_rooms += metric.total_rooms
                     daily_occupied_rooms += metric.occupied_rooms

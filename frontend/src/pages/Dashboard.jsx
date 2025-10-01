@@ -158,21 +158,35 @@ const Dashboard = () => {
     enabled: activeTab === 'global'
   })
 
-  // Obtener reservas confirmadas futuras para métricas
+  // Calcular fecha de mañana (reservas futuras = desde mañana en adelante)
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().split('T')[0]
+
+  // Obtener TODAS las reservas pending y confirmed (el filtro de fecha se hará en el frontend)
   const { 
     results: futureReservations, 
     isPending: futureReservationsLoading 
   } = useList({
     resource: 'reservations',
     params: { 
-      status: 'confirmed',
-      check_in__gte: new Date().toISOString().split('T')[0], // Solo fechas futuras
-      page_size: 1000
+      page_size: 1000,
+      ordering: 'check_in' // Ordenar por fecha de check-in
     },
     enabled: true // Siempre habilitado para métricas globales
   })
+  
+  // Debug: Ver todas las reservas recibidas
+  console.log('📦 Total reservas recibidas del backend:', futureReservations?.length || 0)
+  if (futureReservations && futureReservations.length > 0) {
+    const statusCount = futureReservations.reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] || 0) + 1
+      return acc
+    }, {})
+    console.log('Estados de reservas:', statusCount)
+  }
 
-  // Obtener reservas confirmadas filtradas por hotel
+  // Obtener reservas por hotel (el filtro de fecha se hará en el frontend)
   const { 
     results: filteredFutureReservations, 
     isPending: filteredFutureReservationsLoading 
@@ -180,9 +194,8 @@ const Dashboard = () => {
     resource: 'reservations',
     params: { 
       hotel: selectedHotel,
-      status: 'confirmed',
-      check_in__gte: new Date().toISOString().split('T')[0], // Solo fechas futuras
-      page_size: 1000
+      page_size: 1000,
+      ordering: 'check_in'
     },
     enabled: activeTab !== 'global' && !!selectedHotel
   })
