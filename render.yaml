@@ -13,11 +13,6 @@ services:
         value: "False"
       - key: USE_SQLITE
         value: "True"
-      - key: FRONTEND_URL
-        fromService:
-          name: alojasys-frontend
-          type: web
-          property: url
     healthCheckPath: /api/
 
   - type: web
@@ -26,12 +21,7 @@ services:
     rootDir: frontend
     buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          name: alojasys-backend
-          type: web
-          property: url
+
 
 databases:
   - name: alojasys-db
