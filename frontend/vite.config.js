@@ -31,5 +31,9 @@ export default ({ mode }) => {
         },
       },
     },
+    preview: {
+      // Permite el dominio público en Render al usar `vite preview`
+      allowedHosts: ['alojasys-frontend.onrender.com', '.onrender.com'],
+    },
   })
 }
