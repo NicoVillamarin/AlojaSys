@@ -16,6 +16,8 @@ class HotelViewSet(viewsets.ModelViewSet):
         city = self.request.query_params.get("city")
         state = self.request.query_params.get("state")
         country = self.request.query_params.get("country")
+        ids = self.request.query_params.get("ids")  # Nuevo: filtrar por IDs específicos
+        
         if enterprise and enterprise.isdigit():
             qs = qs.filter(enterprise_id=enterprise)
         if city and city.isdigit():
@@ -24,6 +26,17 @@ class HotelViewSet(viewsets.ModelViewSet):
             qs = qs.filter(city__state_id=state)
         if country:
             qs = qs.filter(city__state__country__code2=country.upper())
+        
+        # Filtrar por IDs específicos (útil para filtrar por hoteles del usuario)
+        # Formato: ?ids=1,2,3 o ?ids=1
+        if ids:
+            try:
+                id_list = [int(x.strip()) for x in ids.split(',') if x.strip().isdigit()]
+                if id_list:
+                    qs = qs.filter(id__in=id_list)
+            except (ValueError, AttributeError):
+                pass  # Ignorar si el formato es inválido
+        
         return qs
 
 

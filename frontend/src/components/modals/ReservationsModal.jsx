@@ -19,6 +19,8 @@ import Button from 'src/components/Button'
 import GuestInformation from '../reservations/GuestInformation'
 import PaymentInformation from '../reservations/PaymentInformation'
 import ReviewReservation from '../reservations/ReviewReservation'
+import { useMe } from 'src/hooks/useMe'
+import { useUserHotels } from 'src/hooks/useUserHotels'
 
 /**
  * ReservationsModal: crear/editar reserva
@@ -33,6 +35,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   const [modalKey, setModalKey] = useState(0)
   const [activeTab, setActiveTab] = useState('basic')
   const formikRef = useRef(null)
+  
+  // Hook para obtener hoteles del usuario logueado
+  const { hotelIdsString, isSuperuser } = useUserHotels()
 
   // Función helper para formatear fechas correctamente
   const formatDate = (dateString, formatStr = 'dd MMM') => {
@@ -483,6 +488,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       title='Hotel *'
                       name='hotel'
                       resource='hotels'
+                      extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
                       placeholder='Buscar hotel…'
                       getOptionLabel={(h) => h?.name}
                       getOptionValue={(h) => h?.id}

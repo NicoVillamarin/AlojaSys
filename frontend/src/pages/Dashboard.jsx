@@ -27,12 +27,15 @@ import HotelIcon from 'src/assets/icons/HotelIcon'
 import GlobalIcon from 'src/assets/icons/GlobalIcon'
 import { format, parseISO } from 'date-fns'
 import { getStatusLabel } from './utils'
+import { useUserHotels } from 'src/hooks/useUserHotels'
 
 const Dashboard = () => {
-  const [selectedHotel, setSelectedHotel] = useState(null) // null = todos los hoteles
-  const [activeTab, setActiveTab] = useState('global') // global o hotel_id
-  const [revenueMetric, setRevenueMetric] = useState('gross') // 'gross' | 'net'
+  const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   
+  // Si el usuario solo tiene 1 hotel, iniciamos directamente en ese hotel
+  const [selectedHotel, setSelectedHotel] = useState(hasSingleHotel ? singleHotelId : null) // null = todos los hoteles
+  const [activeTab, setActiveTab] = useState(hasSingleHotel ? singleHotelId?.toString() : 'global') // global o hotel_id
+  const [revenueMetric, setRevenueMetric] = useState('gross') // 'gross' | 'net'
   // Usar el hook de período personalizado
   const { 
     selectedPeriod, 
@@ -43,10 +46,13 @@ const Dashboard = () => {
     customEndDate
   } = usePeriod('current-month')
 
-  // Obtener hoteles disponibles
+  // Obtener hoteles disponibles (filtrados por usuario si no es superuser)
   const { results: hotels, isPending: hotelsLoading } = useList({
     resource: 'hotels',
-    params: { page_size: 100 }
+    params: {
+      page_size: 100,
+      ...(!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {})
+    }
   })
 
   // Obtener resumen del hotel seleccionado (solo si hay uno seleccionado)
@@ -259,10 +265,20 @@ const Dashboard = () => {
     }
   }
 
-  // Crear tabs dinámicamente
+  // Crear tabs dinámicamente según permisos del usuario
   const getTabs = () => {
     if (!hotels) return []
 
+    // Si el usuario solo tiene 1 hotel, solo mostrar ese hotel (sin vista global)
+    if (hasSingleHotel && !isSuperuser) {
+      return hotels.map(hotel => ({
+        id: hotel.id.toString(),
+        label: hotel.name,
+        icon: <HotelIcon />
+      }))
+    }
+
+    // Si tiene múltiples hoteles o es superuser, mostrar vista global + hoteles
     const tabs = [
       {
         id: 'global',

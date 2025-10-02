@@ -21,6 +21,7 @@ urlpatterns = [
     path("api/", include(router.urls)),  # <- ÚNICO include de router
     path("api/", include("apps.enterprises.urls")),
     path("api/", include("apps.reservations.urls")),
+    path("api/", include("apps.users.urls")),
     path("api/dashboard/", include("apps.dashboard.urls")),
     path("api/status/summary/", StatusSummaryView.as_view(), name="status-summary"),
     path("api/status/global-summary/", GlobalSummaryView.as_view(), name="global-summary"),

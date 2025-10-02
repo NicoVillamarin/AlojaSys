@@ -22,12 +22,14 @@ import CheckinIcon from "src/assets/icons/CheckinIcon";
 import CheckIcon from "src/assets/icons/CheckIcon";
 import PleopleOccupatedIcon from "src/assets/icons/PleopleOccupatedIcon";
 import Filter from "src/components/Filter";
+import { useUserHotels } from "src/hooks/useUserHotels";
 
 export default function Rooms() {
   const [showModal, setShowModal] = useState(false);
   const [editRoom, setEditRoom] = useState(null);
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
   const didMountRef = useRef(false);
+  const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel, status: filters.status } });
@@ -220,6 +222,7 @@ export default function Rooms() {
                   getOptionLabel={(h) => h?.name}
                   getOptionValue={(h) => h?.id}
                   onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
+                  extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
                 />
               </Formik>
             </div>
