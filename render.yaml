@@ -3,7 +3,7 @@ services:
     name: alojasys-backend
     env: docker
     rootDir: backend
-    dockerfilePath: backend/Dockerfile
+    dockerfilePath: Dockerfile
     plan: free
     autoDeploy: true
     envVars:
@@ -21,6 +21,9 @@ services:
     rootDir: frontend
     buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
 
 
 databases:
