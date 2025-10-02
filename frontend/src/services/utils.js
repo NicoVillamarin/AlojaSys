@@ -1,13 +1,16 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
 const API_POOL = parseInt(import.meta.env.VITE_API_POOL || "1", 10) || 1;
 
 let apiPool = 0;
 
 export const getApiURL = () => {
-  if (!API_URL) return ""; // usará proxy /api de Vite
-  if (API_POOL === 1) return API_URL;
+  // Permite configurar en runtime via window.__API_URL__ (inyectado por /public/config.js)
+  const runtimeApiUrl = typeof window !== 'undefined' && window.__API_URL__ ? window.__API_URL__ : "";
+  const baseApiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || "";
 
-  const [prefix, domain] = API_URL.split("//");
+  if (!baseApiUrl) return ""; // usará proxy /api de Vite (solo dev)
+  if (API_POOL === 1) return baseApiUrl;
+
+  const [prefix, domain] = baseApiUrl.split("//");
   apiPool = apiPool === API_POOL ? 1 : apiPool + 1;
   return `${prefix}//${apiPool}.${domain}`;
 };
