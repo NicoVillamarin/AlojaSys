@@ -17,8 +17,9 @@ services:
         fromService: alojasys-frontend
     healthCheckPath: /api/
 
-  - type: static_site
+  - type: web
     name: alojasys-frontend
+    env: static
     rootDir: frontend
     buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
