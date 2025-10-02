@@ -83,21 +83,31 @@ TEMPLATES = [
 WSGI_APPLICATION = 'hotel.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='hotel'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='postgres'),
-        'HOST': config('DB_HOST', default='db'),
-        'PORT': config('DB_PORT', default='5432'),
-    }
-}
+USE_SQLITE = config('USE_SQLITE', default=False, cast=bool)
 
-# Usar DATABASE_URL si está definido (Render/Neon). SSL requerido en Render.
-db_from_env = dj_database_url.config(conn_max_age=600, ssl_require=True)
-if db_from_env:
-    DATABASES['default'] = db_from_env
+if USE_SQLITE:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='hotel'),
+            'USER': config('DB_USER', default='postgres'),
+            'PASSWORD': config('DB_PASSWORD', default='postgres'),
+            'HOST': config('DB_HOST', default='db'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
+
+    # Usar DATABASE_URL si está definido (Render/Neon). SSL requerido en Render.
+    db_from_env = dj_database_url.config(conn_max_age=600, ssl_require=True)
+    if db_from_env:
+        DATABASES['default'] = db_from_env
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
