@@ -14,7 +14,10 @@ services:
       - key: USE_SQLITE
         value: "True"
       - key: FRONTEND_URL
-        fromService: alojasys-frontend
+        fromService:
+          name: alojasys-frontend
+          type: web
+          property: url
     healthCheckPath: /api/
 
   - type: web
@@ -25,7 +28,10 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        fromService: alojasys-backend
+        fromService:
+          name: alojasys-backend
+          type: web
+          property: url
 
 databases:
   - name: alojasys-db
