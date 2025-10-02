@@ -13,7 +13,7 @@ services:
         value: "False"
       - key: USE_SQLITE
         value: "True"
-    healthCheckPath: /api/
+    healthCheckPath: /health/
 
   - type: web
     name: alojasys-frontend

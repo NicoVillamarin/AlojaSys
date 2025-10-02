@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.core.views import HotelViewSet, StatusSummaryView, GlobalSummaryView
@@ -18,6 +19,7 @@ router.register(r"cities", CityViewSet, basename="city")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("health/", lambda request: JsonResponse({"status": "ok"})),
     path("api/", include(router.urls)),  # <- ÚNICO include de router
     path("api/", include("apps.enterprises.urls")),
     path("api/", include("apps.reservations.urls")),
