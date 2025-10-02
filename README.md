@@ -123,3 +123,22 @@ frontend/          # React (Vite)
 - Multi-hotel desde el inicio (FKs y filtros por hotel)
 - Automatización con Celery + Redis (worker y beat en Docker)
 - Endpoints REST claros y navegables, con filtros básicos
+
+## Despliegue en Render
+
+1. Conecta el repo a Render y selecciona la rama `develop` (o la que uses).
+2. Render detectará `render.yaml` y creará:
+   - `alojasys-backend` (Web Service Docker)
+   - `alojasys-frontend` (Static Site)
+   - `alojasys-db` (Postgres Free) – opcional para demo, usamos SQLite por defecto
+3. Variables de entorno (Render crea algunas automáticamente):
+   - En backend: `SECRET_KEY` (auto), `DEBUG=False`, `USE_SQLITE=True` para demo
+   - En frontend: `VITE_API_URL` queda enlazado al backend vía `render.yaml`
+4. Primer deploy:
+   - Backend corre migraciones automáticamente y sirve con gunicorn
+   - Frontend se builda y publica `dist/`
+5. Si luego quieres Postgres gratis:
+   - Cambia `USE_SQLITE=False` en backend y asigna `DATABASE_URL` a la DB de Render
+6. CORS/CSRF y ALLOWED_HOSTS: se configuran automáticamente con `FRONTEND_URL` y `RENDER_EXTERNAL_URL`.
+
+Despliegues por push: cada push a la rama configurada dispara `autoDeploy` según `render.yaml`.

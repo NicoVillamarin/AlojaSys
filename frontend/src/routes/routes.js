@@ -11,6 +11,7 @@ import States from "src/pages/configurations/locations/States";
 import Dashboard from "src/pages/Dashboard";
 import ReservationHistorical from "src/pages/ReservationHistorical";
 import Users from "src/pages/configurations/Users";
+import Reception from "src/pages/Reception";
 
 
 export const appRoutes = [
@@ -19,6 +20,7 @@ export const appRoutes = [
     element: React.createElement(MainLayout),
     children: [
       { index: true, element: React.createElement(Dashboard) },
+      { path: "reception", element: React.createElement(Reception) },
       { path: "rooms-gestion", element: React.createElement(RoomsGestion) },
       { path: "reservations-gestion", element: React.createElement(ReservationsGestions) },
       { path: "reservations/:id/history", element: React.createElement(ReservationHistorical) },

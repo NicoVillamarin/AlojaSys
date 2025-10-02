@@ -3,6 +3,8 @@ from pathlib import Path
 from decouple import config
 from celery.schedules import crontab
 from datetime import timedelta
+from urllib.parse import urlparse
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,7 +15,19 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend']
+# Hosts permitidos (Render añade RENDER_EXTERNAL_URL automáticamente)
+default_hosts = ['localhost', '127.0.0.1', 'backend']
+env_hosts = [h.strip() for h in config('ALLOWED_HOSTS', default='').split(',') if h.strip()]
+render_external_url = config('RENDER_EXTERNAL_URL', default=None)
+if render_external_url:
+    try:
+        parsed = urlparse(render_external_url)
+        if parsed.hostname:
+            default_hosts.append(parsed.hostname)
+    except Exception:
+        pass
+
+ALLOWED_HOSTS = list({h for h in (default_hosts + env_hosts) if h})
 
 # Application definition
 INSTALLED_APPS = [
@@ -38,6 +52,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,6 +94,11 @@ DATABASES = {
     }
 }
 
+# Usar DATABASE_URL si está definido (Render/Neon). SSL requerido en Render.
+db_from_env = dj_database_url.config(conn_max_age=600, ssl_require=True)
+if db_from_env:
+    DATABASES['default'] = db_from_env
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -104,6 +124,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Detrás de proxy (https en Render)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -129,13 +154,26 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20
 }
 
-# CORS settings
+# CORS/CSRF settings
+frontend_url = config('FRONTEND_URL', default=None)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+if frontend_url:
+    CORS_ALLOWED_ORIGINS.append(frontend_url)
 
 CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://*.onrender.com",
+]
+if frontend_url and frontend_url.startswith("http"):
+    CSRF_TRUSTED_ORIGINS.append(frontend_url)
+if render_external_url and render_external_url.startswith("http"):
+    CSRF_TRUSTED_ORIGINS.append(render_external_url)
 
 CELERY_BROKER_URL = config("REDIS_URL", default="redis://redis:6379/0")
 CELERY_RESULT_BACKEND = config("REDIS_URL", default="redis://redis:6379/0")
