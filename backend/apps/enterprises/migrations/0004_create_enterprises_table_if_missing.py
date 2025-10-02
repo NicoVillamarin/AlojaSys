@@ -44,6 +44,14 @@ END $$;
 '''
 
 
+def forwards(apps, schema_editor):
+    # Ejecutar solo en PostgreSQL; en SQLite no existe DO $$ ... $$
+    if schema_editor.connection.vendor != 'postgresql':
+        return
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(SQL_CREATE)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -51,7 +59,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(SQL_CREATE),
+        migrations.RunPython(forwards, migrations.RunPython.noop),
     ]
 
 
