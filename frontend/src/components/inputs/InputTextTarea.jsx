@@ -1,6 +1,6 @@
 import { useField } from 'formik'
 import React from 'react'
-import LabelsContainer from './labelsContainer'
+import LabelsContainer from './LabelsContainer'
 
 const InputTextTarea = ({ title, name, placeholder, rows = 3, disabled = false, autoFocus = false, autoComplete = 'off', className = '', textareaClassName = '', ...props }) => {
   const [field, meta] = useField(name)

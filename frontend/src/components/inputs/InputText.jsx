@@ -1,6 +1,6 @@
 import React from 'react'
 import { useField, useFormikContext } from 'formik'
-import LabelsContainer from './labelsContainer'
+import LabelsContainer from './LabelsContainer'
 
 const InputText = ({ title, name, placeholder, type = 'text', disabled = false, autoFocus = false, autoComplete = 'off', className = '', inputClassName = '', onChange, onInput, ...props }) => {
   const [field, meta] = useField(name)

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useField } from 'formik'
 import Select from 'react-select'
-import LabelsContainer from 'src/components/inputs/labelsContainer'
+import LabelsContainer from 'src/components/inputs/LabelsContainer'
 import { useList } from 'src/hooks/useList'
 import SpinnerData from 'src/components/SpinnerData'
 

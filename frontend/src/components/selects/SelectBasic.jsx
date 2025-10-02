@@ -1,7 +1,7 @@
 import React from 'react'
 import { useField } from 'formik'
 import Select from 'react-select'
-import LabelsContainer from 'src/components/inputs/labelsContainer'
+import LabelsContainer from 'src/components/inputs/LabelsContainer'
 
 /**
  * Select básico con react-select + Formik.
