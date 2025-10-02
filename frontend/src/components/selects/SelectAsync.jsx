@@ -8,11 +8,15 @@ import SpinnerData from 'src/components/SpinnerData'
 /**
  * SelectAsync: consulta opciones desde la API usando useList(resource).
  * - Guarda en Formik el valor simple (id/clave) de la opción.
+ * - Soporta selección múltiple con isMulti={true}
+ * - Auto-selección cuando solo hay una opción disponible
  * - props:
  *   - title, name, resource, placeholder
  *   - extraParams: filtros adicionales (hotel, etc.)
  *   - getOptionLabel/getOptionValue: mapeos (por defecto id/name)
- *   - isClearable/isSearchable, disabled
+ *   - isClearable/isSearchable, disabled, isMulti
+ *   - autoSelectSingle: auto-seleccionar si solo hay 1 opción (default: true)
+ *   - disableIfSingle: deshabilitar select si solo hay 1 opción (default: false)
  */
 const SelectAsync = ({
   title,
@@ -22,6 +26,9 @@ const SelectAsync = ({
   disabled = false,
   isClearable = true,
   isSearchable = true,
+  isMulti = false,
+  autoSelectSingle = true,
+  disableIfSingle = false,
   extraParams = {},
   getOptionLabel = (o) => o?.name ?? o?.title ?? o?.label ?? String(o?.id ?? ''),
   getOptionValue = (o) => o?.id ?? o?.value ?? '',
@@ -50,15 +57,48 @@ const SelectAsync = ({
   }, [query, refetch])
 
   const options = useMemo(() => results || [], [results])
+  
+  // Auto-seleccionar si solo hay una opción y el campo está vacío
+  useEffect(() => {
+    if (!autoSelectSingle || isMulti) return
+    
+    // Solo auto-seleccionar si hay exactamente 1 opción y el campo está vacío
+    if (options.length === 1 && !field.value && !isPending) {
+      const singleOption = options[0]
+      const singleValue = getOptionValue(singleOption)
+      helpers.setValue(singleValue)
+      if (typeof onValueChange === 'function') {
+        onValueChange(singleOption, singleValue)
+      }
+    }
+  }, [options, field.value, autoSelectSingle, isMulti, isPending, getOptionValue, helpers, onValueChange])
+
+  const hasSingleOption = options.length === 1 && !isMulti
+  const isDisabled = disabled || (disableIfSingle && hasSingleOption)
 
   const valueOption = useMemo(() => {
-    return options.find((opt) => String(getOptionValue(opt)) === String(field.value)) || null
-  }, [options, field.value, getOptionValue])
+    if (isMulti) {
+      // Para multi-select, field.value debe ser un array de IDs
+      const values = Array.isArray(field.value) ? field.value : []
+      return options.filter((opt) => values.includes(getOptionValue(opt)))
+    } else {
+      // Para select simple, buscar una sola opción
+      return options.find((opt) => String(getOptionValue(opt)) === String(field.value)) || null
+    }
+  }, [options, field.value, getOptionValue, isMulti])
 
   const onChange = (opt) => {
-    const newValue = opt ? getOptionValue(opt) : ''
-    helpers.setValue(newValue)
-    if (typeof onValueChange === 'function') onValueChange(opt, newValue)
+    if (isMulti) {
+      // Para multi-select, opt es un array de opciones
+      const newValue = opt ? opt.map((o) => getOptionValue(o)) : []
+      helpers.setValue(newValue)
+      if (typeof onValueChange === 'function') onValueChange(opt, newValue)
+    } else {
+      // Para select simple, opt es una opción única
+      const newValue = opt ? getOptionValue(opt) : ''
+      helpers.setValue(newValue)
+      if (typeof onValueChange === 'function') onValueChange(opt, newValue)
+    }
   }
 
   const onBlur = () => helpers.setTouched(true)
@@ -75,8 +115,8 @@ const SelectAsync = ({
           : '0 0 0 2px rgba(19,35,68,0.20)'
         : 'none',
       '&:hover': { borderColor: state.isFocused ? '#132344' : '#d1d5db' },
-      backgroundColor: disabled ? '#f9fafb' : '#ffffff',
-      cursor: disabled ? 'not-allowed' : 'default',
+      backgroundColor: state.isDisabled ? '#f9fafb' : '#ffffff',
+      cursor: state.isDisabled ? 'not-allowed' : 'pointer',
       fontSize: 14,
     }),
     valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
@@ -95,11 +135,17 @@ const SelectAsync = ({
     placeholder: (base) => ({ ...base, color: '#6b7280' }),
   }
 
+  // Título con indicador de auto-selección
+  const displayTitle = title && hasSingleOption && autoSelectSingle 
+    ? `${title} (autoseleccionado)` 
+    : title
+
   return (
-    <LabelsContainer title={title}>
+    <LabelsContainer title={displayTitle}>
       <div
+        className={isDisabled ? 'cursor-not-allowed' : ''}
         onMouseDown={(e) => {
-          if (disabled) return
+          if (isDisabled) return
           // Abrir menú solo por interacción del usuario con el mouse
           setIsMenuOpen(true)
         }}
@@ -118,9 +164,10 @@ const SelectAsync = ({
         }}
         options={options}
         isLoading={isPending}
-        isClearable={isClearable}
-        isDisabled={disabled}
+        isClearable={!hasSingleOption && isClearable}
+        isDisabled={isDisabled}
         isSearchable={isSearchable}
+        isMulti={isMulti}
         placeholder={placeholder}
         classNamePrefix="rs"
         styles={styles}

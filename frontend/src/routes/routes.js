@@ -10,6 +10,7 @@ import Countries from "src/pages/configurations/locations/Countries";
 import States from "src/pages/configurations/locations/States";
 import Dashboard from "src/pages/Dashboard";
 import ReservationHistorical from "src/pages/ReservationHistorical";
+import Users from "src/pages/configurations/Users";
 
 
 export const appRoutes = [
@@ -24,6 +25,7 @@ export const appRoutes = [
       { path: "settings/rooms", element: React.createElement(Rooms) },
       { path: "settings/hotels", element: React.createElement(Hotels) },
       { path: "settings/enterprises", element: React.createElement(Enterprises) },
+      { path: "settings/users", element: React.createElement(Users) },
       { path: "settings/locations/countries", element: React.createElement(Countries) },
       { path: "settings/locations/states", element: React.createElement(States) },
       { path: "settings/locations/cities", element: React.createElement(Cities) },

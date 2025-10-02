@@ -3,7 +3,6 @@ import TableGeneric from "src/components/TableGeneric";
 import { getStatusMeta, statusList } from "src/utils/statusList";
 import { useList } from "src/hooks/useList";
 import { useAction } from "src/hooks/useAction";
-import Select from "react-select";
 import { format, parseISO } from "date-fns";
 import Kpis from "src/components/Kpis";
 import Filter from "src/components/Filter";
@@ -18,7 +17,8 @@ import CheckIcon from "src/assets/icons/CheckIcon";
 import ConfigurateIcon from "src/assets/icons/ConfigurateIcon";
 import CheckoutIcon from "src/assets/icons/CheckoutIcon";
 import CheckinIcon from "src/assets/icons/CheckinIcon";
-import SelectBasic from "src/components/selects/SelectBasic";
+import SelectStandalone from "src/components/selects/SelectStandalone";
+import { useUserHotels } from "src/hooks/useUserHotels";
 
 export default function RoomsGestion() {
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
@@ -27,8 +27,20 @@ export default function RoomsGestion() {
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel, status: filters.status } });
 
-  // Lista de hoteles para el filtro
-  const { results: hotels } = useList({ resource: "hotels" });
+  const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
+  
+  // Lista de hoteles para el filtro (filtrados por usuario si no es superuser)
+  const { results: hotels } = useList({ 
+    resource: "hotels",
+    params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}
+  });
+
+  // Auto-seleccionar hotel si el usuario solo tiene uno asignado
+  useEffect(() => {
+    if (hasSingleHotel && singleHotelId && !filters.hotel && hotels && hotels.length === 1) {
+      setFilters((f) => ({ ...f, hotel: String(singleHotelId) }));
+    }
+  }, [hasSingleHotel, singleHotelId, hotels, filters.hotel]);
 
   // KPIs de hotel (solo cuando hay hotel seleccionado)
   const { results: summary, isPending: kpiLoading } = useAction({
@@ -53,8 +65,8 @@ export default function RoomsGestion() {
         arrivals: summary.today?.arrivals ?? 0,
         inhouse: summary.today?.inhouse ?? 0,
         departures: summary.today?.departures ?? 0,
-        occupancyRate: summary.rooms?.total > 0 
-          ? Math.round((summary.rooms?.occupied / summary.rooms?.total) * 100) 
+        occupancyRate: summary.rooms?.total > 0
+          ? Math.round((summary.rooms?.occupied / summary.rooms?.total) * 100)
           : 0,
       };
     } else {
@@ -91,7 +103,7 @@ export default function RoomsGestion() {
   // Crear KPIs para RoomsGestion
   const roomsGestionKpis = useMemo(() => {
     if (!kpi) return [];
-    
+
     return [
       {
         title: "Habitaciones Totales",
@@ -171,7 +183,7 @@ export default function RoomsGestion() {
   // KPIs adicionales cuando hay hotel seleccionado
   const additionalKpis = useMemo(() => {
     if (!filters.hotel || !kpi) return [];
-    
+
     return [
       {
         title: "Fuera de Servicio",
@@ -259,7 +271,7 @@ export default function RoomsGestion() {
 
       {/* KPIs principales */}
       <Kpis kpis={roomsGestionKpis} loading={filters.hotel && kpiLoading} />
-     
+
       {/* KPIs adicionales cuando hay hotel seleccionado */}
       {filters.hotel && (
         <Kpis kpis={additionalKpis} loading={kpiLoading} />
@@ -295,9 +307,9 @@ export default function RoomsGestion() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-          <div className="w-56">
-            <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Estado</label>
-            <Select
+            <SelectStandalone
+              title="Estado"
+              className="w-56"
               value={statusList.find(s => String(s.value) === String(filters.status)) || null}
               onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
               options={[
@@ -307,51 +319,21 @@ export default function RoomsGestion() {
               placeholder="Todos"
               isClearable
               isSearchable
-              classNamePrefix="rs"
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  minHeight: 36,
-                  borderRadius: 6,
-                  borderColor: '#e5e7eb',
-                  fontSize: 14,
-                }),
-                valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
-                indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
-                dropdownIndicator: (base) => ({ ...base, padding: 6 }),
-                clearIndicator: (base) => ({ ...base, padding: 6 }),
-                menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
-              }}
             />
-          </div>
-          <div className="w-56">
-            <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Hotel</label>
-            <Select
+            
+            <SelectStandalone
+              title={hasSingleHotel ? "Hotel (autoseleccionado)" : "Hotel"}
+              className="w-56"
               value={hotels?.find(h => String(h.id) === String(filters.hotel)) || null}
               onChange={(option) => setFilters((f) => ({ ...f, hotel: option ? String(option.id) : '' }))}
               options={hotels || []}
               getOptionLabel={(h) => h?.name}
               getOptionValue={(h) => h?.id}
               placeholder="Todos"
-              isClearable
+              isClearable={!hasSingleHotel}
               isSearchable
-              classNamePrefix="rs"
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  minHeight: 36,
-                  borderRadius: 6,
-                  borderColor: '#e5e7eb',
-                  fontSize: 14,
-                }),
-                valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
-                indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
-                dropdownIndicator: (base) => ({ ...base, padding: 6 }),
-                clearIndicator: (base) => ({ ...base, padding: 6 }),
-                menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
-              }}
+              isDisabled={hasSingleHotel}
             />
-          </div>
           </div>
         </div>
       </Filter>

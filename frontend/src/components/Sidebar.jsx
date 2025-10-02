@@ -99,6 +99,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
             <Item to="/settings/enterprises">Empresas</Item>
             <Item to="/settings/rooms">Habitaciones</Item>
             <Item to="/settings/hotels">Hoteles</Item>
+            <Item to="/settings/users">Usuarios</Item>
             <div className="mt-1 ml-2">
               <button
                 type="button"

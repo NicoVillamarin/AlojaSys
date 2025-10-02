@@ -10,6 +10,7 @@ import { Formik } from 'formik'
 import { format, parseISO } from 'date-fns'
 import { getStatusLabel, RES_STATUS } from './utils'
 import Filter from 'src/components/Filter'
+import { useUserHotels } from 'src/hooks/useUserHotels'
 
 
 
@@ -20,7 +21,7 @@ export default function ReservationHistorical() {
   const [historyReservation, setHistoryReservation] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
-
+  const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'reservations',
     params: { search: filters.search, hotel: filters.hotel || undefined, room: filters.room || undefined, status: filters.status || undefined },
@@ -133,6 +134,7 @@ export default function ReservationHistorical() {
                     placeholder='Todos'
                     getOptionLabel={(h) => h?.name}
                     getOptionValue={(h) => h?.id}
+                    extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
                     onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
                   />
                 </div>
