@@ -17,14 +17,16 @@ services:
 
   - type: web
     name: alojasys-frontend
-    env: static
+    env: docker
     rootDir: frontend
-    installCommand: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-    buildCommand: npm run build
-    staticPublishPath: dist
+    dockerfilePath: Dockerfile.render
+    plan: free
+    autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: VITE_API_URL
+        value: "https://alojasys-backend.onrender.com"
 
 
 databases:
