@@ -5,7 +5,7 @@ services:
     rootDir: backend
     dockerfilePath: Dockerfile
     plan: free
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -14,12 +14,12 @@ services:
     healthCheckPath: /health/
 
   - type: web
-    name: alojasys-frontend
+    name: alojasys-app
     env: docker
     rootDir: frontend
     dockerfilePath: Dockerfile.render
     plan: free
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: NODE_VERSION
         value: "20"
