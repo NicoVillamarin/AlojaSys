@@ -29,6 +29,36 @@ class EnterpriseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def to_internal_value(self, data):
+        # Normalizar strings vacíos a null para FKs opcionales
+        if isinstance(data, dict):
+            data = data.copy()
+            for key in ("country", "state", "city"):
+                if data.get(key) == "":
+                    data[key] = None
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        """
+        Si viene city, forzar coherencia: state y country se derivan de city.
+        Si no viene city pero viene state, derivar country desde state.
+        """
+        city = attrs.get("city")
+        state = attrs.get("state")
+        if city is not None:
+            try:
+                # city, state y country son instancias; asignamos consistentes
+                attrs["state"] = city.state if hasattr(city, "state") else None
+                attrs["country"] = city.state.country if hasattr(city, "state") and hasattr(city.state, "country") else None
+            except Exception:
+                pass
+        elif state is not None:
+            try:
+                attrs["country"] = state.country if hasattr(state, "country") else None
+            except Exception:
+                pass
+        return attrs
+
     def get_city_name(self, obj):
         try:
             return obj.city.name if obj.city else ""
