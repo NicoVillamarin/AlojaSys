@@ -3,9 +3,9 @@ from .models import Enterprise
 
 
 class EnterpriseSerializer(serializers.ModelSerializer):
-    city_name = serializers.CharField(source="city.name", read_only=True)
-    state_name = serializers.CharField(source="city.state.name", read_only=True)
-    country_code2 = serializers.CharField(source="city.state.country.code2", read_only=True)
+    city_name = serializers.SerializerMethodField(read_only=True)
+    state_name = serializers.SerializerMethodField(read_only=True)
+    country_code2 = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Enterprise
@@ -28,5 +28,23 @@ class EnterpriseSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_city_name(self, obj):
+        try:
+            return obj.city.name if obj.city else ""
+        except Exception:
+            return ""
+
+    def get_state_name(self, obj):
+        try:
+            return obj.city.state.name if obj.city and obj.city.state else ""
+        except Exception:
+            return ""
+
+    def get_country_code2(self, obj):
+        try:
+            return obj.city.state.country.code2 if obj.city and obj.city.state and obj.city.state.country else ""
+        except Exception:
+            return ""
 
 
