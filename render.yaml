@@ -11,8 +11,6 @@ services:
         generateValue: true
       - key: DEBUG
         value: "False"
-      - key: USE_SQLITE
-        value: "True"
     healthCheckPath: /health/
 
   - type: web
