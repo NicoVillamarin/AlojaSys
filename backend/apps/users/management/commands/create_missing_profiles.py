@@ -47,3 +47,4 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS('\n✅ Todos los usuarios ya tienen perfil'))
 
 
+
