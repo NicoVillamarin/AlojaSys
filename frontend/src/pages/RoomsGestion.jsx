@@ -42,17 +42,27 @@ export default function RoomsGestion() {
     }
   }, [hasSingleHotel, singleHotelId, hotels, filters.hotel]);
 
-  // KPIs de hotel (solo cuando hay hotel seleccionado)
+  // Forzar refetch cuando se auto-selecciona el hotel
+  useEffect(() => {
+    if (filters.hotel && hasSingleHotel) {
+      refetch();
+    }
+  }, [filters.hotel, hasSingleHotel, refetch]);
+
+  // KPIs de hotel (cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel)
+  const shouldUseSummary = !!filters.hotel || (hasSingleHotel && singleHotelId);
+  const hotelForSummary = filters.hotel || (hasSingleHotel ? String(singleHotelId) : undefined);
+  
   const { results: summary, isPending: kpiLoading } = useAction({
     resource: 'status',
     action: 'summary',
-    params: { hotel: filters.hotel || undefined },
-    enabled: !!filters.hotel,
+    params: { hotel: hotelForSummary },
+    enabled: shouldUseSummary,
   });
 
   const kpi = useMemo(() => {
-    if (filters.hotel && summary) {
-      // Usar datos del summary del hotel cuando hay filtro
+    if (shouldUseSummary && summary) {
+      // Usar datos del summary del hotel cuando hay filtro o cuando el usuario tiene un solo hotel
       return {
         total: summary.rooms?.total ?? 0,
         occupied: summary.rooms?.occupied ?? 0,
@@ -70,9 +80,11 @@ export default function RoomsGestion() {
           : 0,
       };
     } else {
-      // Usar datos de la página actual cuando no hay filtro de hotel
+      // Cuando no hay filtro de hotel y no se puede usar summary, usar el count total y calcular correctamente
       const total = count ?? 0;
       const page = results || [];
+      
+      // Contar por estado en la página actual
       const occupied = page.filter((r) => r.status === "occupied" || r.status === "OCCUPIED").length;
       const available = page.filter((r) => r.status === "available" || r.status === "AVAILABLE").length;
       const maintenance = page.filter((r) => r.status === "maintenance" || r.status === "MAINTENANCE").length;
@@ -83,10 +95,14 @@ export default function RoomsGestion() {
       const maxCapacity = page.reduce((sum, r) => sum + (r.max_capacity || 0), 0);
       const currentGuests = page.reduce((sum, r) => sum + (r.current_guests || 0), 0);
 
+      // Si tenemos el total real del count, usar ese para el cálculo de disponibles
+      // En lugar de solo contar la página actual
+      const actualAvailable = total > 0 ? total - occupied - maintenance - outOfService : available;
+
       return {
         total,
         occupied,
-        available,
+        available: Math.max(0, actualAvailable), // Asegurar que no sea negativo
         maintenance,
         outOfService,
         totalCapacity,
@@ -98,7 +114,7 @@ export default function RoomsGestion() {
         occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : 0,
       };
     }
-  }, [results, count, filters.hotel, summary]);
+  }, [results, count, shouldUseSummary, summary]);
 
   // Crear KPIs para RoomsGestion
   const roomsGestionKpis = useMemo(() => {
@@ -180,9 +196,9 @@ export default function RoomsGestion() {
     ];
   }, [kpi]);
 
-  // KPIs adicionales cuando hay hotel seleccionado
+  // KPIs adicionales cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel
   const additionalKpis = useMemo(() => {
-    if (!filters.hotel || !kpi) return [];
+    if (!shouldUseSummary || !kpi) return [];
 
     return [
       {
@@ -222,7 +238,7 @@ export default function RoomsGestion() {
         showProgress: false
       }
     ];
-  }, [filters.hotel, kpi]);
+  }, [shouldUseSummary, kpi]);
 
   // Filtrado en cliente para respuesta inmediata al escribir
   const displayResults = useMemo(() => {
@@ -270,10 +286,10 @@ export default function RoomsGestion() {
       </div>
 
       {/* KPIs principales */}
-      <Kpis kpis={roomsGestionKpis} loading={filters.hotel && kpiLoading} />
+      <Kpis kpis={roomsGestionKpis} loading={shouldUseSummary && kpiLoading} />
 
-      {/* KPIs adicionales cuando hay hotel seleccionado */}
-      {filters.hotel && (
+      {/* KPIs adicionales cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel */}
+      {shouldUseSummary && (
         <Kpis kpis={additionalKpis} loading={kpiLoading} />
       )}
 
