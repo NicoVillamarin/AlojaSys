@@ -7,11 +7,11 @@ import Kpis from 'src/components/Kpis'
 import SpinnerLoading from 'src/components/SpinnerLoading'
 import Tabs from 'src/components/Tabs'
 import PeriodSelector from 'src/components/PeriodSelector'
-import { 
-  ReservationsTimelineChart, 
-  RoomTypeOccupancyChart, 
-  RevenueChart, 
-  FutureReservationsChart 
+import {
+  ReservationsTimelineChart,
+  RoomTypeOccupancyChart,
+  RevenueChart,
+  FutureReservationsChart
 } from 'src/components/charts'
 import HomeIcon from 'src/assets/icons/HomeIcon'
 import UsersIcon from 'src/assets/icons/UsersIcon'
@@ -31,16 +31,16 @@ import { useUserHotels } from 'src/hooks/useUserHotels'
 
 const Dashboard = () => {
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
-  
+
   // Si el usuario solo tiene 1 hotel, iniciamos directamente en ese hotel
   const [selectedHotel, setSelectedHotel] = useState(hasSingleHotel ? singleHotelId : null) // null = todos los hoteles
   const [activeTab, setActiveTab] = useState(hasSingleHotel ? singleHotelId?.toString() : 'global') // global o hotel_id
   const [revenueMetric, setRevenueMetric] = useState('gross') // 'gross' | 'net'
   // Usar el hook de período personalizado
-  const { 
-    selectedPeriod, 
-    dateRange, 
-    handlePeriodChange, 
+  const {
+    selectedPeriod,
+    dateRange,
+    handlePeriodChange,
     handleCustomDateChange,
     customStartDate,
     customEndDate
@@ -71,25 +71,26 @@ const Dashboard = () => {
     enabled: activeTab === 'global'
   })
 
-  // Obtener reservas globales para gráficos
-  const { 
-    results: globalReservations, 
+  // Obtener reservas globales para gráficos (incluir reservas que se solapen con el período)
+  const {
+    results: globalReservations,
     isPending: globalReservationsLoading,
     hasNextPage: hasNextReservations,
     fetchNextPage: fetchNextReservations
   } = useList({
     resource: 'reservations',
-    params: { 
-      check_in__gte: dateRange.start,
+    params: {
+      // Incluir reservas que se solapen con el período (check_in <= end AND check_out >= start)
       check_in__lte: dateRange.end,
+      check_out__gte: dateRange.start,
       page_size: 1000
     },
     enabled: activeTab === 'global'
   })
 
   // Obtener habitaciones globales para gráficos
-  const { 
-    results: globalRooms, 
+  const {
+    results: globalRooms,
     isPending: globalRoomsLoading,
     hasNextPage: hasNextRooms,
     fetchNextPage: fetchNextRooms
@@ -99,13 +100,14 @@ const Dashboard = () => {
     enabled: activeTab === 'global'
   })
 
-  // Obtener datos filtrados (hotel específico)
+  // Obtener datos filtrados (hotel específico) - incluir reservas que se solapen con el período
   const { results: filteredReservations, isPending: filteredReservationsLoading } = useList({
     resource: 'reservations',
-    params: { 
+    params: {
       hotel: selectedHotel,
-      check_in__gte: dateRange.start,
+      // Incluir reservas que se solapen con el período (check_in <= end AND check_out >= start)
       check_in__lte: dateRange.end,
+      check_out__gte: dateRange.start,
       page_size: 1000
     },
     enabled: activeTab !== 'global' && !!selectedHotel
@@ -113,7 +115,7 @@ const Dashboard = () => {
 
   const { results: filteredRooms, isPending: filteredRoomsLoading } = useList({
     resource: 'rooms',
-    params: { 
+    params: {
       hotel: selectedHotel,
       page_size: 1000
     },
@@ -131,7 +133,10 @@ const Dashboard = () => {
       check_in: todayISO,
       page_size: 1000
     },
-    enabled: true
+    enabled: true,
+    refetchInterval: 30000, // Auto-refresh cada 30 segundos
+    refetchIntervalInBackground: true,
+    staleTime: 15000
   })
 
   // Salidas de HOY desde API de reservas
@@ -142,7 +147,10 @@ const Dashboard = () => {
       check_out: todayISO,
       page_size: 1000
     },
-    enabled: true
+    enabled: true,
+    refetchInterval: 30000, // Auto-refresh cada 30 segundos
+    refetchIntervalInBackground: true,
+    staleTime: 15000
   })
 
   // In-house de HOY (check_in <= hoy y check_out > hoy)
@@ -154,7 +162,10 @@ const Dashboard = () => {
       check_out__gt: todayISO,
       page_size: 1000
     },
-    enabled: true
+    enabled: true,
+    refetchInterval: 30000, // Auto-refresh cada 30 segundos
+    refetchIntervalInBackground: true,
+    staleTime: 15000
   })
 
   // Obtener resúmenes de todos los hoteles para datos globales
@@ -170,35 +181,33 @@ const Dashboard = () => {
   const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
   // Obtener TODAS las reservas pending y confirmed (el filtro de fecha se hará en el frontend)
-  const { 
-    results: futureReservations, 
-    isPending: futureReservationsLoading 
+  const {
+    results: futureReservations,
+    isPending: futureReservationsLoading
   } = useList({
     resource: 'reservations',
-    params: { 
+    params: {
       page_size: 1000,
       ordering: 'check_in' // Ordenar por fecha de check-in
     },
     enabled: true // Siempre habilitado para métricas globales
   })
-  
+
   // Debug: Ver todas las reservas recibidas
-  console.log('📦 Total reservas recibidas del backend:', futureReservations?.length || 0)
   if (futureReservations && futureReservations.length > 0) {
     const statusCount = futureReservations.reduce((acc, r) => {
       acc[r.status] = (acc[r.status] || 0) + 1
       return acc
     }, {})
-    console.log('Estados de reservas:', statusCount)
   }
 
   // Obtener reservas por hotel (el filtro de fecha se hará en el frontend)
-  const { 
-    results: filteredFutureReservations, 
-    isPending: filteredFutureReservationsLoading 
+  const {
+    results: filteredFutureReservations,
+    isPending: filteredFutureReservationsLoading
   } = useList({
     resource: 'reservations',
-    params: { 
+    params: {
       hotel: selectedHotel,
       page_size: 1000,
       ordering: 'check_in'
@@ -219,29 +228,77 @@ const Dashboard = () => {
     dateRange.end             // end_date para trends/revenue
   )
 
-  // Debug: Log para verificar parámetros
-  console.log('Dashboard Debug:', {
-    selectedHotel,
-    dateRange,
-    dashboardMetrics,
-    dashboardLoading,
-    dashboardError
-  })
+  // Auto-refresh de datos críticos cada 30 segundos (sin isLoading por ahora)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Solo refrescar si hay datos
+      if (dashboardMetrics || globalSummary || hotelSummary) {
+        refreshDashboardMetrics()
+      }
+    }, 30000) // 30 segundos
+
+    return () => clearInterval(interval)
+  }, [dashboardMetrics, globalSummary, hotelSummary, refreshDashboardMetrics])
 
   // Datos actuales según el tab activo
-  const reservations = activeTab === 'global' ? globalReservations : filteredReservations
+  // Usar futureReservations para el gráfico de tendencias ya que contiene todas las reservas
+  const reservations = activeTab === 'global' ? futureReservations : filteredFutureReservations
   const rooms = activeTab === 'global' ? globalRooms : filteredRooms
-  const reservationsLoading = activeTab === 'global' ? globalReservationsLoading : filteredReservationsLoading
+  const reservationsLoading = activeTab === 'global' ? futureReservationsLoading : filteredFutureReservationsLoading
   const roomsLoading = activeTab === 'global' ? globalRoomsLoading : filteredRoomsLoading
-  
-  // Reservas futuras según el tab activo
-  const futureReservationsData = activeTab === 'global' ? futureReservations : filteredFutureReservations
+
+  // Función para calcular habitaciones ocupadas desde las reservas
+  const calculateRoomOccupancy = () => {
+    const today = new Date().toISOString().split('T')[0]
+    
+    // Obtener todas las reservas que están actualmente ocupadas (check_in <= hoy < check_out)
+    const occupiedReservations = (reservations || []).filter(reservation => {
+      const checkIn = reservation.check_in
+      const checkOut = reservation.check_out
+      return checkIn <= today && checkOut > today && reservation.status === 'check_in'
+    })
+    
+    // Obtener habitaciones totales (asumiendo que tenemos datos de habitaciones)
+    const totalRooms = rooms?.length || 0
+    
+    const occupiedRooms = occupiedReservations.length
+    const availableRooms = Math.max(0, totalRooms - occupiedRooms)
+    const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+
+    return {
+      totalRooms,
+      occupiedRooms,
+      availableRooms,
+      occupancyRate
+    }
+  }
+
+  // Calcular ocupación de habitaciones
+  const roomOccupancy = calculateRoomOccupancy()
+
+  // Función para filtrar reservas realmente futuras (check_in >= hoy)
+  const getFutureReservations = (reservations) => {
+    if (!reservations) return []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return reservations.filter(reservation => {
+      const checkInDate = new Date(reservation.check_in)
+      return checkInDate >= today
+    })
+  }
+
+  // Reservas futuras según el tab activo (filtrar correctamente)
+  const allReservations = activeTab === 'global' ? futureReservations : filteredFutureReservations
+  const futureReservationsData = getFutureReservations(allReservations)
   const futureReservationsDataLoading = activeTab === 'global' ? futureReservationsLoading : filteredFutureReservationsLoading
+
+  // Calcular estado de carga después de que todas las variables estén declaradas
+  const isLoading = (activeTab === 'global' ? (globalSummaryLoading || globalReservationsLoading || globalRoomsLoading) : summaryLoading) || reservationsLoading || roomsLoading || futureReservationsDataLoading || dashboardLoading
 
   // Cargar todas las páginas de reservas globales para gráficos
   useEffect(() => {
     if (activeTab === 'global' && hasNextReservations && !globalReservationsLoading) {
-      console.log('Cargando siguiente página de reservas globales...')
       fetchNextReservations()
     }
   }, [activeTab, hasNextReservations, globalReservationsLoading, fetchNextReservations])
@@ -249,7 +306,6 @@ const Dashboard = () => {
   // Cargar todas las páginas de habitaciones globales para gráficos
   useEffect(() => {
     if (activeTab === 'global' && hasNextRooms && !globalRoomsLoading) {
-      console.log('Cargando siguiente página de habitaciones globales...')
       fetchNextRooms()
     }
   }, [activeTab, hasNextRooms, globalRoomsLoading, fetchNextRooms])
@@ -315,7 +371,7 @@ const Dashboard = () => {
       futureReservations: futureConfirmedCount,
       futureRevenue: futureRevenue,
       totalRevenue: 0, // Se puede calcular si es necesario
-      occupancyRate: globalSummary.rooms?.total > 0 ? 
+      occupancyRate: globalSummary.rooms?.total > 0 ?
         Math.round((globalSummary.rooms.occupied / globalSummary.rooms.total) * 100) : 0
     }
   }
@@ -339,18 +395,21 @@ const Dashboard = () => {
 
       // KPIs de HOY desde API reservas
       const arrivalsAllowed = ['pending', 'confirmed', 'check_in']
-      const departuresAllowed = ['check_in', 'check_out']
+      const departuresAllowed = ['check_out'] // Solo las que ya salieron
       const arrivalsFiltered = (arrivalsToday || []).filter(r => arrivalsAllowed.includes(r.status))
       const departuresFiltered = (departuresToday || []).filter(r => departuresAllowed.includes(r.status))
       const inHouseFiltered = (inHouseToday || []).filter(r => r.status === 'check_in')
       const arrivalsCount = arrivalsFiltered.length
       const departuresCount = departuresFiltered.length
       const currentGuestsCount = inHouseFiltered.reduce((sum, r) => sum + (parseInt(r.guests || 0, 10)), 0)
-
+      // Usar datos calculados desde reservas si hay datos disponibles
+      // Solo usar cálculo local en vista GLOBAL; en vista de hotel confiamos en el backend
+      const useCalculatedData = (activeTab === 'global') && roomOccupancy.totalRooms > 0
+      
       metrics = {
-        totalRooms: dashboardSummary.total_rooms || 0,
-        occupiedRooms: dashboardSummary.occupied_rooms || 0,
-        availableRooms: dashboardSummary.available_rooms || 0,
+        totalRooms: useCalculatedData ? roomOccupancy.totalRooms : (dashboardSummary.total_rooms || 0),
+        occupiedRooms: useCalculatedData ? roomOccupancy.occupiedRooms : (dashboardSummary.occupied_rooms || 0),
+        availableRooms: useCalculatedData ? roomOccupancy.availableRooms : (dashboardSummary.available_rooms || 0),
         maintenanceRooms: dashboardSummary.maintenance_rooms || 0,
         outOfServiceRooms: dashboardSummary.out_of_service_rooms || 0,
         arrivalsToday: arrivalsCount,
@@ -359,27 +418,28 @@ const Dashboard = () => {
         futureReservations: futureConfirmedCount,
         futureRevenue: futureRevenue,
         totalRevenue: parseFloat(dashboardSummary.total_revenue) || 0,
-        occupancyRate: parseFloat(dashboardSummary.occupancy_rate) || 0,
+        occupancyRate: useCalculatedData ? roomOccupancy.occupancyRate : (parseFloat(dashboardSummary.occupancy_rate) || 0),
         averageRoomRate: parseFloat(dashboardSummary.average_room_rate) || 0,
         totalGuests: dashboardSummary.total_guests || 0,
         guestsExpectedToday: dashboardSummary.guests_expected_today || 0,
-        guestsDepartingToday: dashboardSummary.guests_departing_today || 0,
+        guestsDepartingToday: departuresCount,
         pendingReservations,
         confirmedReservations,
         cancelledReservations
       }
+      
     } else if (activeTab !== 'global' && selectedHotel && hotelSummary) {
       // Fallback a métricas del summary API para hotel específico
       const futureConfirmedCount = futureReservationsData?.length || 0
       const futureRevenue = futureReservationsData?.reduce((sum, res) => sum + (parseFloat(res.total_price) || 0), 0) || 0
-      
+
       const baseReservationsHotel = filteredReservations || []
       const pendingHotel = (baseReservationsHotel || []).filter(r => r.status === 'pending').length
       const confirmedHotel = (baseReservationsHotel || []).filter(r => r.status === 'confirmed').length
       const cancelledHotel = (baseReservationsHotel || []).filter(r => r.status === 'cancelled').length
 
       const arrivalsAllowedH = ['pending', 'confirmed', 'check_in']
-      const departuresAllowedH = ['check_in', 'check_out']
+      const departuresAllowedH = ['check_out'] // Solo las que ya salieron
       const arrivalsFilteredH = (arrivalsToday || []).filter(r => arrivalsAllowedH.includes(r.status))
       const departuresFilteredH = (departuresToday || []).filter(r => departuresAllowedH.includes(r.status))
       const inHouseFilteredH = (inHouseToday || []).filter(r => r.status === 'check_in')
@@ -399,8 +459,9 @@ const Dashboard = () => {
         futureReservations: futureConfirmedCount,
         futureRevenue: futureRevenue,
         totalRevenue: 0, // Se calculará por separado
-        occupancyRate: hotelSummary.rooms?.total > 0 ? 
+        occupancyRate: hotelSummary.rooms?.total > 0 ?
           Math.round((hotelSummary.rooms.occupied / hotelSummary.rooms.total) * 100) : 0,
+        guestsDepartingToday: departuresCountH,
         pendingReservations: pendingHotel,
         confirmedReservations: confirmedHotel,
         cancelledReservations: cancelledHotel
@@ -436,6 +497,16 @@ const Dashboard = () => {
         progressWidth: `${metrics.occupancyRate}%`
       },
       {
+        title: "Habitaciones Disponibles",
+        value: metrics.availableRooms,
+        icon: HomeIcon,
+        color: "from-cyan-500 to-cyan-600",
+        bgColor: "bg-cyan-50",
+        iconColor: "text-cyan-600",
+        subtitle: `de ${metrics.totalRooms} totales`,
+        showProgress: false
+      },
+      {
         title: "Tasa de Ocupación",
         value: `${metrics.occupancyRate}%`,
         icon: ChartBarIcon,
@@ -446,7 +517,7 @@ const Dashboard = () => {
         progressWidth: `${metrics.occupancyRate}%`
       },
       {
-        title: "Huéspedes Actuales",
+        title: "Total de Huéspedes Actuales",
         value: metrics.currentGuests,
         icon: PleopleOccupatedIcon,
         color: "from-orange-500 to-orange-600",
@@ -456,7 +527,7 @@ const Dashboard = () => {
         showProgress: false
       },
       {
-        title: "Llegadas Hoy",
+        title: "Llegadas Hoy (Check-in)",
         value: metrics.arrivalsToday,
         icon: CheckinIcon,
         color: "from-green-500 to-green-600",
@@ -466,7 +537,7 @@ const Dashboard = () => {
         showProgress: false
       },
       {
-        title: "Salidas Hoy",
+        title: "Salidas Hoy (Check-out)",
         value: metrics.departuresToday,
         icon: CheckoutIcon,
         color: "from-red-500 to-red-600",
@@ -546,16 +617,6 @@ const Dashboard = () => {
         subtitle: "por habitación",
         showProgress: false
       }] : []),
-      ...(metrics.totalGuests ? [{
-        title: "Total Huéspedes",
-        value: metrics.totalGuests,
-        icon: UsersIcon,
-        color: "from-pink-500 to-pink-600",
-        bgColor: "bg-pink-50",
-        iconColor: "text-pink-600",
-        subtitle: "en el sistema",
-        showProgress: false
-      }] : []),
       ...(metrics.guestsExpectedToday ? [{
         title: "Huéspedes Esperados",
         value: metrics.guestsExpectedToday,
@@ -566,16 +627,6 @@ const Dashboard = () => {
         subtitle: "hoy",
         showProgress: false
       }] : []),
-      ...(metrics.guestsDepartingToday ? [{
-        title: "Huéspedes Partiendo",
-        value: metrics.guestsDepartingToday,
-        icon: CheckoutIcon,
-        color: "from-rose-500 to-rose-600",
-        bgColor: "bg-rose-50",
-        iconColor: "text-rose-600",
-        subtitle: "hoy",
-        showProgress: false
-      }] : [])
     ]
   }
 
@@ -584,9 +635,6 @@ const Dashboard = () => {
     if (!reservations || reservations.length === 0) return 0
     return reservations.reduce((sum, res) => sum + (parseFloat(res.total_price) || 0), 0)
   }
-
-
-  const isLoading = (activeTab === 'global' ? (globalSummaryLoading || globalReservationsLoading || globalRoomsLoading) : summaryLoading) || reservationsLoading || roomsLoading || futureReservationsDataLoading || dashboardLoading
 
   if (hotelsLoading) {
     return (
@@ -611,10 +659,10 @@ const Dashboard = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-gray-600 mt-1 text-xl font-bold">
-              {activeTab === 'global' 
+              {activeTab === 'global'
                 ? 'Vista Global - Todos los Hoteles'
-                : selectedHotel && hotelSummary?.hotel?.name 
-                  ? `${hotelSummary.hotel.name} - ${hotelSummary.hotel.city}` 
+                : selectedHotel && hotelSummary?.hotel?.name
+                  ? `${hotelSummary.hotel.name} - ${hotelSummary.hotel.city}`
                   : 'Hotel seleccionado'
               }
             </p>
@@ -622,7 +670,7 @@ const Dashboard = () => {
               📅 Período: {dateRange.label}
             </p>
           </div>
-          
+
           {/* Selector de Período */}
           <div className="flex gap-2">
             <PeriodSelector
@@ -630,18 +678,26 @@ const Dashboard = () => {
               onPeriodChange={handlePeriodChange}
               className="flex-shrink-0"
             />
-            
+
             {/* Botón para refrescar métricas del dashboard */}
-            {dashboardMetrics && (
+            <div className="flex items-center gap-2">
               <button
                 onClick={refreshDashboardMetrics}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
                 title="Actualizar métricas del dashboard"
               >
-                🔄 Actualizar
+                🔄 Actualizar Ahora
               </button>
-            )}
-            
+              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
+                Auto-actualización cada 30s
+              </div>
+              {isLoading && (
+                <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">
+                  ⏳ Actualizando...
+                </div>
+              )}
+            </div>
+
             {/* Inputs de fecha personalizada (solo cuando se selecciona "Personalizado") */}
             {selectedPeriod === 'custom' && (
               <div className="flex gap-2">
@@ -678,170 +734,192 @@ const Dashboard = () => {
       {/* Contenido del Dashboard */}
       <div className="p-6 space-y-6">
 
-      {/* KPIs */}
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-700">Métricas Principales</h2>
-          {dashboardError && (
-            <div className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">
-              ⚠️ Error cargando métricas del dashboard
+        {/* KPIs */}
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-700">Métricas Principales</h2>
+            {dashboardError && (
+              <div className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">
+                ⚠️ Error cargando métricas del dashboard
+              </div>
+            )}
+          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <SpinnerLoading />
             </div>
+          ) : (
+            <Kpis kpis={getKPIs()} />
           )}
         </div>
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <SpinnerLoading />
-          </div>
-        ) : (
-            <Kpis kpis={getKPIs()} />
-        )}
-      </div>
 
-      {/* Información adicional del dashboard */}
-      {dashboardMetrics?.summary && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            Información Detallada del Dashboard
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-600">Habitaciones en Mantenimiento</p>
-              <p className="text-2xl font-bold text-blue-900">
-                {dashboardMetrics.summary.maintenance_rooms || 0}
-              </p>
-            </div>
-            
-            <div className="bg-red-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-red-600">Fuera de Servicio</p>
-              <p className="text-2xl font-bold text-red-900">
-                {dashboardMetrics.summary.out_of_service_rooms || 0}
-              </p>
-            </div>
-            
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-yellow-600">Reservadas</p>
-              <p className="text-2xl font-bold text-yellow-900">
-                {dashboardMetrics.summary.reserved_rooms || 0}
-              </p>
-            </div>
-            
-            <div className="bg-purple-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-purple-600">No Shows Hoy</p>
-              <p className="text-2xl font-bold text-purple-900">
-                {dashboardMetrics.summary.no_show_today || 0}
-              </p>
-            </div>
+        {/* Gráficos */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Gráfico de línea de tiempo de reservas */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <ReservationsTimelineChart
+              key={`timeline-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
+              reservations={reservations}
+              dateRange={dateRange}
+              isLoading={isLoading}
+              selectedPeriod={selectedPeriod}
+              trends={dashboardMetrics?.trends}
+            />
+          </div>
+
+          {/* Gráfico de ocupación por tipo de habitación */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <RoomTypeOccupancyChart
+              rooms={rooms}
+              dateRange={dateRange}
+              isLoading={isLoading}
+            />
           </div>
         </div>
-      )}
 
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Gráfico de línea de tiempo de reservas */}
+        {/* Gráfico de reservas futuras */}
+        {futureReservationsData && futureReservationsData.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <FutureReservationsChart
+              key={`future-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
+              futureReservations={futureReservationsData}
+              dateRange={dateRange}
+              isLoading={isLoading}
+              selectedPeriod={selectedPeriod}
+            />
+          </div>
+        )}
+
+        {/* Gráfico de ingresos */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <ReservationsTimelineChart
-            key={`timeline-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-700">Ingresos</h2>
+            <div className="inline-flex rounded-md shadow-sm" role="group">
+              <button
+                type="button"
+                onClick={() => setRevenueMetric('gross')}
+                className={`px-3 py-1.5 text-sm font-medium border border-gray-200 ${revenueMetric === 'gross' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-l-md`}
+              >
+                Bruto
+              </button>
+              <button
+                type="button"
+                onClick={() => setRevenueMetric('net')}
+                className={`px-3 py-1.5 text-sm font-medium border border-gray-200 border-l-0 ${revenueMetric === 'net' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-r-md`}
+              >
+                Neto
+              </button>
+            </div>
+          </div>
+          <RevenueChart
+            key={`revenue-${selectedPeriod}-${dateRange.start}-${dateRange.end}-${revenueMetric}`}
             reservations={reservations}
             dateRange={dateRange}
             isLoading={isLoading}
             selectedPeriod={selectedPeriod}
-            trends={dashboardMetrics?.trends}
+            revenueAnalysis={dashboardMetrics?.revenueAnalysis}
+            metric={revenueMetric}
           />
         </div>
-
-        {/* Gráfico de ocupación por tipo de habitación */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <RoomTypeOccupancyChart
-            rooms={rooms}
-            dateRange={dateRange}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
-
-      {/* Gráfico de reservas futuras */}
-      {futureReservationsData && futureReservationsData.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <FutureReservationsChart
-            key={`future-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
-            futureReservations={futureReservationsData}
-            dateRange={dateRange}
-            isLoading={isLoading}
-            selectedPeriod={selectedPeriod}
-          />
-        </div>
-      )}
-
-      {/* Gráfico de ingresos */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-700">Ingresos</h2>
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              onClick={() => setRevenueMetric('gross')}
-              className={`px-3 py-1.5 text-sm font-medium border border-gray-200 ${revenueMetric === 'gross' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-l-md`}
-            >
-              Bruto
-            </button>
-            <button
-              type="button"
-              onClick={() => setRevenueMetric('net')}
-              className={`px-3 py-1.5 text-sm font-medium border border-gray-200 border-l-0 ${revenueMetric === 'net' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-r-md`}
-            >
-              Neto
-            </button>
-          </div>
-        </div>
-        <RevenueChart
-          key={`revenue-${selectedPeriod}-${dateRange.start}-${dateRange.end}-${revenueMetric}`}
-          reservations={reservations}
-          dateRange={dateRange}
-          isLoading={isLoading}
-          selectedPeriod={selectedPeriod}
-          revenueAnalysis={dashboardMetrics?.revenueAnalysis}
-          metric={revenueMetric}
-        />
-      </div>
-
-      {/* Tablas de reservas */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Tabla de reservas actuales (check-in) */}
-        {((activeTab !== 'global' && selectedHotel && hotelSummary?.current_reservations) || (activeTab === 'global' && globalSummary?.current_reservations)) && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-semibold text-gray-700 mb-4">
-              {activeTab === 'global' ? 'Check-ins Actuales' : 'Check-ins del Hotel'}
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {activeTab === 'global' && (
+        {/* Tablas de reservas */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Tabla de reservas actuales (check-in) */}
+          {((activeTab !== 'global' && selectedHotel && hotelSummary?.current_reservations) || (activeTab === 'global' && globalSummary?.current_reservations)) && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                {activeTab === 'global' ? 'Check-ins Actuales' : 'Check-ins del Hotel'}
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {activeTab === 'global' && (
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Hotel
+                        </th>
+                      )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Hotel
+                        Huésped
                       </th>
-                    )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Huésped
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Habitación
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Check-out
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {(() => {
-                    const currentReservations = activeTab === 'global'
-                      ? globalSummary?.current_reservations || []
-                      : hotelSummary?.current_reservations || []
-                    
-                    return currentReservations.map((reservation, index) => (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Habitación
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Check-out
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {(() => {
+                      const currentReservations = activeTab === 'global'
+                        ? globalSummary?.current_reservations || []
+                        : hotelSummary?.current_reservations || []
+
+                      return currentReservations.map((reservation, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          {activeTab === 'global' && (
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {reservation.hotel_name || 'N/A'}
+                            </td>
+                          )}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {reservation.guest_name || 'Sin nombre'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {reservation.room || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {format(parseISO(reservation.check_out), "dd/MM/yyyy")}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${reservation.total_price?.toLocaleString() || '0'}
+                          </td>
+                        </tr>
+                      ))
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tabla de reservas confirmadas futuras */}
+          {futureReservationsData && futureReservationsData.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                {activeTab === 'global' ? 'Reservas Confirmadas Futuras' : 'Reservas Futuras del Hotel'}
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {activeTab === 'global' && (
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Hotel
+                        </th>
+                      )}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Huésped
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Habitación
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Check-in
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Check-out
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {futureReservationsData.map((reservation, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         {activeTab === 'global' && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -849,10 +927,13 @@ const Dashboard = () => {
                           </td>
                         )}
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {reservation.guest_name || 'Sin nombre'}
+                          {reservation.guests_data?.[0]?.name || 'Sin nombre'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {reservation.room || 'N/A'}
+                          {reservation.room_name || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {format(parseISO(reservation.check_in), "dd/MM/yyyy")}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {format(parseISO(reservation.check_out), "dd/MM/yyyy")}
@@ -861,77 +942,13 @@ const Dashboard = () => {
                           ${reservation.total_price?.toLocaleString() || '0'}
                         </td>
                       </tr>
-                    ))
-                  })()}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Tabla de reservas confirmadas futuras */}
-        {futureReservationsData && futureReservationsData.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-semibold text-gray-700 mb-4">
-              {activeTab === 'global' ? 'Reservas Confirmadas Futuras' : 'Reservas Futuras del Hotel'}
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {activeTab === 'global' && (
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Hotel
-                      </th>
-                    )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Huésped
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Habitación
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Check-in
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Check-out
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {futureReservationsData.map((reservation, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      {activeTab === 'global' && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {reservation.hotel_name || 'N/A'}
-                        </td>
-                      )}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {reservation.guests_data?.[0]?.name || 'Sin nombre'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {reservation.room_name || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {format(parseISO(reservation.check_in), "dd/MM/yyyy")}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {format(parseISO(reservation.check_out), "dd/MM/yyyy")}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ${reservation.total_price?.toLocaleString() || '0'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </div>
   )

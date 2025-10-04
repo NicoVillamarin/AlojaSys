@@ -20,28 +20,27 @@ const FutureReservationsChart = ({
     }
 
     // Calcular fecha de MAÑANA para filtrar en el frontend
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(0, 0, 0, 0) // Resetear a medianoche
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Resetear a medianoche
     
-    console.log('Fecha de mañana para filtrar:', format(tomorrow, 'yyyy-MM-dd'))
+    console.log('Fecha de hoy para filtrar:', format(today, 'yyyy-MM-dd'))
 
-    // FILTRAR EN EL FRONTEND: Solo reservas desde mañana en adelante
+    // FILTRAR EN EL FRONTEND: Reservas que aún no han terminado (check_out >= hoy)
     const filteredReservations = futureReservations.filter(reservation => {
-      const checkInDate = parseISO(reservation.check_in)
-      const isFuture = checkInDate >= tomorrow
+      const checkOutDate = parseISO(reservation.check_out)
+      const isActive = checkOutDate >= today
       
-      if (!isFuture) {
-        console.log('❌ Descartando reserva antigua:', reservation.check_in, reservation.status)
+      if (!isActive) {
+        console.log('❌ Descartando reserva terminada:', reservation.check_in, 'check_out:', reservation.check_out, 'status:', reservation.status)
       }
       
-      return isFuture
+      return isActive
     })
 
-    console.log('✅ Reservas filtradas (desde mañana):', filteredReservations.length, 'de', futureReservations.length)
+    console.log('✅ Reservas activas (check_out >= hoy):', filteredReservations.length, 'de', futureReservations.length)
 
     if (filteredReservations.length === 0) {
-      console.log('⚠️ No hay reservas realmente futuras (desde mañana)')
+      console.log('⚠️ No hay reservas activas (todas han terminado)')
       return { series: [], categories: [] }
     }
 

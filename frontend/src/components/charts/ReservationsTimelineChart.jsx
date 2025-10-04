@@ -12,100 +12,161 @@ const ReservationsTimelineChart = ({
 }) => {
   // Procesar datos para gráfico de línea de tiempo de reservas
   const getReservationsTimelineData = () => {
-    // Si hay tendencias del dashboard, usarlas como fuente principal (global u hotel)
-    if (Array.isArray(trends) && trends.length > 0) {
-      console.log('📊 Gráfico de Tendencias - Usando datos del dashboard')
-      console.log('Rango de fechas:', dateRange)
-      
-      // Generar todas las fechas en el rango (incluyendo las que tienen 0 reservas)
+
+    // Si hay tendencias del dashboard con un campo explícito de "reservas creadas/confirmadas",
+    // usarlas como fuente principal. Evitar "check_in_today" porque refleja llegadas, no creaciones.
+    const getTrendCreatedValue = (t) => {
+      const possible = [
+        // nombres potenciales si el backend los expone en el futuro
+        t?.reservations_created,
+        t?.confirmed_reservations,
+        t?.total_reservations,
+        t?.created_reservations
+      ]
+      const found = possible.find(v => typeof v !== 'undefined' && v !== null)
+      return typeof found !== 'undefined' && found !== null ? Number(found || 0) : null
+    }
+
+    const trendsHaveCreatedMetric = Array.isArray(trends) && trends.length > 0 && trends.some(t => {
+      const v = getTrendCreatedValue(t)
+      return v !== null && v > 0
+    })
+
+    if (trendsHaveCreatedMetric) {
       const trendsMap = {}
       trends.forEach(t => {
-        trendsMap[t.date] = Number(t.check_in_today || 0)
+        const value = getTrendCreatedValue(t)
+        if (value !== null) {
+          trendsMap[t.date] = value
+        }
       })
-      
-      // Crear array con todas las fechas del rango, rellenando con 0 si no hay datos
+
       const categories = []
       const data = []
-      
+
       if (dateRange && dateRange.start && dateRange.end) {
-        // Usar parseISO para evitar problemas de zona horaria
         let currentDate = parseISO(dateRange.start)
         const endDate = parseISO(dateRange.end)
-        
-        console.log(`📅 Generando fechas: ${format(currentDate, 'dd/MM/yyyy')} - ${format(endDate, 'dd/MM/yyyy')}`)
-        
+
         while (currentDate <= endDate) {
           const dateStr = format(currentDate, 'yyyy-MM-dd')
           const formatted = format(currentDate, 'dd-MM-yyyy')
           const value = trendsMap[dateStr] || 0
-          
+
           categories.push(formatted)
           data.push(value)
-          
-          // Usar addDays en lugar de setDate para evitar problemas de zona horaria
+
           currentDate = addDays(currentDate, 1)
         }
-        
-        console.log(`✅ ${categories.length} fechas generadas, total de reservas: ${data.reduce((a, b) => a + b, 0)}`)
       } else {
-        // Fallback al comportamiento anterior si no hay dateRange
         trends.forEach(t => {
           try {
-            // Usar parseISO para las fechas de trends también
             const parsedDate = parseISO(t.date)
             const formatted = format(parsedDate, 'dd-MM-yyyy')
-            categories.push(formatted)
-            data.push(Number(t.check_in_today || 0))
+            const value = getTrendCreatedValue(t)
+            if (value !== null) {
+              categories.push(formatted)
+              data.push(value)
+            }
           } catch (error) {
             console.error('Error formateando fecha de trend:', t.date, error)
           }
         })
       }
-      
+
       return { series: [{ name: 'Reservas', data }], categories }
     }
 
-    if (!reservations || reservations.length === 0) return { series: [], categories: [] }
+    // Si no hay trends con datos, usar las reservas directamente
 
-    // Filtrar reservas que estén dentro del rango de fechas usando parseISO
+    if (!reservations || reservations.length === 0) {
+      return { series: [], categories: [] }
+    }
+
+    // Filtrar reservas que se crearon dentro del rango de fechas (usar created_at)
+    // y que estén en estados válidos para "confirmadas" en sentido amplio
+    // (confirmed, check_in, check_out)
+    const validStatuses = new Set(['confirmed', 'check_in', 'check_out'])
     const filteredReservations = reservations.filter(reservation => {
-      const checkInDate = parseISO(reservation.check_in)
+      // Usar solo la fecha (sin hora) para la comparación
+      const createdDate = new Date(reservation.created_at)
+      const createdDateOnly = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate())
+      
       const startDate = parseISO(dateRange.start)
       const endDate = parseISO(dateRange.end)
-      return checkInDate >= startDate && checkInDate <= endDate
+      const isInRange = createdDateOnly >= startDate && createdDateOnly <= endDate
+      
+      const hasValidStatus = validStatuses.has(reservation.status)
+      
+      return isInRange && hasValidStatus
     })
 
-    // Agrupar reservas por fecha
+
+    // Agrupar reservas por fecha de creación
     const reservationsByDate = {}
     filteredReservations.forEach(reservation => {
-      const date = reservation.check_in
+      const createdDate = new Date(reservation.created_at)
+      const date = createdDate.toISOString().split('T')[0] // YYYY-MM-DD
       if (!reservationsByDate[date]) {
         reservationsByDate[date] = 0
       }
       reservationsByDate[date]++
     })
 
-    // Crear arrays para el gráfico - ordenar fechas correctamente
-    const dates = Object.keys(reservationsByDate).sort((a, b) => new Date(a) - new Date(b))
-    const counts = dates.map(date => reservationsByDate[date])
+
+    // Generar todas las fechas en el rango (incluyendo las que tienen 0 reservas)
+    const categories = []
+    const data = []
     
-    // Formatear fechas para mostrar en DD-MM-YYYY usando parseISO
-    const formattedDates = dates.map(date => {
-      try {
-        const parsedDate = parseISO(date)
-        return format(parsedDate, 'dd-MM-yyyy')
-      } catch (error) {
-        console.error('Error formateando fecha:', date, error)
-        return date
+    if (dateRange && dateRange.start && dateRange.end) {
+      // Usar parseISO para evitar problemas de zona horaria
+      let currentDate = parseISO(dateRange.start)
+      const endDate = parseISO(dateRange.end)
+      
+      
+      while (currentDate <= endDate) {
+        const dateStr = format(currentDate, 'yyyy-MM-dd')
+        const formatted = format(currentDate, 'dd-MM-yyyy')
+        const value = reservationsByDate[dateStr] || 0
+        
+        categories.push(formatted)
+        data.push(value)
+        
+        // Usar addDays en lugar de setDate para evitar problemas de zona horaria
+        currentDate = addDays(currentDate, 1)
       }
-    })
+      
+    } else {
+      // Fallback al comportamiento anterior si no hay dateRange
+      const dates = Object.keys(reservationsByDate).sort((a, b) => new Date(a) - new Date(b))
+      const counts = dates.map(date => reservationsByDate[date])
+      
+      // Formatear fechas para mostrar en DD-MM-YYYY usando parseISO
+      const formattedDates = dates.map(date => {
+        try {
+          const parsedDate = parseISO(date)
+          return format(parsedDate, 'dd-MM-yyyy')
+        } catch (error) {
+          console.error('Error formateando fecha:', date, error)
+          return date
+        }
+      })
+      
+      return {
+        series: [{
+          name: 'Reservas',
+          data: counts
+        }],
+        categories: formattedDates
+      }
+    }
 
     return {
       series: [{
         name: 'Reservas',
-        data: counts
+        data: data
       }],
-      categories: formattedDates
+      categories: categories
     }
   }
 

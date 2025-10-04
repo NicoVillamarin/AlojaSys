@@ -13,17 +13,8 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Debug: Log para verificar parámetros
-  console.log('useDashboardMetrics Debug:', {
-    hotelId,
-    date,
-    params: { 
-      ...(hotelId && { hotel_id: hotelId }),
-      date: date || new Date().toISOString().split('T')[0]
-    }
-  })
 
-  // Solo obtener el resumen del dashboard
+  // Solo obtener el resumen del dashboard con auto-refresh
   const { 
     results: summary, 
     isPending: summaryLoading, 
@@ -35,7 +26,10 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
       ...(hotelId && { hotel_id: hotelId }),
       date: (date || new Date().toISOString().split('T')[0])
     },
-    enabled: true
+    enabled: true,
+    refetchInterval: 30000, // Auto-refresh cada 30 segundos
+    refetchIntervalInBackground: true, // Continuar refrescando aunque la pestaña no esté activa
+    staleTime: 15000 // Considerar datos obsoletos después de 15 segundos
   })
 
   // Tendencias del dashboard (por rango con fallback a últimos 30 días)
@@ -49,6 +43,9 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
     action: 'trends',
     params: trendsParams,
     enabled: true,
+    refetchInterval: 60000, // Auto-refresh cada 60 segundos (menos frecuente que summary)
+    refetchIntervalInBackground: true,
+    staleTime: 30000
   })
 
   // Ocupación por tipo (por fecha)
@@ -60,6 +57,9 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
       date: (date || new Date().toISOString().split('T')[0])
     },
     enabled: true,
+    refetchInterval: 60000, // Auto-refresh cada 60 segundos
+    refetchIntervalInBackground: true,
+    staleTime: 30000
   })
 
   // Análisis de ingresos (por rango)
@@ -71,14 +71,12 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
       ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {})
     },
     enabled: true,
+    refetchInterval: 60000, // Auto-refresh cada 60 segundos
+    refetchIntervalInBackground: true,
+    staleTime: 30000
   })
 
   // Debug: Log para verificar respuesta
-  console.log('useDashboardMetrics Summary:', {
-    summary,
-    summaryLoading,
-    error: summary?.error
-  })
 
   // Procesar métricas cuando cambien los datos
   useEffect(() => {

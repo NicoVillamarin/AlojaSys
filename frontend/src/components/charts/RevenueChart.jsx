@@ -12,14 +12,29 @@ const RevenueChart = ({
 }) => {
   // Procesar datos para gráfico de ingresos
   const getRevenueData = () => {
-    // Preferir datos diarios de la API de dashboard si están disponibles
-    if (revenueAnalysis && Array.isArray(revenueAnalysis.daily_revenue)) {
+    // Debug temporal
+    console.log('💰 RevenueChart - Datos recibidos:', {
+      reservations: reservations?.length || 0,
+      dateRange,
+      revenueAnalysis: !!revenueAnalysis,
+      metric
+    })
+
+    // TEMPORAL: Forzar uso de datos del frontend para debug
+    console.log('💰 Forzando uso de datos del frontend (reservas)')
+    
+    // Debug de datos del backend (sin usar)
+    if (revenueAnalysis && Array.isArray(revenueAnalysis.daily_revenue) && revenueAnalysis.daily_revenue.length > 0) {
       const categories = revenueAnalysis.daily_revenue.map(d => d.date)
       const data = revenueAnalysis.daily_revenue.map(d => parseFloat((metric === 'net' ? (d.net ?? d.revenue) : d.revenue) || 0))
-      return {
-        series: [{ name: metric === 'net' ? 'Ingresos Netos' : 'Ingresos Brutos', data }],
-        categories
-      }
+      
+      console.log('💰 Datos del backend (NO USADOS):', {
+        categories,
+        data,
+        hasRealData: data.some(value => value > 0),
+        totalRevenue: data.reduce((a, b) => a + b, 0),
+        rawData: revenueAnalysis.daily_revenue
+      })
     }
 
     if (!reservations || reservations.length === 0) {
@@ -27,71 +42,94 @@ const RevenueChart = ({
       return { series: [], categories: [] }
     }
 
-    // Filtrar reservas que estén dentro del rango de fechas
+    // Filtrar reservas que tienen check_in dentro del rango de fechas (ingresos reales)
     const filteredReservations = reservations.filter(reservation => {
       const checkInDate = new Date(reservation.check_in)
       const startDate = new Date(dateRange.start)
       const endDate = new Date(dateRange.end)
+      
+      // Incluir reservas que hicieron check-in dentro del período
       return checkInDate >= startDate && checkInDate <= endDate
     })
 
-    console.log('RevenueChart - Reservas filtradas:', filteredReservations.length, 'de', reservations.length)
-    console.log('Rango de fechas:', dateRange.start, 'a', dateRange.end)
+    console.log('💰 Reservas filtradas para ingresos:', {
+      total: reservations.length,
+      filtered: filteredReservations.length,
+      sample: filteredReservations.slice(0, 3).map(r => ({
+        id: r.id,
+        check_in: r.check_in,
+        total_price: r.total_price,
+        status: r.status
+      }))
+    })
 
     // Calcular la diferencia en días para decidir si agrupar por día o por mes
     const startDate = new Date(dateRange.start)
     const endDate = new Date(dateRange.end)
     const diffDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
     
-    console.log('Diferencia en días:', diffDays)
+
 
     const revenueByPeriod = {}
     let totalRevenue = 0
 
     filteredReservations.forEach(reservation => {
-      const reservationDate = new Date(reservation.check_in)
+      const checkInDate = new Date(reservation.check_in)
       const price = parseFloat(reservation.total_price || 0)
       totalRevenue += price
 
       let periodKey
       if (diffDays <= 31) {
-        // Si es menos de un mes, agrupar por día
-        periodKey = reservation.check_in
+        // Si es menos de un mes, agrupar por día (usar fecha de check-in)
+        periodKey = checkInDate.toISOString().split('T')[0]
       } else {
         // Si es más de un mes, agrupar por mes
-        periodKey = `${reservationDate.getFullYear()}-${String(reservationDate.getMonth() + 1).padStart(2, '0')}`
+        periodKey = `${checkInDate.getFullYear()}-${String(checkInDate.getMonth() + 1).padStart(2, '0')}`
       }
 
       if (!revenueByPeriod[periodKey]) {
         revenueByPeriod[periodKey] = 0
       }
       revenueByPeriod[periodKey] += price
+      
     })
 
-    console.log('Ingresos totales calculados:', totalRevenue)
-    console.log('Datos agrupados:', revenueByPeriod)
-
-    const periods = Object.keys(revenueByPeriod).sort()
-    const revenues = periods.map(period => revenueByPeriod[period])
-
-    // Si no hay datos, crear datos de ejemplo para mostrar el gráfico
-    if (periods.length === 0) {
-      console.log('No hay datos de ingresos, creando datos de ejemplo')
-      return {
-        series: [{
-          name: 'Ingresos',
-          data: [0]
-        }],
-        categories: ['Sin datos']
+    // Generar todas las fechas del rango (incluyendo las que tienen 0 ingresos)
+    const allPeriods = []
+    const allRevenues = []
+    
+    if (dateRange && dateRange.start && dateRange.end) {
+      const startDate = new Date(dateRange.start)
+      const endDate = new Date(dateRange.end)
+      
+      let currentDate = new Date(startDate)
+      while (currentDate <= endDate) {
+        const periodKey = currentDate.toISOString().split('T')[0]
+        allPeriods.push(periodKey)
+        allRevenues.push(revenueByPeriod[periodKey] || 0)
+        currentDate.setDate(currentDate.getDate() + 1)
       }
+    } else {
+      // Fallback al comportamiento anterior si no hay dateRange
+      const periods = Object.keys(revenueByPeriod).sort()
+      const revenues = periods.map(period => revenueByPeriod[period])
+      allPeriods.push(...periods)
+      allRevenues.push(...revenues)
     }
+
+    console.log('💰 Períodos generados:', {
+      total: allPeriods.length,
+      periods: allPeriods,
+      revenues: allRevenues,
+      totalRevenue: allRevenues.reduce((a, b) => a + b, 0)
+    })
 
     return {
       series: [{
-        name: 'Ingresos',
-        data: revenues
+        name: metric === 'net' ? 'Ingresos Netos' : 'Ingresos Brutos',
+        data: allRevenues
       }],
-      categories: periods
+      categories: allPeriods
     }
   }
 
