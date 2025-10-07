@@ -1,5 +1,6 @@
 import { Formik } from 'formik'
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -17,6 +18,7 @@ import * as Yup from 'yup'
  * - onSuccess?: (data) => void (se llama al crear/editar OK)
  */
 const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createUser, isPending: creating } = useCreate({
     resource: 'users',
     onSuccess: (data) => {
@@ -46,24 +48,24 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
 
   const validationSchema = Yup.object().shape({
     username: Yup.string()
-      .required('Usuario es requerido')
-      .min(3, 'Usuario debe tener al menos 3 caracteres')
-      .matches(/^[\w.@+-]+$/, 'Usuario solo puede contener letras, números y @/./+/-/_'),
+      .required(t('users_modal.username_required'))
+      .min(3, t('users_modal.username_min'))
+      .matches(/^[\w.@+-]+$/, t('users_modal.username_matches')),
     email: Yup.string()
-      .email('Email debe ser válido')
-      .required('Email es requerido'),
+      .email(t('users_modal.email_valid'))
+      .required(t('users_modal.email_required')),
     first_name: Yup.string()
-      .required('Nombre es requerido'),
+      .required(t('users_modal.first_name_required')),
     last_name: Yup.string()
-      .required('Apellido es requerido'),
+      .required(t('users_modal.last_name_required')),
     password: isEdit 
-      ? Yup.string().min(8, 'Contraseña debe tener al menos 8 caracteres')
+      ? Yup.string().min(8, t('users_modal.password_min'))
       : Yup.string()
-          .required('Contraseña es requerida')
-          .min(8, 'Contraseña debe tener al menos 8 caracteres'),
+          .required(t('users_modal.password_required'))
+          .min(8, t('users_modal.password_min')),
     phone: Yup.string(),
     position: Yup.string(),
-    hotels: Yup.array().min(1, 'Debe asignar al menos un hotel'),
+    hotels: Yup.array().min(1, t('users_modal.assigned_hotels_required')),
   })
 
   const [instanceKey, setInstanceKey] = useState(0)
@@ -106,59 +108,59 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar usuario' : 'Crear usuario'}
+          title={isEdit ? t('users_modal.edit_user') : t('users_modal.create_user')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear usuario'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('users_modal.save_changes') : t('users_modal.create_user_btn')}
+          cancelText={t('users_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
           size='lg'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <InputText 
-              title='Usuario *' 
+              title={`${t('users_modal.username')} *`} 
               name='username' 
-              placeholder='usuario123'
+              placeholder={t('users_modal.username_placeholder')}
               disabled={isEdit} 
             />
             <InputText 
-              title='Email *' 
+              title={`${t('users_modal.email')} *`} 
               name='email' 
-              placeholder='usuario@ejemplo.com' 
+              placeholder={t('users_modal.email_placeholder')} 
               type='email'
             />
             <InputText 
-              title='Nombre *' 
+              title={`${t('users_modal.first_name')} *`} 
               name='first_name' 
-              placeholder='Juan' 
+              placeholder={t('users_modal.first_name_placeholder')} 
             />
             <InputText 
-              title='Apellido *' 
+              title={`${t('users_modal.last_name')} *`} 
               name='last_name' 
-              placeholder='Pérez' 
+              placeholder={t('users_modal.last_name_placeholder')} 
             />
             <InputText 
-              title={isEdit ? 'Contraseña (dejar en blanco para mantener)' : 'Contraseña *'} 
+              title={isEdit ? t('users_modal.password_edit') : `${t('users_modal.password')} *`} 
               name='password' 
-              placeholder='••••••••' 
+              placeholder={t('users_modal.password_placeholder')} 
               type='password'
             />
             <InputText 
-              title='Teléfono' 
+              title={t('users_modal.phone')} 
               name='phone' 
-              placeholder='+54 11 1234-5678' 
+              placeholder={t('users_modal.phone_placeholder')} 
             />
             <InputText 
-              title='Cargo' 
+              title={t('users_modal.position')} 
               name='position' 
-              placeholder='Recepcionista' 
+              placeholder={t('users_modal.position_placeholder')} 
             />
             <div className='md:col-span-2'>
               <SelectAsync
-                title='Hoteles asignados *'
+                title={`${t('users_modal.assigned_hotels')} *`}
                 name='hotels'
                 resource='hotels'
-                placeholder='Seleccionar hoteles...'
+                placeholder={t('users_modal.assigned_hotels_placeholder')}
                 getOptionLabel={(h) => h?.name}
                 getOptionValue={(h) => h?.id}
                 isMulti={true}
@@ -172,7 +174,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           {isEdit && (
             <div className='mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200'>
               <p className='text-xs text-blue-800'>
-                <strong>Nota:</strong> Si no deseas cambiar la contraseña, deja el campo en blanco.
+                <strong>{t('users_modal.password_note')}</strong> {t('users_modal.password_note_text')}
               </p>
             </div>
           )}

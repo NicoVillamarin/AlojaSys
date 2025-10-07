@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Formik, FieldArray } from 'formik'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -14,6 +15,7 @@ import { getApiURL } from 'src/services/utils'
 import Button from 'src/components/Button'
 
 const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createRow, isPending: creating } = useCreate({
     resource: 'rates/rate-rules',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
@@ -66,27 +68,27 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
   }
 
   const validationSchema = Yup.object().shape({
-    plan: Yup.number().typeError('Plan requerido').required('Plan requerido'),
-    start_date: Yup.string().required('Inicio requerido'),
-    end_date: Yup.string().required('Fin requerido')
-      .test('dates-order', 'Fin debe ser >= Inicio', function (end) {
+    plan: Yup.number().typeError(t('rules_rate_modal.plan_required')).required(t('rules_rate_modal.plan_required')),
+    start_date: Yup.string().required(t('rules_rate_modal.start_date_required')),
+    end_date: Yup.string().required(t('rules_rate_modal.end_date_required'))
+      .test('dates-order', t('rules_rate_modal.end_date_order'), function (end) {
         const { start_date } = this.parent
         if (!start_date || !end) return true
         return new Date(end) >= new Date(start_date)
       }),
-    priority: Yup.number().typeError('Debe ser número').required('Requerido'),
-    price_mode: Yup.string().required('Requerido'),
-    min_stay: Yup.mixed().test('min-nonnegative', 'Mín noches >= 0', (v) => v === '' || Number(v) >= 0),
-    max_stay: Yup.mixed().test('max-positive', 'Máx noches > 0', (v) => v === '' || Number(v) > 0)
-      .test('max>=min', 'Máx debe ser >= Mín', function (max) {
+    priority: Yup.number().typeError(t('rules_rate_modal.priority_number')).required(t('rules_rate_modal.priority_required')),
+    price_mode: Yup.string().required(t('rules_rate_modal.price_mode_required')),
+    min_stay: Yup.mixed().test('min-nonnegative', t('rules_rate_modal.min_stay_nonnegative'), (v) => v === '' || Number(v) >= 0),
+    max_stay: Yup.mixed().test('max-positive', t('rules_rate_modal.max_stay_positive'), (v) => v === '' || Number(v) > 0)
+      .test('max>=min', t('rules_rate_modal.max_stay_gte_min'), function (max) {
         const { min_stay } = this.parent
         if (max === '' || min_stay === '') return true
         return Number(max) >= Number(min_stay)
       }),
-  }).test('at-least-one-day', 'Selecciona al menos un día de la semana', (values) => {
+  }).test('at-least-one-day', t('rules_rate_modal.at_least_one_day'), (values) => {
     if (!values.use_weekdays) return true
     return !!(values.apply_mon || values.apply_tue || values.apply_wed || values.apply_thu || values.apply_fri || values.apply_sat || values.apply_sun)
-  }).test('xor-room-type', 'Elegí habitación o tipo de habitación (no ambos)', (values) => {
+  }).test('xor-room-type', t('rules_rate_modal.xor_room_type'), (values) => {
     const hasRoom = !!values.target_room
     const hasType = !!values.target_room_type
     return !(hasRoom && hasType)
@@ -135,26 +137,26 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar regla' : 'Crear regla'}
+          title={isEdit ? t('rules_rate_modal.edit_rule') : t('rules_rate_modal.create_rule')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('rules_rate_modal.save_changes') : t('rules_rate_modal.create')}
+          cancelText={t('rules_rate_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
           size='lg'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <SelectAsync
-              title='Plan *'
+              title={`${t('rules_rate_modal.plan')} *`}
               name='plan'
               resource='rates/rate-plans'
-              placeholder='Buscar plan…'
+              placeholder={t('rules_rate_modal.plan_placeholder')}
               getOptionLabel={(p) => `${p?.name} (#${p?.id})`}
               getOptionValue={(p) => p?.id}
             />
-            <InputText title='Nombre' name='name' placeholder='Temporada alta' />
+            <InputText title={t('rules_rate_modal.name')} name='name' placeholder={t('rules_rate_modal.name_placeholder')} />
             <DatePickedRange
-              label='Rango de fechas *'
+              label={`${t('rules_rate_modal.date_range')} *`}
               startDate={values.start_date}
               endDate={values.end_date}
               onChange={(s, e) => { setFieldValue('start_date', s); setFieldValue('end_date', e) }}
@@ -162,7 +164,7 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
 
             <div className='col-span-2'>
               <div className='flex items-center justify-between mb-2'>
-                <div className='text-sm font-medium text-gray-700'>Días de la semana</div>
+                <div className='text-sm font-medium text-gray-700'>{t('rules_rate_modal.weekdays')}</div>
                 <div className='flex items-center gap-3'>
                   <label className='flex items-center gap-2 text-xs'>
                     <input
@@ -182,7 +184,7 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                         }
                       }}
                     />
-                    Aplicar solo ciertos días
+                    {t('rules_rate_modal.apply_specific_days')}
                   </label>
                   {values.use_weekdays && (
                     <div className='flex gap-2'>
@@ -194,7 +196,7 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                         setFieldValue('apply_fri', true)
                         setFieldValue('apply_sat', true)
                         setFieldValue('apply_sun', true)
-                      }}>Todos</button>
+                      }}>{t('rules_rate_modal.all')}</button>
                       <button type='button' className='text-xs text-gray-600 underline' onClick={() => {
                         setFieldValue('apply_mon', false)
                         setFieldValue('apply_tue', false)
@@ -203,14 +205,14 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                         setFieldValue('apply_fri', false)
                         setFieldValue('apply_sat', false)
                         setFieldValue('apply_sun', false)
-                      }}>Limpiar</button>
+                      }}>{t('rules_rate_modal.clear')}</button>
                     </div>
                   )}
                 </div>
               </div>
               <div className={`flex flex-wrap gap-2 ${!values.use_weekdays ? 'opacity-50 pointer-events-none' : ''}`}>
                 {[
-                  ['apply_mon','Lun'],['apply_tue','Mar'],['apply_wed','Mié'],['apply_thu','Jue'],['apply_fri','Vie'],['apply_sat','Sáb'],['apply_sun','Dom'],
+                  ['apply_mon', t('rules_rate_modal.days.mon')],['apply_tue', t('rules_rate_modal.days.tue')],['apply_wed', t('rules_rate_modal.days.wed')],['apply_thu', t('rules_rate_modal.days.thu')],['apply_fri', t('rules_rate_modal.days.fri')],['apply_sat', t('rules_rate_modal.days.sat')],['apply_sun', t('rules_rate_modal.days.sun')],
                 ].map(([name,label]) => (
                   <button
                     key={name}
@@ -225,17 +227,17 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
             </div>
 
             <SelectAsync
-              title='Habitación (opcional)'
+              title={t('rules_rate_modal.room')}
               name='target_room'
               resource='rooms'
-              placeholder='Buscar habitación…'
+              placeholder={t('rules_rate_modal.room_placeholder')}
               getOptionLabel={(r) => `${r?.name} (#${r?.id})`}
               getOptionValue={(r) => r?.id}
               isDisabled={!!values.target_room_type}
               onChange={(room) => setFieldValue('target_room', room?.id)}
             />
             <SelectStandalone
-              title='Tipo de habitación (opcional)'
+              title={t('rules_rate_modal.room_type')}
               value={values.target_room_type ? choices.room_types.find(r => r.value === values.target_room_type) || { value: values.target_room_type, label: values.target_room_type } : null}
               onChange={(v) => setFieldValue('target_room_type', v?.value || v || '')}
               options={choices.room_types}
@@ -245,7 +247,7 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
               getOptionValue={(o) => o.value}
             />
             <SelectStandalone
-              title='Canal (opcional)'
+              title={t('rules_rate_modal.channel')}
               value={values.channel ? choices.channels.find(c => c.value === values.channel) || { value: values.channel, label: values.channel } : null}
               onChange={(v) => setFieldValue('channel', v?.value || v || '')}
               options={choices.channels}
@@ -253,10 +255,10 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
               getOptionLabel={(o) => o.label}
               getOptionValue={(o) => o.value}
             />
-            <InputText title='Prioridad *' name='priority' placeholder='100' />
+            <InputText title={`${t('rules_rate_modal.priority')} *`} name='priority' placeholder={t('rules_rate_modal.priority_placeholder')} />
 
             <SelectStandalone
-              title='Modo de precio *'
+              title={`${t('rules_rate_modal.price_mode')} *`}
               value={values.price_mode ? choices.price_modes.find(p => p.value === values.price_mode) || { value: values.price_mode, label: values.price_mode } : null}
               onChange={(v) => setFieldValue('price_mode', v?.value || v || '')}
               options={choices.price_modes}
@@ -264,30 +266,30 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
               getOptionLabel={(o) => o.label}
               getOptionValue={(o) => o.value}
             />
-            <InputText title='Base/Delta' name='base_amount' placeholder='100.00 o +20.00' />
-            <InputText title='Extra huésped' name='extra_guest_fee_amount' placeholder='15.00' />
+            <InputText title={t('rules_rate_modal.base_amount')} name='base_amount' placeholder={t('rules_rate_modal.base_amount_placeholder')} />
+            <InputText title={t('rules_rate_modal.extra_guest_fee_amount')} name='extra_guest_fee_amount' placeholder={t('rules_rate_modal.extra_guest_fee_amount_placeholder')} />
 
-            <InputText title='Mín noches' name='min_stay' placeholder='2' />
-            <InputText title='Máx noches' name='max_stay' placeholder='30' />
+            <InputText title={t('rules_rate_modal.min_stay')} name='min_stay' placeholder={t('rules_rate_modal.min_stay_placeholder')} />
+            <InputText title={t('rules_rate_modal.max_stay')} name='max_stay' placeholder={t('rules_rate_modal.max_stay_placeholder')} />
 
             <label className='flex items-center gap-2 text-sm'>
               <input type='checkbox' checked={!!values.closed} onChange={(e)=>setFieldValue('closed', e.target.checked)} />
-              Cerrado (no vendible)
+              {t('rules_rate_modal.closed')}
             </label>
             <label className='flex items-center gap-2 text-sm'>
               <input type='checkbox' checked={!!values.closed_to_arrival} onChange={(e)=>setFieldValue('closed_to_arrival', e.target.checked)} />
-              CTA (cerrado a llegada)
+              {t('rules_rate_modal.closed_to_arrival')}
             </label>
             <label className='flex items-center gap-2 text-sm'>
               <input type='checkbox' checked={!!values.closed_to_departure} onChange={(e)=>setFieldValue('closed_to_departure', e.target.checked)} />
-              CTD (cerrado a salida)
+              {t('rules_rate_modal.closed_to_departure')}
             </label>
 
             <div className='col-span-2'>
               <div className='flex items-center justify-between mb-2'>
-                <div className='font-medium'>Precios por ocupación</div>
+                <div className='font-medium'>{t('rules_rate_modal.occupancy_prices')}</div>
                 <Button size='sm' onClick={() => setFieldValue('occupancy_prices', [...(values.occupancy_prices||[]), { occupancy: 2, price: '0.00' }])}>
-                  Agregar
+                  {t('rules_rate_modal.add')}
                 </Button>
               </div>
               <FieldArray
@@ -297,13 +299,13 @@ const RulesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                     {(values.occupancy_prices || []).map((item, idx) => (
                       <div className='grid grid-cols-6 gap-2 items-center' key={idx}>
                         <div className='col-span-2'>
-                          <InputText title='Ocupación' name={`occupancy_prices[${idx}].occupancy`} placeholder='2' />
+                          <InputText title={t('rules_rate_modal.occupancy')} name={`occupancy_prices[${idx}].occupancy`} placeholder={t('rules_rate_modal.occupancy_placeholder')} />
                         </div>
                         <div className='col-span-3'>
-                          <InputText title='Precio' name={`occupancy_prices[${idx}].price`} placeholder='120.00' />
+                          <InputText title={t('rules_rate_modal.price')} name={`occupancy_prices[${idx}].price`} placeholder={t('rules_rate_modal.price_placeholder')} />
                         </div>
                         <div className='col-span-1'>
-                          <Button variant='secondary' size='sm' onClick={() => arrayHelpers.remove(idx)}>Quitar</Button>
+                          <Button variant='secondary' size='sm' onClick={() => arrayHelpers.remove(idx)}>{t('rules_rate_modal.remove')}</Button>
                         </div>
                       </div>
                     ))}

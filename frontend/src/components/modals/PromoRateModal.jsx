@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Formik } from 'formik'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -13,6 +14,7 @@ import { getApiURL } from 'src/services/utils'
 import SelectStandalone from '../selects/SelectStandalone'
 
 const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createRow, isPending: creating } = useCreate({
     resource: 'rates/promo-rules',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
@@ -62,28 +64,28 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
   }
 
   const validationSchema = Yup.object().shape({
-    hotel: Yup.number().typeError('Hotel requerido').required('Hotel requerido'),
-    name: Yup.string().required('Nombre requerido'),
-    start_date: Yup.string().required('Inicio requerido'),
-    end_date: Yup.string().required('Fin requerido')
-      .test('dates-order', 'Fin debe ser >= Inicio', function (end) {
+    hotel: Yup.number().typeError(t('promo_rate_modal.hotel_required')).required(t('promo_rate_modal.hotel_required')),
+    name: Yup.string().required(t('promo_rate_modal.name_required')),
+    start_date: Yup.string().required(t('promo_rate_modal.start_date_required')),
+    end_date: Yup.string().required(t('promo_rate_modal.end_date_required'))
+      .test('dates-order', t('promo_rate_modal.end_date_order'), function (end) {
         const { start_date } = this.parent
         if (!start_date || !end) return true
         return new Date(end) >= new Date(start_date)
       }),
-    discount_type: Yup.string().required('Tipo requerido'),
-    discount_value: Yup.number().typeError('Debe ser número').required('Requerido')
-      .test('percent-range', 'Si es porcentaje debe estar entre 0 y 100', function (value) {
+    discount_type: Yup.string().required(t('promo_rate_modal.discount_type_required')),
+    discount_value: Yup.number().typeError(t('promo_rate_modal.discount_value_number')).required(t('promo_rate_modal.discount_value_required'))
+      .test('percent-range', t('promo_rate_modal.discount_value_percent_range'), function (value) {
         const { discount_type } = this.parent
         if (discount_type !== 'percent' || value == null || value === '') return true
         const n = Number(value)
         return n >= 0 && n <= 100
       }),
-    priority: Yup.number().typeError('Debe ser número').required('Requerido'),
-  }).test('at-least-one-day', 'Selecciona al menos un día de la semana', (values) => {
+    priority: Yup.number().typeError(t('promo_rate_modal.priority_number')).required(t('promo_rate_modal.priority_required')),
+  }).test('at-least-one-day', t('promo_rate_modal.at_least_one_day'), (values) => {
     if (!values.use_weekdays) return true
     return !!(values.apply_mon || values.apply_tue || values.apply_wed || values.apply_thu || values.apply_fri || values.apply_sat || values.apply_sun)
-  }).test('xor-room-type', 'Elegí habitación o tipo de habitación (no ambos)', (values) => {
+  }).test('xor-room-type', t('promo_rate_modal.xor_room_type'), (values) => {
     const hasRoom = !!values.target_room
     const hasType = !!values.target_room_type
     return !(hasRoom && hasType)
@@ -127,35 +129,35 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar promoción' : 'Crear promoción'}
+          title={isEdit ? t('promo_rate_modal.edit_promo') : t('promo_rate_modal.create_promo')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('promo_rate_modal.save_changes') : t('promo_rate_modal.create')}
+          cancelText={t('promo_rate_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
           size='lg'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <SelectAsync
-              title='Hotel *'
+              title={`${t('promo_rate_modal.hotel')} *`}
               name='hotel'
               resource='hotels'
-              placeholder='Buscar hotel…'
+              placeholder={t('promo_rate_modal.hotel_placeholder')}
               getOptionLabel={(h) => h?.name}
               getOptionValue={(h) => h?.id}
             />
             <SelectAsync
-              title='Plan (opcional)'
+              title={t('promo_rate_modal.plan')}
               name='plan'
               resource='rates/rate-plans'
-              placeholder='Buscar plan…'
+              placeholder={t('promo_rate_modal.plan_placeholder')}
               getOptionLabel={(p) => `${p?.name} (#${p?.id})`}
               getOptionValue={(p) => p?.id}
             />
-            <InputText title='Nombre *' name='name' placeholder='BLACK FRIDAY' />
-            <InputText title='Código (opcional)' name='code' placeholder='BLACK' />
+            <InputText title={`${t('promo_rate_modal.name')} *`} name='name' placeholder={t('promo_rate_modal.name_placeholder')} />
+            <InputText title={t('promo_rate_modal.code')} name='code' placeholder={t('promo_rate_modal.code_placeholder')} />
             <DatePickedRange
-              label='Rango de fechas *'
+              label={`${t('promo_rate_modal.date_range')} *`}
               startDate={values.start_date}
               endDate={values.end_date}
               onChange={(s, e) => { setFieldValue('start_date', s); setFieldValue('end_date', e) }}
@@ -163,7 +165,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
 
             <div className='col-span-2'>
               <div className='flex items-center justify-between mb-2'>
-                <div className='text-sm font-medium text-gray-700'>Días de la semana</div>
+                <div className='text-sm font-medium text-gray-700'>{t('promo_rate_modal.weekdays')}</div>
                 <div className='flex items-center gap-3'>
                   <label className='flex items-center gap-2 text-xs'>
                     <input
@@ -183,7 +185,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                         }
                       }}
                     />
-                    Aplicar solo ciertos días
+                    {t('promo_rate_modal.apply_specific_days')}
                   </label>
                   {values.use_weekdays && (
                     <div className='flex gap-2'>
@@ -195,7 +197,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                         setFieldValue('apply_fri', true)
                         setFieldValue('apply_sat', true)
                         setFieldValue('apply_sun', true)
-                      }}>Todos</button>
+                      }}>{t('promo_rate_modal.all')}</button>
                       <button type='button' className='text-xs text-gray-600 underline' onClick={() => {
                         setFieldValue('apply_mon', false)
                         setFieldValue('apply_tue', false)
@@ -204,14 +206,14 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                         setFieldValue('apply_fri', false)
                         setFieldValue('apply_sat', false)
                         setFieldValue('apply_sun', false)
-                      }}>Limpiar</button>
+                      }}>{t('promo_rate_modal.clear')}</button>
                     </div>
                   )}
                 </div>
               </div>
               <div className={`flex flex-wrap gap-2 ${!values.use_weekdays ? 'opacity-50 pointer-events-none' : ''}`}>
                 {[
-                  ['apply_mon','Lun'],['apply_tue','Mar'],['apply_wed','Mié'],['apply_thu','Jue'],['apply_fri','Vie'],['apply_sat','Sáb'],['apply_sun','Dom'],
+                  ['apply_mon', t('promo_rate_modal.days.mon')],['apply_tue', t('promo_rate_modal.days.tue')],['apply_wed', t('promo_rate_modal.days.wed')],['apply_thu', t('promo_rate_modal.days.thu')],['apply_fri', t('promo_rate_modal.days.fri')],['apply_sat', t('promo_rate_modal.days.sat')],['apply_sun', t('promo_rate_modal.days.sun')],
                 ].map(([name,label]) => (
                   <button
                     key={name}
@@ -226,17 +228,17 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
             </div>
 
             <SelectAsync
-              title='Habitación (opcional)'
+              title={t('promo_rate_modal.room')}
               name='target_room'
               resource='rooms'
-              placeholder='Buscar habitación…'
+              placeholder={t('promo_rate_modal.room_placeholder')}
               getOptionLabel={(r) => `${r?.name} (#${r?.id})`}
               getOptionValue={(r) => r?.id}
               isDisabled={!!values.target_room_type}
               onChange={(room) => setFieldValue('target_room', room?.id)}
             />
             <SelectStandalone
-              title='Tipo de habitación (opcional)'
+              title={t('promo_rate_modal.room_type')}
               value={values.target_room_type ? choices.room_types.find(r => r.value === values.target_room_type) || { value: values.target_room_type, label: values.target_room_type } : null}
               onChange={(v) => setFieldValue('target_room_type', v?.value || v || '')}
               options={choices.room_types}
@@ -246,7 +248,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
               getOptionValue={(o) => o.value}
             />
             <SelectStandalone
-              title='Canal (opcional)'
+              title={t('promo_rate_modal.channel')}
               value={values.channel ? choices.channels.find(c => c.value === values.channel) || { value: values.channel, label: values.channel } : null}
               onChange={(v) => setFieldValue('channel', v?.value || v || '')}
               options={choices.channels}
@@ -255,32 +257,32 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
               getOptionValue={(o) => o.value}
             />
 
-            <InputText title='Prioridad *' name='priority' placeholder='100' />
+            <InputText title={`${t('promo_rate_modal.priority')} *`} name='priority' placeholder={t('promo_rate_modal.priority_placeholder')} />
             <SelectStandalone
-              title='Alcance *'
-              value={{ value: values.scope, label: values.scope === 'per_night' ? 'Por noche' : 'Por reserva' }}
+              title={`${t('promo_rate_modal.scope')} *`}
+              value={{ value: values.scope, label: values.scope === 'per_night' ? t('promo_rate_modal.scope_per_night') : t('promo_rate_modal.scope_per_reservation') }}
               onChange={(v) => setFieldValue('scope', v?.value || v)}
-              options={[{ value:'per_night', label:'Por noche' }, { value:'per_reservation', label:'Por reserva' }]}
+              options={[{ value:'per_night', label: t('promo_rate_modal.scope_per_night') }, { value:'per_reservation', label: t('promo_rate_modal.scope_per_reservation') }]}
               getOptionLabel={(o) => o.label}
               getOptionValue={(o) => o.value}
             />
             <SelectStandalone
-              title='Tipo de descuento *'
-              value={values.discount_type ? { value: values.discount_type, label: values.discount_type === 'percent' ? 'Porcentaje' : 'Monto fijo' } : null}
+              title={`${t('promo_rate_modal.discount_type')} *`}
+              value={values.discount_type ? { value: values.discount_type, label: values.discount_type === 'percent' ? t('promo_rate_modal.discount_type_percent') : t('promo_rate_modal.discount_type_fixed') } : null}
               onChange={(v) => setFieldValue('discount_type', v?.value || v)}
-              options={[{ value:'percent', label:'Porcentaje' }, { value:'fixed', label:'Monto fijo' }]}
+              options={[{ value:'percent', label: t('promo_rate_modal.discount_type_percent') }, { value:'fixed', label: t('promo_rate_modal.discount_type_fixed') }]}
               getOptionLabel={(o) => o.label}
               getOptionValue={(o) => o.value}
             />
-            <InputText title='Valor *' name='discount_value' placeholder='10 (o 15.00 si fijo)' />
+            <InputText title={`${t('promo_rate_modal.discount_value')} *`} name='discount_value' placeholder={t('promo_rate_modal.discount_value_placeholder')} />
 
             <label className='flex items-center gap-2 text-sm'>
               <input type='checkbox' checked={!!values.combinable} onChange={(e)=>setFieldValue('combinable', e.target.checked)} />
-              Combinable
+              {t('promo_rate_modal.combinable')}
             </label>
             <label className='flex items-center gap-2 text-sm'>
               <input type='checkbox' checked={!!values.is_active} onChange={(e)=>setFieldValue('is_active', e.target.checked)} />
-              Activa
+              {t('promo_rate_modal.active')}
             </label>
           </div>
         </ModalLayout>

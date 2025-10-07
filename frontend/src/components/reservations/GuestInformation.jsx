@@ -1,9 +1,11 @@
 import React from 'react'
 import { useFormikContext } from 'formik'
+import { useTranslation } from 'react-i18next'
 import InputText from 'src/components/inputs/InputText'
 import PeopleIcon from 'src/assets/icons/PeopleIcon'
 
 const GuestInformation = () => {
+  const { t } = useTranslation()
   const { values, setFieldValue, errors, touched } = useFormikContext()
   
   const requestedGuests = values.guests || 1
@@ -47,28 +49,28 @@ const GuestInformation = () => {
             <PeopleIcon className="w-6 h-6 text-blue-600" />
           </div>
           <h3 className="text-xl font-bold text-blue-900">
-            Huésped Principal
+            {t('guest_information.primary_guest')}
           </h3>
         </div>
         
         {/* Información Personal */}
         <div className="mb-6">
           <h4 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-            Información Personal
+            {t('guest_information.personal_info')}
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputText
-              title="Nombre completo *"
+              title={`${t('guest_information.full_name')} *`}
               name="guest_name"
-              placeholder="Ej: Juan Pérez"
+              placeholder={t('guest_information.full_name_placeholder')}
               value={values.guest_name || ''}
               onChange={(e) => setFieldValue('guest_name', e.target.value)}
               error={touched.guest_name && errors.guest_name}
             />
             <InputText
-              title="Documento *"
+              title={`${t('guest_information.document')} *`}
               name="guest_document"
-              placeholder="DNI, Pasaporte, etc."
+              placeholder={t('guest_information.document_placeholder')}
               value={values.guest_document || ''}
               onChange={(e) => setFieldValue('guest_document', e.target.value)}
               error={touched.guest_document && errors.guest_document}
@@ -79,31 +81,31 @@ const GuestInformation = () => {
         {/* Información de Contacto */}
         <div className="border-t border-blue-200 pt-6">
           <h4 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-            Información de Contacto
+            {t('guest_information.contact_info')}
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputText
-              title="Email *"
+              title={`${t('guest_information.email')} *`}
               name="guest_email"
               type="email"
-              placeholder="juan@email.com"
+              placeholder={t('guest_information.email_placeholder')}
               value={values.guest_email || ''}
               onChange={(e) => setFieldValue('guest_email', e.target.value)}
               error={touched.guest_email && errors.guest_email}
             />
             <InputText
-              title="Teléfono *"
+              title={`${t('guest_information.phone')} *`}
               name="guest_phone"
-              placeholder="+54 9 11 1234-5678"
+              placeholder={t('guest_information.phone_placeholder')}
               value={values.guest_phone || ''}
               onChange={(e) => setFieldValue('guest_phone', e.target.value)}
               error={touched.guest_phone && errors.guest_phone}
             />
             <div className="md:col-span-2">
               <InputText
-                title="Dirección de contacto *"
+                title={`${t('guest_information.contact_address')} *`}
                 name="contact_address"
-                placeholder="Calle 123, Ciudad, País"
+                placeholder={t('guest_information.contact_address_placeholder')}
                 value={values.contact_address || ''}
                 onChange={(e) => setFieldValue('contact_address', e.target.value)}
                 error={touched.contact_address && errors.contact_address}
@@ -123,10 +125,13 @@ const GuestInformation = () => {
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-red-900">Capacidad Excedida</h3>
+              <h3 className="text-lg font-bold text-red-900">{t('guest_information.capacity_exceeded')}</h3>
               <p className="text-red-700">
-                Has seleccionado {requestedGuests} huéspedes, pero la habitación "{values.room_data.name}" 
-                tiene una capacidad máxima de {maxCapacity} huéspedes. Solo se mostrarán {maxCapacity} huéspedes.
+                {t('guest_information.capacity_exceeded_msg', { 
+                  requested: requestedGuests, 
+                  room_name: values.room_data.name, 
+                  max: maxCapacity 
+                })}
               </p>
             </div>
           </div>
@@ -141,7 +146,7 @@ const GuestInformation = () => {
               <PeopleIcon className="w-6 h-6 text-green-600" />
             </div>
             <h3 className="text-xl font-bold text-green-900">
-              Otros Huéspedes ({otherGuestsCount})
+              {t('guest_information.other_guests_count', { count: otherGuestsCount })}
             </h3>
           </div>
 
@@ -149,24 +154,24 @@ const GuestInformation = () => {
             {values.other_guests?.map((guest, index) => (
               <div key={index} className="bg-white p-6 rounded-lg border border-green-200 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-3 mb-6">
-                  <h4 className="text-lg font-semibold text-gray-800">Huésped {index + 2}</h4>
+                  <h4 className="text-lg font-semibold text-gray-800">{t('guest_information.guest_number', { number: index + 2 })}</h4>
                 </div>
                 
                 {/* Información Personal */}
                 <div className="mb-6">
                   <h5 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-                    Información Personal
+                    {t('guest_information.personal_info')}
                   </h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nombre completo *
+                        {t('guest_information.full_name')} *
                       </label>
                       <input
                         type="text"
                         value={guest.name || ''}
                         onChange={(e) => updateGuest(index, 'name', e.target.value)}
-                        placeholder="Ej: María García"
+                        placeholder={t('guest_information.full_name_placeholder')}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           errors.other_guests?.[index]?.name ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -177,13 +182,13 @@ const GuestInformation = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Documento *
+                        {t('guest_information.document')} *
                       </label>
                       <input
                         type="text"
                         value={guest.document || ''}
                         onChange={(e) => updateGuest(index, 'document', e.target.value)}
-                        placeholder="DNI, Pasaporte, etc."
+                        placeholder={t('guest_information.document_placeholder')}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           errors.other_guests?.[index]?.document ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -198,18 +203,18 @@ const GuestInformation = () => {
                 {/* Información de Contacto */}
                 <div className="border-t border-gray-200 pt-6">
                   <h5 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-                    Información de Contacto
+                    {t('guest_information.contact_info')}
                   </h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email *
+                        {t('guest_information.email')} *
                       </label>
                       <input
                         type="email"
                         value={guest.email || ''}
                         onChange={(e) => updateGuest(index, 'email', e.target.value)}
-                        placeholder="maria@email.com"
+                        placeholder={t('guest_information.email_placeholder')}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           errors.other_guests?.[index]?.email ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -220,13 +225,13 @@ const GuestInformation = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Teléfono *
+                        {t('guest_information.phone')} *
                       </label>
                       <input
                         type="text"
                         value={guest.phone || ''}
                         onChange={(e) => updateGuest(index, 'phone', e.target.value)}
-                        placeholder="+54 9 11 1234-5678"
+                        placeholder={t('guest_information.phone_placeholder')}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           errors.other_guests?.[index]?.phone ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -237,13 +242,13 @@ const GuestInformation = () => {
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Dirección de contacto *
+                        {t('guest_information.contact_address')} *
                       </label>
                       <input
                         type="text"
                         value={guest.address || ''}
                         onChange={(e) => updateGuest(index, 'address', e.target.value)}
-                        placeholder="Calle 123, Ciudad, País"
+                        placeholder={t('guest_information.contact_address_placeholder')}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           errors.other_guests?.[index]?.address ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -266,32 +271,38 @@ const GuestInformation = () => {
           <div className="p-2 bg-gray-100 rounded-lg">
             <PeopleIcon className="w-6 h-6 text-gray-600" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900">Resumen de Huéspedes</h3>
+          <h3 className="text-xl font-bold text-gray-900">{t('guest_information.guests_summary')}</h3>
         </div>
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-lg font-semibold text-gray-800">
-                Total de huéspedes: <span className={requestedGuests > maxCapacity ? "text-red-600" : "text-blue-600"}>{totalGuests}</span>
+                {t('guest_information.total_guests')} <span className={requestedGuests > maxCapacity ? "text-red-600" : "text-blue-600"}>{totalGuests}</span>
                 {values.room_data && (
                   <span className="text-sm text-gray-500 ml-2">
-                    / {maxCapacity} máximo
+                    / {maxCapacity} {t('guest_information.max_capacity')}
                   </span>
                 )}
                 {requestedGuests > maxCapacity && (
                   <span className="text-sm text-red-500 ml-2">
-                    (solicitados: {requestedGuests})
+                    ({t('guest_information.requested')} {requestedGuests})
                   </span>
                 )}
               </p>
               {totalGuests > 1 && (
                 <p className="text-sm text-gray-600 mt-1">
-                  1 principal + {otherGuestsCount} {otherGuestsCount === 1 ? 'huésped' : 'huéspedes'}
+                  {t('guest_information.principal_plus', { 
+                    count: otherGuestsCount, 
+                    plural: otherGuestsCount === 1 ? t('guest_information.guest') : t('guest_information.guests') 
+                  })}
                 </p>
               )}
               {values.room_data && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Habitación: {values.room_data.name} ({values.room_data.room_type})
+                  {t('guest_information.room_info', { 
+                    name: values.room_data.name, 
+                    type: values.room_data.room_type 
+                  })}
                 </p>
               )}
             </div>
@@ -299,7 +310,7 @@ const GuestInformation = () => {
               <div className={`text-2xl font-bold ${requestedGuests > maxCapacity ? "text-red-600" : "text-blue-600"}`}>
                 {totalGuests}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Huéspedes</div>
+              <div className="text-xs text-gray-500 uppercase tracking-wide">{t('guest_information.guests')}</div>
             </div>
           </div>
         </div>

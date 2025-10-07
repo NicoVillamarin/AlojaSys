@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useFormikContext } from 'formik'
+import { useTranslation } from 'react-i18next'
 import { getApiURL } from 'src/services/utils'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -10,6 +11,7 @@ import InputText from 'src/components/inputs/InputText'
 import { useAction } from 'src/hooks/useAction'
 
 const PaymentInformation = () => {
+  const { t } = useTranslation()
   const { values, setFieldValue } = useFormikContext()
   const [pricingData, setPricingData] = useState(null)
   const [error, setError] = useState(null)
@@ -144,7 +146,7 @@ const PaymentInformation = () => {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <SpinnerData />
-        <p className="mt-4 text-gray-600">Calculando precios...</p>
+        <p className="mt-4 text-gray-600">{t('payment_information.calculating_prices')}</p>
       </div>
     )
   }
@@ -157,7 +159,7 @@ const PaymentInformation = () => {
           onClick={fetchPricingQuote}
           className="text-sm text-red-700 hover:text-red-900 underline"
         >
-          Reintentar
+          {t('payment_information.retry')}
         </button>
       </div>
     )
@@ -179,9 +181,9 @@ const PaymentInformation = () => {
     }
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-        <div className="text-yellow-800 font-medium mb-2">No se puede reservar</div>
+        <div className="text-yellow-800 font-medium mb-2">{t('payment_information.cannot_book')}</div>
         <div className="text-sm text-yellow-800 mb-4">{mapReason(canBookIssue)}</div>
-        <button onClick={fetchPricingQuote} className="text-sm text-yellow-700 hover:text-yellow-900 underline">Reintentar</button>
+        <button onClick={fetchPricingQuote} className="text-sm text-yellow-700 hover:text-yellow-900 underline">{t('payment_information.retry')}</button>
       </div>
     )
   }
@@ -193,10 +195,10 @@ const PaymentInformation = () => {
           <WalletIcon className="w-16 h-16 mx-auto mb-4" />
         </div>
         <p className="text-gray-600 text-lg font-medium mb-2">
-          Completa la información básica
+          {t('payment_information.complete_basic_info')}
         </p>
         <p className="text-gray-500 text-sm">
-          Selecciona hotel, habitación, fechas y número de huéspedes para ver el resumen de pago
+          {t('payment_information.select_hotel_room_dates')}
         </p>
       </div>
     )
@@ -216,7 +218,7 @@ const PaymentInformation = () => {
       <div className="bg-white border border-gray-200 rounded-lg p-4 py-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <div className="text-sm font-medium text-gray-700 mb-1">Canal</div>
+            <div className="text-sm font-medium text-gray-700 mb-1">{t('payment_information.channel')}</div>
             <SelectStandalone
               value={values.channel ? (choices.channels.find(c => c.value === values.channel) || { value: values.channel, label: values.channel }) : null}
               onChange={(opt) => setFieldValue('channel', opt?.value || '')}
@@ -229,15 +231,15 @@ const PaymentInformation = () => {
           <div className="relative">
             <InputText
               name="promotion_code_draft"
-              title="Código de promoción"
-              placeholder="Ej: BLACK"
+              title={t('payment_information.promotion_code')}
+              placeholder={t('payment_information.promotion_code_placeholder')}
               value={promoDraft}
               onChange={(e) => setPromoDraft(e.target.value)}
               statusMessage={
                 appliedPromo && totalDiscountApplied > 0
-                  ? "Promoción aplicada correctamente"
+                  ? t('payment_information.promotion_applied')
                   : appliedPromo && totalDiscountApplied === 0
-                  ? "El código no aplica para este rango/canal/habitación"
+                  ? t('payment_information.promotion_not_applied')
                   : null
               }
               statusType={
@@ -255,7 +257,7 @@ const PaymentInformation = () => {
                   type="button"
                   onClick={clearPromotion}
                   className="text-emerald-600 hover:text-emerald-800 font-bold text-lg leading-none flex items-center justify-center w-6 h-6"
-                  title="Quitar promoción"
+                  title={t('payment_information.remove_promotion')}
                 >
                   ×
                 </button>
@@ -268,15 +270,15 @@ const PaymentInformation = () => {
               disabled={!ready || canPending || quotePending}
               className={`px-4 py-2 rounded-md text-white ${(!ready || canPending || quotePending) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              {quotePending || canPending ? 'Calculando…' : 'Calcular tarifa'}
+              {quotePending || canPending ? t('payment_information.calculating') : t('payment_information.calculate_rate')}
             </button>
           </div>
         </div>
       </div>
       {/* Título */}
       <div className="text-center mb-6">
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">Resumen de Pago</h3>
-        <p className="text-gray-600">Detalle de costos de la reserva</p>
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">{t('payment_information.payment_summary')}</h3>
+        <p className="text-gray-600">{t('payment_information.payment_summary_subtitle')}</p>
       </div>
 
       {/* Información de la Habitación */}
@@ -286,20 +288,20 @@ const PaymentInformation = () => {
             <div>
               <h4 className="font-semibold text-gray-800 text-lg">{roomData.name}</h4>
               <p className="text-sm text-gray-600">
-                Tipo de habitación: {roomData.room_type} • Piso {roomData.floor} • Habitación #{roomData.number}
+                {t('payment_information.room_type')} {roomData.room_type} • {t('payment_information.floor')} {roomData.floor} • {t('payment_information.room_number')}{roomData.number}
               </p>
               <p className="text-sm text-gray-600 mt-1">
-                Capacidad: {roomData.capacity} huéspedes incluidos (máx. {roomData.max_capacity})
+                {t('payment_information.capacity')} {roomData.capacity} {t('payment_information.guests_included')} {roomData.max_capacity})
               </p>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-600">Tarifa base por noche</div>
+              <div className="text-sm text-gray-600">{t('payment_information.base_rate_per_night')}</div>
               <div className="text-xl font-bold text-blue-600">
                 {formatCurrency(roomData.base_price)}
               </div>
               {parseFloat(roomData.extra_guest_fee) > 0 && (
                 <div className="text-xs text-gray-500 mt-1">
-                  + {formatCurrency(roomData.extra_guest_fee)} por huésped extra
+                  + {formatCurrency(roomData.extra_guest_fee)} {t('payment_information.extra_per_guest')}
                 </div>
               )}
             </div>
@@ -310,7 +312,7 @@ const PaymentInformation = () => {
       {/* Desglose por Noche */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-          <h4 className="font-semibold text-gray-800">Desglose por noche</h4>
+          <h4 className="font-semibold text-gray-800">{t('payment_information.breakdown_by_night')}</h4>
         </div>
         <div className="divide-y divide-gray-200">
           {pricingData.nights.map((night, index) => {
@@ -323,7 +325,7 @@ const PaymentInformation = () => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-3">
                     <div className="bg-blue-100 text-blue-600 font-semibold text-sm px-3 py-1 rounded-full">
-                      Noche {index + 1}
+                      {t('payment_information.night')} {index + 1}
                     </div>
                     <span className="text-gray-700 font-medium">
                       {formatDate(night.date)}
@@ -340,10 +342,10 @@ const PaymentInformation = () => {
                 <div className="ml-20 text-sm text-gray-600 space-y-1">
                   <div className="flex justify-between">
                     <span>
-                      Tarifa base
+                      {t('payment_information.base_rate')}
                       {night.rule && (
                         <span className="text-gray-500 font-medium">{' '}(
-                          {night.rule.name || 'Regla aplicada'}
+                          {night.rule.name || t('payment_information.rule_applied')}
                         )</span>
                       )}
                     </span>
@@ -351,14 +353,14 @@ const PaymentInformation = () => {
                   </div>
                   {hasExtraGuests && (
                     <div className="flex justify-between text-blue-600">
-                      <span>Huéspedes adicionales</span>
+                      <span>{t('payment_information.extra_guests')}</span>
                       <span>+ {formatCurrency(night.extra_guest_fee)}</span>
                     </div>
                   )}
                   {hasDiscount && (
                     <div className="flex justify-between text-green-600">
                       <span>
-                        Descuento
+                        {t('payment_information.discount')}
                         {night.applied_promos_detail && night.applied_promos_detail.length > 0 && (
                           <span className="text-green-500 font-medium">
                             {' '}({night.applied_promos_detail.map(p => p.code).join(', ')})
@@ -370,14 +372,14 @@ const PaymentInformation = () => {
                   )}
                   {appliedPromo && (Array.isArray(night.applied_promos) ? night.applied_promos.length > 0 : false) && (
                     <div className="flex justify-between text-emerald-700">
-                      <span>Promo aplicada</span>
+                      <span>{t('payment_information.promo_applied')}</span>
                       <span>{Array.isArray(night.applied_promos) ? night.applied_promos.length : 1}</span>
                     </div>
                   )}
                   {hasTax && (
                     <div className="flex justify-between">
                       <span>
-                        Impuestos
+                        {t('payment_information.taxes')}
                         {night.applied_taxes_detail && night.applied_taxes_detail.length > 0 && (
                           <span className="text-gray-500 font-medium">{' '}(
                             {night.applied_taxes_detail.map(t => t.name).join(', ')}
@@ -398,7 +400,7 @@ const PaymentInformation = () => {
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-6">
         <div className="space-y-3">
           <div className="flex items-center justify-between text-gray-700">
-            <span className="font-medium">Subtotal ({pricingData.nights.length} {pricingData.nights.length === 1 ? 'noche' : 'noches'})</span>
+            <span className="font-medium">{t('payment_information.subtotal')} ({pricingData.nights.length} {pricingData.nights.length === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})</span>
             <span className="text-lg">
               {formatCurrency(
                 pricingData.nights.reduce((sum, n) => sum + parseFloat(n.base_rate), 0)
@@ -408,7 +410,7 @@ const PaymentInformation = () => {
           
           {parseFloat(pricingData.nights.reduce((sum, n) => sum + parseFloat(n.extra_guest_fee), 0)) > 0 && (
             <div className="flex items-center justify-between text-blue-700">
-              <span className="font-medium">Cargos por huéspedes adicionales</span>
+              <span className="font-medium">{t('payment_information.extra_guest_charges')}</span>
               <span className="text-lg">
                 + {formatCurrency(
                   pricingData.nights.reduce((sum, n) => sum + parseFloat(n.extra_guest_fee), 0)
@@ -419,7 +421,7 @@ const PaymentInformation = () => {
           
           {parseFloat(pricingData.nights.reduce((sum, n) => sum + parseFloat(n.discount), 0)) > 0 && (
             <div className="flex items-center justify-between text-green-700">
-              <span className="font-medium">Descuentos aplicados</span>
+              <span className="font-medium">{t('payment_information.applied_discounts')}</span>
               <span className="text-lg">
                 - {formatCurrency(
                   pricingData.nights.reduce((sum, n) => sum + parseFloat(n.discount), 0)
@@ -430,7 +432,7 @@ const PaymentInformation = () => {
           
           {parseFloat(pricingData.nights.reduce((sum, n) => sum + parseFloat(n.tax), 0)) > 0 && (
             <div className="flex items-center justify-between text-gray-700">
-              <span className="font-medium">Impuestos</span>
+              <span className="font-medium">{t('payment_information.taxes')}</span>
               <span className="text-lg">
                 + {formatCurrency(
                   pricingData.nights.reduce((sum, n) => sum + parseFloat(n.tax), 0)
@@ -441,7 +443,7 @@ const PaymentInformation = () => {
           
           <div className="border-t-2 border-green-300 pt-3 mt-3">
             <div className="flex items-center justify-between">
-              <span className="text-xl font-bold text-gray-800">Total a pagar</span>
+              <span className="text-xl font-bold text-gray-800">{t('payment_information.total_to_pay')}</span>
               <span className="text-3xl font-bold text-green-700">
                 {formatCurrency(pricingData.total)}
               </span>
@@ -451,13 +453,13 @@ const PaymentInformation = () => {
           {/* Información adicional */}
           <div className="text-sm text-gray-600 mt-4 pt-4 border-t border-green-200">
             <div className="flex items-center justify-between">
-              <span>Promedio por noche</span>
+              <span>{t('payment_information.average_per_night')}</span>
               <span className="font-semibold">
                 {formatCurrency(parseFloat(pricingData.total) / pricingData.nights.length)}
               </span>
             </div>
             <div className="flex items-center justify-between mt-1">
-              <span>Huéspedes</span>
+              <span>{t('payment_information.guests')}</span>
               <span className="font-semibold">{values.guests}</span>
             </div>
           </div>
@@ -469,10 +471,9 @@ const PaymentInformation = () => {
         <div className="flex items-start space-x-3">
           <span className="text-yellow-600 text-xl">💡</span>
           <div className="text-sm text-yellow-800">
-            <p className="font-medium mb-1">Nota importante:</p>
+            <p className="font-medium mb-1">{t('payment_information.important_note')}</p>
             <p>
-              Este es un resumen preliminar. Los métodos de pago y cargos adicionales
-              podrán gestionarse después de crear la reserva.
+              {t('payment_information.preliminary_summary')}
             </p>
           </div>
         </div>

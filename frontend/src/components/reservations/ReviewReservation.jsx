@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import { useFormikContext } from 'formik'
+import { useTranslation } from 'react-i18next'
 import { format, parseISO, isValid } from 'date-fns'
 import { es } from 'date-fns/locale'
 import CheckCircleIcon from 'src/assets/icons/CheckCircleIcon'
@@ -8,6 +9,7 @@ import PeopleIcon from 'src/assets/icons/PeopleIcon'
 import { useAction } from 'src/hooks/useAction'
 
 const ReviewReservation = () => {
+  const { t } = useTranslation()
   const { values } = useFormikContext()
 
   // Función helper para formatear fechas correctamente
@@ -85,7 +87,7 @@ const ReviewReservation = () => {
           <div className="p-2 bg-green-100 rounded-lg">
             <CheckCircleIcon className="w-6 h-6 text-green-600" />
           </div>
-          <h3 className="text-xl font-bold text-green-900">Resumen de la Reserva</h3>
+          <h3 className="text-xl font-bold text-green-900">{t('review_reservation.reservation_summary')}</h3>
         </div>
 
         {/* Rango de fechas destacado */}
@@ -93,7 +95,7 @@ const ReviewReservation = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               <div className="text-center">
-                <div className="text-sm font-medium text-gray-600 mb-2">Check-in</div>
+                <div className="text-sm font-medium text-gray-600 mb-2">{t('review_reservation.check_in')}</div>
                 <div className="text-2xl font-bold text-green-600">
                   {formatDate(values.check_in, 'dd MMM')}
                 </div>
@@ -106,14 +108,14 @@ const ReviewReservation = () => {
                 <div className="w-12 h-0.5 bg-green-300"></div>
                 <div className="bg-green-100 px-3 py-1 rounded-full">
                   <span className="text-green-700 font-bold text-sm">
-                    {stayDuration} {stayDuration === 1 ? 'noche' : 'noches'}
+                    {stayDuration} {stayDuration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')}
                   </span>
                 </div>
                 <div className="w-12 h-0.5 bg-green-300"></div>
               </div>
               
               <div className="text-center">
-                <div className="text-sm font-medium text-gray-600 mb-2">Check-out</div>
+                <div className="text-sm font-medium text-gray-600 mb-2">{t('review_reservation.check_out')}</div>
                 <div className="text-2xl font-bold text-green-600">
                   {formatDate(values.check_out, 'dd MMM')}
                 </div>
@@ -124,9 +126,9 @@ const ReviewReservation = () => {
             </div>
             
             <div className="text-right">
-              <div className="text-sm text-gray-600 mb-1">Duración total</div>
+              <div className="text-sm text-gray-600 mb-1">{t('review_reservation.total_duration')}</div>
               <div className="text-3xl font-bold text-green-600">{stayDuration}</div>
-              <div className="text-sm text-gray-500">noches</div>
+              <div className="text-sm text-gray-500">{t('review_reservation.nights')}</div>
             </div>
           </div>
         </div>
@@ -136,22 +138,22 @@ const ReviewReservation = () => {
           <div className="bg-white p-4 rounded-lg border border-green-200">
             <div className="flex items-center space-x-2 mb-3">
               <CandelarClock className="w-5 h-5 text-green-600" />
-              <h4 className="font-semibold text-gray-800">Habitación</h4>
+              <h4 className="font-semibold text-gray-800">{t('review_reservation.room')}</h4>
             </div>
             <div className="space-y-2">
               <div>
-                <span className="text-sm text-gray-600">Hotel: </span>
-                <span className="font-medium">{values.hotel || 'No seleccionado'}</span>
+                <span className="text-sm text-gray-600">{t('review_reservation.hotel')} </span>
+                <span className="font-medium">{values.hotel || t('review_reservation.not_selected')}</span>
               </div>
               <div>
-                <span className="text-sm text-gray-600">Habitación: </span>
+                <span className="text-sm text-gray-600">{t('review_reservation.room_name')} </span>
                 <span className="font-medium">
-                  {values.room_data?.name || values.room || 'No seleccionada'}
+                  {values.room_data?.name || values.room || t('review_reservation.not_selected_room')}
                 </span>
               </div>
               {values.room_data && (
                 <div>
-                  <span className="text-sm text-gray-600">Tipo: </span>
+                  <span className="text-sm text-gray-600">{t('review_reservation.type')} </span>
                   <span className="font-medium">{values.room_data.room_type}</span>
                 </div>
               )}
@@ -161,25 +163,25 @@ const ReviewReservation = () => {
           <div className="bg-white p-4 rounded-lg border border-green-200">
             <div className="flex items-center space-x-2 mb-3">
               <PeopleIcon className="w-5 h-5 text-green-600" />
-              <h4 className="font-semibold text-gray-800">Huéspedes</h4>
+              <h4 className="font-semibold text-gray-800">{t('review_reservation.guests')}</h4>
             </div>
             <div className="space-y-2">
               <div>
-                <span className="text-sm text-gray-600">Total: </span>
+                <span className="text-sm text-gray-600">{t('review_reservation.total')} </span>
                 <span className="font-medium text-lg">{values.guests || 0}</span>
                 {values.room_data && (
                   <span className="text-sm text-gray-500 ml-1">
-                    / {values.room_data.max_capacity} máximo
+                    / {values.room_data.max_capacity} {t('guest_information.max_capacity')}
                   </span>
                 )}
               </div>
               <div>
-                <span className="text-sm text-gray-600">Principal: </span>
-                <span className="font-medium">{values.guest_name || 'No especificado'}</span>
+                <span className="text-sm text-gray-600">{t('review_reservation.principal')} </span>
+                <span className="font-medium">{values.guest_name || t('review_reservation.not_specified')}</span>
               </div>
               {values.other_guests && values.other_guests.length > 0 && (
                 <div>
-                  <span className="text-sm text-gray-600">Adicionales: </span>
+                  <span className="text-sm text-gray-600">{t('review_reservation.additional')} </span>
                   <span className="font-medium">{values.other_guests.length}</span>
                 </div>
               )}
@@ -191,23 +193,23 @@ const ReviewReservation = () => {
       {/* Información del huésped principal */}
       {values.guest_name && (
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
-          <h4 className="text-lg font-bold text-blue-900 mb-4">Huésped Principal</h4>
+          <h4 className="text-lg font-bold text-blue-900 mb-4">{t('review_reservation.primary_guest')}</h4>
           <div className="bg-white p-4 rounded-lg border border-blue-200">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <span className="text-sm text-gray-600">Nombre: </span>
+                <span className="text-sm text-gray-600">{t('review_reservation.name')} </span>
                 <span className="font-medium">{values.guest_name}</span>
               </div>
               <div>
-                <span className="text-sm text-gray-600">Email: </span>
+                <span className="text-sm text-gray-600">{t('review_reservation.email')} </span>
                 <span className="font-medium">{values.guest_email}</span>
               </div>
               <div>
-                <span className="text-sm text-gray-600">Teléfono: </span>
+                <span className="text-sm text-gray-600">{t('review_reservation.phone')} </span>
                 <span className="font-medium">{values.guest_phone}</span>
               </div>
               <div>
-                <span className="text-sm text-gray-600">Documento: </span>
+                <span className="text-sm text-gray-600">{t('review_reservation.document')} </span>
                 <span className="font-medium">{values.guest_document}</span>
               </div>
             </div>
@@ -218,39 +220,39 @@ const ReviewReservation = () => {
       {/* Resumen de Pago (incluye impuestos si aplican) */}
       {ready && (
         <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-6 rounded-xl border border-emerald-200 shadow-sm">
-          <h4 className="text-lg font-bold text-emerald-900 mb-4">Resumen de Pago</h4>
+          <h4 className="text-lg font-bold text-emerald-900 mb-4">{t('review_reservation.payment_summary')}</h4>
           <div className="bg-white p-4 rounded-lg border border-emerald-200">
             {quotePending && (
-              <div className="text-sm text-gray-600">Calculando precios…</div>
+              <div className="text-sm text-gray-600">{t('review_reservation.calculating_prices')}</div>
             )}
             {!quotePending && paymentSummary && (
               <div className="space-y-2 text-gray-800">
                 <div className="flex items-center justify-between">
-                  <span>Subtotal ({paymentSummary.nightsCount} {paymentSummary.nightsCount === 1 ? 'noche' : 'noches'})</span>
+                  <span>{t('review_reservation.subtotal')} ({paymentSummary.nightsCount} {paymentSummary.nightsCount === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})</span>
                   <span className="font-medium">
                     {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.base)}
                   </span>
                 </div>
                 {paymentSummary.extra > 0 && (
                   <div className="flex items-center justify-between text-blue-700">
-                    <span>Huéspedes adicionales</span>
+                    <span>{t('review_reservation.extra_guests')}</span>
                     <span className="font-medium">+ {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.extra)}</span>
                   </div>
                 )}
                 {paymentSummary.discount > 0 && (
                   <div className="flex items-center justify-between text-green-700">
-                    <span>Descuentos</span>
+                    <span>{t('review_reservation.discounts')}</span>
                     <span className="font-medium">- {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.discount)}</span>
                   </div>
                 )}
                 {paymentSummary.tax > 0 && (
                   <div className="flex items-center justify-between">
-                    <span>Impuestos</span>
+                    <span>{t('review_reservation.taxes')}</span>
                     <span className="font-medium">+ {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.tax)}</span>
                   </div>
                 )}
                 <div className="border-t border-emerald-200 pt-2 mt-2 flex items-center justify-between">
-                  <span className="text-lg font-bold">Total</span>
+                  <span className="text-lg font-bold">{t('review_reservation.total')}</span>
                   <span className="text-2xl font-extrabold text-emerald-700">
                     {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.total)}
                   </span>
@@ -258,7 +260,7 @@ const ReviewReservation = () => {
               </div>
             )}
             {!quotePending && !paymentSummary && (
-              <div className="text-sm text-gray-600">No se pudo calcular el resumen de pago.</div>
+              <div className="text-sm text-gray-600">{t('review_reservation.could_not_calculate')}</div>
             )}
           </div>
         </div>
@@ -267,7 +269,7 @@ const ReviewReservation = () => {
       {/* Notas */}
       {values.notes && (
         <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border border-gray-200 shadow-sm">
-          <h4 className="text-lg font-bold text-gray-900 mb-4">Notas Adicionales</h4>
+          <h4 className="text-lg font-bold text-gray-900 mb-4">{t('review_reservation.additional_notes')}</h4>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <p className="text-gray-700">{values.notes}</p>
           </div>
@@ -283,9 +285,9 @@ const ReviewReservation = () => {
             </svg>
           </div>
           <div>
-            <h4 className="font-bold text-yellow-900">Verificación Final</h4>
+            <h4 className="font-bold text-yellow-900">{t('review_reservation.final_verification')}</h4>
             <p className="text-yellow-700 text-sm">
-              Revisa todos los datos antes de confirmar la reserva. Una vez creada, podrás editarla desde el panel de gestión.
+              {t('review_reservation.review_before_confirm')}
             </p>
           </div>
         </div>

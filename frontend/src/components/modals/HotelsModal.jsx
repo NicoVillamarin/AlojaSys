@@ -1,5 +1,6 @@
 import { Formik } from 'formik'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -11,6 +12,7 @@ import { useUpdate } from 'src/hooks/useUpdate'
  * HotelsModal: crear/editar hotel
  */
 const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createHotel, isPending: creating } = useCreate({
     resource: 'hotels',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
@@ -36,8 +38,8 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
   }
 
   const validationSchema = Yup.object().shape({
-    name: Yup.string().required('Nombre es requerido'),
-    email: Yup.string().email('Email inválido').nullable(),
+    name: Yup.string().required(t('hotels_modal.name_required')),
+    email: Yup.string().email(t('hotels_modal.email_invalid')).nullable(),
   })
 
   return (
@@ -68,25 +70,25 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar hotel' : 'Crear hotel'}
+          title={isEdit ? t('hotels_modal.edit_hotel') : t('hotels_modal.create_hotel')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('hotels_modal.save_changes') : t('hotels_modal.create')}
+          cancelText={t('hotels_modal.cancel')}
           submitDisabled={creating || updating}
           size='lg'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
-            <InputText title='Nombre *' name='name' placeholder='Hotel Central' autoFocus />
-            <InputText title='Razón social' name='legal_name' placeholder='Hotel Central S.A.' />
-            <InputText title='CUIT/CUIL' name='tax_id' placeholder='20-12345678-9' />
-            <InputText title='Email' name='email' placeholder='contacto@hotel.com' />
-            <InputText title='Teléfono' name='phone' placeholder='+54 11 1234-5678' />
-            <InputText title='Dirección' name='address' placeholder='Av. Siempre Viva 123' />
+            <InputText title={`${t('hotels_modal.name')} *`} name='name' placeholder={t('hotels_modal.name_placeholder')} autoFocus />
+            <InputText title={t('hotels_modal.legal_name')} name='legal_name' placeholder={t('hotels_modal.legal_name_placeholder')} />
+            <InputText title={t('hotels_modal.tax_id')} name='tax_id' placeholder={t('hotels_modal.tax_id_placeholder')} />
+            <InputText title={t('hotels_modal.email')} name='email' placeholder={t('hotels_modal.email_placeholder')} />
+            <InputText title={t('hotels_modal.phone')} name='phone' placeholder={t('hotels_modal.phone_placeholder')} />
+            <InputText title={t('hotels_modal.address')} name='address' placeholder={t('hotels_modal.address_placeholder')} />
             <SelectAsync
-              title='País'
+              title={t('hotels_modal.country')}
               name='country'
               resource='countries'
-              placeholder='Buscar país…'
+              placeholder={t('hotels_modal.country_placeholder')}
               getOptionLabel={(c) => c?.name}
               getOptionValue={(c) => c?.id}
               onValueChange={() => {
@@ -96,10 +98,10 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
               }}
             />
             <SelectAsync
-              title='Provincia/Estado'
+              title={t('hotels_modal.state')}
               name='state'
               resource='states'
-              placeholder='Buscar provincia…'
+              placeholder={t('hotels_modal.state_placeholder')}
               extraParams={{ country: values.country || undefined }}
               getOptionLabel={(s) => s?.name}
               getOptionValue={(s) => s?.id}
@@ -109,18 +111,18 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
               }}
             />
             <SelectAsync
-              title='Ciudad'
+              title={t('hotels_modal.city')}
               name='city'
               resource='cities'
-              placeholder='Buscar ciudad…'
+              placeholder={t('hotels_modal.city_placeholder')}
               extraParams={{ state: values.state || undefined, country: values.country || undefined }}
               getOptionLabel={(c) => c?.name}
               getOptionValue={(c) => c?.id}
             />
-            <InputText title='Check-in' name='check_in_time' type='time' />
-            <InputText title='Check-out' name='check_out_time' type='time' />
+            <InputText title={t('hotels_modal.check_in_time')} name='check_in_time' type='time' />
+            <InputText title={t('hotels_modal.check_out_time')} name='check_out_time' type='time' />
             <div className='md:col-span-2'>
-              <label className='text-xs text-aloja-gray-800/70'>Activo</label>
+              <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.active')}</label>
               <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer'>
                 <input
                   id='is_active'
@@ -130,7 +132,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                   checked={!!values.is_active}
                   onChange={(e) => setFieldValue('is_active', e.target.checked)}
                 />
-                <span className='text-sm text-aloja-gray-800/80'>Habilitado para operar</span>
+                <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.enabled_for_operation')}</span>
               </label>
             </div>
           </div>

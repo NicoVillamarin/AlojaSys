@@ -1,6 +1,7 @@
 import { Formik } from 'formik'
 import * as Yup from 'yup'
 import { useEffect, useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { format, parseISO, isValid } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
@@ -32,6 +33,7 @@ import { useUserHotels } from 'src/hooks/useUserHotels'
  * - onSuccess?: (data) => void (se llama al crear/editar OK)
  */
 const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reservation }) => {
+  const { t } = useTranslation()
   const [modalKey, setModalKey] = useState(0)
   const [activeTab, setActiveTab] = useState('basic')
   const formikRef = useRef(null)
@@ -195,22 +197,22 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   const [previousGuests, setPreviousGuests] = useState(null)
 
   const validationSchema = Yup.object({
-    hotel: Yup.number().required('Hotel es requerido'),
+    hotel: Yup.number().required(t('reservations_modal.hotel_required')),
     guests: Yup.number()
-      .min(1, 'Debe ser al menos 1 huésped')
-      .test('max-capacity', 'El número de huéspedes excede la capacidad máxima de la habitación', function (value) {
+      .min(1, t('reservations_modal.guests_min'))
+      .test('max-capacity', t('reservations_modal.guests_max_capacity'), function (value) {
         const roomData = this.parent.room_data
         if (roomData && value > roomData.max_capacity) {
           return this.createError({
-            message: `La habitación seleccionada tiene una capacidad máxima de ${roomData.max_capacity} huéspedes`
+            message: t('reservations_modal.guests_max_capacity_msg', { max: roomData.max_capacity })
           })
         }
         return true
       })
-      .required('Número de huéspedes es requerido'),
+      .required(t('reservations_modal.guests_required')),
     check_in: Yup.date()
-      .required('Check-in es requerido')
-      .test('not-before-today', 'La fecha de check-in no puede ser anterior a hoy', function (value) {
+      .required(t('reservations_modal.check_in_required'))
+      .test('not-before-today', t('reservations_modal.check_in_not_before_today'), function (value) {
         if (!value) return true
         const today = new Date()
         const checkInDate = new Date(value)
@@ -222,8 +224,8 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         return checkInDate >= today
       }),
     check_out: Yup.date()
-      .required('Check-out es requerido')
-      .test('is-after-checkin', 'Check-out debe ser posterior al check-in', function (value) {
+      .required(t('reservations_modal.check_out_required'))
+      .test('is-after-checkin', t('reservations_modal.check_out_after_checkin'), function (value) {
         const { check_in } = this.parent
         if (!check_in || !value) return true
         
@@ -236,7 +238,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         
         return checkOutDate > checkInDate
       })
-      .test('min-stay', 'La estadía mínima es de 1 noche', function (value) {
+      .test('min-stay', t('reservations_modal.min_stay'), function (value) {
         const { check_in } = this.parent
         if (!check_in || !value) return true
         
@@ -251,30 +253,30 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
         return diffDays >= 1
       }),
-    room: Yup.number().required('Habitación es requerida'),
+    room: Yup.number().required(t('reservations_modal.room_required')),
     // Validación del huésped principal
-    guest_name: Yup.string().required('Nombre del huésped principal es requerido'),
-    guest_email: Yup.string().email('Email inválido').required('Email del huésped principal es requerido'),
-    guest_phone: Yup.string().required('Teléfono del huésped principal es requerido'),
-    guest_document: Yup.string().required('Documento del huésped principal es requerido'),
-    contact_address: Yup.string().required('Dirección del huésped principal es requerida'),
+    guest_name: Yup.string().required(t('reservations_modal.guest_name_required')),
+    guest_email: Yup.string().email(t('reservations_modal.guest_email_invalid')).required(t('reservations_modal.guest_email_required')),
+    guest_phone: Yup.string().required(t('reservations_modal.guest_phone_required')),
+    guest_document: Yup.string().required(t('reservations_modal.guest_document_required')),
+    contact_address: Yup.string().required(t('reservations_modal.contact_address_required')),
     // Validación de otros huéspedes
     other_guests: Yup.array().of(
       Yup.object({
-        name: Yup.string().required('Nombre es requerido'),
-        document: Yup.string().required('Documento es requerido'),
-        email: Yup.string().email('Email inválido').required('Email es requerido'),
-        phone: Yup.string().required('Teléfono es requerido'),
-        address: Yup.string().required('Dirección es requerida'),
+        name: Yup.string().required(t('reservations_modal.other_guests_name_required')),
+        document: Yup.string().required(t('reservations_modal.other_guests_document_required')),
+        email: Yup.string().email(t('reservations_modal.other_guests_email_invalid')).required(t('reservations_modal.other_guests_email_required')),
+        phone: Yup.string().required(t('reservations_modal.other_guests_phone_required')),
+        address: Yup.string().required(t('reservations_modal.other_guests_address_required')),
       })
     ),
   })
 
   const tabs = [
-    { id: 'basic', label: 'Información Básica', icon: <CandelarClock /> },
-    { id: 'guests', label: 'Huéspedes', icon: <PeopleIcon /> },
-    { id: 'payment', label: 'Pago', icon: <WalletIcon /> },
-    { id: 'review', label: 'Revisar', icon: <CheckIcon /> }
+    { id: 'basic', label: t('reservations_modal.basic_info'), icon: <CandelarClock /> },
+    { id: 'guests', label: t('reservations_modal.guests'), icon: <PeopleIcon /> },
+    { id: 'payment', label: t('reservations_modal.payment'), icon: <WalletIcon /> },
+    { id: 'review', label: t('reservations_modal.review'), icon: <CheckIcon /> }
   ]
 
   // Helpers de pasos
@@ -387,9 +389,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     return (
       <div className="w-full flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="danger" size="md" onClick={onClose}>Cancelar</Button>
+          <Button variant="danger" size="md" onClick={onClose}>{t('reservations_modal.cancel')}</Button>
           {currentIndex > 0 && (
-            <Button variant="secondary" size="md" onClick={goToPreviousStep}>← Anterior</Button>
+            <Button variant="secondary" size="md" onClick={goToPreviousStep}>{t('reservations_modal.previous')}</Button>
           )}
         </div>
 
@@ -428,12 +430,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
               size="md"
               onClick={handleCreate}
               disabled={creating || updating || !(isBasicComplete() && isGuestsComplete())}
-              loadingText={creating || updating ? 'Creando...' : undefined}
+              loadingText={creating || updating ? t('reservations_modal.creating') : undefined}
             >
-              {isEdit ? 'Guardar cambios' : 'Crear reserva'}
+              {isEdit ? t('reservations_modal.save_changes') : t('reservations_modal.create_reservation_btn')}
             </Button>
           ) : (
-            <Button variant="primary" size="md" disabled={!canNext} onClick={goToNextStep}>Siguiente →</Button>
+            <Button variant="primary" size="md" disabled={!canNext} onClick={goToNextStep}>{t('reservations_modal.next')}</Button>
           )}
         </div>
       </div>
@@ -463,12 +465,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
 
         const titleNode = (
           <div className="flex flex-col">
-            <span>{isEdit ? 'Editar reserva' : 'Crear reserva'}</span>
+            <span>{isEdit ? t('reservations_modal.edit_reservation') : t('reservations_modal.create_reservation')}</span>
             {values.check_in && values.check_out && (
               <div className="text-sm font-normal text-gray-600 mt-1">
                 {(() => {
                   const duration = calculateStayDuration(values.check_in, values.check_out)
-                  return `${formatDate(values.check_in, 'dd/MM/yyyy')} - ${formatDate(values.check_out, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? 'noche' : 'noches'})`
+                  return `${formatDate(values.check_in, 'dd/MM/yyyy')} - ${formatDate(values.check_out, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})`
                 })()}
               </div>
             )}
@@ -490,11 +492,11 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SelectAsync
-                      title='Hotel *'
+                      title={`${t('reservations_modal.hotel')} *`}
                       name='hotel'
                       resource='hotels'
                       extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
-                      placeholder='Buscar hotel…'
+                      placeholder={t('common.search_placeholder')}
                       getOptionLabel={(h) => h?.name}
                       getOptionValue={(h) => h?.id}
                       value={values.hotel}
@@ -503,7 +505,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                     />
 
                     <InputText
-                      title='Número de huéspedes *'
+                      title={`${t('reservations_modal.guests_number')} *`}
                       name='guests'
                       type='number'
                       min='1'
@@ -515,7 +517,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                     />
 
                     <InputText
-                      title='Check-in *'
+                      title={`${t('reservations_modal.check_in')} *`}
                       name='check_in'
                       type='date'
                       value={values.check_in}
@@ -523,7 +525,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       error={touched.check_in && errors.check_in}
                     />
                     <InputText
-                      title='Check-out *'
+                      title={`${t('reservations_modal.check_out')} *`}
                       name='check_out'
                       type='date'
                       value={values.check_out}
@@ -532,17 +534,20 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                     />
 
                     <SelectAsync
-                      title='Habitación *'
+                      title={`${t('reservations_modal.room')} *`}
                       name='room'
                       resource='rooms'
                       placeholder={
                         !values.hotel
-                          ? 'Selecciona un hotel primero'
+                          ? t('reservations_modal.room_placeholder_no_hotel')
                           : values.guests
-                            ? `Habitaciones para ${values.guests} huésped${values.guests > 1 ? 'es' : ''}…`
-                            : 'Cargando disponibilidad…'
+                            ? t('reservations_modal.room_placeholder_with_guests', { 
+                                guests: values.guests, 
+                                plural: values.guests > 1 ? 'es' : '' 
+                              })
+                            : t('reservations_modal.room_placeholder_loading')
                       }
-                      getOptionLabel={(r) => r?.name || `Habitación ${r?.id}`}
+                      getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
                       getOptionValue={(r) => r?.id}
                       extraParams={{
                         hotel: values.hotel || undefined,
@@ -562,7 +567,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 w-1/2 mx-auto">
                       <div className="flex items-center justify-center space-x-6">
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600 mb-1">Check-in</div>
+                          <div className="text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_in')}</div>
                           <div className="text-lg font-bold text-blue-600">{formatDate(values.check_in, 'EEE, dd MMM')}</div>
                           <div className="text-xs text-gray-500">{formatDate(values.check_in, 'yyyy')}</div>
                         </div>
@@ -572,14 +577,14 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                             <span className="text-blue-700 font-semibold text-sm">
                               {(() => {
                                 const duration = calculateStayDuration(values.check_in, values.check_out)
-                                return `${duration} ${duration === 1 ? 'noche' : 'noches'}`
+                                return `${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')}`
                               })()}
                             </span>
                           </div>
                           <div className="w-6 h-0.5 bg-blue-300"></div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600 mb-1">Check-out</div>
+                          <div className="text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_out')}</div>
                           <div className="text-lg font-bold text-blue-600">{formatDate(values.check_out, 'EEE, dd MMM')}</div>
                           <div className="text-xs text-gray-500">{formatDate(values.check_out, 'yyyy')}</div>
                         </div>
@@ -588,16 +593,19 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                   )}
 
                   {values.guests && values.hotel && (
-                    <div className="text-sm text-blue-600 mt-1">💡 Se mostrarán solo habitaciones con capacidad para {values.guests} huésped{values.guests > 1 ? 'es' : ''} o más</div>
+                    <div className="text-sm text-blue-600 mt-1">💡 {t('reservations_modal.capacity_filter_info', { 
+                      guests: values.guests, 
+                      plural: values.guests > 1 ? 'es' : '' 
+                    })}</div>
                   )}
                   {values.room_data && (
-                    <div className="text-sm text-gray-600 mt-1">Capacidad máxima: {values.room_data.max_capacity} huéspedes</div>
+                    <div className="text-sm text-gray-600 mt-1">{t('reservations_modal.capacity_info', { max: values.room_data.max_capacity })}</div>
                   )}
                   <div>
                     <InputText
-                      title='Notas'
+                      title={t('reservations_modal.notes')}
                       name='notes'
-                      placeholder='Notas adicionales…'
+                      placeholder={t('reservations_modal.notes_placeholder')}
                       multiline
                       rows={3}
                       value={values.notes}

@@ -1,4 +1,5 @@
 import { Formik } from 'formik'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -12,6 +13,7 @@ import fetchWithAuth from 'src/services/fetchWithAuth'
 import { getApiURL } from 'src/services/utils'
 
 const TaxesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createRow, isPending: creating } = useCreate({
     resource: 'rates/tax-rules',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
@@ -47,23 +49,23 @@ const TaxesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
   }
 
   const validationSchema = Yup.object().shape({
-    hotel: Yup.number().typeError('Hotel requerido').required('Hotel requerido'),
-    name: Yup.string().required('Nombre requerido'),
-    amount_type: Yup.string().required('Tipo requerido'),
-    percent: Yup.number().typeError('Debe ser número')
+    hotel: Yup.number().typeError(t('taxes_rate_modal.hotel_required')).required(t('taxes_rate_modal.hotel_required')),
+    name: Yup.string().required(t('taxes_rate_modal.name_required')),
+    amount_type: Yup.string().required(t('taxes_rate_modal.amount_type_required')),
+    percent: Yup.number().typeError(t('taxes_rate_modal.percent_number'))
       .when('amount_type', {
         is: 'percent',
-        then: (schema) => schema.required('Requerido'),
+        then: (schema) => schema.required(t('taxes_rate_modal.percent_required')),
         otherwise: (schema) => schema.notRequired(),
       }),
-    fixed_amount: Yup.number().typeError('Debe ser número')
+    fixed_amount: Yup.number().typeError(t('taxes_rate_modal.fixed_amount_number'))
       .when('amount_type', {
         is: 'fixed',
-        then: (schema) => schema.required('Requerido'),
+        then: (schema) => schema.required(t('taxes_rate_modal.fixed_amount_required')),
         otherwise: (schema) => schema.notRequired(),
       }),
-    scope: Yup.string().required('Alcance requerido'),
-    priority: Yup.number().typeError('Debe ser número').required('Requerido'),
+    scope: Yup.string().required(t('taxes_rate_modal.scope_required')),
+    priority: Yup.number().typeError(t('taxes_rate_modal.priority_number')).required(t('taxes_rate_modal.priority_required')),
   })
 
   return (
@@ -91,26 +93,26 @@ const TaxesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar impuesto' : 'Crear impuesto'}
+          title={isEdit ? t('taxes_rate_modal.edit_tax') : t('taxes_rate_modal.create_tax')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('taxes_rate_modal.save_changes') : t('taxes_rate_modal.create')}
+          cancelText={t('taxes_rate_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
           size='md'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <SelectAsync
-              title='Hotel *'
+              title={`${t('taxes_rate_modal.hotel')} *`}
               name='hotel'
               resource='hotels'
-              placeholder='Buscar hotel…'
+              placeholder={t('taxes_rate_modal.hotel_placeholder')}
               getOptionLabel={(h) => h?.name}
               getOptionValue={(h) => h?.id}
             />
-            <InputText title='Nombre *' name='name' placeholder='IVA' />
+            <InputText title={`${t('taxes_rate_modal.name')} *`} name='name' placeholder={t('taxes_rate_modal.name_placeholder')} />
             <SelectStandalone
-              title='Canal (opcional)'
+              title={t('taxes_rate_modal.channel')}
               value={values.channel ? choices.channels.find(c => c.value === values.channel) || { value: values.channel, label: values.channel } : null}
               onChange={(v) => setFieldValue('channel', v?.value || v || '')}
               options={choices.channels}
@@ -119,7 +121,7 @@ const TaxesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
               getOptionValue={(o) => o.value}
             />
           <SelectStandalone
-            title='Tipo de monto *'
+            title={`${t('taxes_rate_modal.amount_type')} *`}
             value={choices.tax_amount_types.find(t => t.value === values.amount_type) || { value: values.amount_type, label: values.amount_type }}
             onChange={(v) => setFieldValue('amount_type', v?.value || v)}
             options={choices.tax_amount_types}
@@ -127,22 +129,22 @@ const TaxesRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
             getOptionValue={(o) => o.value}
           />
           {values.amount_type === 'percent' ? (
-            <InputText title='Porcentaje (%) *' name='percent' placeholder='21' />
+            <InputText title={`${t('taxes_rate_modal.percent')} *`} name='percent' placeholder={t('taxes_rate_modal.percent_placeholder')} />
           ) : (
-            <InputText title='Monto fijo *' name='fixed_amount' placeholder='100.00' />
+            <InputText title={`${t('taxes_rate_modal.fixed_amount')} *`} name='fixed_amount' placeholder={t('taxes_rate_modal.fixed_amount_placeholder')} />
           )}
           <SelectStandalone
-            title='Alcance *'
+            title={`${t('taxes_rate_modal.scope')} *`}
             value={choices.tax_scopes.find(s => s.value === values.scope) || { value: values.scope, label: values.scope }}
             onChange={(v) => setFieldValue('scope', v?.value || v)}
             options={choices.tax_scopes}
             getOptionLabel={(o) => o.label}
             getOptionValue={(o) => o.value}
           />
-            <InputText title='Prioridad *' name='priority' placeholder='100' />
+            <InputText title={`${t('taxes_rate_modal.priority')} *`} name='priority' placeholder={t('taxes_rate_modal.priority_placeholder')} />
             <label className='flex items-center gap-2 text-sm'>
               <input type='checkbox' checked={!!values.is_active} onChange={(e)=>setFieldValue('is_active', e.target.checked)} />
-              Activo
+              {t('taxes_rate_modal.active')}
             </label>
           </div>
         </ModalLayout>

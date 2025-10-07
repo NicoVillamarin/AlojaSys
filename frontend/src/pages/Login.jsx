@@ -5,7 +5,7 @@ import { showErrorConfirm, showSuccess } from "src/services/toast";
 import fondo from "../assets/img/fondo.png";
 import fondo2 from "../assets/img/fondo_2.png";
 import fondo3 from "../assets/img/fondo_3.png";
-import logo from "../assets/img/logo_clean.png";
+import logo from "../assets/img/logo_complet_black.png";
 import SpinnerLoading from "src/components/SpinnerLoading";
 
 export default function Login() {
@@ -47,13 +47,13 @@ export default function Login() {
       <div className="absolute inset-y-0 left-0 w-1/2 flex items-center justify-center p-6">
         <div className="w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5 p-8 animate-intro-pop">
           <div className="flex flex-col items-center gap-3 mb-6">
-            <img src={logo} alt="AlojaSys" className="h-40 object-contain" />
+            <img src={logo} alt="AlojaSys" className="h-50 object-contain" />
             <div className="text-center py-3">
               <h1 className="text-xl font-semibold text-aloja-navy">Iniciar Sesión</h1>
               <p className="text-xs text-aloja-gray-800/70">Bienvenido a AlojaSys PMS</p>
             </div>
           </div>
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-5">
             <input
               className="w-full border rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-aloja-navy"
               value={form.username}

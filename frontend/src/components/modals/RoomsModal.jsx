@@ -1,5 +1,6 @@
 import { Formik } from 'formik'
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -20,6 +21,7 @@ import * as Yup from 'yup'
  * - onSuccess?: (data) => void (se llama al crear/editar OK)
  */
 const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createRoom, isPending: creating } = useCreate({
     resource: 'rooms',
     onSuccess: (data) => {
@@ -51,29 +53,29 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
   }
 
   const validationSchema = Yup.object().shape({
-    hotel: Yup.string().required('Hotel es requerido'),
-    name: Yup.string().required('Nombre es requerido'),
-    number: Yup.string().required('Número es requerido'),
-    floor: Yup.string().required('Piso es requerido'),
-    room_type: Yup.string().required('Tipo es requerido'),
+    hotel: Yup.string().required(t('rooms_modal.hotel_required')),
+    name: Yup.string().required(t('rooms_modal.name_required')),
+    number: Yup.string().required(t('rooms_modal.number_required')),
+    floor: Yup.string().required(t('rooms_modal.floor_required')),
+    room_type: Yup.string().required(t('rooms_modal.type_required')),
     capacity: Yup.number()
     .transform((v, o) => (o === '' ? undefined : v))
-    .typeError('Capacidad debe ser un número')
-    .integer('Capacidad debe ser un entero')
-    .min(1, 'Capacidad debe ser al menos 1')
-    .required('Capacidad es requerido'),
+    .typeError(t('rooms_modal.capacity_number'))
+    .integer(t('rooms_modal.capacity_integer'))
+    .min(1, t('rooms_modal.capacity_min'))
+    .required(t('rooms_modal.capacity_required')),
     max_capacity: Yup.number()
     .transform((v, o) => (o === '' ? undefined : v))
-    .typeError('Capacidad máxima debe ser un número')
-    .integer('Capacidad máxima debe ser un entero')
-    .min(1, 'Capacidad máxima debe ser al menos 1')
-    .required('Capacidad máxima es requerido'),
+    .typeError(t('rooms_modal.max_capacity_number'))
+    .integer(t('rooms_modal.max_capacity_integer'))
+    .min(1, t('rooms_modal.max_capacity_min'))
+    .required(t('rooms_modal.max_capacity_required')),
     base_price: Yup.number()
     .transform((val, original) => (original === '' ? undefined : val))
-    .typeError('Precio base debe ser un número')
-    .moreThan(0, 'Precio base debe ser mayor a 0')
-    .required('Precio base es requerido'),
-    status: Yup.string().required('Estado es requerido'),
+    .typeError(t('rooms_modal.base_price_number'))
+    .moreThan(0, t('rooms_modal.base_price_more_than'))
+    .required(t('rooms_modal.base_price_required')),
+    status: Yup.string().required(t('rooms_modal.status_required')),
   })
 
   const [instanceKey, setInstanceKey] = useState(0)
@@ -113,53 +115,53 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar habitación' : 'Crear habitación'}
+          title={isEdit ? t('rooms_modal.edit_room') : t('rooms_modal.create_room')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('rooms_modal.save_changes') : t('rooms_modal.create')}
+          cancelText={t('rooms_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
           size='lg'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <SelectAsync
-              title='Hotel *'
+              title={`${t('rooms_modal.hotel')} *`}
               name='hotel'
               resource='hotels'
-              placeholder='Buscar hotel…'
+              placeholder={t('rooms_modal.hotel_placeholder')}
               getOptionLabel={(h) => h?.name}
               getOptionValue={(h) => h?.id}
             />
-            <InputText title='Nombre *' name='name' placeholder='Suite 101' />
-            <InputText title='Número *' name='number' placeholder='101' />
-            <InputText title='Piso *' name='floor' placeholder='1' />
+            <InputText title={`${t('rooms_modal.name')} *`} name='name' placeholder={t('rooms_modal.name_placeholder')} />
+            <InputText title={`${t('rooms_modal.number')} *`} name='number' placeholder={t('rooms_modal.number_placeholder')} />
+            <InputText title={`${t('rooms_modal.floor')} *`} name='floor' placeholder={t('rooms_modal.floor_placeholder')} />
             <SelectBasic
-              title='Tipo *'
+              title={`${t('rooms_modal.type')} *`}
               name='room_type'
-              placeholder='Seleccionar tipo'
+              placeholder={t('rooms_modal.type_placeholder')}
               options={[
-                { value: 'single', label: 'Single' },
-                { value: 'double', label: 'Doble' },
-                { value: 'triple', label: 'Triple' },
-                { value: 'suite', label: 'Suite' },
+                { value: 'single', label: t('rooms_modal.room_types.single') },
+                { value: 'double', label: t('rooms_modal.room_types.double') },
+                { value: 'triple', label: t('rooms_modal.room_types.triple') },
+                { value: 'suite', label: t('rooms_modal.room_types.suite') },
               ]}
             />
-            <InputText title='Capacidad *' name='capacity' placeholder='2' />
-            <InputText title='Capacidad máxima *' name='max_capacity' placeholder='2' />
-            <InputText title='Precio base *' name='base_price' placeholder='100.00' />
+            <InputText title={`${t('rooms_modal.capacity')} *`} name='capacity' placeholder={t('rooms_modal.capacity_placeholder')} />
+            <InputText title={`${t('rooms_modal.max_capacity')} *`} name='max_capacity' placeholder={t('rooms_modal.max_capacity_placeholder')} />
+            <InputText title={`${t('rooms_modal.base_price')} *`} name='base_price' placeholder={t('rooms_modal.base_price_placeholder')} />
             <SelectBasic
-              title='Estado *'
+              title={`${t('rooms_modal.status')} *`}
               name='status'
               options={[
-                { value: 'available', label: 'Disponible' },
-                { value: 'occupied', label: 'Ocupada' },
-                { value: 'maintenance', label: 'Mantenimiento' },
-                { value: 'out_of_service', label: 'Fuera de servicio' },
-                { value: 'reserved', label: 'Reservada' },
+                { value: 'available', label: t('rooms_modal.statuses.available') },
+                { value: 'occupied', label: t('rooms_modal.statuses.occupied') },
+                { value: 'maintenance', label: t('rooms_modal.statuses.maintenance') },
+                { value: 'out_of_service', label: t('rooms_modal.statuses.out_of_service') },
+                { value: 'reserved', label: t('rooms_modal.statuses.reserved') },
               ]}
             />
             <div className='md:col-span-2'>
-              <InputTextTarea title='Descripción' name='description' placeholder='Notas internas…' rows={3} />
+              <InputTextTarea title={t('rooms_modal.description')} name='description' placeholder={t('rooms_modal.description_placeholder')} rows={3} />
             </div>
           </div>
         </ModalLayout>

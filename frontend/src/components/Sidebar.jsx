@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import logo from "../assets/img/logo_white_alone.png";
+import logo from "../assets/img/logo_new_alone_white.png";
 import logo_name from "../assets/img/name_white.png";
 import { Chevron } from "src/assets/icons/Chevron";
 import DashboardIcon from "src/assets/icons/DashboardIcon";
@@ -65,10 +65,10 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
           backgroundImage: `linear-gradient(135deg, rgba(212,175,55,0.14), rgba(0,0,0,0)), url(${fondo})`,
         }}
       />
-      <div className="flex items-center justify-center h-16 px-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <img src={logo} alt="AlojaSys" className="block h-23 w-auto object-contain" />
-          {!isMini && <img src={logo_name} alt="AlojaSys" className="block h-20 w-auto object-contain" />}
+      <div className="flex items-center justify-center h-auto px-2 shrink-0">
+        <div className="flex flex-col items-center">
+          <img src={logo} alt="AlojaSys" className="block h-15 w-auto object-contain" />
+          {!isMini && <img src={logo_name} alt="AlojaSys" className="block h-5 w-auto object-contain" />}
         </div>
       </div>
       <nav className="mt-2 flex flex-col gap-1">

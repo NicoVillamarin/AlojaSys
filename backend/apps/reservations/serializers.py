@@ -2,6 +2,8 @@ from rest_framework import serializers
 from django.db.models import Sum
 from django.utils import timezone
 from django.db import transaction
+from django.core.exceptions import ValidationError
+from datetime import date
 from .models import Reservation, ReservationStatus, ReservationCharge, Payment, ChannelCommission
 from apps.rooms.models import RoomStatus
 
@@ -54,6 +56,14 @@ class ReservationSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         with transaction.atomic():
+            # Validar que no se pueda confirmar una reserva con check_in anterior a la fecha actual
+            if 'status' in validated_data and validated_data['status'] == ReservationStatus.CONFIRMED:
+                today = date.today()
+                if instance.check_in < today:
+                    raise ValidationError({
+                        'status': 'No se puede confirmar una reserva con fecha de check-in anterior a la fecha actual.'
+                    })
+            
             for key, value in validated_data.items():
                 setattr(instance, key, value)
             instance.full_clean()

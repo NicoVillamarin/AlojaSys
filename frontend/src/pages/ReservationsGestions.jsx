@@ -227,7 +227,7 @@ export default function ReservationsGestions() {
           },
           { key: 'guests', header: t('dashboard.reservations_management.table_headers.guests_count'), sortable: true, right: true },
           { key: 'total_price', header: t('dashboard.reservations_management.table_headers.total'), sortable: true, right: true, render: (r) => `$ ${convertToDecimal(r.total_price)}` },
-          { key: 'status', header: t('dashboard.reservations_management.table_headers.status'), sortable: true, render: (r) => <span>{getStatusLabel(r.status)}</span> },
+          { key: 'status', header: t('dashboard.reservations_management.table_headers.status'), sortable: true, render: (r) => <span>{getStatusLabel(r.status, t)}</span> },
           {
             key: 'actions', header: t('dashboard.reservations_management.table_headers.actions'), sortable: false, right: true,
             render: (r) => (

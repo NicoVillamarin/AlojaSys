@@ -1,4 +1,5 @@
 import { Formik } from 'formik'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -8,6 +9,7 @@ import { useUpdate } from 'src/hooks/useUpdate'
 import SelectBasic from 'src/components/selects/SelectBasic'
 
 const PlansRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
+    const { t } = useTranslation()
     const { mutate: createRow, isPending: creating } = useCreate({
         resource: 'rates/rate-plans',
         onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
@@ -26,10 +28,10 @@ const PlansRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
     }
 
     const validationSchema = Yup.object().shape({
-        hotel: Yup.number().typeError('Hotel requerido').required('Hotel requerido'),
-        name: Yup.string().required('Nombre requerido'),
-        code: Yup.string().required('Código requerido'),
-        priority: Yup.number().typeError('Debe ser número').required('Requerido'),
+        hotel: Yup.number().typeError(t('plans_rate_modal.hotel_required')).required(t('plans_rate_modal.hotel_required')),
+        name: Yup.string().required(t('plans_rate_modal.name_required')),
+        code: Yup.string().required(t('plans_rate_modal.code_required')),
+        priority: Yup.number().typeError(t('plans_rate_modal.priority_number')).required(t('plans_rate_modal.priority_required')),
     })
 
     return (
@@ -53,28 +55,28 @@ const PlansRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                 <ModalLayout
                     isOpen={isOpen}
                     onClose={onClose}
-                    title={isEdit ? 'Editar plan' : 'Crear plan'}
+                    title={isEdit ? t('plans_rate_modal.edit_plan') : t('plans_rate_modal.create_plan')}
                     onSubmit={handleSubmit}
-                    submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-                    cancelText='Cancelar'
+                    submitText={isEdit ? t('plans_rate_modal.save_changes') : t('plans_rate_modal.create')}
+                    cancelText={t('plans_rate_modal.cancel')}
                     submitDisabled={creating || updating}
                     submitLoading={creating || updating}
                     size='md'
                 >
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
                         <SelectAsync
-                            title='Hotel *'
+                            title={`${t('plans_rate_modal.hotel')} *`}
                             name='hotel'
                             resource='hotels'
-                            placeholder='Buscar hotel…'
+                            placeholder={t('plans_rate_modal.hotel_placeholder')}
                             getOptionLabel={(h) => h?.name}
                             getOptionValue={(h) => h?.id}
                         />
-                        <InputText title='Nombre *' name='name' placeholder='BAR' />
-                        <InputText title='Código *' name='code' placeholder='BAR' />
-                        <InputText title='Prioridad *' name='priority' placeholder='100' />
+                        <InputText title={`${t('plans_rate_modal.name')} *`} name='name' placeholder={t('plans_rate_modal.name_placeholder')} />
+                        <InputText title={`${t('plans_rate_modal.code')} *`} name='code' placeholder={t('plans_rate_modal.code_placeholder')} />
+                        <InputText title={`${t('plans_rate_modal.priority')} *`} name='priority' placeholder={t('plans_rate_modal.priority_placeholder')} />
                         <div className='md:col-span-2'>
-                            <label className='text-xs text-aloja-gray-800/70'>Activo</label>
+                            <label className='text-xs text-aloja-gray-800/70'>{t('plans_rate_modal.active')}</label>
                             <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer'>
                                 <input
                                     id='is_active'
@@ -84,7 +86,7 @@ const PlansRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                                     checked={!!values.is_active}
                                     onChange={(e) => setFieldValue('is_active', e.target.checked)}
                                 />
-                                <span className='text-sm text-aloja-gray-800/80'>Habilitado para operar</span>
+                                <span className='text-sm text-aloja-gray-800/80'>{t('plans_rate_modal.enabled_for_operation')}</span>
                             </label>
                         </div>
                     </div>

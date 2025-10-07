@@ -1,4 +1,5 @@
 import { Formik } from 'formik'
+import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -7,6 +8,7 @@ import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 
 const StatesModal = ({ isOpen, onClose, isEdit = false, stateItem, onSuccess }) => {
+  const { t } = useTranslation()
   const { mutate: createState, isPending: creating } = useCreate({
     resource: 'states',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
@@ -23,8 +25,8 @@ const StatesModal = ({ isOpen, onClose, isEdit = false, stateItem, onSuccess }) 
   }
 
   const validationSchema = Yup.object().shape({
-    country: Yup.string().required('País es requerido'),
-    name: Yup.string().required('Nombre es requerido'),
+    country: Yup.string().required(t('states_modal.country_required')),
+    name: Yup.string().required(t('states_modal.name_required')),
   })
 
   return (
@@ -46,25 +48,25 @@ const StatesModal = ({ isOpen, onClose, isEdit = false, stateItem, onSuccess }) 
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? 'Editar provincia/estado' : 'Crear provincia/estado'}
+          title={isEdit ? t('states_modal.edit_state') : t('states_modal.create_state')}
           onSubmit={handleSubmit}
-          submitText={isEdit ? 'Guardar cambios' : 'Crear'}
-          cancelText='Cancelar'
+          submitText={isEdit ? t('states_modal.save_changes') : t('states_modal.create')}
+          cancelText={t('states_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
           size='md'
         >
           <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
             <SelectAsync
-              title='País *'
+              title={`${t('states_modal.country')} *`}
               name='country'
               resource='countries'
-              placeholder='Buscar país…'
+              placeholder={t('states_modal.country_placeholder')}
               getOptionLabel={(c) => c?.name}
               getOptionValue={(c) => c?.id}
             />
-            <InputText title='Nombre *' name='name' placeholder='Buenos Aires' />
-            <InputText title='Código' name='code' placeholder='AR-B' />
+            <InputText title={`${t('states_modal.name')} *`} name='name' placeholder={t('states_modal.name_placeholder')} />
+            <InputText title={t('states_modal.code')} name='code' placeholder={t('states_modal.code_placeholder')} />
           </div>
         </ModalLayout>
       )}
