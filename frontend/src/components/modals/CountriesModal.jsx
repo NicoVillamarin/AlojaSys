@@ -60,7 +60,7 @@ const CountriesModal = ({ isOpen, onClose, isEdit = false, country, onSuccess })
           submitLoading={creating || updating}
           size='md'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <InputText title={`${t('countries_modal.name')} *`} name='name' placeholder={t('countries_modal.name_placeholder')} autoFocus />
             <InputText title={`${t('countries_modal.iso2')} *`} name='code2' placeholder={t('countries_modal.iso2_placeholder')} />
             <InputText title={t('countries_modal.iso3')} name='code3' placeholder={t('countries_modal.iso3_placeholder')} />

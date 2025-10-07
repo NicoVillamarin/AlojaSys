@@ -62,7 +62,7 @@ const CitiesModal = ({ isOpen, onClose, isEdit = false, city, onSuccess }) => {
           submitLoading={creating || updating}
           size='md'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <SelectAsync
               title={`${t('cities_modal.state')} *`}
               name='state'

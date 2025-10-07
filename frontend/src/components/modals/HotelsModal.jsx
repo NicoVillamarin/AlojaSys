@@ -77,7 +77,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
           submitDisabled={creating || updating}
           size='lg'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <InputText title={`${t('hotels_modal.name')} *`} name='name' placeholder={t('hotels_modal.name_placeholder')} autoFocus />
             <InputText title={t('hotels_modal.legal_name')} name='legal_name' placeholder={t('hotels_modal.legal_name_placeholder')} />
             <InputText title={t('hotels_modal.tax_id')} name='tax_id' placeholder={t('hotels_modal.tax_id_placeholder')} />
@@ -121,7 +121,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             />
             <InputText title={t('hotels_modal.check_in_time')} name='check_in_time' type='time' />
             <InputText title={t('hotels_modal.check_out_time')} name='check_out_time' type='time' />
-            <div className='md:col-span-2'>
+            <div className='lg:col-span-2'>
               <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.active')}</label>
               <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer'>
                 <input

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { getStatusMeta } from 'src/utils/statusList';
 
 const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hotels = [] }) => {
@@ -30,26 +30,7 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
     return shadowColors[status?.toLowerCase()] || 'shadow-gray-200';
   };
 
-  // Calcular el grid de habitaciones
-  const gridData = useMemo(() => {
-    if (!rooms || rooms.length === 0) return { rows: 0, cols: 0, grid: [] };
-
-    const totalRooms = rooms.length;
-    const cols = Math.ceil(Math.sqrt(totalRooms));
-    const rows = Math.ceil(totalRooms / cols);
-    
-    // Crear grid vacío
-    const grid = Array(rows).fill(null).map(() => Array(cols).fill(null));
-    
-    // Llenar grid con habitaciones
-    rooms.forEach((room, index) => {
-      const row = Math.floor(index / cols);
-      const col = index % cols;
-      grid[row][col] = room;
-    });
-
-    return { rows, cols, grid };
-  }, [rooms]);
+  // Ya no necesitamos calcular grid, usamos flexbox
 
   if (loading) {
     return (
@@ -64,80 +45,63 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
 
   return (
     <div className="relative">
-      {/* Grid de habitaciones moderno */}
-      <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-8 rounded-2xl shadow-inner">
-        <div 
-          className="grid gap-4 mx-auto"
-          style={{
-            gridTemplateColumns: `repeat(${gridData.cols}, minmax(120px, 1fr))`,
-            maxWidth: 'fit-content'
-          }}
-        >
-          {gridData.grid.map((row, rowIndex) =>
-            row.map((room, colIndex) => {
-              if (!room) {
-                return (
-                  <div 
-                    key={`empty-${rowIndex}-${colIndex}`}
-                    className="w-28 h-28 bg-transparent"
-                  />
-                );
-              }
+      {/* Flexbox de habitaciones moderno */}
+      <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-4 md:p-8 rounded-2xl shadow-inner">
+        <div className="flex flex-wrap gap-2 md:gap-4 justify-center">
+          {rooms.map((room) => {
+            const statusMeta = getStatusMeta(room.status);
+            const isHovered = hoveredRoom?.id === room.id;
 
-              const statusMeta = getStatusMeta(room.status);
-              const isHovered = hoveredRoom?.id === room.id;
-
-              return (
-                <div
-                  key={room.id}
-                  className={`
-                    w-28 h-28 rounded-2xl cursor-pointer transition-all duration-300
-                    flex flex-col items-center justify-center text-white font-medium
-                    ${getStatusColor(room.status)}
-                    ${isHovered ? getStatusShadowColor(room.status) : 'shadow-lg'}
-                    hover:scale-110 hover:shadow-2xl hover:rotate-1
-                    ${isHovered ? 'scale-110 shadow-2xl rotate-1' : ''}
-                    border-0
-                    backdrop-blur-sm
-                  `}
-                  onMouseEnter={() => setHoveredRoom(room)}
-                  onMouseLeave={() => setHoveredRoom(null)}
-                  onClick={() => onRoomClick && onRoomClick({
-                    room,
-                    hotel: hotels.find(h => h.id === selectedHotel),
-                    selectedHotel
-                  })}
-                  title={`${room.name || `Habitación #${room.number || room.id}`} - ${statusMeta.label}`}
-                >
-                  {/* Número de habitación principal */}
-                  <div className="text-md font-bold drop-shadow-sm">
-                    {room.name || `#${room.id}`}
-                  </div>
-                  
-                  {/* Piso si está disponible */}
-                  {room.floor && (
-                    <div className="text-xs opacity-80 mt-1 font-medium drop-shadow-sm">
-                      Piso: {room.floor}
-                    </div>
-                  )}
-                  
-                  {/* Tipo de habitación */}
-                  <div className="text-xs opacity-90 mt-1 font-medium drop-shadow-sm text-center px-1">
-                    {room.room_type || 'N/A'}
-                  </div>
-                  
-                  {/* Indicador de estado */}
-                  <div className="w-2 h-2 rounded-full bg-white/40 mt-1"></div>
+            return (
+              <div
+                key={room.id}
+                className={`
+                  w-16 h-16 md:w-28 md:h-28 rounded-xl md:rounded-2xl cursor-pointer transition-all duration-300
+                  flex flex-col items-center justify-center text-white font-medium
+                  ${getStatusColor(room.status)}
+                  ${isHovered ? getStatusShadowColor(room.status) : 'shadow-lg'}
+                  hover:scale-105 md:hover:scale-110 hover:shadow-2xl hover:rotate-1
+                  ${isHovered ? 'scale-105 md:scale-110 shadow-2xl rotate-1' : ''}
+                  border-0
+                  backdrop-blur-sm
+                `}
+                onMouseEnter={() => setHoveredRoom(room)}
+                onMouseLeave={() => setHoveredRoom(null)}
+                onClick={() => onRoomClick && onRoomClick({
+                  room,
+                  hotel: hotels.find(h => h.id === selectedHotel),
+                  selectedHotel
+                })}
+                title={`${room.name || `Habitación #${room.number || room.id}`} - ${statusMeta.label}`}
+              >
+                {/* Número de habitación principal */}
+                <div className="text-xs md:text-md font-bold drop-shadow-sm">
+                  {room.name || `#${room.id}`}
                 </div>
-              );
-            })
-          )}
+                
+                {/* Piso si está disponible - solo en desktop */}
+                {room.floor && (
+                  <div className="hidden md:block text-xs opacity-80 mt-1 font-medium drop-shadow-sm">
+                    Piso: {room.floor}
+                  </div>
+                )}
+                
+                {/* Tipo de habitación - solo en desktop */}
+                <div className="hidden md:block text-xs opacity-90 mt-1 font-medium drop-shadow-sm text-center px-1">
+                  {room.room_type || 'N/A'}
+                </div>
+                
+                {/* Indicador de estado */}
+                <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-white/40 mt-1"></div>
+              </div>
+            );
+          })}
         </div>
       </div>
       
       {/* Tooltip moderno */}
       {hoveredRoom && (
-        <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-2xl border-0 z-10 animate-in slide-in-from-right-2 duration-300">
+        <div className="absolute top-2 right-2 md:top-6 md:right-6 bg-white/95 backdrop-blur-md p-2 md:p-4 rounded-xl md:rounded-2xl shadow-2xl border-0 z-20 animate-in slide-in-from-right-2 duration-300 max-w-xs">
           <div className="flex items-center space-x-3 mb-3">
             <div className={`w-4 h-4 rounded-full ${getStatusColor(hoveredRoom.status)}`}></div>
             <div>
@@ -170,27 +134,6 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
         </div>
       )}
 
-      {/* Leyenda moderna */}
-      <div className="absolute bottom-6 left-6 bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-2xl border-0">
-        <div className="text-sm font-semibold text-gray-800 mb-3">Estados</div>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries({
-            available: 'Disponible',
-            occupied: 'Ocupada', 
-            maintenance: 'Mantenimiento',
-            cleaning: 'Limpieza',
-            blocked: 'Bloqueada',
-            out_of_service: 'Fuera de servicio'
-          }).map(([status, label]) => (
-            <div key={status} className="flex items-center space-x-2">
-              <div 
-                className={`w-3 h-3 rounded-full ${getStatusColor(status)} shadow-sm`}
-              />
-              <span className="text-xs text-gray-700 font-medium">{label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };

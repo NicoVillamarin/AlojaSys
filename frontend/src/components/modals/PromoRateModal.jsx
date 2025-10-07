@@ -137,7 +137,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
           submitLoading={creating || updating}
           size='lg'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-5'>
             <SelectAsync
               title={`${t('promo_rate_modal.hotel')} *`}
               name='hotel'
@@ -156,14 +156,16 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
             />
             <InputText title={`${t('promo_rate_modal.name')} *`} name='name' placeholder={t('promo_rate_modal.name_placeholder')} />
             <InputText title={t('promo_rate_modal.code')} name='code' placeholder={t('promo_rate_modal.code_placeholder')} />
-            <DatePickedRange
-              label={`${t('promo_rate_modal.date_range')} *`}
-              startDate={values.start_date}
-              endDate={values.end_date}
-              onChange={(s, e) => { setFieldValue('start_date', s); setFieldValue('end_date', e) }}
-            />
+            <div className='xl:col-span-2'>
+              <DatePickedRange
+                label={`${t('promo_rate_modal.date_range')} *`}
+                startDate={values.start_date}
+                endDate={values.end_date}
+                onChange={(s, e) => { setFieldValue('start_date', s); setFieldValue('end_date', e) }}
+              />
+            </div>
 
-            <div className='col-span-2'>
+            <div className='xl:col-span-2'>
               <div className='flex items-center justify-between mb-2'>
                 <div className='text-sm font-medium text-gray-700'>{t('promo_rate_modal.weekdays')}</div>
                 <div className='flex items-center gap-3'>
@@ -211,7 +213,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                   )}
                 </div>
               </div>
-              <div className={`flex flex-wrap gap-2 ${!values.use_weekdays ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`grid grid-cols-4 sm:grid-cols-7 gap-2 ${!values.use_weekdays ? 'opacity-50 pointer-events-none' : ''}`}>
                 {[
                   ['apply_mon', t('promo_rate_modal.days.mon')],['apply_tue', t('promo_rate_modal.days.tue')],['apply_wed', t('promo_rate_modal.days.wed')],['apply_thu', t('promo_rate_modal.days.thu')],['apply_fri', t('promo_rate_modal.days.fri')],['apply_sat', t('promo_rate_modal.days.sat')],['apply_sun', t('promo_rate_modal.days.sun')],
                 ].map(([name,label]) => (
@@ -219,7 +221,7 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                     key={name}
                     type='button'
                     onClick={() => setFieldValue(name, !values[name])}
-                    className={`px-3 py-1 rounded-full text-sm border ${values[name] ? 'bg-aloja-navy text-white border-aloja-navy' : 'bg-white text-gray-700 border-gray-300'}`}
+                    className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm border text-center ${values[name] ? 'bg-aloja-navy text-white border-aloja-navy' : 'bg-white text-gray-700 border-gray-300'}`}
                   >
                     {label}
                   </button>

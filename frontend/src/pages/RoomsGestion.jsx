@@ -315,15 +315,16 @@ export default function RoomsGestion() {
 
       {/* Filtros */}
       <Filter title={t('rooms.filters_title')}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+            <div className="relative w-full lg:w-80">
             <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l3.387 3.387a1 1 0 01-1.414 1.414l-3.387-3.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
               </svg>
             </span>
             <input
-              className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
+              className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-full transition-all"
               placeholder={t('rooms.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
@@ -341,11 +342,12 @@ export default function RoomsGestion() {
                 ✕
               </button>
             )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
             <SelectStandalone
               title={t('common.status')}
-              className="w-56"
+              className="w-full lg:w-56"
               value={statusList.find(s => String(s.value) === String(filters.status)) || null}
               onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
               options={[
@@ -359,7 +361,7 @@ export default function RoomsGestion() {
             
             <SelectStandalone
               title={hasSingleHotel ? t('rooms.hotel_autoselected') : t('common.hotel')}
-              className="w-56"
+              className="w-full lg:w-56"
               value={hotels?.find(h => String(h.id) === String(filters.hotel)) || null}
               onChange={(option) => setFilters((f) => ({ ...f, hotel: option ? String(option.id) : '' }))}
               options={hotels || []}

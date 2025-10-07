@@ -123,7 +123,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
           submitLoading={creating || updating}
           size='lg'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <SelectAsync
               title={`${t('rooms_modal.hotel')} *`}
               name='hotel'
@@ -160,7 +160,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
                 { value: 'reserved', label: t('rooms_modal.statuses.reserved') },
               ]}
             />
-            <div className='md:col-span-2'>
+            <div className='lg:col-span-2'>
               <InputTextTarea title={t('rooms_modal.description')} name='description' placeholder={t('rooms_modal.description_placeholder')} rows={3} />
             </div>
           </div>

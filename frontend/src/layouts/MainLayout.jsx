@@ -5,11 +5,33 @@ import Navbar from "src/components/Navbar";
 import { useSidebar } from "src/hooks/useSidebar";
 
 export default function MainLayout() {
-  const { isCollapsed, isMini, sidebarWidth, isResizing, toggleCollapse, toggleMini, resetWidth, forceOpen, startResizing } = useSidebar();
+  const { 
+    isCollapsed, 
+    isMini, 
+    sidebarWidth, 
+    isResizing, 
+    isMobileOpen, 
+    isMobile, 
+    toggleCollapse, 
+    toggleMini, 
+    resetWidth, 
+    forceOpen, 
+    toggleMobile, 
+    closeMobile, 
+    startResizing 
+  } = useSidebar();
 
   return (
     <div className="min-h-screen w-full bg-aloja-gray-50 relative">
-      {/* Sidebar fijo */}
+      {/* Overlay invisible para cerrar tocando fuera del sidebar en móvil */}
+      {isMobile && isMobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 md:hidden"
+          onClick={closeMobile}
+        />
+      )}
+
+      {/* Sidebar - Desktop */}
       <div 
         className={`hidden md:block fixed left-0 top-0 h-screen z-20 transition-all duration-300 ${
           isCollapsed ? 'w-0' : ''
@@ -26,6 +48,24 @@ export default function MainLayout() {
           onToggleMini={toggleMini}
           onResetWidth={resetWidth}
           onForceOpen={forceOpen}
+        />
+      </div>
+
+      {/* Sidebar - Móvil */}
+      <div 
+        className={`md:hidden fixed left-0 top-0 h-screen z-50 w-64 transform transition-transform duration-300 ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <Sidebar 
+          isCollapsed={false}
+          isMini={false}
+          onToggleCollapse={closeMobile}
+          onToggleMini={closeMobile}
+          onResetWidth={resetWidth}
+          onForceOpen={forceOpen}
+          isMobile={true}
+          onMobileClose={closeMobile}
         />
       </div>
 
@@ -81,13 +121,18 @@ export default function MainLayout() {
 
       {/* Contenido principal */}
       <div 
-        className="flex flex-col min-h-screen transition-all duration-300"
+        className={`flex flex-col min-h-screen transition-all duration-300 ${
+          isMobile && isMobileOpen ? 'blur-[2px]' : ''
+        }`}
         style={{ 
-          marginLeft: isCollapsed ? '0px' : isMini ? '75px' : `${sidebarWidth}px`,
+          marginLeft: isMobile ? '0px' : (isCollapsed ? '0px' : isMini ? '75px' : `${sidebarWidth}px`),
           transition: isResizing ? 'none' : 'all 0.3s ease'
         }}
       >
-        <Navbar />
+        <Navbar 
+          onToggleMobile={toggleMobile}
+          isMobile={isMobile}
+        />
         <main className="flex-1 py-6 px-8">
           <Outlet />
         </main>

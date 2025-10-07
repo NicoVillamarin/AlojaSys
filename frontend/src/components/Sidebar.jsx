@@ -15,9 +15,14 @@ import BitacoraIcon from "src/assets/icons/BitacoraIcon";
 import UserIcon from "src/assets/icons/UserIcon";
 import ReceptionIcon from "src/assets/icons/ReceptionIcon";
 
-const Item = ({ to, children }) => (
+const Item = ({ to, children, onMobileClose, isMobile }) => (
   <NavLink
     to={to}
+    onClick={() => {
+      if (isMobile && onMobileClose) {
+        onMobileClose();
+      }
+    }}
     className={({ isActive }) =>
       `relative overflow-hidden flex items-center gap-3 h-10 px-4 text-sm rounded-md transition-colors ${isActive
         ? "text-white"
@@ -45,7 +50,7 @@ const Item = ({ to, children }) => (
 
 
 
-export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen }) {
+export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen, isMobile = false, onMobileClose }) {
   const { t } = useTranslation();
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState({ settings: false, locations: false });
@@ -65,6 +70,22 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
           backgroundImage: `linear-gradient(135deg, rgba(212,175,55,0.14), rgba(0,0,0,0)), url(${fondo})`,
         }}
       />
+      
+      {/* Botón de cerrar para móvil */}
+      {isMobile && (
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={onToggleCollapse}
+            className="p-2 rounded-md text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+      
       <div className="flex items-center justify-center h-auto px-2 shrink-0">
         <div className="flex flex-col items-center">
           <img src={logo} alt="AlojaSys" className="block h-15 w-auto object-contain" />
@@ -72,12 +93,12 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         </div>
       </div>
       <nav className="mt-2 flex flex-col gap-1">
-        <Item to="/"><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
-        <Item to="/reception"><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
-        <Item to="/reservations-gestion"><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
-        <Item to="/rooms-gestion"><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
+        <Item to="/" onMobileClose={onMobileClose} isMobile={isMobile}><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
+        <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
+        <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
+        <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
-        <Item to="/reservations/1/history"><BitacoraIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_history')}</span>}</Item>
+        <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}><BitacoraIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_history')}</span>}</Item>
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}
         {/*<Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>*/}
         {!isMini && (
@@ -101,10 +122,10 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               openGroups.settings ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
             }`}
           >
-            <Item to="/settings/enterprises">{t('sidebar.enterprises')}</Item>
-            <Item to="/settings/rooms">{t('sidebar.rooms')}</Item>
-            <Item to="/settings/hotels">{t('sidebar.hotels')}</Item>
-            <Item to="/settings/users">{t('sidebar.users')}</Item>
+            <Item to="/settings/enterprises" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.enterprises')}</Item>
+            <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
+            <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
+            <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
             <div className="mt-1 ml-2">
               <button
                 type="button"
@@ -122,9 +143,9 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                   openGroups.locations ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
                 }`}
               >
-                <Item to="/settings/locations/countries">{t('sidebar.countries')}</Item>
-                <Item to="/settings/locations/states">{t('sidebar.states')}</Item>
-                <Item to="/settings/locations/cities">{t('sidebar.cities')}</Item>
+                <Item to="/settings/locations/countries" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.countries')}</Item>
+                <Item to="/settings/locations/states" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.states')}</Item>
+                <Item to="/settings/locations/cities" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cities')}</Item>
               </div>
             </div>
             <div className="mt-1 ml-2">
@@ -144,10 +165,10 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                   openGroups.rates ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
                 }`}
               >
-                <Item to="/settings/rates/plans">{t('sidebar.rate_plans')}</Item>
-                <Item to="/settings/rates/rules">{t('sidebar.rate_rules')}</Item>
-                <Item to="/settings/rates/promos">{t('sidebar.promotions')}</Item>
-                <Item to="/settings/rates/taxes">{t('sidebar.taxes')}</Item>
+                <Item to="/settings/rates/plans" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_plans')}</Item>
+                <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
+                <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
+                <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
               </div>
             </div>
             {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}

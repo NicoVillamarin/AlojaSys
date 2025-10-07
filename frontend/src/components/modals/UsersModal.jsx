@@ -116,7 +116,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           submitLoading={creating || updating}
           size='lg'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <InputText 
               title={`${t('users_modal.username')} *`} 
               name='username' 
@@ -155,7 +155,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
               name='position' 
               placeholder={t('users_modal.position_placeholder')} 
             />
-            <div className='md:col-span-2'>
+            <div className='lg:col-span-2'>
               <SelectAsync
                 title={`${t('users_modal.assigned_hotels')} *`}
                 name='hotels'

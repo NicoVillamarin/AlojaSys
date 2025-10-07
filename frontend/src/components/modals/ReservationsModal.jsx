@@ -387,23 +387,17 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     }
 
     return (
-      <div className="w-full flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="danger" size="md" onClick={onClose}>{t('reservations_modal.cancel')}</Button>
-          {currentIndex > 0 && (
-            <Button variant="secondary" size="md" onClick={goToPreviousStep}>{t('reservations_modal.previous')}</Button>
-          )}
-        </div>
-
-        <div className="flex items-center space-x-2">
+      <div className="w-full flex flex-col gap-4">
+        {/* Stepper arriba */}
+        <div className="flex items-center justify-center space-x-1 sm:space-x-2">
           {tabs.map((tab, index) => {
             const isActive = tab.id === activeTab
             const isCompleted = getStepStatus(tab.id)
             const isAccessible = index === 0 || getStepStatus(tabs[index - 1].id)
             return (
-              <div key={tab.id} className={`flex items-center space-x-2 ${!isAccessible ? 'opacity-50' : ''}`}>
+              <div key={tab.id} className={`flex items-center space-x-1 sm:space-x-2 ${!isAccessible ? 'opacity-50' : ''}`}>
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
+                  className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold transition-colors ${
                     isActive
                       ? 'bg-blue-600 text-white'
                       : isCompleted
@@ -416,27 +410,37 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                   {isCompleted ? '✓' : index + 1}
                 </div>
                 {index < tabs.length - 1 && (
-                  <div className={`w-8 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  <div className={`w-4 sm:w-8 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
                 )}
               </div>
             )
           })}
         </div>
 
-        <div className="flex items-center gap-2">
-          {isLast ? (
-            <Button
-              variant="success"
-              size="md"
-              onClick={handleCreate}
-              disabled={creating || updating || !(isBasicComplete() && isGuestsComplete())}
-              loadingText={creating || updating ? t('reservations_modal.creating') : undefined}
-            >
-              {isEdit ? t('reservations_modal.save_changes') : t('reservations_modal.create_reservation_btn')}
-            </Button>
-          ) : (
-            <Button variant="primary" size="md" disabled={!canNext} onClick={goToNextStep}>{t('reservations_modal.next')}</Button>
-          )}
+        {/* Botones de acción abajo, juntos horizontalmente */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Button variant="danger" size="sm lg:size-md" onClick={onClose}>{t('reservations_modal.cancel')}</Button>
+            {currentIndex > 0 && (
+              <Button variant="secondary" size="sm lg:size-md" onClick={goToPreviousStep}>{t('reservations_modal.previous')}</Button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isLast ? (
+              <Button
+                variant="success"
+                size="sm lg:size-md"
+                onClick={handleCreate}
+                disabled={creating || updating || !(isBasicComplete() && isGuestsComplete())}
+                loadingText={creating || updating ? t('reservations_modal.creating') : undefined}
+              >
+                {isEdit ? t('reservations_modal.save_changes') : t('reservations_modal.create_reservation_btn')}
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm lg:size-md" disabled={!canNext} onClick={goToNextStep}>{t('reservations_modal.next')}</Button>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -465,9 +469,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
 
         const titleNode = (
           <div className="flex flex-col">
-            <span>{isEdit ? t('reservations_modal.edit_reservation') : t('reservations_modal.create_reservation')}</span>
+            <span className="text-base sm:text-lg">{isEdit ? t('reservations_modal.edit_reservation') : t('reservations_modal.create_reservation')}</span>
             {values.check_in && values.check_out && (
-              <div className="text-sm font-normal text-gray-600 mt-1">
+              <div className="text-xs sm:text-sm font-normal text-gray-600 mt-1">
                 {(() => {
                   const duration = calculateStayDuration(values.check_in, values.check_out)
                   return `${formatDate(values.check_in, 'dd/MM/yyyy')} - ${formatDate(values.check_out, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})`
@@ -485,12 +489,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
             customFooter={<CustomFooter />}
             size='lg2'
           >
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
               {activeTab === 'basic' && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     <SelectAsync
                       title={`${t('reservations_modal.hotel')} *`}
                       name='hotel'
@@ -564,28 +568,28 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                   </div>
 
                   {values.check_in && values.check_out && (
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 w-1/2 mx-auto">
-                      <div className="flex items-center justify-center space-x-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg border border-blue-200 w-full sm:w-3/4 lg:w-1/2 mx-auto">
+                      <div className="flex flex-col sm:flex-row items-center justify-center space-y-3 sm:space-y-0 sm:space-x-6">
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_in')}</div>
-                          <div className="text-lg font-bold text-blue-600">{formatDate(values.check_in, 'EEE, dd MMM')}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_in')}</div>
+                          <div className="text-base sm:text-lg font-bold text-blue-600">{formatDate(values.check_in, 'EEE, dd MMM')}</div>
                           <div className="text-xs text-gray-500">{formatDate(values.check_in, 'yyyy')}</div>
                         </div>
-                        <div className="flex items-center space-x-3">
-                          <div className="w-6 h-0.5 bg-blue-300"></div>
-                          <div className="bg-blue-100 px-3 py-1 rounded-full">
-                            <span className="text-blue-700 font-semibold text-sm">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          <div className="w-4 sm:w-6 h-0.5 bg-blue-300"></div>
+                          <div className="bg-blue-100 px-2 sm:px-3 py-1 rounded-full">
+                            <span className="text-blue-700 font-semibold text-xs sm:text-sm">
                               {(() => {
                                 const duration = calculateStayDuration(values.check_in, values.check_out)
                                 return `${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')}`
                               })()}
                             </span>
                           </div>
-                          <div className="w-6 h-0.5 bg-blue-300"></div>
+                          <div className="w-4 sm:w-6 h-0.5 bg-blue-300"></div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_out')}</div>
-                          <div className="text-lg font-bold text-blue-600">{formatDate(values.check_out, 'EEE, dd MMM')}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_out')}</div>
+                          <div className="text-base sm:text-lg font-bold text-blue-600">{formatDate(values.check_out, 'EEE, dd MMM')}</div>
                           <div className="text-xs text-gray-500">{formatDate(values.check_out, 'yyyy')}</div>
                         </div>
                       </div>

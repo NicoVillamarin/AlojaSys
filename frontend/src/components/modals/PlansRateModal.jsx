@@ -63,7 +63,7 @@ const PlansRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                     submitLoading={creating || updating}
                     size='md'
                 >
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+                    <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
                         <SelectAsync
                             title={`${t('plans_rate_modal.hotel')} *`}
                             name='hotel'

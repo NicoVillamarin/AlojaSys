@@ -20,6 +20,26 @@ export const useSidebar = () => {
   });
 
   const [isResizing, setIsResizing] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detectar si estamos en móvil
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
+
+  // Cerrar sidebar móvil cuando cambia el tamaño de pantalla a desktop
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileOpen(false);
+    }
+  }, [isMobile]);
 
   // Guardar cambios en localStorage
   useEffect(() => {
@@ -64,6 +84,14 @@ export const useSidebar = () => {
   const forceOpen = () => {
     setIsCollapsed(false);
     setIsMini(false);
+  };
+
+  const toggleMobile = () => {
+    setIsMobileOpen(!isMobileOpen);
+  };
+
+  const closeMobile = () => {
+    setIsMobileOpen(false);
   };
 
   const startResizing = useCallback((e) => {
@@ -114,10 +142,14 @@ export const useSidebar = () => {
     isMini,
     sidebarWidth,
     isResizing,
+    isMobileOpen,
+    isMobile,
     toggleCollapse,
     toggleMini,
     resetWidth,
     forceOpen,
+    toggleMobile,
+    closeMobile,
     startResizing
   };
 };

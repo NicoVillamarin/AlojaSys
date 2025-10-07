@@ -73,7 +73,7 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
           submitLoading={creating || updating}
           size='lg'
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <InputText title={`${t('enterprise_modal.name')} *`} name='name' placeholder={t('enterprise_modal.name_placeholder')} autoFocus />
             <InputText title={t('enterprise_modal.legal_name')} name='legal_name' placeholder={t('enterprise_modal.legal_name_placeholder')} />
             <InputText title={t('enterprise_modal.tax_id')} name='tax_id' placeholder={t('enterprise_modal.tax_id_placeholder')} />
