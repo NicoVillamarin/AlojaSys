@@ -73,6 +73,31 @@ select:-webkit-autofill {
 }
 
 .animate-sidebar-select { animation: sidebar-select 220ms cubic-bezier(.22,.61,.36,1) both; }
+
+/* Animaciones para transición de loading screen */
+@keyframes fadeToWhite {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes whiteScreenFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.animate-fade-to-white { animation: fadeToWhite 1.5s ease-out forwards; }
+.animate-white-screen-fade-in { animation: whiteScreenFadeIn 0.8s ease-in-out forwards; }
 .link {
   @apply text-blue-500 hover:text-blue-700 cursor-pointer transition-all duration-200;
+}
+
+/* Ocultar scrollbar pero permitir scroll */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE y Edge */
+  scrollbar-width: none;    /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0px;               /* Chrome, Safari, Opera */
+  height: 0px;
+  background: transparent;
 }

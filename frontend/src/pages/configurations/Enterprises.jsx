@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
 import EnterpriseModal from 'src/components/modals/EnterpriseModal'
@@ -7,6 +8,7 @@ import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 
 export default function Enterprises() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editEnterprise, setEditEnterprise] = useState(null)
   const [filters, setFilters] = useState({ search: '' })
@@ -81,11 +83,11 @@ export default function Enterprises() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Empresas</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.enterprises')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear empresa
+          {t('common.create')} {t('sidebar.enterprises')}
         </Button>
       </div>
 
@@ -111,7 +113,7 @@ export default function Enterprises() {
               <button
                 className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
                 onClick={() => { setFilters((f) => ({ ...f, search: '' })); setTimeout(() => refetch(), 0) }}
-                aria-label="Limpiar búsqueda"
+                aria-label={t('common.clear_search')}
               >
                 ✕
               </button>
@@ -125,36 +127,36 @@ export default function Enterprises() {
         data={displayResults}
         getRowId={(c) => c.id}
         columns={[
-          { key: 'name', header: 'Nombre', sortable: true },
-          { key: 'legal_name', header: 'Nombre legal', sortable: true },
-          { key: 'tax_id', header: 'CUIT', sortable: true },
-          { key: 'email', header: 'Email', sortable: true },
-          { key: 'phone', header: 'Teléfono', sortable: true },
-          { key: 'address', header: 'Dirección', sortable: true },
+          { key: 'name', header: t('enterprises.name'), sortable: true },
+          { key: 'legal_name', header: t('enterprises.legal_name'), sortable: true },
+          { key: 'tax_id', header: t('enterprises.tax_id'), sortable: true },
+          { key: 'email', header: t('enterprises.email'), sortable: true },
+          { key: 'phone', header: t('enterprises.phone'), sortable: true },
+          { key: 'address', header: t('enterprises.address'), sortable: true },
           {
             key: 'country',
-            header: 'País',
+            header: t('enterprises.country'),
             sortable: true,
             accessor: (e) => countriesMap[e.country]?.name ?? '',
             render: (e) => countriesMap[e.country]?.name ?? '',
           },
           {
             key: 'state',
-            header: 'Provincia',
+            header: t('enterprises.state'),
             sortable: true,
             accessor: (e) => statesMap[e.state]?.name ?? '',
             render: (e) => statesMap[e.state]?.name ?? '',
           },
           {
             key: 'city',
-            header: 'Ciudad',
+            header: t('enterprises.city'),
             sortable: true,
             accessor: (e) => citiesMap[e.city]?.name ?? '',
             render: (e) => citiesMap[e.city]?.name ?? '',
           },
           {
             key: 'actions',
-            header: 'Acciones',
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (c) => (

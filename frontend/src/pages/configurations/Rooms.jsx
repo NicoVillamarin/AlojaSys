@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import TableGeneric from "src/components/TableGeneric";
 import { useList } from "src/hooks/useList";
 import { getStatusMeta, statusList } from "src/utils/statusList";
@@ -25,6 +26,7 @@ import Filter from "src/components/Filter";
 import { useUserHotels } from "src/hooks/useUserHotels";
 
 export default function Rooms() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false);
   const [editRoom, setEditRoom] = useState(null);
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
@@ -54,7 +56,7 @@ export default function Rooms() {
 
     return [
       {
-        title: "Habitaciones Totales",
+        title: t('dashboard.kpis.total_rooms'),
         value: totalRooms,
         icon: HomeIcon,
         color: "from-indigo-500 to-indigo-600",
@@ -62,11 +64,11 @@ export default function Rooms() {
         iconColor: "text-indigo-600",
         change: "+2",
         changeType: "positive",
-        subtitle: "Capacidad total del hotel",
+        subtitle: t('dashboard.kpis.total_rooms_subtitle'),
         showProgress: false
       },
       {
-        title: "Habitaciones Ocupadas",
+        title: t('dashboard.kpis.occupied_rooms'),
         value: occupiedRooms,
         icon: PleopleOccupatedIcon,
         color: "from-emerald-500 to-emerald-600",
@@ -74,11 +76,11 @@ export default function Rooms() {
         iconColor: "text-emerald-600",
         change: "+2",
         changeType: "positive",
-        subtitle: `De ${totalRooms} totales`,
+        subtitle: t('dashboard.kpis.occupied_rooms_subtitle', { total: totalRooms }),
         progressWidth: totalRooms > 0 ? `${Math.min((occupiedRooms / totalRooms) * 100, 100)}%` : '0%'
       },
       {
-        title: "Habitaciones Disponibles",
+        title: t('dashboard.kpis.available_rooms'),
         value: availableRooms,
         icon: CheckIcon,
         color: "from-blue-500 to-blue-600",
@@ -86,11 +88,11 @@ export default function Rooms() {
         iconColor: "text-blue-600",
         change: "-2",
         changeType: "negative",
-        subtitle: "Listas para ocupar",
+        subtitle: t('dashboard.kpis.available_rooms_subtitle'),
         progressWidth: totalRooms > 0 ? `${Math.min((availableRooms / totalRooms) * 100, 100)}%` : '0%'
       },
       {
-        title: "En Mantenimiento",
+        title: t('dashboard.kpis.maintenance_rooms'),
         value: maintenanceRooms,
         icon: ConfigurateIcon,
         color: "from-orange-500 to-orange-600",
@@ -98,11 +100,11 @@ export default function Rooms() {
         iconColor: "text-orange-600",
         change: maintenanceRooms > 0 ? "+1" : "0",
         changeType: maintenanceRooms > 0 ? "positive" : "neutral",
-        subtitle: "Requieren reparación",
+        subtitle: t('dashboard.kpis.maintenance_rooms_subtitle'),
         progressWidth: totalRooms > 0 ? `${Math.min((maintenanceRooms / totalRooms) * 100, 100)}%` : '0%'
       },
       {
-        title: "Fuera de Servicio",
+        title: t('dashboard.kpis.out_of_service_rooms'),
         value: outOfServiceRooms,
         icon: ExclamationTriangleIcon,
         color: "from-rose-500 to-rose-600",
@@ -110,11 +112,11 @@ export default function Rooms() {
         iconColor: "text-rose-600",
         change: "0",
         changeType: "neutral",
-        subtitle: "No disponibles",
+        subtitle: t('dashboard.kpis.out_of_service_rooms_subtitle'),
         progressWidth: totalRooms > 0 ? `${Math.min((outOfServiceRooms / totalRooms) * 100, 100)}%` : '0%'
       },
       {
-        title: "Tasa de Ocupación",
+        title: t('dashboard.kpis.occupancy_rate'),
         value: `${occupancyRate}%`,
         icon: ChartBarIcon,
         color: "from-purple-500 to-purple-600",
@@ -122,11 +124,11 @@ export default function Rooms() {
         iconColor: "text-purple-600",
         change: "+5%",
         changeType: "positive",
-        subtitle: "Promedio del hotel",
+        subtitle: t('dashboard.kpis.occupancy_rate_subtitle'),
         progressWidth: `${occupancyRate}%`
       }
     ];
-  }, [filters.hotel, summary]);
+  }, [filters.hotel, summary, t]);
 
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
@@ -169,11 +171,11 @@ export default function Rooms() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Habitaciones</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.rooms')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear habitación
+          {t('common.create')} {t('sidebar.rooms')}
         </Button>
       </div>
 
@@ -189,7 +191,7 @@ export default function Rooms() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar habitaciones…"
+              placeholder={t('rooms.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && onSearch()}
@@ -215,10 +217,10 @@ export default function Rooms() {
                 onSubmit={() => { }}
               >
                 <SelectAsync
-                  title="Hotel"
+                  title={t('common.hotel')}
                   name="hotel"
                   resource="hotels"
-                  placeholder="Todos"
+                  placeholder={t('common.all')}
                   getOptionLabel={(h) => h?.name}
                   getOptionValue={(h) => h?.id}
                   onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
@@ -227,15 +229,15 @@ export default function Rooms() {
               </Formik>
             </div>
             <div className="w-48">
-              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Estado</label>
+              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">{t('common.status')}</label>
               <Select
                 value={statusList.find(s => String(s.value) === String(filters.status)) || null}
                 onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
                 options={[
-                  { value: "", label: "Todos" },
+                  { value: "", label: t('common.all') },
                   ...statusList
                 ]}
-                placeholder="Todos"
+                placeholder={t('common.all')}
                 isClearable
                 isSearchable
                 classNamePrefix="rs"
@@ -261,7 +263,7 @@ export default function Rooms() {
 
       {filters.hotel && (
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">Estado de Habitaciones</h2>
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">{t('rooms.status_title')}</h2>
           <Kpis kpis={roomsKpis} loading={kpiLoading} />
         </div>
       )}
@@ -272,15 +274,15 @@ export default function Rooms() {
         columns={[
           {
             key: "name",
-            header: "Habitación",
+            header: t('rooms.room_number'),
             sortable: true,
             accessor: (r) => r.name || r.number || `#${r.id}`,
             render: (r) => r.name || r.number || `#${r.id}`,
           },
-          { key: "room_type", header: "Tipo", sortable: true },
+          { key: "room_type", header: t('rooms.room_type'), sortable: true },
           {
             key: "status",
-            header: "Estado",
+            header: t('common.status'),
             sortable: true,
             accessor: (r) => (r.status || "").toLowerCase(),
             render: (r) => {
@@ -288,12 +290,12 @@ export default function Rooms() {
               return <span className={`px-2 py-1 rounded text-xs ${meta.className}`}>{meta.label}</span>;
             },
           },
-          { key: "base_price", header: "Precio base", sortable: true, right: true },
-          { key: "capacity", header: "Capacidad", sortable: true, right: true },
-          { key: "max_capacity", header: "Capacidad máxima", sortable: true, right: true },
+          { key: "base_price", header: t('rooms.price'), sortable: true, right: true },
+          { key: "capacity", header: t('rooms.capacity'), sortable: true, right: true },
+          { key: "max_capacity", header: t('rooms.max_capacity'), sortable: true, right: true },
           {
             key: "actions",
-            header: "Acciones",
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (r) => (
@@ -309,7 +311,7 @@ export default function Rooms() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

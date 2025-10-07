@@ -12,6 +12,10 @@ import Dashboard from "src/pages/Dashboard";
 import ReservationHistorical from "src/pages/ReservationHistorical";
 import Users from "src/pages/configurations/Users";
 import Reception from "src/pages/Reception";
+import PlanRates from "src/pages/configurations/rates/PlanRates";
+import RulesRates from "src/pages/configurations/rates/RulesRates";
+import Promos from "src/pages/configurations/rates/Promos";
+import Taxes from "src/pages/configurations/rates/Taxes";
 
 
 export const appRoutes = [
@@ -31,6 +35,10 @@ export const appRoutes = [
       { path: "settings/locations/countries", element: React.createElement(Countries) },
       { path: "settings/locations/states", element: React.createElement(States) },
       { path: "settings/locations/cities", element: React.createElement(Cities) },
+      { path: "settings/rates/plans", element: React.createElement(PlanRates) },
+      { path: "settings/rates/rules", element: React.createElement(RulesRates) },
+      { path: "settings/rates/promos", element: React.createElement(Promos) },
+      { path: "settings/rates/taxes", element: React.createElement(Taxes) },
     ],
   },
 ];

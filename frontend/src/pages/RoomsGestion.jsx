@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import TableGeneric from "src/components/TableGeneric";
-import { getStatusMeta, statusList } from "src/utils/statusList";
+import { getStatusMeta } from "src/utils/statusList";
 import { useList } from "src/hooks/useList";
 import { useAction } from "src/hooks/useAction";
 import { format, parseISO } from "date-fns";
@@ -19,8 +20,10 @@ import CheckoutIcon from "src/assets/icons/CheckoutIcon";
 import CheckinIcon from "src/assets/icons/CheckinIcon";
 import SelectStandalone from "src/components/selects/SelectStandalone";
 import { useUserHotels } from "src/hooks/useUserHotels";
+import { convertToDecimal } from "./utils";
 
 export default function RoomsGestion() {
+  const { t, i18n } = useTranslation();
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
   const didMountRef = useRef(false);
 
@@ -122,7 +125,7 @@ export default function RoomsGestion() {
 
     return [
       {
-        title: "Habitaciones Totales",
+        title: t('dashboard.kpis.total_rooms'),
         value: kpi.total,
         icon: HomeIcon,
         color: "from-indigo-500 to-indigo-600",
@@ -130,11 +133,11 @@ export default function RoomsGestion() {
         iconColor: "text-indigo-600",
         change: "+2",
         changeType: "positive",
-        subtitle: "capacidad total del hotel",
+        subtitle: t('dashboard.kpis.in_all_hotels'),
         showProgress: false
       },
       {
-        title: "Habitaciones Ocupadas",
+        title: t('dashboard.kpis.occupied_rooms'),
         value: kpi.occupied,
         icon: PleopleOccupatedIcon,
         color: "from-emerald-500 to-emerald-600",
@@ -142,11 +145,11 @@ export default function RoomsGestion() {
         iconColor: "text-emerald-600",
         change: "+1",
         changeType: "positive",
-        subtitle: `de ${kpi.total} totales`,
+        subtitle: t('dashboard.kpis.of_total', { total: kpi.total }),
         progressWidth: kpi.total > 0 ? `${Math.min((kpi.occupied / kpi.total) * 100, 100)}%` : '0%'
       },
       {
-        title: "Habitaciones Disponibles",
+        title: t('dashboard.kpis.available_rooms'),
         value: kpi.available,
         icon: CheckIcon,
         color: "from-blue-500 to-blue-600",
@@ -154,11 +157,11 @@ export default function RoomsGestion() {
         iconColor: "text-blue-600",
         change: "-1",
         changeType: "negative",
-        subtitle: "listas para ocupar",
+        subtitle: t('dashboard.charts.available'),
         progressWidth: kpi.total > 0 ? `${Math.min((kpi.available / kpi.total) * 100, 100)}%` : '0%'
       },
       {
-        title: "En Mantenimiento",
+        title: t('dashboard.kpis.maintenance_rooms'),
         value: kpi.maintenance,
         icon: ConfigurateIcon,
         color: "from-orange-500 to-orange-600",
@@ -166,11 +169,11 @@ export default function RoomsGestion() {
         iconColor: "text-orange-600",
         change: kpi.maintenance > 0 ? "+1" : "0",
         changeType: kpi.maintenance > 0 ? "positive" : "neutral",
-        subtitle: "requieren reparación",
+        subtitle: t('dashboard.charts.maintenance_subtitle'),
         progressWidth: kpi.total > 0 ? `${Math.min((kpi.maintenance / kpi.total) * 100, 100)}%` : '0%'
       },
       {
-        title: "Huéspedes Hospedados",
+        title: t('dashboard.kpis.current_guests'),
         value: kpi.currentGuests,
         icon: PleopleOccupatedIcon,
         color: "from-purple-500 to-purple-600",
@@ -178,11 +181,11 @@ export default function RoomsGestion() {
         iconColor: "text-purple-600",
         change: "+3",
         changeType: "positive",
-        subtitle: "personas hoy",
+        subtitle: t('dashboard.kpis.today'),
         showProgress: false
       },
       {
-        title: "Tasa de Ocupación",
+        title: t('dashboard.kpis.occupancy_rate'),
         value: `${kpi.occupancyRate}%`,
         icon: ChartBarIcon,
         color: "from-indigo-500 to-indigo-600",
@@ -190,11 +193,11 @@ export default function RoomsGestion() {
         iconColor: "text-indigo-600",
         change: "+5%",
         changeType: "positive",
-        subtitle: "promedio del hotel",
+        subtitle: t('dashboard.kpis.average_current'),
         progressWidth: `${kpi.occupancyRate}%`
       }
     ];
-  }, [kpi]);
+  }, [kpi, t]);
 
   // KPIs adicionales cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel
   const additionalKpis = useMemo(() => {
@@ -202,7 +205,7 @@ export default function RoomsGestion() {
 
     return [
       {
-        title: "Fuera de Servicio",
+        title: t('dashboard.kpis.out_of_service_rooms'),
         value: kpi.outOfService,
         icon: ExclamationTriangleIcon,
         color: "from-rose-500 to-rose-600",
@@ -210,11 +213,11 @@ export default function RoomsGestion() {
         iconColor: "text-rose-600",
         change: "0",
         changeType: "neutral",
-        subtitle: "no disponibles",
+        subtitle: t('dashboard.charts.not_available'),
         progressWidth: kpi.total > 0 ? `${Math.min((kpi.outOfService / kpi.total) * 100, 100)}%` : '0%'
       },
       {
-        title: "Check-ins Hoy",
+        title: t('dashboard.kpis.arrivals_today'),
         value: kpi.arrivals,
         icon: CheckinIcon,
         color: "from-green-500 to-green-600",
@@ -222,11 +225,11 @@ export default function RoomsGestion() {
         iconColor: "text-green-600",
         change: "+2",
         changeType: "positive",
-        subtitle: "llegadas hoy",
+        subtitle: t('dashboard.kpis.today'),
         showProgress: false
       },
       {
-        title: "Check-outs Hoy",
+        title: t('dashboard.kpis.departures_today'),
         value: kpi.departures,
         icon: CheckoutIcon,
         color: "from-orange-500 to-orange-600",
@@ -234,11 +237,28 @@ export default function RoomsGestion() {
         iconColor: "text-orange-600",
         change: "-1",
         changeType: "negative",
-        subtitle: "salidas hoy",
+        subtitle: t('dashboard.kpis.today'),
         showProgress: false
       }
     ];
-  }, [shouldUseSummary, kpi]);
+  }, [shouldUseSummary, kpi, t]);
+
+  // Lista de estados traducida - simple
+  const statusList = useMemo(() => {
+    console.log('StatusList - Current language:', i18n.language);
+    console.log('StatusList - Available translation:', t('rooms.status.available'));
+    console.log('StatusList - Occupied translation:', t('rooms.status.occupied'));
+    console.log('StatusList - Sidebar test:', t('sidebar.dashboard'));
+    
+    return [
+      { value: "available", label: t('rooms.status.available') || 'Disponible' },
+      { value: "occupied", label: t('rooms.status.occupied') || 'Ocupada' },
+      { value: "maintenance", label: t('rooms.status.maintenance') || 'Mantenimiento' },
+      { value: "cleaning", label: t('rooms.status.cleaning') || 'Limpieza' },
+      { value: "blocked", label: t('rooms.status.blocked') || 'Bloqueada' },
+      { value: "out_of_service", label: t('rooms.status.out_of_service') || 'Fuera de servicio' }
+    ];
+  }, [t, i18n.language]);
 
   // Filtrado en cliente para respuesta inmediata al escribir
   const displayResults = useMemo(() => {
@@ -281,8 +301,8 @@ export default function RoomsGestion() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-aloja-navy">Gestión de Habitaciones</h1>
-        <div className="text-sm text-aloja-gray-800/70">{kpi.total} habitaciones</div>
+        <h1 className="text-2xl font-semibold text-aloja-navy">{t('rooms.title')}</h1>
+        <div className="text-sm text-aloja-gray-800/70">{kpi.total} {t('rooms.rooms')}</div>
       </div>
 
       {/* KPIs principales */}
@@ -294,7 +314,7 @@ export default function RoomsGestion() {
       )}
 
       {/* Filtros */}
-      <Filter title="Filtros de Habitaciones">
+      <Filter title={t('rooms.filters_title')}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
@@ -304,7 +324,7 @@ export default function RoomsGestion() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar habitaciones…"
+              placeholder={t('rooms.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && onSearch()}
@@ -316,7 +336,7 @@ export default function RoomsGestion() {
                   setFilters((f) => ({ ...f, search: "" }));
                   setTimeout(() => refetch(), 0);
                 }}
-                aria-label="Limpiar búsqueda"
+                aria-label={t('common.clear_search')}
               >
                 ✕
               </button>
@@ -324,28 +344,28 @@ export default function RoomsGestion() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <SelectStandalone
-              title="Estado"
+              title={t('common.status')}
               className="w-56"
               value={statusList.find(s => String(s.value) === String(filters.status)) || null}
               onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
               options={[
-                { value: "", label: "Todos" },
+                { value: "", label: t('common.all') },
                 ...statusList
               ]}
-              placeholder="Todos"
+              placeholder={t('common.all')}
               isClearable
               isSearchable
             />
             
             <SelectStandalone
-              title={hasSingleHotel ? "Hotel (autoseleccionado)" : "Hotel"}
+              title={hasSingleHotel ? t('rooms.hotel_autoselected') : t('common.hotel')}
               className="w-56"
               value={hotels?.find(h => String(h.id) === String(filters.hotel)) || null}
               onChange={(option) => setFilters((f) => ({ ...f, hotel: option ? String(option.id) : '' }))}
               options={hotels || []}
               getOptionLabel={(h) => h?.name}
               getOptionValue={(h) => h?.id}
-              placeholder="Todos"
+              placeholder={t('common.all')}
               isClearable={!hasSingleHotel}
               isSearchable
               isDisabled={hasSingleHotel}
@@ -362,33 +382,33 @@ export default function RoomsGestion() {
         columns={[
           {
             key: "updated_at",
-            header: "Última actualización",
+            header: t('rooms.last_updated'),
             sortable: true,
             accessor: (r) => r.updated_at ? format(parseISO(r.updated_at), 'dd/MM/yyyy HH:mm') : '',
             render: (r) => r.updated_at ? format(parseISO(r.updated_at), 'dd/MM/yyyy HH:mm') : '',
           },
           {
             key: "name",
-            header: "Habitación",
+            header: t('rooms.room_number'),
             sortable: true,
             accessor: (r) => r.name || r.number || `#${r.id}`,
             render: (r) => r.name || r.number || `#${r.id}`,
           },
-          { key: "room_type", header: "Tipo", sortable: true },
+          { key: "room_type", header: t('rooms.room_type'), sortable: true },
           {
             key: "status",
-            header: "Estado",
+            header: t('common.status'),
             sortable: true,
             accessor: (r) => (r.status || "").toLowerCase(),
             render: (r) => {
-              const meta = getStatusMeta(r.status);
+              const meta = getStatusMeta(r.status, t);
               return <span className={`px-2 py-1 rounded text-xs ${meta.className}`}>{meta.label}</span>;
             },
           },
-          { key: "base_price", header: "Precio base", sortable: true },
+          { key: "base_price", header: t('rooms.price'), sortable: true, render: (r) => `$ ${convertToDecimal(r.base_price)}`, right: true } ,
           {
             key: "capacity",
-            header: "Capacidad",
+            header: t('rooms.capacity'),
             sortable: true,
             render: (r) => {
               const capacity = r.capacity || 0;
@@ -401,7 +421,7 @@ export default function RoomsGestion() {
                     {capacity}{maxCapacity > capacity ? `-${maxCapacity}` : ''}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {maxCapacity > capacity ? `+$${extraFee} extra` : 'personas'}
+                    {maxCapacity > capacity ? `+$${extraFee} extra` : t('rooms.people')}
                   </div>
                 </div>
               );
@@ -413,7 +433,7 @@ export default function RoomsGestion() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
 import CountriesModal from 'src/components/modals/CountriesModal'
@@ -7,6 +8,7 @@ import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 
 export default function Countries() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editCountry, setEditCountry] = useState(null)
   const [filters, setFilters] = useState({ search: '' })
@@ -48,11 +50,11 @@ export default function Countries() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Países</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.countries')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear país
+          {t('countries.create_country')}
         </Button>
       </div>
 
@@ -69,7 +71,7 @@ export default function Countries() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar países…"
+              placeholder={t('countries.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && refetch()}
@@ -78,7 +80,7 @@ export default function Countries() {
               <button
                 className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
                 onClick={() => { setFilters((f) => ({ ...f, search: '' })); setTimeout(() => refetch(), 0) }}
-                aria-label="Limpiar búsqueda"
+                aria-label={t('common.clear_search')}
               >
                 ✕
               </button>
@@ -92,14 +94,14 @@ export default function Countries() {
         data={displayResults}
         getRowId={(c) => c.id}
         columns={[
-          { key: 'name', header: 'Nombre', sortable: true },
-          { key: 'code2', header: 'ISO2', sortable: true },
-          { key: 'code3', header: 'ISO3', sortable: true },
-          { key: 'phone_code', header: 'Tel. país', sortable: true },
-          { key: 'currency_code', header: 'Moneda', sortable: true },
+          { key: 'name', header: t('countries.name'), sortable: true },
+          { key: 'code2', header: t('countries.iso2'), sortable: true },
+          { key: 'code3', header: t('countries.iso3'), sortable: true },
+          { key: 'phone_code', header: t('countries.phone_code'), sortable: true },
+          { key: 'currency_code', header: t('countries.currency_code'), sortable: true },
           {
             key: 'actions',
-            header: 'Acciones',
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (c) => (
@@ -115,7 +117,7 @@ export default function Countries() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

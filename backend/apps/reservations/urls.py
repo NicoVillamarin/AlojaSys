@@ -11,6 +11,9 @@ from .views import (
     reservation_payments,
     reservation_commission,
     reservation_history,
+    can_book,
+    quote_range,
+    quote,
 )
 
 router = DefaultRouter()
@@ -18,6 +21,9 @@ router.register(r"reservations", ReservationViewSet, basename="reservation")
 urlpatterns = [
     path("reservations/availability/", AvailabilityView.as_view(), name="reservations-availability"),
     path("reservations/pricing/quote/", pricing_quote, name="pricing-quote"),
+    path("reservations/can-book/", can_book, name="reservations-can-book"),
+    path("reservations/quote-range/", quote_range, name="reservations-quote-range"),
+    path("reservations/quote/", quote, name="reservations-quote"),
     path("reservations/pricing/daily-summary/", pricing_daily_summary, name="pricing-daily-summary"),
     path("reservations/pricing/reservation-summary/<int:pk>/", reservation_pricing_summary, name="reservation-pricing-summary"),
     path("reservations/<int:pk>/charges/", reservation_charges, name="reservation-charges"),

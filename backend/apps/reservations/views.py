@@ -15,10 +15,17 @@ from .serializers import (
 )
 from rest_framework.decorators import action, api_view
 from decimal import Decimal
+from django.db import models
+from django.db import models
 from django.db.models import Sum
-from .services.pricing import compute_nightly_rate, recalc_reservation_totals
+from .services.pricing import compute_nightly_rate, recalc_reservation_totals, generate_nights_for_reservation
 from django.shortcuts import get_object_or_404
 from .middleware import get_current_user
+from apps.rates.models import RatePlan
+from apps.rates.services.engine import get_applicable_rule
+from apps.rates.services.engine import compute_rate_for_date
+from apps.rates.models import DiscountType
+from apps.rates.models import PromoRule
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -40,7 +47,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         try:
-            return super().create(request, *args, **kwargs)
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            instance = serializer.save()
+            # Recalcular noches/totales inmediatamente para reflejar impuestos/promos en la respuesta
+            if instance.check_in and instance.check_out and instance.room_id:
+                generate_nights_for_reservation(instance)
+                recalc_reservation_totals(instance)
+                try:
+                    instance.refresh_from_db(fields=["total_price"])  # asegurar valor actualizado
+                except Exception:
+                    pass
+            output = self.get_serializer(instance)
+            headers = self.get_success_headers(output.data)
+            return Response(output.data, status=status.HTTP_201_CREATED, headers=headers)
         except ValidationError as e:
             # Convertir ValidationError a formato JSON
             if hasattr(e, 'message_dict'):
@@ -55,7 +75,19 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         try:
-            return super().update(request, *args, **kwargs)
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            instance = serializer.save()
+            if instance.check_in and instance.check_out and instance.room_id:
+                generate_nights_for_reservation(instance)
+                recalc_reservation_totals(instance)
+                try:
+                    instance.refresh_from_db(fields=["total_price"])  # asegurar valor actualizado
+                except Exception:
+                    pass
+            return Response(self.get_serializer(instance).data)
         except ValidationError as e:
             # Convertir ValidationError a formato JSON
             if hasattr(e, 'message_dict'):
@@ -140,6 +172,8 @@ class AvailabilityView(GenericAPIView):
         hotel_id = request.query_params.get("hotel")
         start_str = request.query_params.get("start")
         end_str = request.query_params.get("end")
+        channel = request.query_params.get("channel")
+        calendar = request.query_params.get("calendar")  # "1"/"true" para incluir detalles por día
         if not (hotel_id and start_str and end_str):
             return Response({"detail": "Parámetros requeridos: hotel, start, end"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -179,6 +213,70 @@ class AvailabilityView(GenericAPIView):
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
+        # Si se solicita calendario detallado, devolver por habitación el estado por día
+        if calendar in ("1", "true", "True"):
+            def get_applicable_rule(room, on_date, channel_value):
+                plans = RatePlan.objects.filter(hotel=room.hotel, is_active=True).order_by("-priority", "id").prefetch_related("rules")
+                for plan in plans:
+                    rules = sorted(plan.rules.all(), key=lambda r: r.priority, reverse=True)
+                    for rule in rules:
+                        if not (rule.start_date <= on_date <= rule.end_date):
+                            continue
+                        dow = on_date.weekday()
+                        if not [rule.apply_mon, rule.apply_tue, rule.apply_wed, rule.apply_thu, rule.apply_fri, rule.apply_sat, rule.apply_sun][dow]:
+                            continue
+                        if rule.target_room_id and rule.target_room_id != room.id:
+                            continue
+                        if rule.target_room_type and rule.target_room_type != room.room_type:
+                            continue
+                        if rule.channel and channel_value and rule.channel != channel_value:
+                            continue
+                        if rule.channel and not channel_value:
+                            continue
+                        return rule
+                return None
+
+            results = []
+            for room in rooms:
+                days = []
+                current = start
+                while current <= end:
+                    rule = get_applicable_rule(room, current, channel)
+                    day_info = {
+                        "date": current,
+                        "available": True,
+                        "closed": False,
+                        "closed_to_arrival": False,
+                        "closed_to_departure": False,
+                        "min_stay": None,
+                        "max_stay": None,
+                    }
+                    if rule:
+                        if rule.closed:
+                            day_info["available"] = False
+                            day_info["closed"] = True
+                        if rule.closed_to_arrival:
+                            day_info["closed_to_arrival"] = True
+                        if rule.closed_to_departure:
+                            day_info["closed_to_departure"] = True
+                        if rule.min_stay:
+                            day_info["min_stay"] = rule.min_stay
+                        if rule.max_stay:
+                            day_info["max_stay"] = rule.max_stay
+                    days.append(day_info)
+                    current += timedelta(days=1)
+                results.append({
+                    "room": self.get_serializer(room).data,
+                    "days": days,
+                })
+            return Response({
+                "hotel": int(hotel_id),
+                "start": start,
+                "end": end,
+                "channel": channel,
+                "results": results,
+            }, status=status.HTTP_200_OK)
+
         serializer = self.get_serializer(rooms, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -197,7 +295,7 @@ def pricing_quote(request):
     current = check_in
 
     while current < check_out:
-        parts = compute_nightly_rate(room, guests)
+        parts = compute_nightly_rate(room, guests, current)
         nights.append({
             'date': current,
             'base_rate': parts['base_rate'],
@@ -217,6 +315,314 @@ def pricing_quote(request):
         'nights': nights,
         'total': total,
     })
+
+
+@api_view(['GET'])
+def can_book(request):
+    """Valida si se puede reservar una habitación en el rango dado respetando CTA/CTD y min/max stay.
+    Parámetros: room_id, check_in (YYYY-MM-DD), check_out (YYYY-MM-DD), guests (opcional), channel (opcional)
+    """
+    try:
+        room_id = int(request.query_params.get("room_id"))
+        check_in = date.fromisoformat(request.query_params.get("check_in"))
+        check_out = date.fromisoformat(request.query_params.get("check_out"))
+    except Exception:
+        return Response({"detail": "Parámetros inválidos."}, status=status.HTTP_400_BAD_REQUEST)
+
+    channel = request.query_params.get("channel")
+    if check_in >= check_out:
+        return Response({"detail": "check_in debe ser anterior a check_out."}, status=status.HTTP_400_BAD_REQUEST)
+    room = get_object_or_404(Room.objects.select_related("hotel"), pk=room_id)
+
+    # CTA/CTD
+    start_rule = get_applicable_rule(room, check_in, channel, include_closed=True)
+    if start_rule and start_rule.closed_to_arrival:
+        return Response({"ok": False, "reason": "closed_to_arrival"}, status=status.HTTP_200_OK)
+    end_rule = get_applicable_rule(room, check_out, channel, include_closed=True)
+    if end_rule and end_rule.closed_to_departure:
+        return Response({"ok": False, "reason": "closed_to_departure"}, status=status.HTTP_200_OK)
+
+    # min/max stay
+    nights = (check_out - check_in).days
+    if start_rule and start_rule.min_stay and nights < start_rule.min_stay:
+        return Response({"ok": False, "reason": "min_stay", "value": start_rule.min_stay}, status=status.HTTP_200_OK)
+    if start_rule and start_rule.max_stay and nights > start_rule.max_stay:
+        return Response({"ok": False, "reason": "max_stay", "value": start_rule.max_stay}, status=status.HTTP_200_OK)
+
+    # Días cerrados
+    current = check_in
+    while current < check_out:
+        rule = get_applicable_rule(room, current, channel, include_closed=True)
+        if rule and rule.closed:
+            return Response({"ok": False, "reason": "closed", "date": current}, status=status.HTTP_200_OK)
+        current += timedelta(days=1)
+
+    return Response({"ok": True}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def quote_range(request):
+    """Valida CTA/CTD y min/max stay y, si es válido, devuelve el detalle por noche y totales.
+    Parámetros: room_id, check_in, check_out, guests (opcional, default 1), channel (opcional)
+    """
+    try:
+        room_id = int(request.query_params.get("room_id"))
+        check_in = date.fromisoformat(request.query_params.get("check_in"))
+        check_out = date.fromisoformat(request.query_params.get("check_out"))
+        guests = int(request.query_params.get("guests", 1))
+    except Exception:
+        return Response({"detail": "Parámetros inválidos."}, status=status.HTTP_400_BAD_REQUEST)
+
+    channel = request.query_params.get("channel")
+    promo_code = request.query_params.get("promotion_code")
+    if check_in >= check_out:
+        return Response({"detail": "check_in debe ser anterior a check_out."}, status=status.HTTP_400_BAD_REQUEST)
+    room = get_object_or_404(Room.objects.select_related("hotel"), pk=room_id)
+
+    # Validaciones CTA/CTD / min-max / closed
+    start_rule = get_applicable_rule(room, check_in, channel, include_closed=True)
+    if start_rule and start_rule.closed_to_arrival:
+        return Response({"ok": False, "reason": "closed_to_arrival"}, status=status.HTTP_200_OK)
+    end_rule = get_applicable_rule(room, check_out, channel, include_closed=True)
+    if end_rule and end_rule.closed_to_departure:
+        return Response({"ok": False, "reason": "closed_to_departure"}, status=status.HTTP_200_OK)
+
+    nights = (check_out - check_in).days
+    if start_rule and start_rule.min_stay and nights < start_rule.min_stay:
+        return Response({"ok": False, "reason": "min_stay", "value": start_rule.min_stay}, status=status.HTTP_200_OK)
+    if start_rule and start_rule.max_stay and nights > start_rule.max_stay:
+        return Response({"ok": False, "reason": "max_stay", "value": start_rule.max_stay}, status=status.HTTP_200_OK)
+
+    current = check_in
+    raw_days = []
+    while current < check_out:
+        rule = get_applicable_rule(room, current, channel, include_closed=True)
+        if rule and rule.closed:
+            return Response({"ok": False, "reason": "closed", "date": current}, status=status.HTTP_200_OK)
+        pricing = compute_rate_for_date(room, guests, current, channel, promo_code)
+        applied_rule = None
+        if rule:
+            applied_rule = {
+                "id": rule.id,
+                "plan_id": rule.plan_id,
+                "name": rule.name,
+                "priority": rule.priority,
+                "channel": rule.channel,
+                "price_mode": rule.price_mode,
+            }
+        raw_days.append({
+            "date": current,
+            "pricing": pricing,
+            "rule": applied_rule,
+        })
+        current += timedelta(days=1)
+
+    # Prorrateo de promos por reserva
+    bases = []
+    for d in raw_days:
+        p = d["pricing"]
+        bases.append(p["base_rate"] + p["extra_guest_fee"] - p["discount"])  # base neta sin impuestos
+    total_base = sum(bases) if bases else Decimal('0.00')
+
+    per_res_promos = PromoRule.objects.none()
+    if promo_code:
+        per_res_promos = PromoRule.objects.filter(
+            hotel=room.hotel,
+            is_active=True,
+            scope=PromoRule.PromoScope.PER_RESERVATION,
+        )
+        if channel:
+            per_res_promos = per_res_promos.filter(models.Q(channel__isnull=True) | models.Q(channel=channel))
+        else:
+            per_res_promos = per_res_promos.filter(channel__isnull=True)
+        per_res_promos = per_res_promos.filter(models.Q(code__iexact=str(promo_code)))
+
+    total_res_discount = Decimal('0.00')
+    applied_any = False
+    applied_per_res_promo = None
+    for promo in per_res_promos.order_by('-priority'):
+        applicable = False
+        for d in raw_days:
+            dd = d['date']
+            if not (promo.start_date <= dd <= promo.end_date):
+                continue
+            if not [promo.apply_mon, promo.apply_tue, promo.apply_wed, promo.apply_thu, promo.apply_fri, promo.apply_sat, promo.apply_sun][dd.weekday()]:
+                continue
+            applicable = True
+            break
+        if not applicable:
+            continue
+        if total_base <= 0:
+            break
+        if promo.discount_type == DiscountType.PERCENT:
+            total_res_discount = (Decimal(total_base) * (promo.discount_value / Decimal('100'))).quantize(Decimal('0.01'))
+        else:
+            total_res_discount = Decimal(promo.discount_value).quantize(Decimal('0.01'))
+        applied_any = total_res_discount > 0
+        if applied_any and not applied_per_res_promo:
+            applied_per_res_promo = promo
+        if applied_any and not promo.combinable:
+            break
+
+    days = []
+    total = Decimal('0.00')
+    if applied_any and total_base > 0:
+        for idx, d in enumerate(raw_days):
+            p = d['pricing']
+            proportion = (bases[idx] / total_base) if total_base > 0 else Decimal('0.00')
+            extra_discount = (total_res_discount * proportion).quantize(Decimal('0.01'))
+            discount = p['discount'] + extra_discount
+            taxable = (p['base_rate'] + p['extra_guest_fee'] - discount)
+            if taxable < 0:
+                taxable = Decimal('0.00')
+            total_night = (taxable + p['tax']).quantize(Decimal('0.01'))
+            # Merge promo details
+            details = list(p.get('applied_promos_detail') or [])
+            if applied_per_res_promo:
+                details.append({
+                    'id': applied_per_res_promo.id,
+                    'name': applied_per_res_promo.name,
+                    'code': applied_per_res_promo.code,
+                    'scope': 'per_reservation',
+                    'amount': float(extra_discount),
+                })
+            adj = { **p, 'discount': discount, 'total_night': total_night, 'applied_promos_detail': details }
+            days.append({ "date": d['date'], "pricing": adj, "rule": d.get('rule') })
+            total += total_night
+    else:
+        for d in raw_days:
+            days.append(d)
+            total += d['pricing']['total_night']
+
+    adr = (total / Decimal(nights)).quantize(Decimal('0.01')) if nights else Decimal('0.00')
+    return Response({
+        "ok": True,
+        "room_id": room.id,
+        "hotel_id": room.hotel_id,
+        "check_in": check_in,
+        "check_out": check_out,
+        "guests": guests,
+        "channel": channel,
+        "nights": nights,
+        "days": days,
+        "total": total,
+        "adr": adr,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def quote(request):
+    """Endpoint POST para cotizar una estadía completa con validaciones y detalle por noche.
+    Body JSON esperado: {
+      "room_id": int,
+      "check_in": "YYYY-MM-DD",
+      "check_out": "YYYY-MM-DD",
+      "guests": int (opcional, default 1),
+      "channel": str (opcional)
+    }
+    """
+    body = request.data or {}
+    try:
+        room_id = int(body.get("room_id"))
+        check_in = date.fromisoformat(body.get("check_in"))
+        check_out = date.fromisoformat(body.get("check_out"))
+        guests = int(body.get("guests", 1))
+    except Exception:
+        return Response({"detail": "Parámetros inválidos."}, status=status.HTTP_400_BAD_REQUEST)
+
+    channel = body.get("channel")
+    promo_code = body.get("promotion_code")
+    if guests < 1:
+        return Response({"detail": "guests debe ser >= 1"}, status=status.HTTP_400_BAD_REQUEST)
+    if check_in >= check_out:
+        return Response({"detail": "check_in debe ser anterior a check_out."}, status=status.HTTP_400_BAD_REQUEST)
+
+    room = get_object_or_404(Room.objects.select_related("hotel"), pk=room_id)
+
+    # Validar capacidad
+    if guests > (room.max_capacity or 1):
+        return Response({"ok": False, "reason": "capacity_exceeded", "max_capacity": room.max_capacity}, status=status.HTTP_200_OK)
+
+    # Validar solapamiento de reservas activas
+    active_status = [
+        ReservationStatus.PENDING,
+        ReservationStatus.CONFIRMED,
+        ReservationStatus.CHECK_IN,
+    ]
+    overlap = Reservation.objects.filter(
+        room=room,
+        status__in=active_status,
+        check_in__lt=check_out,
+        check_out__gt=check_in,
+    ).exists()
+    if overlap:
+        return Response({"ok": False, "reason": "overlap"}, status=status.HTTP_200_OK)
+
+    # Validar bloqueos de habitación
+    blocked = RoomBlock.objects.filter(
+        room=room,
+        is_active=True,
+        start_date__lt=check_out,
+        end_date__gt=check_in,
+    ).exists()
+    if blocked:
+        return Response({"ok": False, "reason": "room_block"}, status=status.HTTP_200_OK)
+
+    # CTA/CTD y min/max stay
+    start_rule = get_applicable_rule(room, check_in, channel, include_closed=True)
+    if start_rule and start_rule.closed_to_arrival:
+        return Response({"ok": False, "reason": "closed_to_arrival"}, status=status.HTTP_200_OK)
+    end_rule = get_applicable_rule(room, check_out, channel, include_closed=True)
+    if end_rule and end_rule.closed_to_departure:
+        return Response({"ok": False, "reason": "closed_to_departure"}, status=status.HTTP_200_OK)
+
+    nights = (check_out - check_in).days
+    if start_rule and start_rule.min_stay and nights < start_rule.min_stay:
+        return Response({"ok": False, "reason": "min_stay", "value": start_rule.min_stay}, status=status.HTTP_200_OK)
+    if start_rule and start_rule.max_stay and nights > start_rule.max_stay:
+        return Response({"ok": False, "reason": "max_stay", "value": start_rule.max_stay}, status=status.HTTP_200_OK)
+
+    # Días cerrados y pricing
+    current = check_in
+    days = []
+    total = Decimal('0.00')
+    while current < check_out:
+        rule = get_applicable_rule(room, current, channel, include_closed=True)
+        if rule and rule.closed:
+            return Response({"ok": False, "reason": "closed", "date": current}, status=status.HTTP_200_OK)
+        pricing = compute_rate_for_date(room, guests, current, channel, promo_code)
+        applied_rule = None
+        if rule:
+            applied_rule = {
+                "id": rule.id,
+                "plan_id": rule.plan_id,
+                "name": rule.name,
+                "priority": rule.priority,
+                "channel": rule.channel,
+                "price_mode": rule.price_mode,
+            }
+        days.append({
+            "date": current,
+            "pricing": pricing,
+            "rule": applied_rule,
+        })
+        total += pricing["total_night"]
+        current += timedelta(days=1)
+
+    adr = (total / Decimal(nights)).quantize(Decimal('0.01')) if nights else Decimal('0.00')
+    return Response({
+        "ok": True,
+        "room_id": room.id,
+        "hotel_id": room.hotel_id,
+        "check_in": check_in,
+        "check_out": check_out,
+        "guests": guests,
+        "channel": channel,
+        "nights": nights,
+        "days": days,
+        "total": total,
+        "adr": adr,
+    }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def pricing_daily_summary(request):

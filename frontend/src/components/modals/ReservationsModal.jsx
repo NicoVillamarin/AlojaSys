@@ -156,6 +156,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     room_data: reservation?.room_data ?? null, // Información completa de la habitación
     status: reservation?.status ?? 'pending',
     notes: reservation?.notes ?? '',
+    // Precargar canal y código de promoción para edición
+    channel: reservation?.channel ?? '',
+    promotion_code: reservation?.promotion_code ?? '',
   }
 
   // Reset modal key when opening for creation
@@ -368,8 +371,10 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         guests_data: guestsData,
         check_in: values.check_in || undefined,
         check_out: values.check_out || undefined,
+        channel: values.channel || undefined,
         notes: values.notes || undefined,
         status: values.status || 'pending',
+        promotion_code: values.promotion_code || undefined,
       }
 
       if (isEdit && reservation?.id) {

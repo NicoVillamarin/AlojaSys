@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useFormikContext } from 'formik'
 import { format, parseISO, isValid } from 'date-fns'
 import { es } from 'date-fns/locale'
 import CheckCircleIcon from 'src/assets/icons/CheckCircleIcon'
 import CandelarClock from 'src/assets/icons/CandelarClock'
 import PeopleIcon from 'src/assets/icons/PeopleIcon'
+import { useAction } from 'src/hooks/useAction'
 
 const ReviewReservation = () => {
   const { values } = useFormikContext()
@@ -45,6 +46,36 @@ const ReviewReservation = () => {
   }
 
   const stayDuration = calculateStayDuration(values.check_in, values.check_out)
+
+  // ----- Resumen de pago (cotización) -----
+  const ready = Boolean(values.room && values.check_in && values.check_out && (values.guests || 1))
+  const quoteParams = useMemo(() => ({
+    room_id: values.room,
+    check_in: values.check_in,
+    check_out: values.check_out,
+    guests: values.guests || 1,
+    ...(values.channel ? { channel: values.channel } : {}),
+    ...(values.promotion_code ? { promotion_code: values.promotion_code } : {}),
+  }), [values.room, values.check_in, values.check_out, values.guests, values.channel, values.promotion_code])
+
+  const { results: quoteRes, isPending: quotePending } = useAction({
+    resource: 'reservations',
+    action: 'quote-range',
+    params: quoteParams,
+    enabled: ready,
+  })
+
+  const paymentSummary = useMemo(() => {
+    if (!quoteRes || quoteRes.ok === false) return null
+    const nights = (quoteRes.days || []).map(d => d.pricing || {})
+    const sum = (arr, key) => arr.reduce((s, n) => s + Number(n[key] || 0), 0)
+    const base = sum(nights, 'base_rate')
+    const extra = sum(nights, 'extra_guest_fee')
+    const discount = sum(nights, 'discount')
+    const tax = sum(nights, 'tax')
+    const total = Number(quoteRes.total || 0)
+    return { base, extra, discount, tax, total, nightsCount: nights.length }
+  }, [quoteRes])
 
   return (
     <div className="space-y-6">
@@ -180,6 +211,55 @@ const ReviewReservation = () => {
                 <span className="font-medium">{values.guest_document}</span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resumen de Pago (incluye impuestos si aplican) */}
+      {ready && (
+        <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-6 rounded-xl border border-emerald-200 shadow-sm">
+          <h4 className="text-lg font-bold text-emerald-900 mb-4">Resumen de Pago</h4>
+          <div className="bg-white p-4 rounded-lg border border-emerald-200">
+            {quotePending && (
+              <div className="text-sm text-gray-600">Calculando precios…</div>
+            )}
+            {!quotePending && paymentSummary && (
+              <div className="space-y-2 text-gray-800">
+                <div className="flex items-center justify-between">
+                  <span>Subtotal ({paymentSummary.nightsCount} {paymentSummary.nightsCount === 1 ? 'noche' : 'noches'})</span>
+                  <span className="font-medium">
+                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.base)}
+                  </span>
+                </div>
+                {paymentSummary.extra > 0 && (
+                  <div className="flex items-center justify-between text-blue-700">
+                    <span>Huéspedes adicionales</span>
+                    <span className="font-medium">+ {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.extra)}</span>
+                  </div>
+                )}
+                {paymentSummary.discount > 0 && (
+                  <div className="flex items-center justify-between text-green-700">
+                    <span>Descuentos</span>
+                    <span className="font-medium">- {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.discount)}</span>
+                  </div>
+                )}
+                {paymentSummary.tax > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span>Impuestos</span>
+                    <span className="font-medium">+ {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.tax)}</span>
+                  </div>
+                )}
+                <div className="border-t border-emerald-200 pt-2 mt-2 flex items-center justify-between">
+                  <span className="text-lg font-bold">Total</span>
+                  <span className="text-2xl font-extrabold text-emerald-700">
+                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.total)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {!quotePending && !paymentSummary && (
+              <div className="text-sm text-gray-600">No se pudo calcular el resumen de pago.</div>
+            )}
           </div>
         </div>
       )}

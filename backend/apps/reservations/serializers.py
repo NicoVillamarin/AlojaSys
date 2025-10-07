@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.models import Sum
 from django.utils import timezone
 from django.db import transaction
 from .models import Reservation, ReservationStatus, ReservationCharge, Payment, ChannelCommission
@@ -11,6 +12,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     guest_name = serializers.CharField(read_only=True)  # Propiedad del modelo
     guest_email = serializers.CharField(read_only=True)  # Propiedad del modelo
     display_name = serializers.CharField(read_only=True)
+    total_price = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
@@ -18,7 +20,7 @@ class ReservationSerializer(serializers.ModelSerializer):
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "notes",
-            "channel",
+            "channel", "promotion_code",
             "display_name", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
@@ -57,6 +59,12 @@ class ReservationSerializer(serializers.ModelSerializer):
             instance.full_clean()
             instance.save()
             return instance
+
+    def get_total_price(self, obj):
+        nights_sum = obj.nights.aggregate(s=Sum('total_night'))['s']
+        if nights_sum is not None:
+            return nights_sum
+        return obj.total_price
 
 class ReservationChargeSerializer(serializers.ModelSerializer):
     class Meta:

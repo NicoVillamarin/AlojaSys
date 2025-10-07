@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import Chart from 'react-apexcharts'
 import SpinnerLoading from 'src/components/SpinnerLoading'
 
@@ -8,6 +9,7 @@ const RoomTypeOccupancyChart = ({
   isLoading = false,
   occupancyByType = null
 }) => {
+  const { t } = useTranslation()
   // Procesar datos para gráfico de ocupación por tipo de habitación
   const getRoomTypeOccupancyData = () => {
     // Si llega ocupación desde el dashboard, priorizarla (global u hotel)
@@ -17,11 +19,16 @@ const RoomTypeOccupancyChart = ({
       const totalData = labels.map(type => occupancyByType[type]?.total || 0)
       return {
         series: [
-          { name: 'Ocupadas', data: occupiedData },
-          { name: 'Disponibles', data: totalData.map((t, i) => Math.max(t - occupiedData[i], 0)) }
+          { name: t('dashboard.charts.occupied'), data: occupiedData },
+          { name: t('dashboard.charts.available'), data: totalData.map((t, i) => Math.max(t - occupiedData[i], 0)) }
         ],
         labels: labels.map(type => {
-          const typeNames = { single: 'Individual', double: 'Doble', triple: 'Triple', suite: 'Suite' }
+          const typeNames = { 
+            single: t('dashboard.charts.room_types.single'), 
+            double: t('dashboard.charts.room_types.double'), 
+            triple: t('dashboard.charts.room_types.triple'), 
+            suite: t('dashboard.charts.room_types.suite') 
+          }
           return typeNames[type] || type
         })
       }
@@ -48,20 +55,20 @@ const RoomTypeOccupancyChart = ({
     return {
       series: [
         {
-          name: 'Ocupadas',
+          name: t('dashboard.charts.occupied'),
           data: occupiedData
         },
         {
-          name: 'Disponibles',
+          name: t('dashboard.charts.available'),
           data: totalData.map((total, index) => total - occupiedData[index])
         }
       ],
       labels: labels.map(type => {
         const typeNames = {
-          'single': 'Individual',
-          'double': 'Doble',
-          'triple': 'Triple',
-          'suite': 'Suite'
+          'single': t('dashboard.charts.room_types.single'),
+          'double': t('dashboard.charts.room_types.double'),
+          'triple': t('dashboard.charts.room_types.triple'),
+          'suite': t('dashboard.charts.room_types.suite')
         }
         return typeNames[type] || type
       })
@@ -81,13 +88,13 @@ const RoomTypeOccupancyChart = ({
       categories: getRoomTypeOccupancyData().labels
     },
     yaxis: {
-      title: { text: 'Número de Habitaciones' }
+      title: { text: t('dashboard.charts.number_of_rooms') }
     },
     legend: {
       position: 'top'
     },
     title: {
-      text: `Ocupación por Tipo de Habitación - ${dateRange.monthName || 'Período seleccionado'}`,
+      text: `${t('dashboard.charts.room_occupancy')} - ${dateRange.monthName || t('dashboard.charts.selected_period')}`,
       align: 'left',
       style: { fontSize: '16px', fontWeight: 'bold' }
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAction } from 'src/hooks/useAction'
 import { useList } from 'src/hooks/useList'
 import usePeriod from 'src/hooks/usePeriod'
@@ -30,6 +31,7 @@ import { getStatusLabel } from './utils'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 
 const Dashboard = () => {
+  const { t } = useTranslation()
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
 
   // Si el usuario solo tiene 1 hotel, iniciamos directamente en ese hotel
@@ -338,7 +340,7 @@ const Dashboard = () => {
     const tabs = [
       {
         id: 'global',
-        label: 'Vista Global',
+        label: t('dashboard.global_view'),
         icon: <GlobalIcon />
       },
       ...hotels.map(hotel => ({
@@ -472,12 +474,12 @@ const Dashboard = () => {
       if (!metrics) return []
     }
 
-    const subtitle = activeTab === 'global' ? "en todos los hoteles" : "en el hotel"
-    const revenueSubtitle = activeTab === 'global' ? "totales" : "del hotel"
+    const subtitle = activeTab === 'global' ? t('dashboard.kpis.in_all_hotels') : t('dashboard.kpis.in_hotel')
+    const revenueSubtitle = activeTab === 'global' ? t('dashboard.kpis.total_revenue_subtitle') : t('dashboard.kpis.hotel_revenue_subtitle')
 
     return [
       {
-        title: "Habitaciones Totales",
+        title: t('dashboard.kpis.total_rooms'),
         value: metrics.totalRooms,
         icon: HomeIcon,
         color: "from-blue-500 to-blue-600",
@@ -487,37 +489,37 @@ const Dashboard = () => {
         showProgress: false
       },
       {
-        title: "Habitaciones Ocupadas",
+        title: t('dashboard.kpis.occupied_rooms'),
         value: metrics.occupiedRooms,
         icon: PleopleOccupatedIcon,
         color: "from-emerald-500 to-emerald-600",
         bgColor: "bg-emerald-50",
         iconColor: "text-emerald-600",
-        subtitle: `de ${metrics.totalRooms} totales`,
+        subtitle: t('dashboard.kpis.of_total', { total: metrics.totalRooms }),
         progressWidth: `${metrics.occupancyRate}%`
       },
       {
-        title: "Habitaciones Disponibles",
+        title: t('dashboard.kpis.available_rooms'),
         value: metrics.availableRooms,
         icon: HomeIcon,
         color: "from-cyan-500 to-cyan-600",
         bgColor: "bg-cyan-50",
         iconColor: "text-cyan-600",
-        subtitle: `de ${metrics.totalRooms} totales`,
+        subtitle: t('dashboard.kpis.of_total', { total: metrics.totalRooms }),
         showProgress: false
       },
       {
-        title: "Tasa de Ocupación",
+        title: t('dashboard.kpis.occupancy_rate'),
         value: `${metrics.occupancyRate}%`,
         icon: ChartBarIcon,
         color: "from-purple-500 to-purple-600",
         bgColor: "bg-purple-50",
         iconColor: "text-purple-600",
-        subtitle: "promedio actual",
+        subtitle: t('dashboard.kpis.average_current'),
         progressWidth: `${metrics.occupancyRate}%`
       },
       {
-        title: "Total de Huéspedes Actuales",
+        title: t('dashboard.kpis.current_guests'),
         value: metrics.currentGuests,
         icon: PleopleOccupatedIcon,
         color: "from-orange-500 to-orange-600",
@@ -527,57 +529,57 @@ const Dashboard = () => {
         showProgress: false
       },
       {
-        title: "Llegadas Hoy (Check-in)",
+        title: t('dashboard.kpis.arrivals_today'),
         value: metrics.arrivalsToday,
         icon: CheckinIcon,
         color: "from-green-500 to-green-600",
         bgColor: "bg-green-50",
         iconColor: "text-green-600",
-        subtitle: "reservas",
+        subtitle: t('dashboard.kpis.reservations'),
         showProgress: false
       },
       {
-        title: "Salidas Hoy (Check-out)",
+        title: t('dashboard.kpis.departures_today'),
         value: metrics.departuresToday,
         icon: CheckoutIcon,
         color: "from-red-500 to-red-600",
         bgColor: "bg-red-50",
         iconColor: "text-red-600",
-        subtitle: "reservas",
+        subtitle: t('dashboard.kpis.reservations'),
         showProgress: false
       },
       {
-        title: "A Confirmar",
+        title: t('dashboard.kpis.to_confirm'),
         value: metrics.pendingReservations,
         icon: CheckCircleIcon,
         color: "from-amber-500 to-amber-600",
         bgColor: "bg-amber-50",
         iconColor: "text-amber-600",
-        subtitle: "pendientes",
+        subtitle: t('dashboard.kpis.pending'),
         showProgress: false
       },
       {
-        title: "Confirmadas",
+        title: t('dashboard.kpis.confirmed'),
         value: metrics.confirmedReservations,
         icon: CheckCircleIcon,
         color: "from-blue-500 to-blue-600",
         bgColor: "bg-blue-50",
         iconColor: "text-blue-600",
-        subtitle: "totales",
+        subtitle: t('dashboard.kpis.total_count'),
         showProgress: false
       },
       {
-        title: "Canceladas",
+        title: t('dashboard.kpis.cancelled'),
         value: metrics.cancelledReservations,
         icon: CheckCircleIcon,
         color: "from-slate-500 to-slate-600",
         bgColor: "bg-slate-50",
         iconColor: "text-slate-600",
-        subtitle: "totales",
+        subtitle: t('dashboard.kpis.total_count'),
         showProgress: false
       },
       {
-        title: "Ingresos Totales",
+        title: t('dashboard.kpis.total_revenue'),
         value: `$${getTotalRevenue().toLocaleString()}`,
         icon: CurrencyDollarIcon,
         color: "from-emerald-500 to-emerald-600",
@@ -587,44 +589,44 @@ const Dashboard = () => {
         showProgress: false
       },
       {
-        title: "Reservas Futuras",
+        title: t('dashboard.kpis.future_reservations'),
         value: metrics.futureReservations,
         icon: CheckCircleIcon,
         color: "from-indigo-500 to-indigo-600",
         bgColor: "bg-indigo-50",
         iconColor: "text-indigo-600",
-        subtitle: "confirmadas",
+        subtitle: t('dashboard.kpis.confirmed'),
         showProgress: false
       },
       {
-        title: "Ingresos Futuros",
+        title: t('dashboard.kpis.future_revenue'),
         value: `$${metrics.futureRevenue?.toLocaleString() || '0'}`,
         icon: CurrencyDollarIcon,
         color: "from-cyan-500 to-cyan-600",
         bgColor: "bg-cyan-50",
         iconColor: "text-cyan-600",
-        subtitle: "por confirmar",
+        subtitle: t('dashboard.kpis.to_confirm_revenue'),
         showProgress: false
       },
       // KPIs adicionales del dashboard (solo si están disponibles)
       ...(metrics.averageRoomRate ? [{
-        title: "Tarifa Promedio",
+        title: t('dashboard.kpis.average_rate'),
         value: `$${metrics.averageRoomRate?.toLocaleString() || '0'}`,
         icon: CurrencyDollarIcon,
         color: "from-indigo-500 to-indigo-600",
         bgColor: "bg-indigo-50",
         iconColor: "text-indigo-600",
-        subtitle: "por habitación",
+        subtitle: t('dashboard.kpis.per_room'),
         showProgress: false
       }] : []),
       ...(metrics.guestsExpectedToday ? [{
-        title: "Huéspedes Esperados",
+        title: t('dashboard.kpis.expected_guests'),
         value: metrics.guestsExpectedToday,
         icon: CheckinIcon,
         color: "from-teal-500 to-teal-600",
         bgColor: "bg-teal-50",
         iconColor: "text-teal-600",
-        subtitle: "hoy",
+        subtitle: t('dashboard.kpis.today'),
         showProgress: false
       }] : []),
     ]
@@ -660,14 +662,14 @@ const Dashboard = () => {
           <div>
             <p className="text-gray-600 mt-1 text-xl font-bold">
               {activeTab === 'global'
-                ? 'Vista Global - Todos los Hoteles'
+                ? t('dashboard.global_view')
                 : selectedHotel && hotelSummary?.hotel?.name
                   ? `${hotelSummary.hotel.name} - ${hotelSummary.hotel.city}`
-                  : 'Hotel seleccionado'
+                  : t('dashboard.selected_hotel')
               }
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              📅 Período: {dateRange.label}
+              📅 {t('dashboard.period')}: {dateRange.label}
             </p>
           </div>
 
@@ -684,16 +686,16 @@ const Dashboard = () => {
               <button
                 onClick={refreshDashboardMetrics}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-                title="Actualizar métricas del dashboard"
+                title={t('dashboard.error_loading_metrics')}
               >
-                🔄 Actualizar Ahora
+                🔄 {t('dashboard.update_now')}
               </button>
               <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                Auto-actualización cada 30s
+                {t('dashboard.auto_update')}
               </div>
               {isLoading && (
                 <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">
-                  ⏳ Actualizando...
+                  ⏳ {t('dashboard.updating')}
                 </div>
               )}
             </div>
@@ -737,10 +739,10 @@ const Dashboard = () => {
         {/* KPIs */}
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-700">Métricas Principales</h2>
+            <h2 className="text-xl font-semibold text-gray-700">{t('dashboard.main_metrics')}</h2>
             {dashboardError && (
               <div className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">
-                ⚠️ Error cargando métricas del dashboard
+                ⚠️ {t('dashboard.error_loading_metrics')}
               </div>
             )}
           </div>
@@ -793,21 +795,21 @@ const Dashboard = () => {
         {/* Gráfico de ingresos */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-700">Ingresos</h2>
+            <h2 className="text-xl font-semibold text-gray-700">{t('dashboard.revenue')}</h2>
             <div className="inline-flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
                 onClick={() => setRevenueMetric('gross')}
                 className={`px-3 py-1.5 text-sm font-medium border border-gray-200 ${revenueMetric === 'gross' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-l-md`}
               >
-                Bruto
+                {t('dashboard.gross')}
               </button>
               <button
                 type="button"
                 onClick={() => setRevenueMetric('net')}
                 className={`px-3 py-1.5 text-sm font-medium border border-gray-200 border-l-0 ${revenueMetric === 'net' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-r-md`}
               >
-                Neto
+                {t('dashboard.net')}
               </button>
             </div>
           </div>
@@ -827,7 +829,7 @@ const Dashboard = () => {
           {((activeTab !== 'global' && selectedHotel && hotelSummary?.current_reservations) || (activeTab === 'global' && globalSummary?.current_reservations)) && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                {activeTab === 'global' ? 'Check-ins Actuales' : 'Check-ins del Hotel'}
+                {activeTab === 'global' ? t('dashboard.current_checkins') : t('dashboard.hotel_checkins')}
               </h2>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -835,20 +837,20 @@ const Dashboard = () => {
                     <tr>
                       {activeTab === 'global' && (
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Hotel
+                          {t('dashboard.hotel')}
                         </th>
                       )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Huésped
+                        {t('dashboard.guest')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Habitación
+                        {t('dashboard.room')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Check-out
+                        {t('dashboard.check_out')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total
+                        {t('dashboard.total')}
                       </th>
                     </tr>
                   </thead>
@@ -866,7 +868,7 @@ const Dashboard = () => {
                             </td>
                           )}
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {reservation.guest_name || 'Sin nombre'}
+                            {reservation.guest_name || t('dashboard.no_name')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {reservation.room || 'N/A'}
@@ -890,7 +892,7 @@ const Dashboard = () => {
           {futureReservationsData && futureReservationsData.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                {activeTab === 'global' ? 'Reservas Confirmadas Futuras' : 'Reservas Futuras del Hotel'}
+                {activeTab === 'global' ? t('dashboard.future_reservations_global') : t('dashboard.future_reservations_hotel')}
               </h2>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -898,23 +900,23 @@ const Dashboard = () => {
                     <tr>
                       {activeTab === 'global' && (
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Hotel
+                          {t('dashboard.hotel')}
                         </th>
                       )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Huésped
+                        {t('dashboard.guest')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Habitación
+                        {t('dashboard.room')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Check-in
+                        {t('dashboard.check_in')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Check-out
+                        {t('dashboard.check_out')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total
+                        {t('dashboard.total')}
                       </th>
                     </tr>
                   </thead>
@@ -927,7 +929,7 @@ const Dashboard = () => {
                           </td>
                         )}
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {reservation.guests_data?.[0]?.name || 'Sin nombre'}
+                          {reservation.guests_data?.[0]?.name || t('dashboard.no_name')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {reservation.room_name || 'N/A'}

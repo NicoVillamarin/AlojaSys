@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import TableGeneric from "src/components/TableGeneric";
 import { useList } from "src/hooks/useList";
 import UsersModal from "src/components/modals/UsersModal";
@@ -16,6 +17,7 @@ import Filter from "src/components/Filter";
 import UserIcon from "src/assets/icons/UserIcon";
 
 export default function Users() {
+  const { t } = useTranslation();
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [filters, setFilters] = useState({ search: "", hotel: "", is_active: "" });
@@ -40,37 +42,37 @@ export default function Users() {
 
     return [
       {
-        title: "Usuarios Totales",
+        title: t('users.total_users'),
         value: totalUsers,
         icon: UserIcon,
         color: "from-indigo-500 to-indigo-600",
         bgColor: "bg-indigo-100",
         iconColor: "text-indigo-600",
-        subtitle: "Registrados en el sistema",
+        subtitle: t('users.registered_in_system'),
         showProgress: false
       },
       {
-        title: "Usuarios Activos",
+        title: t('users.active_users'),
         value: activeUsers,
         icon: CheckIcon,
         color: "from-emerald-500 to-emerald-600",
         bgColor: "bg-emerald-100",
         iconColor: "text-emerald-600",
-        subtitle: `De ${totalUsers} totales`,
+        subtitle: t('users.of_total', { total: totalUsers }),
         progressWidth: totalUsers > 0 ? `${Math.min((activeUsers / totalUsers) * 100, 100)}%` : '0%'
       },
       {
-        title: "Usuarios Inactivos",
+        title: t('users.inactive_users'),
         value: inactiveUsers,
         icon: ExclamationTriangleIcon,
         color: "from-rose-500 to-rose-600",
         bgColor: "bg-rose-100",
         iconColor: "text-rose-600",
-        subtitle: "Sin acceso al sistema",
+        subtitle: t('users.no_system_access'),
         progressWidth: totalUsers > 0 ? `${Math.min((inactiveUsers / totalUsers) * 100, 100)}%` : '0%'
       }
     ];
-  }, [results]);
+  }, [results, t]);
 
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
@@ -112,11 +114,11 @@ export default function Users() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Usuarios</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.users')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear usuario
+          {t('users.create_user')}
         </Button>
       </div>
 
@@ -124,7 +126,7 @@ export default function Users() {
       <UsersModal isOpen={!!editUser} onClose={() => setEditUser(null)} isEdit={true} user={editUser} onSuccess={refetch} />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-700 mb-4">Estadísticas de Usuarios</h2>
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">{t('users.stats_title')}</h2>
         <Kpis kpis={usersKpis} loading={isPending} />
       </div>
 
@@ -138,7 +140,7 @@ export default function Users() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar usuarios…"
+              placeholder={t('users.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && onSearch()}
@@ -164,10 +166,10 @@ export default function Users() {
                 onSubmit={() => { }}
               >
                 <SelectAsync
-                  title="Hotel"
+                  title={t('common.hotel')}
                   name="hotel"
                   resource="hotels"
-                  placeholder="Todos"
+                  placeholder={t('common.all')}
                   getOptionLabel={(h) => h?.name}
                   getOptionValue={(h) => h?.id}
                   onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
@@ -175,20 +177,20 @@ export default function Users() {
               </Formik>
             </div>
             <div className="w-48">
-              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Estado</label>
+              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">{t('common.status')}</label>
               <Select
                 value={
-                  filters.is_active === "true" ? { value: "true", label: "Activos" } :
-                  filters.is_active === "false" ? { value: "false", label: "Inactivos" } :
+                  filters.is_active === "true" ? { value: "true", label: t('users.active') } :
+                  filters.is_active === "false" ? { value: "false", label: t('users.inactive') } :
                   null
                 }
                 onChange={(option) => setFilters((f) => ({ ...f, is_active: option ? option.value : '' }))}
                 options={[
-                  { value: "", label: "Todos" },
-                  { value: "true", label: "Activos" },
-                  { value: "false", label: "Inactivos" }
+                  { value: "", label: t('common.all') },
+                  { value: "true", label: t('users.active') },
+                  { value: "false", label: t('users.inactive') }
                 ]}
-                placeholder="Todos"
+                placeholder={t('common.all')}
                 isClearable
                 isSearchable
                 classNamePrefix="rs"
@@ -219,7 +221,7 @@ export default function Users() {
         columns={[
           {
             key: "username",
-            header: "Usuario",
+            header: t('users.username'),
             sortable: true,
             accessor: (r) => r.username,
             render: (r) => (
@@ -231,29 +233,29 @@ export default function Users() {
           },
           {
             key: "full_name",
-            header: "Nombre completo",
+            header: t('users.full_name'),
             sortable: true,
             accessor: (r) => r.full_name,
           },
           {
             key: "position",
-            header: "Cargo",
+            header: t('users.position'),
             sortable: true,
             accessor: (r) => r.position || "-",
           },
           {
             key: "phone",
-            header: "Teléfono",
+            header: t('users.phone'),
             sortable: true,
             accessor: (r) => r.phone || "-",
           },
           {
             key: "hotels",
-            header: "Hoteles asignados",
+            header: t('users.assigned_hotels'),
             sortable: false,
             render: (r) => {
               const hotelNames = r.hotel_names || [];
-              if (hotelNames.length === 0) return <span className="text-gray-400">Sin asignar</span>;
+              if (hotelNames.length === 0) return <span className="text-gray-400">{t('users.not_assigned')}</span>;
               if (hotelNames.length === 1) return <span>{hotelNames[0]}</span>;
               return (
                 <div className="flex flex-wrap gap-1">
@@ -273,18 +275,18 @@ export default function Users() {
           },
           {
             key: "is_active",
-            header: "Estado",
+            header: t('common.status'),
             sortable: true,
             accessor: (r) => r.is_active,
             render: (r) => (
               <span className={`px-2 py-1 rounded text-xs ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                {r.is_active ? 'Activo' : 'Inactivo'}
+                {r.is_active ? t('users.active') : t('users.inactive')}
               </span>
             ),
           },
           {
             key: "actions",
-            header: "Acciones",
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (r) => (
@@ -300,7 +302,7 @@ export default function Users() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

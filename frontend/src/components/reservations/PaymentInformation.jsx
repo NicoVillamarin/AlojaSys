@@ -1,54 +1,125 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useFormikContext } from 'formik'
-import fetchWithAuth from 'src/services/fetchWithAuth'
 import { getApiURL } from 'src/services/utils'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import SpinnerData from '../SpinnerData'
 import WalletIcon from 'src/assets/icons/WalletIcon'
+import SelectStandalone from 'src/components/selects/SelectStandalone'
+import InputText from 'src/components/inputs/InputText'
+import { useAction } from 'src/hooks/useAction'
 
 const PaymentInformation = () => {
-  const { values } = useFormikContext()
+  const { values, setFieldValue } = useFormikContext()
   const [pricingData, setPricingData] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [choices, setChoices] = useState({ channels: [] })
+  const [canBookIssue, setCanBookIssue] = useState(null)
+
+  // cargar channels vía hook de acciones
+  const { results: choicesData } = useAction({ resource: 'rates', action: 'choices', enabled: true })
+  const channelInitRef = useRef(false)
+  useEffect(() => {
+    const channels = choicesData?.channels || []
+    setChoices({ channels })
+    if (!channelInitRef.current && !values.channel && channels.length > 0) {
+      setFieldValue('channel', channels[0].value)
+      channelInitRef.current = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [choicesData])
 
   // Función para obtener la cotización de precios
-  const fetchPricingQuote = async () => {
-    if (!values.room || !values.guests || !values.check_in || !values.check_out) {
+  const ready = !!(values.room && values.guests && values.check_in && values.check_out)
+  const canParams = {
+    room_id: values.room,
+    check_in: values.check_in,
+    check_out: values.check_out,
+    ...(values.channel ? { channel: values.channel } : {}),
+  }
+  const { results: canBookRes, isPending: canPending, refetch: refetchCanBook } = useAction({
+    resource: 'reservations',
+    action: 'can-book',
+    params: canParams,
+    enabled: ready,
+  })
+
+  const [promoDraft, setPromoDraft] = useState(values.promotion_code || '')
+  const [appliedPromo, setAppliedPromo] = useState(values.promotion_code || '')
+  useEffect(() => {
+    setPromoDraft(values.promotion_code || '')
+    setAppliedPromo(values.promotion_code || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const quoteParams = {
+    room_id: values.room,
+    check_in: values.check_in,
+    check_out: values.check_out,
+    guests: values.guests || 1,
+    ...(values.channel ? { channel: values.channel } : {}),
+    ...(appliedPromo ? { promotion_code: appliedPromo } : {}),
+  }
+  const { results: quoteRes, isPending: quotePending, refetch: refetchQuote } = useAction({
+    resource: 'reservations',
+    action: 'quote-range',
+    params: quoteParams,
+    enabled: ready && canBookRes?.ok === true,
+  })
+
+  // proyectar resultados en el estado de UI
+  useEffect(() => {
+    setError(null)
+    if (!ready) {
+      setPricingData(null)
+      setCanBookIssue(null)
+      return
+    }
+    if (canBookRes && canBookRes.ok === false) {
+      setCanBookIssue(canBookRes)
       setPricingData(null)
       return
     }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const params = new URLSearchParams({
-        room_id: values.room,
-        guests: values.guests,
-        check_in: values.check_in,
-        check_out: values.check_out,
-      })
-
-      const response = await fetchWithAuth(
-        `${getApiURL()}/api/reservations/pricing/quote/?${params}`,
-        { method: 'GET' }
-      )
-
-      setPricingData(response)
-    } catch (err) {
-      console.error('Error fetching pricing:', err)
-      setError('No se pudo obtener la cotización de precios')
-    } finally {
-      setLoading(false)
+    setCanBookIssue(null)
+    if (quoteRes && quoteRes.ok !== false) {
+      const nights = (quoteRes?.days || []).map(d => ({
+        date: d.date,
+        base_rate: d.pricing?.base_rate ?? 0,
+        extra_guest_fee: d.pricing?.extra_guest_fee ?? 0,
+        discount: d.pricing?.discount ?? 0,
+        tax: d.pricing?.tax ?? 0,
+        total_night: d.pricing?.total_night ?? 0,
+        applied_promos: d.pricing?.applied_promos || [],
+        applied_promos_detail: d.pricing?.applied_promos_detail || [],
+        applied_taxes_detail: d.pricing?.applied_taxes_detail || [],
+        rule: d.rule || null,
+      }))
+      setPricingData({ nights, total: quoteRes?.total ?? 0 })
+    } else if (quoteRes && quoteRes.ok === false) {
+      setCanBookIssue(quoteRes)
+      setPricingData(null)
     }
-  }
+  }, [ready, canBookRes, quoteRes])
 
   // Cargar cotización cuando cambien los valores relevantes
   useEffect(() => {
-    fetchPricingQuote()
-  }, [values.room, values.guests, values.check_in, values.check_out])
+    // refetch on demand button triggers
+  }, [])
+
+  // Acción centralizada para calcular tarifa (botón y reintentos)
+  const fetchPricingQuote = async () => {
+    await refetchCanBook()
+    setAppliedPromo(promoDraft)
+    setFieldValue('promotion_code', promoDraft)
+    await refetchQuote()
+  }
+
+  const clearPromotion = async () => {
+    setPromoDraft('')
+    setAppliedPromo('')
+    setFieldValue('promotion_code', '')
+    await refetchQuote()
+  }
 
   // Formatear fecha para mostrar
   const formatDate = (dateStr) => {
@@ -69,7 +140,7 @@ const PaymentInformation = () => {
     }).format(amount)
   }
 
-  if (loading) {
+  if (canPending || quotePending) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <SpinnerData />
@@ -92,6 +163,29 @@ const PaymentInformation = () => {
     )
   }
 
+  if (canBookIssue) {
+    const mapReason = (issue) => {
+      if (!issue) return ''
+      const r = issue.reason
+      if (r === 'closed_to_arrival') return 'La fecha de llegada no permite check-in (CTA).'
+      if (r === 'closed_to_departure') return 'La fecha de salida no permite check-out (CTD).'
+      if (r === 'min_stay') return `La estadía es menor al mínimo requerido (${issue.value} noches).`
+      if (r === 'max_stay') return `La estadía supera el máximo permitido (${issue.value} noches).`
+      if (r === 'closed') return `Hay días cerrados a la venta (p.ej., ${issue.date}).`
+      if (r === 'capacity_exceeded') return `Capacidad máxima superada (${issue.max_capacity}).`
+      if (r === 'overlap') return 'La habitación ya tiene una reserva en el rango.'
+      if (r === 'room_block') return 'La habitación está bloqueada en el rango.'
+      return 'No es posible reservar en el rango seleccionado.'
+    }
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div className="text-yellow-800 font-medium mb-2">No se puede reservar</div>
+        <div className="text-sm text-yellow-800 mb-4">{mapReason(canBookIssue)}</div>
+        <button onClick={fetchPricingQuote} className="text-sm text-yellow-700 hover:text-yellow-900 underline">Reintentar</button>
+      </div>
+    )
+  }
+
   if (!pricingData) {
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
@@ -109,9 +203,76 @@ const PaymentInformation = () => {
   }
 
   const roomData = values.room_data
+  const anyPromoApplied = !!(pricingData?.nights?.some(n => (
+    (Array.isArray(n.applied_promos) && n.applied_promos.length > 0) ||
+    (Array.isArray(n.applied_promos_detail) && n.applied_promos_detail.length > 0) ||
+    (parseFloat(n.discount || 0) > 0)
+  )))
+  const totalDiscountApplied = pricingData ? pricingData.nights.reduce((sum, n) => sum + (parseFloat(n.discount || 0) || 0), 0) : 0
 
   return (
     <div className="space-y-6">
+      {/* Controles de canal y código promo */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <div className="text-sm font-medium text-gray-700 mb-1">Canal</div>
+            <SelectStandalone
+              value={values.channel ? (choices.channels.find(c => c.value === values.channel) || { value: values.channel, label: values.channel }) : null}
+              onChange={(opt) => setFieldValue('channel', opt?.value || '')}
+              options={choices.channels}
+              isClearable={true}
+              getOptionLabel={(o) => o.label}
+              getOptionValue={(o) => o.value}
+            />
+          </div>
+          <div className="relative">
+            <InputText
+              name="promotion_code_draft"
+              title="Código de promoción"
+              placeholder="Ej: BLACK"
+              value={promoDraft}
+              onChange={(e) => setPromoDraft(e.target.value)}
+              statusMessage={
+                appliedPromo && totalDiscountApplied > 0
+                  ? "Promoción aplicada correctamente"
+                  : appliedPromo && totalDiscountApplied === 0
+                  ? "El código no aplica para este rango/canal/habitación"
+                  : null
+              }
+              statusType={
+                appliedPromo && totalDiscountApplied > 0
+                  ? "success"
+                  : appliedPromo && totalDiscountApplied === 0
+                  ? "warning"
+                  : "info"
+              }
+              inputClassName="pr-10"
+            />
+            {appliedPromo && anyPromoApplied && (
+              <div className="absolute right-2 top-6 z-20">
+                <button
+                  type="button"
+                  onClick={clearPromotion}
+                  className="text-emerald-600 hover:text-emerald-800 font-bold text-lg leading-none flex items-center justify-center w-6 h-6"
+                  title="Quitar promoción"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={fetchPricingQuote}
+              disabled={!ready || canPending || quotePending}
+              className={`px-4 py-2 rounded-md text-white ${(!ready || canPending || quotePending) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+            >
+              {quotePending || canPending ? 'Calculando…' : 'Calcular tarifa'}
+            </button>
+          </div>
+        </div>
+      </div>
       {/* Título */}
       <div className="text-center mb-6">
         <h3 className="text-2xl font-bold text-gray-800 mb-2">Resumen de Pago</h3>
@@ -178,7 +339,14 @@ const PaymentInformation = () => {
                 {/* Detalle de cargos */}
                 <div className="ml-20 text-sm text-gray-600 space-y-1">
                   <div className="flex justify-between">
-                    <span>Tarifa base</span>
+                    <span>
+                      Tarifa base
+                      {night.rule && (
+                        <span className="text-gray-500 font-medium">{' '}(
+                          {night.rule.name || 'Regla aplicada'}
+                        )</span>
+                      )}
+                    </span>
                     <span>{formatCurrency(night.base_rate)}</span>
                   </div>
                   {hasExtraGuests && (
@@ -189,13 +357,33 @@ const PaymentInformation = () => {
                   )}
                   {hasDiscount && (
                     <div className="flex justify-between text-green-600">
-                      <span>Descuento</span>
+                      <span>
+                        Descuento
+                        {night.applied_promos_detail && night.applied_promos_detail.length > 0 && (
+                          <span className="text-green-500 font-medium">
+                            {' '}({night.applied_promos_detail.map(p => p.code).join(', ')})
+                          </span>
+                        )}
+                      </span>
                       <span>- {formatCurrency(night.discount)}</span>
+                    </div>
+                  )}
+                  {appliedPromo && (Array.isArray(night.applied_promos) ? night.applied_promos.length > 0 : false) && (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Promo aplicada</span>
+                      <span>{Array.isArray(night.applied_promos) ? night.applied_promos.length : 1}</span>
                     </div>
                   )}
                   {hasTax && (
                     <div className="flex justify-between">
-                      <span>Impuestos</span>
+                      <span>
+                        Impuestos
+                        {night.applied_taxes_detail && night.applied_taxes_detail.length > 0 && (
+                          <span className="text-gray-500 font-medium">{' '}(
+                            {night.applied_taxes_detail.map(t => t.name).join(', ')}
+                          )</span>
+                        )}
+                      </span>
                       <span>+ {formatCurrency(night.tax)}</span>
                     </div>
                   )}

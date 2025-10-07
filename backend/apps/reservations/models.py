@@ -5,6 +5,7 @@ from apps.core.models import Hotel
 from apps.rooms.models import Room
 from decimal import Decimal
 from datetime import timedelta
+from apps.rates.services.engine import get_applicable_rule
 
 class ReservationStatus(models.TextChoices):
     PENDING = "pending", "Pendiente"
@@ -33,6 +34,7 @@ class Reservation(models.Model):
     guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
     guests_data = models.JSONField(default=list, help_text="Información de todos los huéspedes")
     channel = models.CharField(max_length=20, choices=ReservationChannel.choices, default=ReservationChannel.DIRECT)
+    promotion_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de promoción aplicado")
     check_in = models.DateField()
     check_out = models.DateField()
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
@@ -71,6 +73,31 @@ class Reservation(models.Model):
             qs = qs.exclude(pk=self.pk)
         if qs.exists():
             raise ValidationError("La habitación ya está reservada en ese rango.")
+
+        # Reglas de tarifas: CTA/CTD, min/max stay
+        if self.room_id and self.check_in and self.check_out:
+            nights = (self.check_out - self.check_in).days
+            # closed: si alguna noche está cerrada, no se permite
+            current = self.check_in
+            while current < self.check_out:
+                rule = get_applicable_rule(self.room, current, self.channel, include_closed=True)
+                if rule and rule.closed:
+                    raise ValidationError({"__all__": f"Día {current} cerrado para venta."})
+                current += timedelta(days=1)
+
+            # CTA y CTD
+            start_rule = get_applicable_rule(self.room, self.check_in, self.channel, include_closed=True)
+            if start_rule and start_rule.closed_to_arrival:
+                raise ValidationError({"check_in": "Cerrado para llegada (CTA)."})
+            end_rule = get_applicable_rule(self.room, self.check_out, self.channel, include_closed=True)
+            if end_rule and end_rule.closed_to_departure:
+                raise ValidationError({"check_out": "Cerrado para salida (CTD)."})
+
+            # min/max stay (se toma la regla del día de llegada como referencia)
+            if start_rule and start_rule.min_stay and nights < start_rule.min_stay:
+                raise ValidationError({"__all__": f"Mínimo de estadía: {start_rule.min_stay} noches."})
+            if start_rule and start_rule.max_stay and nights > start_rule.max_stay:
+                raise ValidationError({"__all__": f"Máximo de estadía: {start_rule.max_stay} noches."})
             
     def save(self, *args, **kwargs):
         if self.room_id and self.check_in and self.check_out:

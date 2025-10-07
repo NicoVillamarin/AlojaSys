@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
 import StatesModal from 'src/components/modals/StatesModal'
@@ -7,6 +8,7 @@ import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 
 export default function States() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editState, setEditState] = useState(null)
   const [filters, setFilters] = useState({ search: '' })
@@ -46,11 +48,11 @@ export default function States() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Provincias/Estados</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.states')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear provincia/estado
+          {t('states.create_state')}
         </Button>
       </div>
 
@@ -67,7 +69,7 @@ export default function States() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar provincias/estados…"
+              placeholder={t('states.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && refetch()}
@@ -76,7 +78,7 @@ export default function States() {
               <button
                 className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
                 onClick={() => { setFilters((f) => ({ ...f, search: '' })); setTimeout(() => refetch(), 0) }}
-                aria-label="Limpiar búsqueda"
+                aria-label={t('common.clear_search')}
               >
                 ✕
               </button>
@@ -90,18 +92,18 @@ export default function States() {
         data={displayResults}
         getRowId={(s) => s.id}
         columns={[
-          { key: 'name', header: 'Nombre', sortable: true },
-          { key: 'code', header: 'Código', sortable: true },
+          { key: 'name', header: t('states.name'), sortable: true },
+          { key: 'code', header: t('states.code'), sortable: true },
           {
             key: 'country',
-            header: 'País',
+            header: t('states.country'),
             sortable: true,
             accessor: (s) => s.country_name,
             render: (s) => `${s.country_name} (${s.country_code2})`,
           },
           {
             key: 'actions',
-            header: 'Acciones',
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (s) => (
@@ -117,7 +119,7 @@ export default function States() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import HotelIcon from 'src/assets/icons/HotelIcon'
 import Tabs from 'src/components/Tabs'
 import { useList } from 'src/hooks/useList'
@@ -21,6 +22,7 @@ import ExclamationTriangleIcon from 'src/assets/icons/ExclamationTriangleIcon'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
 
 const Reception = () => {
+  const { t, i18n } = useTranslation()
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   const [activeTab, setActiveTab] = useState(null)
   const [selectedHotel, setSelectedHotel] = useState(null)
@@ -28,6 +30,7 @@ const Reception = () => {
   const [showReservationModal, setShowReservationModal] = useState(false)
   const [selectedRoomData, setSelectedRoomData] = useState(null)
   const didMountRef = useRef(false)
+  const [language, setLanguage] = useState(i18n.language)
 
   const { results: hotels, isPending: hotelsLoading } = useList({
     resource: 'hotels',
@@ -88,6 +91,20 @@ const Reception = () => {
     }
   }, [hotels, activeTab])
 
+  // Escuchar cambios de idioma
+  useEffect(() => {
+    const handleLanguageChange = (lng) => {
+      setLanguage(lng)
+    }
+    
+    i18n.on('languageChanged', handleLanguageChange)
+    
+    return () => {
+      i18n.off('languageChanged', handleLanguageChange)
+    }
+  }, [i18n])
+
+
   const onSearch = () => refetchRooms();
   const onClear = () => {
     setFilters({ search: "", status: "" });
@@ -95,13 +112,13 @@ const Reception = () => {
   };
 
   const handleRoomClick = (data) => {
-    console.log('Habitación clickeada:', data);
+    console.log(getText('reception.room_clicked', 'Habitación clickeada'), data);
     setSelectedRoomData(data);
     setShowReservationModal(true);
   };
 
   const handleReservationSuccess = (reservation) => {
-    console.log('Reserva creada exitosamente:', reservation);
+    console.log(getText('reception.reservation_created_successfully', 'Reserva creada exitosamente'), reservation);
     // Aquí puedes agregar lógica adicional si es necesario
     // Por ejemplo, actualizar la lista de habitaciones o mostrar una notificación
   };
@@ -117,12 +134,21 @@ const Reception = () => {
     return () => clearTimeout(id);
   }, [filters.search, filters.status, refetchRooms]);
 
+  // Fallback temporal si las traducciones no funcionan
+  const getText = (key, fallback) => {
+    const translation = t(key, { defaultValue: fallback })
+    return translation === key ? fallback : translation
+  }
+  
+  // Forzar re-render cuando cambie el idioma
+  const currentLanguage = language
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Recepción</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Mapa de Habitaciones</h1>
+          <div className="text-xs text-aloja-gray-800/60">{getText('reception.title', 'Recepción')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{getText('reception.room_map', 'Mapa de Habitaciones')}</h1>
         </div>
       </div>
 
@@ -147,7 +173,7 @@ const Reception = () => {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar habitaciones…"
+              placeholder={getText('reception.search_rooms_placeholder', 'Buscar habitaciones…')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && onSearch()}
@@ -159,7 +185,7 @@ const Reception = () => {
                   setFilters((f) => ({ ...f, search: "" }));
                   setTimeout(() => refetchRooms(), 0);
                 }}
-                aria-label="Limpiar búsqueda"
+                aria-label={getText('reception.clear_search', 'Limpiar búsqueda')}
               >
                 ✕
               </button>
@@ -167,15 +193,15 @@ const Reception = () => {
           </div>
           <div className="flex gap-3">
             <div className="w-48">
-              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">Estado</label>
+              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">{getText('reception.status', 'Estado')}</label>
               <Select
                 value={statusList.find(s => String(s.value) === String(filters.status)) || null}
                 onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
                 options={[
-                  { value: "", label: "Todos" },
+                  { value: "", label: getText('reception.all', 'Todos') },
                   ...statusList
                 ]}
-                placeholder="Todos"
+                placeholder={getText('reception.all', 'Todos')}
                 isClearable
                 isSearchable
                 classNamePrefix="rs"
@@ -203,8 +229,8 @@ const Reception = () => {
         <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
           <div className="text-gray-500">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <h3 className="text-lg font-medium text-gray-700 mb-2">Cargando hoteles...</h3>
-            <p className="text-sm">Obteniendo información de hoteles disponibles</p>
+            <h3 className="text-lg font-medium text-gray-700 mb-2">{getText('reception.loading_hotels', 'Cargando hoteles...')}</h3>
+            <p className="text-sm">{getText('reception.getting_hotel_info', 'Obteniendo información de hoteles disponibles')}</p>
           </div>
         </div>
       ) : selectedHotel ? (
@@ -221,8 +247,8 @@ const Reception = () => {
         <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
           <div className="text-gray-500">
             <HotelIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-700 mb-2">No hay hoteles disponibles</h3>
-            <p className="text-sm">No se encontraron hoteles para mostrar</p>
+            <h3 className="text-lg font-medium text-gray-700 mb-2">{getText('reception.no_hotels_available', 'No hay hoteles disponibles')}</h3>
+            <p className="text-sm">{getText('reception.no_hotels_found', 'No se encontraron hoteles para mostrar')}</p>
           </div>
         </div>
       )}

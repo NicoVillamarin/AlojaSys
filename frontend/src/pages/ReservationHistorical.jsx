@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import ReservationHistoricalModal from 'src/components/modals/ReservationHistoricalModal'
 import { useList } from 'src/hooks/useList'
@@ -8,13 +9,14 @@ import Button from 'src/components/Button'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import { Formik } from 'formik'
 import { format, parseISO } from 'date-fns'
-import { getStatusLabel, RES_STATUS } from './utils'
+import { convertToDecimal, getStatusLabel, getResStatusList } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 
 
 
 export default function ReservationHistorical() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
   const [historyReservationId, setHistoryReservationId] = useState(null)
@@ -92,8 +94,8 @@ export default function ReservationHistorical() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Operación</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Histórico de Reservas</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('dashboard.reservations_management.title')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.reservations_history')}</h1>
         </div>
       </div>
 
@@ -110,10 +112,10 @@ export default function ReservationHistorical() {
      <Filter>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">Buscar</label>
+            <label className="text-xs text-aloja-gray-800/60">{t('common.search')}</label>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm w-64 transition-all"
-              placeholder="Huésped, hotel, habitación…"
+              placeholder={t('dashboard.reservations_management.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
@@ -128,10 +130,10 @@ export default function ReservationHistorical() {
               <>
                 <div className="w-56">
                   <SelectAsync
-                    title='Hotel'
+                    title={t('common.hotel')}
                     name='hotel'
                     resource='hotels'
-                    placeholder='Todos'
+                    placeholder={t('common.all')}
                     getOptionLabel={(h) => h?.name}
                     getOptionValue={(h) => h?.id}
                     extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
@@ -141,10 +143,10 @@ export default function ReservationHistorical() {
 
                 <div className="w-56">
                   <SelectAsync
-                    title='Habitación'
+                    title={t('dashboard.reservations_management.room')}
                     name='room'
                     resource='rooms'
-                    placeholder='Todas'
+                    placeholder={t('dashboard.reservations_management.all_rooms')}
                     getOptionLabel={(r) => r?.name || r?.number || `#${r?.id}`}
                     getOptionValue={(r) => r?.id}
                     extraParams={{ hotel: filters.hotel || undefined }}
@@ -156,28 +158,28 @@ export default function ReservationHistorical() {
           </Formik>
 
           <div className="w-56">
-            <label className="text-xs text-aloja-gray-800/60">Estado</label>
+            <label className="text-xs text-aloja-gray-800/60">{t('common.status')}</label>
             <select
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
               value={filters.status}
               onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
             >
-              <option value="">Todos</option>
-              {RES_STATUS.map((s) => (
+              <option value="">{t('common.all')}</option>
+              {getResStatusList(t).map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">Desde</label>
+            <label className="text-xs text-aloja-gray-800/60">{t('dashboard.reservations_management.from')}</label>
             <input type="date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
               value={filters.dateFrom}
               onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
             />
           </div>
           <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">Hasta</label>
+            <label className="text-xs text-aloja-gray-800/60">{t('dashboard.reservations_management.to')}</label>
             <input type="date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
               value={filters.dateTo}
               onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
@@ -186,7 +188,7 @@ export default function ReservationHistorical() {
 
           <div className="ml-auto">
             <button className="px-3 py-2 rounded-md border text-sm" onClick={() => setFilters({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })}>
-              Limpiar filtros
+              {t('dashboard.reservations_management.clear_filters')}
             </button>
           </div>
         </div>
@@ -197,7 +199,7 @@ export default function ReservationHistorical() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
-          { key: 'display_name', header: 'Reserva', sortable: true, render: (r) => (
+          { key: 'display_name', header: t('dashboard.reservations_management.table_headers.reservation'), sortable: true, render: (r) => (
             <button
               className="link"
               onClick={() => { setHistoryReservation(r); setHistoryReservationId(r.id) }}
@@ -205,40 +207,40 @@ export default function ReservationHistorical() {
               {r.display_name}
             </button>
           ) },
-          { key: 'guest_name', header: 'Huésped', sortable: true },
-          { key: 'hotel_name', header: 'Hotel', sortable: true },
-          { key: 'room_name', header: 'Habitación', sortable: true },
+          { key: 'guest_name', header: t('dashboard.reservations_management.table_headers.guest'), sortable: true },
+          { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
+          { key: 'room_name', header: t('dashboard.reservations_management.table_headers.room'), sortable: true },
           {
             key: 'check_in',
-            header: 'Check-in',
+            header: t('dashboard.reservations_management.table_headers.check_in'),
             sortable: true,
             accessor: (e) => e.check_in ? format(parseISO(e.check_in), 'dd/MM/yyyy') : '',
             render: (e) => e.check_in ? format(parseISO(e.check_in), 'dd/MM/yyyy') : '',
           },
           {
             key: 'check_out',
-            header: 'Check-out',
+            header: t('dashboard.reservations_management.table_headers.check_out'),
             sortable: true,
             accessor: (e) => e.check_out ? format(parseISO(e.check_out), 'dd/MM/yyyy') : '',
             render: (e) => e.check_out ? format(parseISO(e.check_out), 'dd/MM/yyyy') : '',
           },
           {
             key: 'created_at',
-            header: 'Creada',
+            header: t('dashboard.reservations_management.table_headers.created'),
             sortable: true,
             accessor: (e) => e.created_at ? format(parseISO(e.created_at), 'dd/MM/yyyy HH:mm') : '',
             render: (e) => e.created_at ? format(parseISO(e.created_at), 'dd/MM/yyyy HH:mm') : '',
           },
-          { key: 'guests', header: 'Cantidad de huéspedes', sortable: true, right: true },
-          { key: 'total_price', header: 'Total', sortable: true, right: true },
-          { key: 'status', header: 'Estado', sortable: true, render: (r) => <span>{getStatusLabel(r.status)}</span> },
+          { key: 'guests', header: t('dashboard.reservations_management.table_headers.guests_count'), sortable: true, right: true },
+          { key: 'total_price', header: t('dashboard.reservations_management.table_headers.total'), sortable: true, right: true, render: (r) => `$ ${convertToDecimal(r.total_price)}` },
+          { key: 'status', header: t('dashboard.reservations_management.table_headers.status'), sortable: true, render: (r) => <span>{getStatusLabel(r.status, t)}</span> },
         ]}
       />
 
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

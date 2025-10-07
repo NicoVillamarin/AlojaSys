@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.locations",
     "apps.dashboard",
+    "apps.rates",
 ]
 
 MIDDLEWARE = [

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
 import HotelsModal from 'src/components/modals/HotelsModal'
@@ -7,6 +8,7 @@ import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 
 export default function Hotels() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editHotel, setEditHotel] = useState(null)
   const [filters, setFilters] = useState({ search: '' })
@@ -38,11 +40,11 @@ export default function Hotels() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Hoteles</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.hotels')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-            Crear hotel
+          {t('common.create')} {t('sidebar.hotels')}
         </Button>
       </div>
 
@@ -59,7 +61,7 @@ export default function Hotels() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar hoteles…"
+              placeholder={t('hotels.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && refetch()}
@@ -68,7 +70,7 @@ export default function Hotels() {
               <button
                 className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
                 onClick={() => { setFilters((f) => ({ ...f, search: '' })); setTimeout(() => refetch(), 0) }}
-                aria-label="Limpiar búsqueda"
+                aria-label={t('common.clear_search')}
               >
                 ✕
               </button>
@@ -82,13 +84,13 @@ export default function Hotels() {
         data={displayResults}
         getRowId={(h) => h.id}
         columns={[
-          { key: 'name', header: 'Nombre', sortable: true },
-          { key: 'email', header: 'Email', sortable: true },
-          { key: 'phone', header: 'Teléfono', sortable: true },
-          { key: 'address', header: 'Dirección', sortable: true },
+          { key: 'name', header: t('dashboard.reservations_management.table_headers.name'), sortable: true },
+          { key: 'email', header: t('dashboard.reservations_management.table_headers.email'), sortable: true },
+          { key: 'phone', header: t('dashboard.reservations_management.table_headers.phone'), sortable: true },
+          { key: 'address', header: t('dashboard.reservations_management.table_headers.address'), sortable: true },
           {
             key: 'actions',
-            header: 'Acciones',
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (h) => (
@@ -104,7 +106,7 @@ export default function Hotels() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

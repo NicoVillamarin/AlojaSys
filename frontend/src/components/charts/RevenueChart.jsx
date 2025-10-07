@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import Chart from 'react-apexcharts'
 import SpinnerLoading from 'src/components/SpinnerLoading'
 
@@ -10,6 +11,7 @@ const RevenueChart = ({
   revenueAnalysis = null,
   metric = 'gross' // 'gross' | 'net'
 }) => {
+  const { t } = useTranslation()
   // Procesar datos para gráfico de ingresos
   const getRevenueData = () => {
     // Debug temporal
@@ -126,7 +128,7 @@ const RevenueChart = ({
 
     return {
       series: [{
-        name: metric === 'net' ? 'Ingresos Netos' : 'Ingresos Brutos',
+        name: metric === 'net' ? t('dashboard.charts.net_revenue') : t('dashboard.charts.gross_revenue'),
         data: allRevenues
       }],
       categories: allPeriods
@@ -156,7 +158,7 @@ const RevenueChart = ({
     },
     xaxis: {
       categories: getRevenueData().categories,
-      title: { text: getRevenueData().categories.length <= 31 ? 'Fecha' : 'Mes' },
+      title: { text: getRevenueData().categories.length <= 31 ? t('dashboard.charts.date') : t('dashboard.charts.month') },
       labels: {
         rotate: -45,
         style: {
@@ -165,7 +167,7 @@ const RevenueChart = ({
       }
     },
     yaxis: {
-      title: { text: 'Ingresos ($)' },
+      title: { text: t('dashboard.charts.revenue_currency') },
       labels: {
         formatter: (val) => `$${val.toLocaleString()}`
       }
@@ -183,12 +185,12 @@ const RevenueChart = ({
       strokeDashArray: 5
     },
     title: {
-      text: `Ingresos - ${dateRange.label || 'Período seleccionado'}`,
+      text: `${t('dashboard.charts.revenue')} - ${dateRange.label || t('dashboard.charts.selected_period')}`,
       align: 'left',
       style: { fontSize: '16px', fontWeight: 'bold' }
     },
     subtitle: {
-      text: `Total: $${getRevenueData().series[0]?.data.reduce((a, b) => a + b, 0).toLocaleString() || '0'}`,
+      text: `${t('dashboard.charts.total')}: $${getRevenueData().series[0]?.data.reduce((a, b) => a + b, 0).toLocaleString() || '0'}`,
       align: 'left',
       style: { fontSize: '12px', color: '#6B7280' }
     }

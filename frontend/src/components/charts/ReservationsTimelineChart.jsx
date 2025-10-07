@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import Chart from 'react-apexcharts'
 import SpinnerLoading from 'src/components/SpinnerLoading'
 import { format, parseISO, addDays } from 'date-fns'
@@ -10,6 +11,7 @@ const ReservationsTimelineChart = ({
   selectedPeriod = '30-days',
   trends = []
 }) => {
+  const { t } = useTranslation()
   // Procesar datos para gráfico de línea de tiempo de reservas
   const getReservationsTimelineData = () => {
 
@@ -74,7 +76,7 @@ const ReservationsTimelineChart = ({
         })
       }
 
-      return { series: [{ name: 'Reservas', data }], categories }
+      return { series: [{ name: t('dashboard.charts.reservations'), data }], categories }
     }
 
     // Si no hay trends con datos, usar las reservas directamente
@@ -154,7 +156,7 @@ const ReservationsTimelineChart = ({
       
       return {
         series: [{
-          name: 'Reservas',
+          name: t('dashboard.charts.reservations'),
           data: counts
         }],
         categories: formattedDates
@@ -163,7 +165,7 @@ const ReservationsTimelineChart = ({
 
     return {
       series: [{
-        name: 'Reservas',
+        name: t('dashboard.charts.reservations'),
         data: data
       }],
       categories: categories
@@ -199,7 +201,7 @@ const ReservationsTimelineChart = ({
     colors: ['#3B82F6'],
     xaxis: {
       categories: getReservationsTimelineData().categories,
-      title: { text: 'Fecha' },
+      title: { text: t('dashboard.charts.date') },
       labels: {
         rotate: -45,
         style: {
@@ -208,15 +210,15 @@ const ReservationsTimelineChart = ({
       }
     },
     yaxis: {
-      title: { text: 'Número de Reservas' }
+      title: { text: t('dashboard.charts.number_of_reservations') }
     },
     tooltip: {
       y: {
-        formatter: (val) => `${val} reservas`
+        formatter: (val) => `${val} ${t('dashboard.charts.reservations').toLowerCase()}`
       }
     },
     title: {
-      text: `Tendencia de Reservas - ${dateRange.label || 'Período seleccionado'}`,
+      text: `${t('dashboard.charts.reservation_trend')} - ${dateRange.label || t('dashboard.charts.selected_period')}`,
       align: 'left',
       style: { fontSize: '16px', fontWeight: 'bold' }
     }

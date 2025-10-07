@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
 import CitiesModal from 'src/components/modals/CitiesModal'
@@ -7,6 +8,7 @@ import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 
 export default function Cities() {
+  const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editCity, setEditCity] = useState(null)
   const [filters, setFilters] = useState({ search: '' })
@@ -48,11 +50,11 @@ export default function Cities() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs text-aloja-gray-800/60">Configuración</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">Ciudades</h1>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.cities')}</h1>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          Crear ciudad
+          {t('cities.create_city')}
         </Button>
       </div>
 
@@ -69,7 +71,7 @@ export default function Cities() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar ciudades…"
+              placeholder={t('cities.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && refetch()}
@@ -78,7 +80,7 @@ export default function Cities() {
               <button
                 className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
                 onClick={() => { setFilters((f) => ({ ...f, search: '' })); setTimeout(() => refetch(), 0) }}
-                aria-label="Limpiar búsqueda"
+                aria-label={t('common.clear_search')}
               >
                 ✕
               </button>
@@ -92,14 +94,14 @@ export default function Cities() {
         data={displayResults}
         getRowId={(c) => c.id}
         columns={[
-          { key: 'name', header: 'Nombre', sortable: true },
-          { key: 'state_name', header: 'Provincia/Estado', sortable: true },
-          { key: 'postal_code', header: 'CP', sortable: true },
-          { key: 'lat', header: 'Lat', sortable: true, right: true },
-          { key: 'lng', header: 'Lng', sortable: true, right: true },
+          { key: 'name', header: t('cities.name'), sortable: true },
+          { key: 'state_name', header: t('cities.state'), sortable: true },
+          { key: 'postal_code', header: t('cities.postal_code'), sortable: true },
+          { key: 'lat', header: t('cities.latitude'), sortable: true, right: true },
+          { key: 'lng', header: t('cities.longitude'), sortable: true, right: true },
           {
             key: 'actions',
-            header: 'Acciones',
+            header: t('dashboard.reservations_management.table_headers.actions'),
             sortable: false,
             right: true,
             render: (c) => (
@@ -115,7 +117,7 @@ export default function Cities() {
       {hasNextPage && (
         <div>
           <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
+            {t('common.load_more')}
           </button>
         </div>
       )}

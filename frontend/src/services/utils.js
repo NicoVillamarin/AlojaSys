@@ -7,7 +7,13 @@ export const getApiURL = () => {
   const runtimeApiUrl = typeof window !== 'undefined' && window.__API_URL__ ? window.__API_URL__ : "";
   const baseApiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || "";
 
-  if (!baseApiUrl) return ""; // usará proxy /api de Vite (solo dev)
+  // En dev, si no hay VITE_API_URL ni runtime, forzar backend local
+  if (!baseApiUrl) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
+    if (isLocal) return 'http://localhost:8000'
+    return ""; // fallback a proxy si aplica
+  }
   if (API_POOL === 1) return baseApiUrl;
 
   const [prefix, domain] = baseApiUrl.split("//");
