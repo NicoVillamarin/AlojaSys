@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import FilterIcon from 'src/assets/icons/FilterIcon'
 
-const Filter = ({ children, title = "Filtros de búsqueda", className = "" }) => {
+const Filter = ({ children, title, className = "" }) => {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -15,7 +17,7 @@ const Filter = ({ children, title = "Filtros de búsqueda", className = "" }) =>
           <div className="p-1 rounded-md bg-aloja-navy/10 group-hover:bg-aloja-navy/20 transition-colors">
             <FilterIcon />
           </div>
-          <span className="text-sm font-medium text-aloja-gray-800">Filtros de búsqueda</span>
+          <span className="text-sm font-medium text-aloja-gray-800">{title || t('filter.search_filters')}</span>
           <svg 
             className={`w-3.5 h-3.5 text-aloja-gray-600 transition-transform duration-300 ease-in-out ${isOpen ? 'rotate-180' : ''}`}
             fill="none" 

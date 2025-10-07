@@ -969,5 +969,22 @@
     "remove": "Quitar",
     "at_least_one_day": "Selecciona al menos un día de la semana",
     "xor_room_type": "Elegí habitación o tipo de habitación (no ambos)"
+  },
+  "reception": {
+    "title": "Recepción",
+    "room_map": "Mapa de Habitaciones",
+    "search_rooms_placeholder": "Buscar habitaciones…",
+    "clear_search": "Limpiar búsqueda",
+    "status": "Estado",
+    "all": "Todos",
+    "loading_hotels": "Cargando hoteles...",
+    "getting_hotel_info": "Obteniendo información de hoteles disponibles",
+    "no_hotels_available": "No hay hoteles disponibles",
+    "no_hotels_found": "No se encontraron hoteles para mostrar",
+    "room_clicked": "Habitación clickeada",
+    "reservation_created_successfully": "Reserva creada exitosamente"
+  },
+  "filter": {
+    "search_filters": "Filtros de búsqueda"
   }
 }

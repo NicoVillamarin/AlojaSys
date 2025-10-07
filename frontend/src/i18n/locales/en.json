@@ -969,5 +969,22 @@
     "remove": "Remove",
     "at_least_one_day": "Select at least one day of the week",
     "xor_room_type": "Choose room or room type (not both)"
+  },
+  "reception": {
+    "title": "Reception",
+    "room_map": "Room Map",
+    "search_rooms_placeholder": "Search rooms…",
+    "clear_search": "Clear search",
+    "status": "Status",
+    "all": "All",
+    "loading_hotels": "Loading hotels...",
+    "getting_hotel_info": "Getting information from available hotels",
+    "no_hotels_available": "No hotels available",
+    "no_hotels_found": "No hotels found to display",
+    "room_clicked": "Room clicked",
+    "reservation_created_successfully": "Reservation created successfully"
+  },
+  "filter": {
+    "search_filters": "Search filters"
   }
 }
