@@ -238,9 +238,9 @@
     "room": "Quarto",
     "room_required": "Quarto é obrigatório",
     "room_placeholder_no_hotel": "Selecione um hotel primeiro",
-    "room_placeholder_with_guests": "Quartos para {guests} hóspede{plural}…",
+    "room_placeholder_with_guests": "Quartos para {{guests}} hóspede{{plural}}…",
     "room_placeholder_loading": "Carregando disponibilidade…",
-    "room_name": "Quarto {id}",
+    "room_name": "Quarto {{id}}",
     "notes": "Notas",
     "notes_placeholder": "Notas adicionais…",
     "guest_name": "Nome do hóspede principal",
@@ -273,8 +273,8 @@
     "create_reservation_btn": "Criar reserva",
     "night": "noite",
     "nights": "noites",
-    "capacity_info": "Capacidade máxima: {max} hóspedes",
-    "capacity_filter_info": "Apenas quartos com capacidade para {guests} hóspede{plural} ou mais serão mostrados"
+    "capacity_info": "Capacidade máxima: {{max}} hóspedes",
+    "capacity_filter_info": "Apenas quartos com capacidade para {{guests}} hóspede{{plural}} ou mais serão mostrados"
   },
   "guest_information": {
     "primary_guest": "Hóspede Principal",
@@ -291,18 +291,18 @@
     "contact_address": "Endereço de contato",
     "contact_address_placeholder": "Rua 123, Cidade, País",
     "capacity_exceeded": "Capacidade Excedida",
-    "capacity_exceeded_msg": "Você selecionou {requested} hóspedes, mas o quarto \"{room_name}\" tem capacidade máxima de {max} hóspedes. Apenas {max} hóspedes serão mostrados.",
+    "capacity_exceeded_msg": "Você selecionou {{requested}} hóspedes, mas o quarto \"{{room_name}}\" tem capacidade máxima de {{max}} hóspedes. Apenas {{max}} hóspedes serão mostrados.",
     "other_guests": "Outros Hóspedes",
-    "other_guests_count": "Outros Hóspedes ({count})",
-    "guest_number": "Hóspede {number}",
+    "other_guests_count": "Outros Hóspedes ({{count}})",
+    "guest_number": "Hóspede {{number}}",
     "guests_summary": "Resumo dos Hóspedes",
     "total_guests": "Total de hóspedes:",
     "max_capacity": "máximo",
     "requested": "solicitados:",
-    "principal_plus": "1 principal + {count} {plural}",
+    "principal_plus": "1 principal + {{count}} {{plural}}",
     "guest": "hóspede",
     "guests": "hóspedes",
-    "room_info": "Quarto: {name} ({type})"
+    "room_info": "Quarto: {{name}} ({{type}})"
   },
   "payment_information": {
     "calculating_prices": "Calculando preços...",

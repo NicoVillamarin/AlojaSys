@@ -238,9 +238,9 @@
     "room": "Room",
     "room_required": "Room is required",
     "room_placeholder_no_hotel": "Select a hotel first",
-    "room_placeholder_with_guests": "Rooms for {guests} guest{plural}…",
+    "room_placeholder_with_guests": "Rooms for {{guests}} guest{{plural}}…",
     "room_placeholder_loading": "Loading availability…",
-    "room_name": "Room {id}",
+    "room_name": "Room {{id}}",
     "notes": "Notes",
     "notes_placeholder": "Additional notes…",
     "guest_name": "Primary guest name",
@@ -273,8 +273,8 @@
     "create_reservation_btn": "Create reservation",
     "night": "night",
     "nights": "nights",
-    "capacity_info": "Maximum capacity: {max} guests",
-    "capacity_filter_info": "Only rooms with capacity for {guests} guest{plural} or more will be shown"
+    "capacity_info": "Maximum capacity: {{max}} guests",
+    "capacity_filter_info": "Only rooms with capacity for {{guests}} guest{{plural}} or more will be shown"
   },
   "guest_information": {
     "primary_guest": "Primary Guest",
@@ -291,18 +291,18 @@
     "contact_address": "Contact address",
     "contact_address_placeholder": "123 Street, City, Country",
     "capacity_exceeded": "Capacity Exceeded",
-    "capacity_exceeded_msg": "You have selected {requested} guests, but room \"{room_name}\" has a maximum capacity of {max} guests. Only {max} guests will be shown.",
+    "capacity_exceeded_msg": "You have selected {{requested}} guests, but room \"{{room_name}}\" has a maximum capacity of {{max}} guests. Only {{max}} guests will be shown.",
     "other_guests": "Other Guests",
-    "other_guests_count": "Other Guests ({count})",
-    "guest_number": "Guest {number}",
+    "other_guests_count": "Other Guests ({{count}})",
+    "guest_number": "Guest {{number}}",
     "guests_summary": "Guests Summary",
     "total_guests": "Total guests:",
     "max_capacity": "maximum",
     "requested": "requested:",
-    "principal_plus": "1 primary + {count} {plural}",
+    "principal_plus": "1 primary + {{count}} {{plural}}",
     "guest": "guest",
     "guests": "guests",
-    "room_info": "Room: {name} ({type})"
+    "room_info": "Room: {{name}} ({{type}})"
   },
   "payment_information": {
     "calculating_prices": "Calculating prices...",

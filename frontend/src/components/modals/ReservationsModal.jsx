@@ -300,12 +300,23 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   }
 
   const getStepStatus = (stepId) => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTab)
+    const stepIndex = tabs.findIndex(t => t.id === stepId)
+    
+    // Solo marcar como completado si el paso actual es posterior al paso que se está evaluando
+    // o si es el paso actual y está completo
+    if (stepIndex > currentIndex) {
+      return false // Pasos futuros no pueden estar completados
+    }
+    
     switch (stepId) {
       case 'basic':
         return isBasicComplete()
       case 'guests':
         return isGuestsComplete()
       case 'payment':
+        // El paso de pago solo se completa cuando se ha completado la información básica
+        // y se ha llenado la información de pago (por ahora solo verificamos básico)
         return isBasicComplete()
       case 'review':
         return isBasicComplete() && isGuestsComplete()
@@ -394,23 +405,25 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
             const isActive = tab.id === activeTab
             const isCompleted = getStepStatus(tab.id)
             const isAccessible = index === 0 || getStepStatus(tabs[index - 1].id)
+            const isPrevious = index < tabs.findIndex(t => t.id === activeTab)
+            
             return (
               <div key={tab.id} className={`flex items-center space-x-1 sm:space-x-2 ${!isAccessible ? 'opacity-50' : ''}`}>
                 <div
                   className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold transition-colors ${
                     isActive
                       ? 'bg-blue-600 text-white'
-                      : isCompleted
+                      : isCompleted && isPrevious
                       ? 'bg-green-500 text-white'
                       : isAccessible
                       ? 'bg-gray-200 text-gray-600'
                       : 'bg-gray-100 text-gray-400'
                   }`}
                 >
-                  {isCompleted ? '✓' : index + 1}
+                  {isCompleted && isPrevious ? '✓' : index + 1}
                 </div>
                 {index < tabs.length - 1 && (
-                  <div className={`w-4 sm:w-8 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  <div className={`w-4 sm:w-8 h-0.5 ${isCompleted && isPrevious ? 'bg-green-500' : 'bg-gray-200'}`} />
                 )}
               </div>
             )

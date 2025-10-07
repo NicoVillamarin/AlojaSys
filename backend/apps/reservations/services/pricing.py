@@ -39,14 +39,21 @@ def generate_nights_for_reservation(reservation):
         nights.append({ 'date': current, **base_parts })
         current += timedelta(days=1)
 
-    # Aplicar promos por reserva (prorrateo) si existen
-    # Buscar promos per_reservation aplicables al menos a una noche
-    per_res_promos = PromoRule.objects.filter(hotel=reservation.hotel, is_active=True, scope=PromoRule.PromoScope.PER_RESERVATION)
-    # Filtrar por canal y código si corresponde
-    if reservation.channel:
-        per_res_promos = per_res_promos.filter(models.Q(channel__isnull=True) | models.Q(channel=reservation.channel))
+    # Aplicar promos por reserva SOLO si hay promotion_code explícito
+    # Evita descuentos "fantasma" cuando no se ingresó cupón
+    per_res_promos = PromoRule.objects.none()
     if reservation.promotion_code:
-        per_res_promos = per_res_promos.filter(models.Q(code__isnull=True) | models.Q(code__iexact=str(reservation.promotion_code)))
+        per_res_promos = PromoRule.objects.filter(
+            hotel=reservation.hotel,
+            is_active=True,
+            scope=PromoRule.PromoScope.PER_RESERVATION,
+            code__iexact=str(reservation.promotion_code),
+        )
+        # Filtrar por canal si corresponde
+        if reservation.channel:
+            per_res_promos = per_res_promos.filter(models.Q(channel__isnull=True) | models.Q(channel=reservation.channel))
+        else:
+            per_res_promos = per_res_promos.filter(channel__isnull=True)
 
     # Determinar base imponible por noche sin descuento
     bases = []
