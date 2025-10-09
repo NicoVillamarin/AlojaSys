@@ -21,6 +21,7 @@ import CheckinIcon from "src/assets/icons/CheckinIcon";
 import SelectStandalone from "src/components/selects/SelectStandalone";
 import { useUserHotels } from "src/hooks/useUserHotels";
 import { convertToDecimal } from "./utils";
+import Badge from "src/components/Badge";
 
 export default function RoomsGestion() {
   const { t, i18n } = useTranslation();
@@ -404,7 +405,11 @@ export default function RoomsGestion() {
             accessor: (r) => (r.status || "").toLowerCase(),
             render: (r) => {
               const meta = getStatusMeta(r.status, t);
-              return <span className={`px-2 py-1 rounded text-xs ${meta.className}`}>{meta.label}</span>;
+              return (
+                <Badge variant={`room-${r.status}`} size="sm">
+                  {meta.label}
+                </Badge>
+              );
             },
           },
           { key: "base_price", header: t('rooms.price'), sortable: true, render: (r) => `$ ${convertToDecimal(r.base_price)}`, right: true } ,

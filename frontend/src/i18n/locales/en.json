@@ -13,6 +13,7 @@
     "reception": "Reception",
     "reservations_management": "Reservations Management",
     "rooms_management": "Rooms Management",
+    "payments": "Payments History",
     "reservations_history": "Reservations History",
     "clients": "Clients",
     "rates_management": "Rates Management",
@@ -29,7 +30,8 @@
     "rate_plans": "Rate Plans",
     "rate_rules": "Rate Rules",
     "promotions": "Promotions",
-    "taxes": "Taxes"
+    "taxes": "Taxes",
+    "history": "History"
   },
   "common": {
     "save": "Save",
@@ -505,6 +507,7 @@
         "guests_count": "Number of guests",
         "total": "Total",
         "status": "Status",
+        "payment_status": "Payment Status",
         "actions": "Actions",
         "name": "Name",
         "legal_name": "Legal Name",
@@ -541,6 +544,25 @@
     "loading": "Loading…",
     "error": "Error: {{message}}",
     "no_events": "No events yet.",
+    "payments_loading": "Loading payments…",
+    "no_payments": "No payments recorded.",
+    "tabs": {
+      "history": "History",
+      "payments": "Payments"
+    },
+    "payments_table": {
+      "date": "Date",
+      "amount": "Amount",
+      "method": "Method",
+      "status": "Status",
+      "reference": "Reference"
+    },
+    "payment_status": {
+      "completed": "Completed",
+      "pending": "Pending",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
     "event_labels": {
       "created": "Created",
       "updated": "Updated",
@@ -990,5 +1012,66 @@
   },
   "filter": {
     "search_filters": "Search filters"
+  },
+  "payments": {
+    "title": "Payments History",
+    "subtitle": "Reservation Payment Management",
+    "search_placeholder": "Search by guest, hotel, room...",
+    "status": "Status",
+    "method": "Method",
+    "from": "From",
+    "to": "To",
+    "clear_filters": "Clear filters",
+    "methods": {
+      "cash": "Cash",
+      "card": "Card",
+      "transfer": "Transfer",
+      "pos": "PostNet",
+      "postnet": "PostNet",
+      "check": "Check",
+      "mercado_pago": "Mercado Pago",
+      "other": "Other"
+    },
+    "statuses": {
+      "completed": "Completed",
+      "approved": "Approved",
+      "pending": "Pending",
+      "created": "Created",
+      "rejected": "Rejected",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "table": {
+      "reservation": "Reservation",
+      "date": "Date",
+      "amount": "Amount",
+      "method": "Method",
+      "status": "Status",
+      "reference": "Reference",
+      "hotel": "Hotel",
+      "payment_status": "Payment Status"
+    },
+    "payment_status": {
+      "pending": "Pending Payment",
+      "paid": "Paid"
+    },
+    "detail_modal": {
+      "title": "Payment Details - {{reservation}}",
+      "view_payments": "View Payments",
+      "summary": "Payment Summary",
+      "total_reservation": "Reservation Total",
+      "total_amount": "Total Amount",
+      "paid_amount": "Paid Amount",
+      "remaining_amount": "Remaining Amount",
+      "fully_paid": "Fully Paid",
+      "payment_progress": "Payment Progress",
+      "payment_history": "Payment History",
+      "no_payments_title": "No Payments Recorded",
+      "no_payments_description": "This reservation doesn't have any payments recorded yet. Payments will appear here once they are processed.",
+      "inconsistency_warning_title": "Inconsistency Detected",
+      "inconsistency_warning_description": "This reservation is confirmed/check-in but no approved payments were recorded. It's possible that check-in was done manually or payment was processed outside the system.",
+      "manual_payment": "Manual payment registered",
+      "reference": "Reference"
+    }
   }
 }

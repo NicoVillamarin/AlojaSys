@@ -2,41 +2,52 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import ReservationHistoricalModal from 'src/components/modals/ReservationHistoricalModal'
+import PaymentDetailModal from 'src/components/modals/PaymentDetailModal'
 import { useList } from 'src/hooks/useList'
-import { useDispatchAction } from 'src/hooks/useDispatchAction'
-import ReservationsModal from 'src/components/modals/ReservationsModal'
-import Button from 'src/components/Button'
+import { useUserHotels } from 'src/hooks/useUserHotels'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import { Formik } from 'formik'
 import { format, parseISO } from 'date-fns'
 import { convertToDecimal, getStatusLabel, getResStatusList } from './utils'
 import Filter from 'src/components/Filter'
-import { useUserHotels } from 'src/hooks/useUserHotels'
 import Badge from 'src/components/Badge'
 
-
-
-export default function ReservationHistorical() {
+export default function Payments() {
   const { t } = useTranslation()
-  const [showModal, setShowModal] = useState(false)
-  const [editReservation, setEditReservation] = useState(null)
   const [historyReservationId, setHistoryReservationId] = useState(null)
   const [historyReservation, setHistoryReservation] = useState(null)
-  const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
+  const [paymentDetailOpen, setPaymentDetailOpen] = useState(false)
+  const [selectedReservation, setSelectedReservation] = useState(null)
+  const [filters, setFilters] = useState({ 
+    search: '', 
+    hotel: '', 
+    room: '', 
+    status: '', 
+    dateFrom: '', 
+    dateTo: '' 
+  })
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
+  
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'reservations',
-    params: { search: filters.search, hotel: filters.hotel || undefined, room: filters.room || undefined, status: filters.status || undefined },
+    params: { 
+      search: filters.search, 
+      hotel: filters.hotel || undefined, 
+      room: filters.room || undefined, 
+      status: filters.status || undefined,
+    },
   })
-
-  const { mutate: doAction, isPending: acting } = useDispatchAction({ resource: 'reservations', onSuccess: () => refetch() })
 
   const displayResults = useMemo(() => {
     const q = (filters.search || '').trim().toLowerCase()
     const from = filters.dateFrom ? new Date(filters.dateFrom) : null
     const to = filters.dateTo ? new Date(filters.dateTo) : null
     let arr = results || []
+    
+    // Filtrar reservas que necesitan pago (pending) y las que ya pagaron (confirmed en adelante)
+    arr = arr.filter((r) => r.status === 'pending' || r.status === 'confirmed' || r.status === 'check_in' || r.status === 'check_out')
+    
     if (q) {
       arr = arr.filter((r) => {
         const guest = String(r.guest_name ?? '').toLowerCase()
@@ -46,6 +57,7 @@ export default function ReservationHistorical() {
         return guest.includes(q) || hotel.includes(q) || room.includes(q) || status.includes(q)
       })
     }
+    
     if (from || to) {
       arr = arr.filter((r) => {
         const ci = new Date(r.check_in)
@@ -55,6 +67,7 @@ export default function ReservationHistorical() {
         return true
       })
     }
+    
     return arr
   }, [results, filters.search, filters.dateFrom, filters.dateTo])
 
@@ -64,59 +77,28 @@ export default function ReservationHistorical() {
     return () => clearTimeout(id)
   }, [filters.search, filters.hotel, filters.room, filters.status, refetch])
 
-  const canCheckIn = (r) => r.status === 'confirmed'
-  const canCheckOut = (r) => r.status === 'check_in'
-  const canCancel = (r) => r.status === 'pending' || r.status === 'confirmed'
-  const canConfirm = (r) => r.status === 'pending'
-  const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
-
-  const onCheckIn = (r) => {
-    console.log('Check-in para reserva:', r.id, 'estado actual:', r.status)
-    doAction({ action: `${r.id}/check_in`, body: {}, method: 'POST' })
-  }
-  const onCheckOut = (r) => {
-    console.log('Check-out para reserva:', r.id, 'estado actual:', r.status)
-    doAction({ action: `${r.id}/check_out`, body: {}, method: 'POST' })
-  }
-  const onCancel = (r) => {
-    console.log('Cancelar para reserva:', r.id, 'estado actual:', r.status)
-    doAction({ action: `${r.id}/cancel`, body: {}, method: 'POST' })
-  }
-  const onConfirm = (r) => {
-    console.log('Confirmar para reserva:', r.id, 'estado actual:', r.status)
-    doAction({ action: `${r.id}`, body: { status: 'confirmed' }, method: 'PATCH' })
-  }
-  const onEdit = (r) => {
-    console.log('Editar reserva:', r.id, 'estado actual:', r.status)
-    setEditReservation(r)
-  }
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.history')}</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.reservations_history')}</h1>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('payments.title')}</h1>
         </div>
       </div>
+      <PaymentDetailModal
+        isOpen={paymentDetailOpen}
+        onClose={() => { setPaymentDetailOpen(false); setSelectedReservation(null) }}
+        reservationId={selectedReservation?.id}
+        reservationData={selectedReservation}
+      />
 
-      <ReservationsModal isOpen={showModal} onClose={() => setShowModal(false)} onSuccess={refetch} />
-      <ReservationsModal isOpen={!!editReservation} onClose={() => setEditReservation(null)} isEdit={true} reservation={editReservation} onSuccess={refetch} />
-      {!!historyReservationId && (
-        <ReservationHistoricalModal
-          reservationId={historyReservationId}
-          displayName={historyReservation?.display_name}
-          onClose={() => { setHistoryReservationId(null); setHistoryReservation(null) }}
-        />
-      )}
-
-     <Filter>
+      <Filter>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
             <label className="text-xs text-aloja-gray-800/60">{t('common.search')}</label>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm w-64 transition-all"
-              placeholder={t('dashboard.reservations_management.search_placeholder')}
+              placeholder={t('payments.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
@@ -193,7 +175,7 @@ export default function ReservationHistorical() {
             </button>
           </div>
         </div>
-     </Filter>
+      </Filter>
 
       <TableGeneric
         isLoading={isPending}
@@ -201,12 +183,17 @@ export default function ReservationHistorical() {
         getRowId={(r) => r.id}
         columns={[
           { key: 'display_name', header: t('dashboard.reservations_management.table_headers.reservation'), sortable: true, render: (r) => (
-            <button
-              className="link"
-              onClick={() => { setHistoryReservation(r); setHistoryReservationId(r.id) }}
-            >
-              {r.display_name}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="link"
+                onClick={() => {
+                  setSelectedReservation(r)
+                  setPaymentDetailOpen(true)
+                }}
+              >
+                {r.display_name}
+              </button>
+            </div>
           ) },
           { key: 'guest_name', header: t('dashboard.reservations_management.table_headers.guest'), sortable: true },
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
@@ -243,6 +230,26 @@ export default function ReservationHistorical() {
                 {getStatusLabel(r.status, t)}
               </Badge>
             ) 
+          },
+          {
+            key: 'payment_status',
+            header: t('payments.table.payment_status'),
+            sortable: true,
+            render: (r) => {
+              // Basar el estado de pago en el estado real de la reserva
+              // pending = pendiente, confirmed/check_in/check_out = pagado
+              const isPaid = r.status === 'confirmed' || r.status === 'check_in' || r.status === 'check_out'
+              const paymentVariant = isPaid ? 'payment-paid' : 'payment-pending'
+              const paymentText = isPaid 
+                ? t('payments.payment_status.paid') 
+                : t('payments.payment_status.pending')
+              
+              return (
+                <Badge variant={paymentVariant} size="sm">
+                  {paymentText}
+                </Badge>
+              )
+            }
           },
         ]}
       />

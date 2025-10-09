@@ -8,9 +8,27 @@ from decimal import Decimal
 import os
 import mercadopago
 from uuid import uuid4
+from rest_framework import serializers
 
-from apps.reservations.models import Reservation, ReservationStatus
+from apps.reservations.models import Reservation, ReservationStatus, Payment
 from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus
+
+
+class PaymentIntentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentIntent
+        fields = [
+            'id', 'amount', 'currency', 'description', 'status', 
+            'mp_preference_id', 'mp_payment_id', 'external_reference',
+            'created_at', 'updated_at'
+        ]
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'date', 'method', 'amount', 'created_at'
+        ]
 
 
 def _resolve_gateway_for_hotel(hotel):
@@ -37,6 +55,74 @@ def _resolve_gateway_for_hotel(hotel):
 @permission_classes([IsAuthenticated])
 def ping(request):
     return Response({"payments": "ok"}, status=200)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_reservation_payments(request, reservation_id):
+    """Obtener todos los pagos de una reserva específica (PaymentIntent + Payment manuales)"""
+    try:
+        reservation = get_object_or_404(Reservation, pk=reservation_id)
+        
+        # Verificar que el usuario tenga acceso a esta reserva
+        # (esto debería implementarse según tu lógica de permisos)
+        
+        # Obtener PaymentIntent (pagos online)
+        payment_intents = PaymentIntent.objects.filter(reservation=reservation).order_by('-created_at')
+        payment_intents_data = PaymentIntentSerializer(payment_intents, many=True).data
+        
+        # Obtener Payment (pagos manuales)
+        manual_payments = Payment.objects.filter(reservation=reservation).order_by('-created_at')
+        manual_payments_data = PaymentSerializer(manual_payments, many=True).data
+        
+        # Combinar y normalizar ambos tipos de pagos
+        all_payments = []
+        
+        # Agregar PaymentIntent con tipo 'online'
+        for pi in payment_intents_data:
+            all_payments.append({
+                'id': f"pi_{pi['id']}",
+                'type': 'online',
+                'amount': pi['amount'],
+                'method': 'mercado_pago',
+                'status': pi['status'],
+                'created_at': pi['created_at'],
+                'description': pi['description'],
+                'reference': pi['mp_payment_id'],
+                'currency': pi['currency']
+            })
+        
+        # Agregar Payment con tipo 'manual'
+        for mp in manual_payments_data:
+            all_payments.append({
+                'id': f"p_{mp['id']}",
+                'type': 'manual',
+                'amount': mp['amount'],
+                'method': mp['method'],
+                'status': 'approved',  # Los pagos manuales se consideran aprobados
+                'created_at': mp['created_at'],
+                'description': f"Pago {mp['method']}",
+                'reference': None,
+                'currency': 'ARS'  # Por defecto
+            })
+        
+        # Ordenar por fecha de creación (más reciente primero)
+        all_payments.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        return Response({
+            "results": all_payments,
+            "count": len(all_payments),
+            "reservation_id": reservation_id,
+            "reservation_total": str(reservation.total_price),
+            "payment_intents_count": payment_intents.count(),
+            "manual_payments_count": manual_payments.count()
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {"detail": f"Error obteniendo pagos: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(["POST"])

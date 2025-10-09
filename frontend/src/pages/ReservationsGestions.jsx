@@ -12,6 +12,7 @@ import { convertToDecimal, getStatusLabel, RES_STATUS } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import PaymentModal from 'src/components/modals/PaymentModal'
+import Badge from 'src/components/Badge'
 
 
 
@@ -239,7 +240,33 @@ export default function ReservationsGestions() {
           },
           { key: 'guests', header: t('dashboard.reservations_management.table_headers.guests_count'), sortable: true, right: true },
           { key: 'total_price', header: t('dashboard.reservations_management.table_headers.total'), sortable: true, right: true, render: (r) => `$ ${convertToDecimal(r.total_price)}` },
-          { key: 'status', header: t('dashboard.reservations_management.table_headers.status'), sortable: true, render: (r) => <span>{getStatusLabel(r.status, t)}</span> },
+          { 
+            key: 'status', 
+            header: t('dashboard.reservations_management.table_headers.status'), 
+            sortable: true, 
+            render: (r) => (
+              <Badge variant={`reservation-${r.status}`} size="sm">
+                {getStatusLabel(r.status, t)}
+              </Badge>
+            ) 
+          },
+          {
+            key: 'payment_status',
+            header: t('dashboard.reservations_management.table_headers.payment_status'),
+            sortable: true,
+            render: (r) => {
+              const paymentVariant = r.status === 'pending' ? 'payment-pending' : 'payment-paid'
+              const paymentText = r.status === 'pending' 
+                ? t('payments.payment_status.pending') 
+                : t('payments.payment_status.paid')
+              
+              return (
+                <Badge variant={paymentVariant} size="sm">
+                  {paymentText}
+                </Badge>
+              )
+            }
+          },
           {
             key: 'actions', header: t('dashboard.reservations_management.table_headers.actions'), sortable: false, right: true,
             render: (r) => (

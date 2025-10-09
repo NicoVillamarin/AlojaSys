@@ -12,6 +12,7 @@ import CurrencyIcon from "src/assets/icons/CurrencyIcon";
 import ClientsIcon from "src/assets/icons/ClientsIcon";
 import fondo from "src/assets/img/fondo_3.png";
 import BitacoraIcon from "src/assets/icons/BitacoraIcon";
+import CardCreditIcon from "src/assets/icons/CardCreditIcon";
 import UserIcon from "src/assets/icons/UserIcon";
 import ReceptionIcon from "src/assets/icons/ReceptionIcon";
 
@@ -97,6 +98,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
         <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
         <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
+        <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}><CardCreditIcon size="20" /> {!isMini && <span>{t('sidebar.payments')}</span>}</Item>
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}><BitacoraIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_history')}</span>}</Item>
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}

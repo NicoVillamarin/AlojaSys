@@ -16,6 +16,7 @@
     "reservations_history": "Histórico de Reservas",
     "clients": "Clientes",
     "rates_management": "Gestão de Tarifas",
+    "payments": "Histórico de Pagamentos",
     "configuration": "Configurações",
     "enterprises": "Empresas",
     "rooms": "Quartos",
@@ -29,7 +30,8 @@
     "rate_plans": "Planos de Tarifas",
     "rate_rules": "Regras de Tarifas",
     "promotions": "Promoções",
-    "taxes": "Impostos"
+    "taxes": "Impostos",
+    "history": "Históricos"
   },
   "common": {
     "save": "Salvar",
@@ -376,7 +378,7 @@
     "extra_guests": "Hóspedes extras",
     "discounts": "Descontos",
     "taxes": "Impostos",
-    "total": "Total",
+    "total_amount": "Total",
     "could_not_calculate": "Não foi possível calcular o resumo de pagamento.",
     "additional_notes": "Notas Adicionais",
     "final_verification": "Verificação Final",
@@ -991,5 +993,66 @@
   },
   "filter": {
     "search_filters": "Filtros de busca"
+  },
+  "payments": {
+    "title": "Histórico de Pagamentos",
+    "subtitle": "Gestão de Pagamentos de Reservas",
+    "search_placeholder": "Buscar por hóspede, hotel, quarto...",
+    "status": "Status",
+    "method": "Método",
+    "from": "De",
+    "to": "Até",
+    "clear_filters": "Limpar filtros",
+    "methods": {
+      "cash": "Dinheiro",
+      "card": "Cartão",
+      "transfer": "Transferência",
+      "pos": "PostNet",
+      "postnet": "PostNet",
+      "check": "Cheque",
+      "mercado_pago": "Mercado Pago",
+      "other": "Outro"
+    },
+    "statuses": {
+      "completed": "Completado",
+      "approved": "Aprovado",
+      "pending": "Pendente",
+      "created": "Criado",
+      "rejected": "Rejeitado",
+      "failed": "Falhou",
+      "cancelled": "Cancelado"
+    },
+    "table": {
+      "reservation": "Reserva",
+      "date": "Data",
+      "amount": "Valor",
+      "method": "Método",
+      "status": "Status",
+      "reference": "Referência",
+      "hotel": "Hotel",
+      "payment_status": "Status do Pagamento"
+    },
+    "payment_status": {
+      "pending": "Pagamento Pendente",
+      "paid": "Pago"
+    },
+    "detail_modal": {
+      "title": "Detalhes de Pagamentos - {{reservation}}",
+      "view_payments": "Ver Pagamentos",
+      "summary": "Resumo de Pagamentos",
+      "total_reservation": "Total da Reserva",
+      "total_amount": "Valor Total",
+      "paid_amount": "Valor Pago",
+      "remaining_amount": "Valor Pendente",
+      "fully_paid": "Completamente Pago",
+      "payment_progress": "Progresso do Pagamento",
+      "payment_history": "Histórico de Pagamentos",
+      "no_payments_title": "Nenhum Pagamento Registrado",
+      "no_payments_description": "Esta reserva ainda não tem pagamentos registrados. Os pagamentos aparecerão aqui uma vez que sejam processados.",
+      "inconsistency_warning_title": "Inconsistência Detectada",
+      "inconsistency_warning_description": "Esta reserva está confirmada/check-in mas nenhum pagamento aprovado foi registrado. É possível que o check-in foi feito manualmente ou o pagamento foi processado fora do sistema.",
+      "manual_payment": "Pagamento manual registrado",
+      "reference": "Referência"
+    }
   }
 }

@@ -10,6 +10,7 @@ import Countries from "src/pages/configurations/locations/Countries";
 import States from "src/pages/configurations/locations/States";
 import Dashboard from "src/pages/Dashboard";
 import ReservationHistorical from "src/pages/ReservationHistorical";
+import Payments from "src/pages/Payments";
 import Users from "src/pages/configurations/Users";
 import Reception from "src/pages/Reception";
 import PlanRates from "src/pages/configurations/rates/PlanRates";
@@ -28,6 +29,7 @@ export const appRoutes = [
       { path: "rooms-gestion", element: React.createElement(RoomsGestion) },
       { path: "reservations-gestion", element: React.createElement(ReservationsGestions) },
       { path: "reservations/:id/history", element: React.createElement(ReservationHistorical) },
+      { path: "payments", element: React.createElement(Payments) },
       { path: "settings/rooms", element: React.createElement(Rooms) },
       { path: "settings/hotels", element: React.createElement(Hotels) },
       { path: "settings/enterprises", element: React.createElement(Enterprises) },
