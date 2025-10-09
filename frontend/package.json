@@ -27,6 +27,7 @@
     "react-router-dom": "^7.9.1",
     "react-select": "^5.10.2",
     "react-toastify": "^11.0.5",
+    "sweetalert2": "^11.25.0",
     "tailwindcss": "^4.1.13",
     "three": "^0.180.0",
     "yup": "^1.7.1",

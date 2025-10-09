@@ -11,6 +11,7 @@ import { format, parseISO } from 'date-fns'
 import { convertToDecimal, getStatusLabel, RES_STATUS } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
+import PaymentModal from 'src/components/modals/PaymentModal'
 
 
 
@@ -18,6 +19,8 @@ export default function ReservationsGestions() {
   const { t, i18n } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payReservationId, setPayReservationId] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
@@ -88,7 +91,9 @@ export default function ReservationsGestions() {
   }
   const onConfirm = (r) => {
     console.log(t('dashboard.reservations_management.console_messages.confirm_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
-    doAction({ action: `${r.id}`, body: { status: 'confirmed' }, method: 'PATCH' })
+    // Abrir modal de pago antes de confirmar
+    setPayReservationId(r.id)
+    setPayOpen(true)
   }
   const onEdit = (r) => {
     console.log(t('dashboard.reservations_management.console_messages.edit_reservation'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
@@ -109,6 +114,13 @@ export default function ReservationsGestions() {
 
       <ReservationsModal isOpen={showModal} onClose={() => setShowModal(false)} onSuccess={refetch} />
       <ReservationsModal isOpen={!!editReservation} onClose={() => setEditReservation(null)} isEdit={true} reservation={editReservation} onSuccess={refetch} />
+
+      <PaymentModal
+        isOpen={payOpen}
+        reservationId={payReservationId}
+        onClose={() => setPayOpen(false)}
+        onPaid={() => { setPayOpen(false); refetch(); }}
+      />
 
      <Filter>
         <div className="flex flex-wrap items-end gap-3">

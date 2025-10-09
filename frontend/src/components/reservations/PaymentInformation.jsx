@@ -322,7 +322,7 @@ const PaymentInformation = () => {
 
             return (
               <div key={index} className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center mb-2">
                   <div className="flex items-center space-x-3">
                     <div className="bg-blue-100 text-blue-600 font-semibold text-sm px-3 py-1 rounded-full">
                       {t('payment_information.night')} {index + 1}
@@ -331,26 +331,31 @@ const PaymentInformation = () => {
                       {formatDate(night.date)}
                     </span>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-gray-800">
-                      {formatCurrency(night.total_night)}
-                    </div>
-                  </div>
                 </div>
                 
                 {/* Detalle de cargos */}
                 <div className="ml-20 text-sm text-gray-600 space-y-1">
+                  {/* Tarifa base de la habitación */}
                   <div className="flex justify-between">
-                    <span>
-                      {t('payment_information.base_rate')}
-                      {night.rule && (
-                        <span className="text-gray-500 font-medium">{' '}(
-                          {night.rule.name || t('payment_information.rule_applied')}
-                        )</span>
-                      )}
-                    </span>
-                    <span>{formatCurrency(night.base_rate)}</span>
+                    <span>{t('payment_information.base_rate')}</span>
+                    <span>{formatCurrency(roomData?.base_price || 0)}</span>
                   </div>
+                  
+                  {/* Regla aplicada (si existe) */}
+                  {night.rule && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>
+                        {t('payment_information.rate_rule')} ({night.rule.name || t('payment_information.rule_applied')})
+                        {night.rule.price_mode === 'absolute' ? '' : ''}
+                      </span>
+                      <span>
+                        {night.rule.price_mode === 'absolute' 
+                          ? formatCurrency(night.base_rate)
+                          : `+ ${formatCurrency(night.base_rate - (roomData?.base_price || 0))}`
+                        }
+                      </span>
+                    </div>
+                  )}
                   {hasExtraGuests && (
                     <div className="flex justify-between text-blue-600">
                       <span>{t('payment_information.extra_guests')}</span>
@@ -389,6 +394,16 @@ const PaymentInformation = () => {
                       <span>+ {formatCurrency(night.tax)}</span>
                     </div>
                   )}
+                </div>
+                
+                {/* Total de la noche con línea separadora */}
+                <div className="ml-20 mt-3 pt-2 border-t border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-800">{t('payment_information.total_night')}</span>
+                    <span className="text-lg font-bold text-gray-800">
+                      {formatCurrency(night.total_night)}
+                    </span>
+                  </div>
                 </div>
               </div>
             )

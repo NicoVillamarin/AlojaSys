@@ -13,6 +13,7 @@ class Command(BaseCommand):
         parser.add_argument("hotel_id", type=int, help="ID del hotel destino")
         parser.add_argument("--count", type=int, default=20, help="Cantidad de habitaciones a crear (default: 20)")
         parser.add_argument("--prefix", type=str, default="HAB", help="Prefijo del nombre de habitación")
+        parser.add_argument("--ars", action="store_true", help="Usar precios típicos de Argentina (ARS)")
 
     @transaction.atomic
     def handle(self, hotel_id: int, *args, **options):
@@ -44,6 +45,29 @@ class Command(BaseCommand):
         while next_number in existing_numbers:
             next_number += 1
 
+        # Configuración de capacidades y precios (opcional ARS)
+        capacity_by_type = {
+            RoomType.SINGLE: 1,
+            RoomType.DOUBLE: 2,
+            RoomType.TRIPLE: 3,
+            RoomType.SUITE: 2,
+        }
+        if options.get("ars"):
+            # Valores típicos en ARS (ajustables)
+            base_price_by_type = {
+                RoomType.SINGLE: Decimal("40000.00"),
+                RoomType.DOUBLE: Decimal("65000.00"),
+                RoomType.TRIPLE: Decimal("90000.00"),
+                RoomType.SUITE: Decimal("150000.00"),
+            }
+        else:
+            base_price_by_type = {
+                RoomType.SINGLE: Decimal("50.00"),
+                RoomType.DOUBLE: Decimal("80.00"),
+                RoomType.TRIPLE: Decimal("110.00"),
+                RoomType.SUITE: Decimal("180.00"),
+            }
+
         for i in range(count):
             floor = random.choice(floors)
             room_type = random.choice(room_types_weighted)
@@ -54,19 +78,6 @@ class Command(BaseCommand):
 
             number = next_number
             next_number += 1
-
-            capacity_by_type = {
-                RoomType.SINGLE: 1,
-                RoomType.DOUBLE: 2,
-                RoomType.TRIPLE: 3,
-                RoomType.SUITE: 2,
-            }
-            base_price_by_type = {
-                RoomType.SINGLE: Decimal("50.00"),
-                RoomType.DOUBLE: Decimal("80.00"),
-                RoomType.TRIPLE: Decimal("110.00"),
-                RoomType.SUITE: Decimal("180.00"),
-            }
 
             name = f"{prefix}-{number}"
 

@@ -70,7 +70,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: hotel_celery
-    command: celery -A hotel worker -l info
+    command: sh -lc "until python manage.py migrate --check; do echo 'Esperando migraciones...'; sleep 2; done; celery -A hotel worker -l info"
     volumes:
       - ./backend:/app
     env_file:
@@ -90,7 +90,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: hotel_celery_beat
-    command: celery -A hotel beat -l info
+    command: sh -lc "until python manage.py migrate --check; do echo 'Esperando migraciones...'; sleep 2; done; celery -A hotel beat -l info"
     volumes:
       - ./backend:/app
     env_file:

@@ -65,6 +65,7 @@
   "enterprises": {
     "create_enterprise": "Criar empresa",
     "search_placeholder": "Pesquisar empresas…",
+    "select_enterprise": "Selecionar empresa",
     "name": "Nome",
     "legal_name": "Nome legal",
     "tax_id": "CNPJ",
@@ -331,11 +332,13 @@
     "breakdown_by_night": "Desglose por noite",
     "night": "Noite",
     "base_rate": "Tarifa base",
+    "rate_rule": "Tarifa",
     "rule_applied": "Regra aplicada",
     "extra_guests": "Hóspedes extras",
     "discount": "Desconto",
     "promo_applied": "Promo aplicada",
     "taxes": "Impostos",
+    "total_night": "Total noite",
     "subtotal": "Subtotal",
     "extra_guest_charges": "Cobranças por hóspedes extras",
     "applied_discounts": "Descontos aplicados",
@@ -701,7 +704,9 @@
     "check_in_time": "Check-in",
     "check_out_time": "Check-out",
     "active": "Ativo",
-    "enabled_for_operation": "Habilitado para operação"
+    "enabled_for_operation": "Habilitado para operação",
+    "auto_check_in_enabled": "Auto check-in ao chegar a data de entrada"
+
   },
   "users_modal": {
     "edit_user": "Editar usuário",

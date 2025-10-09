@@ -1,11 +1,12 @@
 from celery import shared_task
+from django.db.utils import ProgrammingError, OperationalError
 from datetime import date, timedelta
 from apps.core.models import Hotel
 from .models import DashboardMetrics
 
 
-@shared_task
-def calculate_dashboard_metrics_for_date(target_date_str: str | None = None):
+@shared_task(bind=True, autoretry_for=(ProgrammingError, OperationalError), retry_backoff=5, retry_jitter=True, retry_kwargs={"max_retries": 5})
+def calculate_dashboard_metrics_for_date(self, target_date_str: str | None = None):
     """Calcula métricas del dashboard para todos los hoteles en una fecha.
 
     Si no se provee fecha, usa la fecha actual.

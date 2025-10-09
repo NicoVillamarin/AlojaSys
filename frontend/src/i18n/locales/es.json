@@ -65,6 +65,7 @@
   "enterprises": {
     "create_enterprise": "Crear empresa",
     "search_placeholder": "Buscar empresas…",
+    "select_enterprise": "Seleccionar empresa",
     "name": "Nombre",
     "legal_name": "Nombre legal",
     "tax_id": "CUIT",
@@ -331,11 +332,13 @@
     "breakdown_by_night": "Desglose por noche",
     "night": "Noche",
     "base_rate": "Tarifa base",
+    "rate_rule": "Tarifa",
     "rule_applied": "Regla aplicada",
     "extra_guests": "Huéspedes adicionales",
     "discount": "Descuento",
     "promo_applied": "Promo aplicada",
     "taxes": "Impuestos",
+    "total_night": "Total noche",
     "subtotal": "Subtotal",
     "extra_guest_charges": "Cargos por huéspedes adicionales",
     "applied_discounts": "Descuentos aplicados",
@@ -701,7 +704,8 @@
     "check_in_time": "Check-in",
     "check_out_time": "Check-out",
     "active": "Activo",
-    "enabled_for_operation": "Habilitado para operar"
+    "enabled_for_operation": "Habilitado para operar",
+    "auto_check_in_enabled": "Auto check-in al llegar la fecha de entrada"
   },
   "users_modal": {
     "edit_user": "Editar usuario",

@@ -6,6 +6,8 @@ import HotelsModal from 'src/components/modals/HotelsModal'
 import EditIcon from 'src/assets/icons/EditIcon'
 import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
+import CheckIcon from 'src/assets/icons/CheckIcon'
+import XIcon from 'src/assets/icons/XIcon'
 
 export default function Hotels() {
   const { t } = useTranslation()
@@ -85,9 +87,11 @@ export default function Hotels() {
         getRowId={(h) => h.id}
         columns={[
           { key: 'name', header: t('dashboard.reservations_management.table_headers.name'), sortable: true },
+          { key: 'enterprise_name', header: t('sidebar.enterprises'), sortable: true },
           { key: 'email', header: t('dashboard.reservations_management.table_headers.email'), sortable: true },
           { key: 'phone', header: t('dashboard.reservations_management.table_headers.phone'), sortable: true },
           { key: 'address', header: t('dashboard.reservations_management.table_headers.address'), sortable: true },
+          { key: 'auto_check_in_enabled', header: t('hotels_modal.auto_check_in_enabled'), render: (h) => h.auto_check_in_enabled ? <CheckIcon color="green" /> : <XIcon color="red" />, sortable: true },
           {
             key: 'actions',
             header: t('dashboard.reservations_management.table_headers.actions'),

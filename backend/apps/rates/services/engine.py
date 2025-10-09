@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 from apps.rooms.models import Room
-from apps.rates.models import RateRule, RatePlan, PromoRule, TaxRule, DiscountType
+from apps.rates.models import RateRule, RatePlan, PromoRule, TaxRule, DiscountType, PriceMode
 
 def _is_rule_applicable(rule: RateRule, room: Room, on_date: date, channel: Optional[str] = None) -> bool:
     if not (rule.start_date <= on_date <= rule.end_date):
@@ -92,7 +92,7 @@ def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optio
         
         # Sin price por ocupación, usar base_amount si existe
         if rule.base_amount is not None:
-            if rule.price_mode == rule.price_mode.ABSOLUTE:
+            if rule.price_mode == PriceMode.ABSOLUTE:
                 base_rate = rule.base_amount
             else:
                 base_rate = (base_room_price + rule.base_amount).quantize(Decimal('0.01'))
@@ -120,7 +120,7 @@ def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optio
     applied_promos_detail = []
     for promo in promos_qs:
         # Promos de alcance por reserva no se aplican aquí (se prorratean fuera)
-        if getattr(promo, 'scope', None) == getattr(PromoRule, 'PromoScope', None) and promo.scope == PromoRule.PromoScope.PER_RESERVATION:
+        if promo.scope == PromoRule.PromoScope.PER_RESERVATION:
             continue
         # DOW
         if not [promo.apply_mon, promo.apply_tue, promo.apply_wed, promo.apply_thu, promo.apply_fri, promo.apply_sat, promo.apply_sun][on_date.weekday()]:

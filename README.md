@@ -27,7 +27,9 @@ Sistema de gestión hotelera (PMS + APIs) pensado para escalar por módulos y m�
     - `POST /api/reservations/{id}/check_in/`
     - `POST /api/reservations/{id}/check_out/`
     - `POST /api/reservations/{id}/cancel/`
-  - Auto check-in al crear/editar si `status=confirmed` y hoy ∈ [check_in, check_out)
+- Auto check-in diario si el hotel lo permite: `Hotel.auto_check_in_enabled`
+  - Si está activado, las reservas `confirmed` dentro de [check_in, check_out) pasan a `check_in` automáticamente
+  - Si está desactivado, el check-in es manual vía `POST /api/reservations/{id}/check_in/`
 - Bloqueos de habitación (operativos):
   - `RoomBlock` (maintenance/hold/out_of_service) con rango de fechas
 - Disponibilidad (por fechas):
@@ -39,6 +41,7 @@ Sistema de gestión hotelera (PMS + APIs) pensado para escalar por módulos y m�
 ## Automatización (Celery)
 - Worker y Beat levantados con Docker
 - Tarea diaria: `sync_room_occupancy_for_today`
+  - Respeta `Hotel.auto_check_in_enabled` antes de marcar check-in automático
   - Marca `occupied` cuando corresponde y libera rooms en check-out
   - Próximo: respetar `check_in_time`/`check_out_time` del hotel (scheduler listo)
 

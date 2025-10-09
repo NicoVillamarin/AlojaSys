@@ -35,6 +35,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
     check_in_time: (hotel?.check_in_time ?? '15:00').slice(0, 5),
     check_out_time: (hotel?.check_out_time ?? '11:00').slice(0, 5),
     is_active: hotel?.is_active ?? true,
+    auto_check_in_enabled: hotel?.auto_check_in_enabled ?? false,
   }
 
   const validationSchema = Yup.object().shape({
@@ -50,6 +51,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
       onSubmit={(values) => {
         const payload = {
           name: values.name || undefined,
+          enterprise: values.enterprise ? Number(values.enterprise) : undefined,
           legal_name: values.legal_name || undefined,
           tax_id: values.tax_id || undefined,
           email: values.email || undefined,
@@ -61,6 +63,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
           check_in_time: values.check_in_time || undefined,
           check_out_time: values.check_out_time || undefined,
           is_active: values.is_active,
+          auto_check_in_enabled: values.auto_check_in_enabled || false,
         }
         if (isEdit && hotel?.id) updateHotel({ id: hotel.id, body: payload })
         else createHotel(payload)
@@ -78,6 +81,14 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
           size='lg'
         >
           <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
+            <SelectAsync
+              title={t('sidebar.enterprises')}
+              name='enterprise'
+              resource='enterprises'
+              placeholder={t('enterprises.select_enterprise')}
+              getOptionLabel={(e) => e?.name}
+              getOptionValue={(e) => e?.id}
+            />
             <InputText title={`${t('hotels_modal.name')} *`} name='name' placeholder={t('hotels_modal.name_placeholder')} autoFocus />
             <InputText title={t('hotels_modal.legal_name')} name='legal_name' placeholder={t('hotels_modal.legal_name_placeholder')} />
             <InputText title={t('hotels_modal.tax_id')} name='tax_id' placeholder={t('hotels_modal.tax_id_placeholder')} />
@@ -122,6 +133,18 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             <InputText title={t('hotels_modal.check_in_time')} name='check_in_time' type='time' />
             <InputText title={t('hotels_modal.check_out_time')} name='check_out_time' type='time' />
             <div className='lg:col-span-2'>
+              <label className='text-xs text-aloja-gray-800/70 '>{t('hotels_modal.active')}</label>
+              <label htmlFor='auto_check_in_enabled' className='flex items-center gap-2 cursor-pointer pb-3'>
+                <input
+                  id='auto_check_in_enabled'
+                  name='auto_check_in_enabled'
+                  type='checkbox'
+                  className='rounded border-gray-300'
+                  checked={!!values.auto_check_in_enabled}
+                  onChange={(e) => setFieldValue('auto_check_in_enabled', e.target.checked)}
+                />
+                <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_check_in_enabled')}</span>
+              </label>
               <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.active')}</label>
               <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer'>
                 <input
