@@ -171,6 +171,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                 <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
                 <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
                 <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+                <Item to="/settings/payments/policies" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payment_policies')}</Item>
               </div>
             </div>
             {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}

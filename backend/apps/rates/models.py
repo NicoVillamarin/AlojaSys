@@ -61,6 +61,31 @@ class RateRule(models.Model):
     # Precios por ocupación (override). Si existe un precio para 'guests', se usa ese y no se suma extra_guest_fee
     # Definido en modelo aparte: RateOccupancyPrice   
 
+    # Política de adelantos/depósitos (opcional)
+    deposit_type = models.CharField(
+        max_length=20,
+        choices=(
+            ("none", "Sin adelanto"),
+            ("percentage", "Porcentaje del total"),
+            ("fixed", "Monto fijo"),
+        ),
+        default="none",
+        help_text="Tipo de adelanto requerido por esta regla"
+    )
+    # Interpreta porcentaje si deposit_type = percentage; monto absoluto si = fixed
+    deposit_value = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
+    deposit_due = models.CharField(
+        max_length=20,
+        choices=(
+            ("confirmation", "Al confirmar"),
+            ("days_before", "Días antes del check-in"),
+            ("check_in", "Al check-in"),
+        ),
+        default="confirmation",
+        help_text="Cuándo vence el pago del adelanto"
+    )
+    deposit_days_before = models.PositiveIntegerField(default=0, null=True, blank=True, help_text="Solo si deposit_due = days_before")
+
     # Restricciones
     min_stay = models.PositiveIntegerField(default=1, null=True, blank=True, help_text="Mínimo de noches para aplicar la regla (opcional).")
     max_stay = models.PositiveIntegerField(default=None, null=True, blank=True, help_text="Máximo de noches para aplicar la regla (opcional).")

@@ -17,6 +17,8 @@ class RateRuleSerializer(serializers.ModelSerializer):
             "apply_mon","apply_tue","apply_wed","apply_thu","apply_fri","apply_sat","apply_sun",
             "target_room","target_room_type","channel","priority",
             "price_mode","base_amount","extra_guest_fee_amount",
+            # nuevos campos de adelanto
+            "deposit_type","deposit_value","deposit_due","deposit_days_before",
             "min_stay","max_stay","closed","closed_to_arrival","closed_to_departure",
             "occupancy_prices",
         ]

@@ -95,12 +95,24 @@ def rate_choices(request):
     room_types = [{"value": v, "label": l} for v, l in Room._meta.get_field("room_type").choices]
     price_modes = [{"value": v, "label": l} for v, l in PriceMode.choices]
     channels = [{"value": v, "label": l} for v, l in ReservationChannel.choices]
+    deposit_types = [
+        {"value": "none", "label": "Sin adelanto"},
+        {"value": "percentage", "label": "Porcentaje"},
+        {"value": "fixed", "label": "Monto fijo"},
+    ]
+    deposit_dues = [
+        {"value": "confirmation", "label": "Al confirmar"},
+        {"value": "days_before", "label": "Días antes del check-in"},
+        {"value": "check_in", "label": "Al check-in"},
+    ]
     tax_amount_types = [{"value": v, "label": l} for v, l in TaxRule.TaxAmountType.choices]
     tax_scopes = [{"value": v, "label": l} for v, l in TaxRule.TaxScope.choices]
     return Response({
         "room_types": room_types,
         "price_modes": price_modes,
         "channels": channels,
+        "deposit_types": deposit_types,
+        "deposit_dues": deposit_dues,
         "tax_amount_types": tax_amount_types,
         "tax_scopes": tax_scopes,
     })

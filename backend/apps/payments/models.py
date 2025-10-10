@@ -76,3 +76,71 @@ class PaymentIntent(models.Model):
 
     def __str__(self) -> str:
         return f"Payment Intent {self.id} - {self.status}"
+
+
+# Métodos disponibles para cobrar (configuración)
+class PaymentMethod(models.Model):
+    code = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PaymentPolicy(models.Model):
+    class DepositType(models.TextChoices):
+        NONE = "none", "Sin adelanto"
+        PERCENTAGE = "percentage", "Porcentaje"
+        FIXED = "fixed", "Monto fijo"
+
+    class DepositDue(models.TextChoices):
+        CONFIRMATION = "confirmation", "Al confirmar"
+        DAYS_BEFORE = "days_before", "Días antes del check-in"
+        CHECK_IN = "check_in", "Al check-in"
+
+    class BalanceDue(models.TextChoices):
+        CHECK_IN = "check_in", "Al check-in"
+        CHECK_OUT = "check_out", "Al check-out"
+
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="payment_policies")
+    name = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+
+    # Política de adelanto
+    allow_deposit = models.BooleanField(default=True, help_text="Permitir pago de depósito/seña")
+    deposit_type = models.CharField(max_length=20, choices=DepositType.choices, default=DepositType.NONE)
+    deposit_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # % o monto
+    deposit_due = models.CharField(max_length=20, choices=DepositDue.choices, default=DepositDue.CONFIRMATION)
+    deposit_days_before = models.PositiveIntegerField(default=0)
+
+    # Dónde se cobra el saldo cuando hay adelanto
+    balance_due = models.CharField(max_length=20, choices=BalanceDue.choices, default=BalanceDue.CHECK_IN)
+
+    # Métodos de pago habilitados
+    methods = models.ManyToManyField(PaymentMethod, related_name="policies", blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["hotel", "name"], name="uniq_policy_hotel_name"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.hotel.name} - {self.name}"
+
+    @staticmethod
+    def resolve_for_hotel(hotel: Hotel):
+        pol = PaymentPolicy.objects.filter(hotel=hotel, is_active=True, is_default=True).first()
+        if pol:
+            return pol
+        return PaymentPolicy.objects.filter(hotel=hotel, is_active=True).order_by("-id").first()

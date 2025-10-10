@@ -15,22 +15,84 @@ export default function PaymentBrick({ reservationId, amount, onSuccess, onError
 
   useEffect(() => {
     if (!window.MercadoPago || createdRef.current) return;
-    const mp = new window.MercadoPago(import.meta.env.VITE_MP_PUBLIC_KEY, { locale: "es-AR" });
-    const bricksBuilder = mp.bricks();
+    
     let cancelled = false;
+    
+    // Esperar un tick para asegurar que el DOM esté listo
+    const timeoutId = setTimeout(() => {
+      if (cancelled) return;
+      
+      const mp = new window.MercadoPago(import.meta.env.VITE_MP_PUBLIC_KEY, { locale: "es-AR" });
+      const bricksBuilder = mp.bricks();
 
-    // limpiar contenedor por si hubo unmount previo con error
-    try { const el = document.getElementById(containerId); if (el) el.innerHTML = ""; } catch {}
+      // Verificar que el contenedor existe antes de crear el Brick
+      const container = document.getElementById(containerId);
+      if (!container) {
+        console.error(`Container ${containerId} not found`);
+        return;
+      }
 
-    // Usar el Card Payment Brick directamente para mostrar el formulario de tarjeta
-    bricksBuilder.create("cardPayment", containerId, {
+      // limpiar contenedor por si hubo unmount previo con error
+      container.innerHTML = "";
+      
+      // Aplicar estilos para que el botón ocupe todo el ancho
+      container.style.width = "100%";
+
+      // Usar el Card Payment Brick directamente para mostrar el formulario de tarjeta
+      bricksBuilder.create("cardPayment", containerId, {
       initialization: { amount: Number(amount || 0) || 0 },
       customization: {
-        visual: { style: "default" },
+        visual: { 
+          style: "default",
+          customVariables: {
+            buttonBackgroundColor: "#2563eb",
+            buttonHeight: "48px"
+          }
+        },
         maxInstallments: 1,
       },
       callbacks: {
-        onReady: () => {},
+        onReady: () => {
+          // Aplicar estilos adicionales una vez que el Brick esté listo
+          const brickContainer = document.getElementById(containerId);
+          if (brickContainer) {
+            // Crear un estilo CSS personalizado para forzar el ancho completo
+            const style = document.createElement('style');
+            style.textContent = `
+              #${containerId} button {
+                width: 100% !important;
+                min-height: 48px !important;
+                max-width: none !important;
+              }
+              #${containerId} .mp-button {
+                width: 100% !important;
+                min-height: 48px !important;
+                max-width: none !important;
+              }
+              #${containerId} input {
+                width: 100% !important;
+              }
+              #${containerId} .mp-form-control {
+                width: 100% !important;
+              }
+            `;
+            document.head.appendChild(style);
+            
+            // Aplicar estilos directamente también
+            const buttons = brickContainer.querySelectorAll('button');
+            buttons.forEach(button => {
+              button.style.width = "100% !important";
+              button.style.minHeight = "48px !important";
+              button.style.maxWidth = "none !important";
+            });
+            
+            // Aplicar estilos a los inputs también
+            const inputs = brickContainer.querySelectorAll('input');
+            inputs.forEach(input => {
+              input.style.width = "100% !important";
+            });
+          }
+        },
         // cardPayment devuelve cardFormData (no { formData })
         onSubmit: (cardFormData) => new Promise(async (resolve, reject) => {
           try {
@@ -55,17 +117,19 @@ export default function PaymentBrick({ reservationId, amount, onSuccess, onError
         }),
         onError: (error) => errorRef.current?.(error),
       },
-    }).then((controller) => {
-      if (cancelled) {
-        try { controller.unmount?.(); } catch {}
-        return;
-      }
-      controllerRef.current = controller;
-      createdRef.current = true;
-    }).catch((err) => errorRef.current?.(err));
+      }).then((controller) => {
+        if (cancelled) {
+          try { controller.unmount?.(); } catch {}
+          return;
+        }
+        controllerRef.current = controller;
+        createdRef.current = true;
+      }).catch((err) => errorRef.current?.(err));
+    }, 100); // Pequeño delay para asegurar que el DOM esté listo
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
       try { controllerRef.current?.unmount?.(); } catch {}
       controllerRef.current = null;
       try { const el = document.getElementById(containerId); if (el) el.innerHTML = ""; } catch {}
@@ -73,5 +137,38 @@ export default function PaymentBrick({ reservationId, amount, onSuccess, onError
     };
   }, [reservationId, amount, containerId]);
 
-  return <div id={containerId} />;
+  // Efecto adicional para aplicar estilos después del montaje
+  useEffect(() => {
+    const applyStyles = () => {
+      const container = document.getElementById(containerId);
+      if (container) {
+        const buttons = container.querySelectorAll('button');
+        buttons.forEach(button => {
+          button.style.width = "100% !important";
+          button.style.minHeight = "48px !important";
+          button.style.maxWidth = "none !important";
+        });
+      }
+    };
+
+    // Aplicar estilos inmediatamente
+    applyStyles();
+
+    // Aplicar estilos después de un pequeño delay para asegurar que el DOM esté listo
+    const timeoutId = setTimeout(applyStyles, 500);
+    
+    // Observer para detectar cambios en el DOM
+    const observer = new MutationObserver(applyStyles);
+    const container = document.getElementById(containerId);
+    if (container) {
+      observer.observe(container, { childList: true, subtree: true });
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      observer.disconnect();
+    };
+  }, [containerId]);
+
+  return <div id={containerId} className="w-full" />;
 }

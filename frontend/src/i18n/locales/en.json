@@ -31,6 +31,7 @@
     "rate_rules": "Rate Rules",
     "promotions": "Promotions",
     "taxes": "Taxes",
+    "payment_policies": "Payment Policies",
     "history": "History"
   },
   "common": {
@@ -48,7 +49,20 @@
     "status": "Status",
     "hotel": "Hotel",
     "clear_search": "Clear search",
-    "load_more": "Load more"
+    "load_more": "Load more",
+    "yes": "Yes",
+    "no": "No",
+    "actions": "Actions",
+    "confirm_delete": "Are you sure you want to delete this item?",
+    "no_hotel_selected": "No hotel selected",
+    "select_hotel_first": "Select a hotel first",
+    "select_hotel": "Select hotel",
+    "required": "This field is required",
+    "invalid_format": "Invalid format",
+    "min_value_0": "Value must be greater than or equal to 0",
+    "min_value_0_01": "Minimum value is 0.01",
+    "code_help": "Only lowercase letters and underscores (e.g: credit_card)",
+    "saving": "Saving..."
   },
   "reservations": {
     "title": "Reservations Management",
@@ -348,7 +362,37 @@
     "average_per_night": "Average per night",
     "guests": "Guests",
     "important_note": "Important note:",
-    "preliminary_summary": "This is a preliminary summary. Payment methods and additional charges can be managed after creating the reservation."
+    "preliminary_summary": "This is a preliminary summary. Payment methods and additional charges can be managed after creating the reservation.",
+    "deposit_required": "Deposit Required",
+    "deposit_amount": "Deposit amount",
+    "deposit_due": "When it's charged",
+    "deposit_due_confirmation": "Upon reservation confirmation",
+    "deposit_due_days_before": "{{days}} days before check-in",
+    "deposit_due_check_in": "At check-in",
+    "balance_due": "Remaining balance",
+    "balance_due_check_in": "At check-in",
+    "balance_due_check_out": "At check-out",
+    "remaining_balance": "Outstanding balance",
+    "deposit_note": "This deposit must be paid to confirm the reservation. The remaining balance will be charged according to the hotel's policy.",
+    "pay_deposit": "Pay Deposit",
+    "payment_options": "Payment Options",
+    "pay_deposit_only": "Pay Deposit Only",
+    "pay_full_amount": "Pay Full Amount"
+  },
+  "deposit_payment": {
+    "title": "Process Deposit Payment",
+    "deposit_info": "Deposit Information",
+    "required_amount": "Required amount",
+    "reservation_total": "Reservation total",
+    "remaining_after": "Remaining balance",
+    "amount": "Amount to pay",
+    "payment_method": "Payment method",
+    "select_method": "Select payment method",
+    "notes": "Notes (optional)",
+    "notes_placeholder": "Additional payment information",
+    "process_payment": "Process Payment",
+    "important_note": "Important note",
+    "payment_note": "Once the payment is processed, the reservation will be automatically confirmed."
   },
   "review_reservation": {
     "reservation_summary": "Reservation Summary",
@@ -994,7 +1038,15 @@
     "price_placeholder": "120.00",
     "remove": "Remove",
     "at_least_one_day": "Select at least one day of the week",
-    "xor_room_type": "Choose room or room type (not both)"
+    "xor_room_type": "Choose room or room type (not both)",
+    "deposit_section": "Deposits / Advances",
+    "deposit_type": "Deposit type",
+    "deposit_value": "Value (% or amount)",
+    "deposit_value_placeholder": "30 or 500.00",
+    "deposit_due": "Deposit due",
+    "deposit_days_before": "Days before check-in",
+    "deposit_days_before_placeholder": "7",
+    "deposit_help": "If type=Percentage the value is %. If Fixed, it's an absolute amount."
   },
   "reception": {
     "title": "Reception",
@@ -1072,6 +1124,43 @@
       "inconsistency_warning_description": "This reservation is confirmed/check-in but no approved payments were recorded. It's possible that check-in was done manually or payment was processed outside the system.",
       "manual_payment": "Manual payment registered",
       "reference": "Reference"
+    },
+    "policies": {
+      "title": "Payment Policies",
+      "subtitle": "Configure when and how guests are charged",
+      "add_policy": "Add Policy",
+      "edit_policy": "Edit Policy",
+      "policy_name": "Policy Name",
+      "is_default": "Default Policy",
+      "is_active": "Active",
+      "allow_deposit": "Allow deposit/down payment",
+      "deposit_section": "Deposit Configuration",
+      "deposit_type": "Deposit Type",
+      "deposit_value": "Deposit Value",
+      "deposit_due": "When to Charge Deposit",
+      "deposit_days_before": "Days Before Check-in",
+      "balance_section": "Balance Configuration",
+      "balance_due": "When to Charge Balance",
+      "deposit_due_header": "When to Charge Deposit",
+      "balance_due_header": "When to Charge Balance",
+      "deposit_due_title": "When to Charge Deposit",
+      "balance_due_title": "When to Charge Balance",
+      "enabled_methods": "Enabled Payment Methods",
+      "search_placeholder": "Search by name or hotel...",
+      "deposit_types": {
+        "none": "No Deposit",
+        "percentage": "Percentage",
+        "fixed": "Fixed Amount"
+      },
+      "deposit_due": {
+        "confirmation": "At Reservation Confirmation",
+        "days_before": "Days Before Check-in",
+        "check_in": "At Check-in"
+      },
+      "balance_due": {
+        "check_in": "At Check-in",
+        "check_out": "At Check-out"
+      }
     }
   }
 }

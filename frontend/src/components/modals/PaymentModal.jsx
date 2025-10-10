@@ -10,6 +10,8 @@ import CrashIcon from "src/assets/icons/CrashIcon";
 import TranfCrash from "src/assets/icons/TranfCrash";
 import PostnetIcon from "src/assets/icons/PostnetIcon";
 import CardCreditIcon from "src/assets/icons/CardCreditIcon";
+import { paymentPolicyService } from "src/services/paymentPolicyService";
+import SpinnerLoading from "src/components/SpinnerLoading";
 
 export default function PaymentModal({
   isOpen,
@@ -37,7 +39,14 @@ export default function PaymentModal({
     const [email, setEmail] = useState("");
     const [installments, setInstallments] = useState(1);
     const [paymentMethod, setPaymentMethod] = useState("card"); // card, cash, transfer, pos
-    const [step, setStep] = useState("select"); // select, form
+    // Steps: amount -> select -> form
+    const [step, setStep] = useState("amount");
+
+    // Reserva y política
+    const [reservationData, setReservationData] = useState(null); // { hotel: id, total_price }
+    const [policy, setPolicy] = useState(null);
+    const [depositInfo, setDepositInfo] = useState(null); // { required, amount, type, ... }
+    const [payAmount, setPayAmount] = useState(null); // número para preferencia (seña) o null para total
 
     // Función para registrar pago manual (efectivo, transferencia, POS)
     const registerManualPayment = async (paymentType, additionalData = {}) => {
@@ -245,35 +254,78 @@ export default function PaymentModal({
         if (!isOpen) {
             setPref(null);
             setError("");
+            setReservationData(null);
+            setPolicy(null);
+            setDepositInfo(null);
+            setPayAmount(null);
+            setStep("amount");
         }
     }, [isOpen]);
 
-    // Crear preferencia al abrir (una sola vez por apertura)
-  useEffect(() => {
-    if (!isOpen || !reservationId) return;
-    let cancelled = false;
-        let ran = false;
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        setPref(null);
-        const resp = await createPreference({
-          reservationId,
-          ...(amount ? { amount } : {}),
-        });
-                if (!cancelled && !ran) {
-                    setPref(resp);
-                    ran = true;
+    // Cargar datos de la reserva y la política cuando se abre
+    useEffect(() => {
+        if (!isOpen || !reservationId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                setError("");
+                // Obtener reserva para conocer hotel y total
+                const res = await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/`);
+                if (cancelled) return;
+                setReservationData({ hotel: res?.hotel, total_price: res?.total_price });
+                // Obtener política activa
+                if (res?.hotel) {
+                    const pol = await paymentPolicyService.getActivePolicyForHotel(res.hotel);
+                    if (cancelled) return;
+                    setPolicy(pol);
+                    if (pol && res?.total_price != null) {
+                        const dep = paymentPolicyService.calculateDeposit(pol, Number(res.total_price));
+                        setDepositInfo(dep);
+                        // Si no hay depósito requerido, ir directo a selección de método
+                        if (!dep?.required || pol?.allow_deposit === false) {
+                            setStep("select");
+                            setPayAmount(null); // total
+                        }
+                    } else {
+                        setStep("select");
+                    }
+                } else {
+                    setStep("select");
                 }
-      } catch (e) {
-        if (!cancelled) setError(e.message || "Error al crear preferencia");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+            } catch (e) {
+                if (!cancelled) {
+                    setError(e?.message || "Error cargando datos de la reserva");
+                    setStep("select");
+                }
+            }
+        })();
+        return () => { cancelled = true; };
     }, [isOpen, reservationId]);
+
+    // Crear preferencia cuando tengamos decidido el monto (seña o total)
+    useEffect(() => {
+        if (!isOpen || !reservationId) return;
+        // Creamos preferencia al pasar a step select (cuando ya hay payAmount decidido o null para total)
+        if (step !== "select") return;
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true);
+                setError("");
+                setPref(null);
+                const resp = await createPreference({
+                    reservationId,
+                    ...(payAmount != null ? { amount: payAmount } : {}),
+                });
+                if (!cancelled) setPref(resp);
+            } catch (e) {
+                if (!cancelled) setError(e.message || "Error al crear preferencia");
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isOpen, reservationId, step, payAmount]);
 
     // Polling para detectar status=confirmed (solo con preferencia creada)
   useEffect(() => {
@@ -323,10 +375,61 @@ export default function PaymentModal({
       title="Pago de reserva"
       size="lg"
     >
-      <div className="space-y-3">
-        {loading && <div>Creando preferencia...</div>}
+      <div className="space-y-3 p-1">
+        {loading && <SpinnerLoading />}
         {error && <div style={{ color: "red" }}>{error}</div>}
-                {pref ? (
+                {step === "amount" && (
+                    <div className="relative overflow-hidden">
+                        <div 
+                            className={`transition-all duration-300 ease-in-out ${
+                                step === "amount" 
+                                    ? "opacity-100 translate-x-0" 
+                                    : "opacity-0 -translate-x-full absolute inset-0"
+                            }`}
+                        >
+                            <div className="space-y-3">
+                                <div className="text-center">
+                                    <h3 className="text-lg font-semibold">¿Qué querés pagar?</h3>
+                                    {policy?.name ? (
+                                        <div className="text-sm text-gray-600 mt-1">Política: {policy.name}</div>
+                                    ) : null}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {/* Opción Seña */}
+                                    {depositInfo?.required && (policy?.allow_deposit ?? true) && (
+                                        <button
+                                            onClick={() => { setPayAmount(Number(depositInfo.amount)); setStep("select"); }}
+                                            className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-orange-50 transition"
+                                        >
+                                            <div className="text-left">
+                                                <div className="font-semibold text-orange-700">{policy?.name || "Seña"}</div>
+                                                <div className="text-xs text-orange-600">Pagar ahora</div>
+                                            </div>
+                                            <div className="text-right font-bold text-orange-800">
+                                                {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(depositInfo.amount) || 0)}
+                                            </div>
+                                        </button>
+                                    )}
+                                    {/* Opción Total */}
+                                    <button
+                                        onClick={() => { setPayAmount(null); setStep("select"); }}
+                                        className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-green-50 transition"
+                                    >
+                                        <div className="text-left">
+                                            <div className="font-semibold text-green-700">Pagar Total</div>
+                                            <div className="text-xs text-green-600">Saldo completo</div>
+                                        </div>
+                                        <div className="text-right font-bold text-green-800">
+                                            {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(reservationData?.total_price) || 0)}
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {step !== "amount" && pref ? (
                     <div className="relative overflow-hidden">
                         {/* Paso 1 - Selección de método */}
                         <div 
@@ -339,11 +442,10 @@ export default function PaymentModal({
                             {/* Header con flecha de volver */}
                             <div className="flex items-center mb-4">
                                 <button
-                                    onClick={() => setStep("select")}
-                                    className="mr-3 p-1 hover:bg-gray-100 rounded-full"
-                                    disabled
+                                    onClick={() => setStep("amount")}
+                                    className="mr-3 p-1 hover:bg-gray-100 rounded-full transition cursor-pointer"
                                 >
-                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                     </svg>
                                 </button>
@@ -351,13 +453,13 @@ export default function PaymentModal({
                             </div>
 
                             {/* Selector de método de pago */}
-                            <div className="space-y-2">
+                            <div className="space-y-2 p-2">
                                     <button
                                         onClick={() => {
                                             setPaymentMethod("card");
                                             setStep("form");
                                         }}
-                                        className="w-full flex items-center p-3 border rounded-lg hover:bg-gray-50 transition"
+                                        className="w-full flex items-center cursor-pointer p-3 border rounded-lg border-aloja-gray-100 shadow-sm hover:scale-103 hover:bg-gray-100 transition-all duration-200"
                                     >
                                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                                             <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -378,7 +480,7 @@ export default function PaymentModal({
                                             setPaymentMethod("cash");
                                             setStep("form");
                                         }}
-                                        className="w-full flex items-center p-3 border rounded-lg hover:bg-gray-50 transition"
+                                        className="w-full flex items-center cursor-pointer p-3 border rounded-lg border-aloja-gray-100 shadow-sm hover:scale-103 hover:bg-gray-100 transition-all duration-200"
                                     >
                                         <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
                                             <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
@@ -399,7 +501,7 @@ export default function PaymentModal({
                                             setPaymentMethod("transfer");
                                             setStep("form");
                                         }}
-                                        className="w-full flex items-center p-3 border rounded-lg hover:bg-gray-50 transition"
+                                        className="w-full flex items-center cursor-pointer p-3 border rounded-lg border-aloja-gray-100 shadow-sm hover:scale-103 hover:bg-gray-100 transition-all duration-200"
                                     >
                                         <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
                                             <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
@@ -420,7 +522,7 @@ export default function PaymentModal({
                                             setPaymentMethod("pos");
                                             setStep("form");
                                         }}
-                                        className="w-full flex items-center p-3 border rounded-lg hover:bg-gray-50 transition"
+                                        className="w-full flex items-center cursor-pointer p-3 border rounded-lg border-aloja-gray-100 shadow-sm hover:scale-103 hover:bg-gray-100 transition-all duration-200"
                                     >
                                         <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3">
                                             <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
@@ -467,7 +569,7 @@ export default function PaymentModal({
                                 {/* Formularios según método seleccionado */}
                                 {paymentMethod === "card" && (
                                     <PaymentBrick
-                                        key={`pb-${reservationId}-${pref?.preference_id || 'x'}`}
+                                        key={`pb-${reservationId}-${payAmount || 'total'}-${pref?.preference_id || 'x'}`}
                                         reservationId={reservationId}
                                         amount={pref?.amount || undefined}
                                         onSuccess={(resp) => { setPayStatus(resp?.status || "approved"); setPayDetail(resp?.status_detail || "accredited"); showResult(resp?.status, resp?.status_detail); }}

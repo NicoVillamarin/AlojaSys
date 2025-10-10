@@ -31,6 +31,7 @@
     "rate_rules": "Reglas de Tarifas",
     "promotions": "Promociones",
     "taxes": "Impuestos",
+    "payment_policies": "Políticas de Pago",
     "history": "Históricos"
   },
   "common": {
@@ -48,7 +49,20 @@
     "status": "Estado",
     "hotel": "Hotel",
     "clear_search": "Limpiar búsqueda",
-    "load_more": "Cargar más"
+    "load_more": "Cargar más",
+    "yes": "Sí",
+    "no": "No",
+    "actions": "Acciones",
+    "confirm_delete": "¿Estás seguro de que quieres eliminar este elemento?",
+    "no_hotel_selected": "No hay hotel seleccionado",
+    "select_hotel_first": "Selecciona un hotel primero",
+    "select_hotel": "Seleccionar hotel",
+    "required": "Este campo es requerido",
+    "invalid_format": "Formato inválido",
+    "min_value_0": "El valor debe ser mayor o igual a 0",
+    "min_value_0_01": "El valor mínimo es 0.01",
+    "code_help": "Solo letras minúsculas y guiones bajos (ej: credit_card)",
+    "saving": "Guardando..."
   },
   "reservations": {
     "title": "Gestión de Reservas",
@@ -348,7 +362,37 @@
     "average_per_night": "Promedio por noche",
     "guests": "Huéspedes",
     "important_note": "Nota importante:",
-    "preliminary_summary": "Este es un resumen preliminar. Los métodos de pago y cargos adicionales podrán gestionarse después de crear la reserva."
+    "preliminary_summary": "Este es un resumen preliminar. Los métodos de pago y cargos adicionales podrán gestionarse después de crear la reserva.",
+    "deposit_required": "Seña Requerida",
+    "deposit_amount": "Monto de la seña",
+    "deposit_due": "Cuándo se cobra",
+    "deposit_due_confirmation": "Al confirmar la reserva",
+    "deposit_due_days_before": "{{days}} días antes del check-in",
+    "deposit_due_check_in": "Al check-in",
+    "balance_due": "Saldo restante",
+    "balance_due_check_in": "Al check-in",
+    "balance_due_check_out": "Al check-out",
+    "remaining_balance": "Saldo pendiente",
+    "deposit_note": "Esta seña debe ser pagada para confirmar la reserva. El saldo restante se cobrará según la política del hotel.",
+    "pay_deposit": "Pagar Seña",
+    "payment_options": "Opciones de Pago",
+    "pay_deposit_only": "Pagar Solo Seña",
+    "pay_full_amount": "Pagar Monto Completo"
+  },
+  "deposit_payment": {
+    "title": "Procesar Pago de Seña",
+    "deposit_info": "Información del Depósito",
+    "required_amount": "Monto requerido",
+    "reservation_total": "Total de la reserva",
+    "remaining_after": "Saldo restante",
+    "amount": "Monto a pagar",
+    "payment_method": "Método de pago",
+    "select_method": "Seleccione método de pago",
+    "notes": "Notas (opcional)",
+    "notes_placeholder": "Información adicional sobre el pago",
+    "process_payment": "Procesar Pago",
+    "important_note": "Nota importante",
+    "payment_note": "Una vez procesado el pago, la reserva será confirmada automáticamente."
   },
   "review_reservation": {
     "reservation_summary": "Resumen de la Reserva",
@@ -994,7 +1038,15 @@
     "price_placeholder": "120.00",
     "remove": "Quitar",
     "at_least_one_day": "Selecciona al menos un día de la semana",
-    "xor_room_type": "Elegí habitación o tipo de habitación (no ambos)"
+    "xor_room_type": "Elegí habitación o tipo de habitación (no ambos)",
+    "deposit_section": "Adelantos / Depósitos",
+    "deposit_type": "Tipo de adelanto",
+    "deposit_value": "Valor (\u0025 o monto)",
+    "deposit_value_placeholder": "30 o 500.00",
+    "deposit_due": "Vencimiento del adelanto",
+    "deposit_days_before": "Días antes del check-in",
+    "deposit_days_before_placeholder": "7",
+    "deposit_help": "Si tipo=Porcentaje, el valor se interpreta como %. Si tipo=Monto fijo, como valor absoluto."
   },
   "reception": {
     "title": "Recepción",
@@ -1072,6 +1124,43 @@
       "inconsistency_warning_description": "Esta reserva está confirmada/check-in pero no se registraron pagos aprobados. Es posible que se haya hecho check-in manual o que el pago se procesó fuera del sistema.",
       "manual_payment": "Pago manual registrado",
       "reference": "Referencia"
+    },
+    "policies": {
+      "title": "Políticas de Pago",
+      "subtitle": "Configurar cuándo y cómo se cobra al huésped",
+      "add_policy": "Agregar Política",
+      "edit_policy": "Editar Política",
+      "policy_name": "Nombre de la Política",
+      "is_default": "Política por Defecto",
+      "is_active": "Activa",
+      "allow_deposit": "Permitir depósito/seña",
+      "deposit_section": "Configuración de Adelantos",
+      "deposit_type": "Tipo de Adelanto",
+      "deposit_value": "Valor del Adelanto",
+      "deposit_due": "Cuándo Cobrar Adelanto",
+      "deposit_days_before": "Días Antes del Check-in",
+      "balance_section": "Configuración del Saldo",
+      "balance_due": "Cuándo Cobrar Saldo",
+      "deposit_due_header": "Cuándo Cobrar Adelanto",
+      "balance_due_header": "Cuándo Cobrar Saldo",
+      "deposit_due_title": "Cuándo Cobrar Adelanto",
+      "balance_due_title": "Cuándo Cobrar Saldo",
+      "enabled_methods": "Métodos de Pago Habilitados",
+      "search_placeholder": "Buscar por nombre o hotel...",
+      "deposit_types": {
+        "none": "Sin Adelanto",
+        "percentage": "Porcentaje",
+        "fixed": "Monto Fijo"
+      },
+      "deposit_due": {
+        "confirmation": "Al Confirmar Reserva",
+        "days_before": "Días Antes del Check-in",
+        "check_in": "Al Check-in"
+      },
+      "balance_due": {
+        "check_in": "Al Check-in",
+        "check_out": "Al Check-out"
+      }
     }
   }
 }

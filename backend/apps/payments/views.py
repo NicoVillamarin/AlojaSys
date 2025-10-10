@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, viewsets, permissions
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from decimal import Decimal
@@ -9,9 +9,12 @@ import os
 import mercadopago
 from uuid import uuid4
 from rest_framework import serializers
+from django.utils import timezone
 
 from apps.reservations.models import Reservation, ReservationStatus, Payment
-from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus
+from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy
+from .serializers import PaymentMethodSerializer, PaymentPolicySerializer
+from apps.core.models import Hotel
 
 
 class PaymentIntentSerializer(serializers.ModelSerializer):
@@ -55,6 +58,24 @@ def _resolve_gateway_for_hotel(hotel):
 @permission_classes([IsAuthenticated])
 def ping(request):
     return Response({"payments": "ok"}, status=200)
+
+
+class PaymentMethodViewSet(viewsets.ModelViewSet):
+    queryset = PaymentMethod.objects.all()
+    serializer_class = PaymentMethodSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class PaymentPolicyViewSet(viewsets.ModelViewSet):
+    serializer_class = PaymentPolicySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = PaymentPolicy.objects.all().select_related("hotel").prefetch_related("methods")
+        hotel_id = self.request.query_params.get("hotel_id")
+        if hotel_id:
+            qs = qs.filter(hotel_id=hotel_id)
+        return qs.order_by("-is_default", "name")
 
 
 @api_view(["GET"])
@@ -422,3 +443,83 @@ def process_card_payment(request):
         "status": status_detail,
         "status_detail": payment.get("status_detail"),
     }, status=200)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def process_deposit_payment(request):
+    """
+    Procesa un pago de depósito para una reserva
+    """
+    try:
+        data = request.data
+        reservation_id = data.get('reservation')
+        amount = data.get('amount')
+        method = data.get('method')
+        notes = data.get('notes', '')
+        
+        if not reservation_id or not amount or not method:
+            return Response({
+                'error': 'Faltan campos requeridos: reservation, amount, method'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener la reserva
+        reservation = get_object_or_404(Reservation, id=reservation_id)
+        
+        # Obtener la política de pago del hotel
+        policy = PaymentPolicy.resolve_for_hotel(reservation.hotel)
+        if not policy:
+            return Response({
+                'error': 'No hay política de pago configurada para este hotel'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calcular el depósito requerido
+        from .services.payment_calculator import calculate_deposit
+        deposit_info = calculate_deposit(policy, reservation.total_price)
+        
+        if not deposit_info['required']:
+            return Response({
+                'error': 'No se requiere depósito para esta reserva'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validar que el monto sea correcto
+        expected_amount = deposit_info['amount']
+        if abs(float(amount) - float(expected_amount)) > 0.01:  # Tolerancia de 1 centavo
+            return Response({
+                'error': f'El monto debe ser ${expected_amount}, se recibió ${amount}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Crear el pago
+        with transaction.atomic():
+            payment = Payment.objects.create(
+                reservation=reservation,
+                date=timezone.now().date(),
+                method=method,
+                amount=Decimal(str(amount))
+            )
+            
+            # Si el depósito se cobra al confirmar, confirmar la reserva
+            if policy.deposit_due == PaymentPolicy.DepositDue.CONFIRMATION:
+                reservation.status = ReservationStatus.CONFIRMED
+                reservation.save(update_fields=['status', 'updated_at'])
+                
+                # Log del cambio
+                from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+                ReservationChangeLog.objects.create(
+                    reservation=reservation,
+                    event_type=ReservationChangeEvent.PAYMENT_ADDED,
+                    changed_by=request.user,
+                    message=f"Depósito de ${amount} pagado con {method}. Reserva confirmada."
+                )
+        
+        return Response({
+            'success': True,
+            'payment_id': payment.id,
+            'reservation_status': reservation.status,
+            'message': 'Depósito procesado correctamente'
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Error procesando el pago: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

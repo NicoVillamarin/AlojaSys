@@ -913,7 +913,15 @@
     "combinable": "Combinável",
     "active": "Ativa",
     "at_least_one_day": "Selecione pelo menos um dia da semana",
-    "xor_room_type": "Escolha quarto ou tipo de quarto (não ambos)"
+    "xor_room_type": "Escolha quarto ou tipo de quarto (não ambos)",
+    "deposit_section": "Adiantamentos / Depósitos",
+    "deposit_type": "Tipo de adiantamento",
+    "deposit_value": "Valor (% ou montante)",
+    "deposit_value_placeholder": "30 ou 500.00",
+    "deposit_due": "Vencimento do adiantamento",
+    "deposit_days_before": "Dias antes do check-in",
+    "deposit_days_before_placeholder": "7",
+    "deposit_help": "Se tipo=Percentual, o valor é %. Se Fixo, é montante absoluto."
   },
   "rules_rate_modal": {
     "edit_rule": "Editar regra",

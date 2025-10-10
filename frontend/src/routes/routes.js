@@ -17,6 +17,7 @@ import PlanRates from "src/pages/configurations/rates/PlanRates";
 import RulesRates from "src/pages/configurations/rates/RulesRates";
 import Promos from "src/pages/configurations/rates/Promos";
 import Taxes from "src/pages/configurations/rates/Taxes";
+import PaymentPolicies from "src/pages/configurations/policy/PaymentPolicies";
 
 
 export const appRoutes = [
@@ -41,6 +42,7 @@ export const appRoutes = [
       { path: "settings/rates/rules", element: React.createElement(RulesRates) },
       { path: "settings/rates/promos", element: React.createElement(Promos) },
       { path: "settings/rates/taxes", element: React.createElement(Taxes) },
+      { path: "settings/payments/policies", element: React.createElement(PaymentPolicies) },
     ],
   },
 ];
