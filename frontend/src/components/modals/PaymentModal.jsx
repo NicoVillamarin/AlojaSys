@@ -394,12 +394,12 @@ export default function PaymentModal({
                                         <div className="text-sm text-gray-600 mt-1">Política: {policy.name}</div>
                                     ) : null}
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-2">
                                     {/* Opción Seña */}
                                     {depositInfo?.required && (policy?.allow_deposit ?? true) && (
                                         <button
                                             onClick={() => { setPayAmount(Number(depositInfo.amount)); setStep("select"); }}
-                                            className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-orange-50 transition"
+                                            className="w-full flex items-center justify-between cursor-pointer hover:scale-103 p-4 border rounded-lg border-aloja-gray-100 shadow-sm hover:bg-orange-50 transition-all duration-200"
                                         >
                                             <div className="text-left">
                                                 <div className="font-semibold text-orange-700">{policy?.name || "Seña"}</div>
@@ -413,7 +413,7 @@ export default function PaymentModal({
                                     {/* Opción Total */}
                                     <button
                                         onClick={() => { setPayAmount(null); setStep("select"); }}
-                                        className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-green-50 transition"
+                                        className="w-full flex items-center justify-between cursor-pointer hover:scale-103 p-4 border rounded-lg border-aloja-gray-100 shadow-sm hover:bg-green-50 transition-all duration-200"
                                     >
                                         <div className="text-left">
                                             <div className="font-semibold text-green-700">Pagar Total</div>
