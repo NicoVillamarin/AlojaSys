@@ -17,6 +17,7 @@ export default function PaymentModal({
   isOpen,
   reservationId,
   amount,             // opcional: para seña/depósito
+  balanceInfo,        // opcional: información del saldo pendiente { balance_due, total_paid, total_reservation, payment_required_at }
   onClose,
   onPaid,            // callback cuando detectamos status=confirmed
 }) {
@@ -38,9 +39,12 @@ export default function PaymentModal({
     const [docNumber, setDocNumber] = useState("12345678");
     const [email, setEmail] = useState("");
     const [installments, setInstallments] = useState(1);
-    const [paymentMethod, setPaymentMethod] = useState("card"); // card, cash, transfer, pos
+    const [paymentMethod, setPaymentMethod] = useState(""); // card, cash, transfer, pos
     // Steps: amount -> select -> form
     const [step, setStep] = useState("amount");
+    
+    // Determinar si es pago de saldo pendiente o confirmación inicial
+    const isBalancePayment = !!balanceInfo;
 
     // Reserva y política
     const [reservationData, setReservationData] = useState(null); // { hotel: id, total_price }
@@ -52,27 +56,46 @@ export default function PaymentModal({
     const registerManualPayment = async (paymentType, additionalData = {}) => {
         try {
             setError("");
+            
+            // Determinar el monto correcto del pago
+            let paymentAmount;
+            if (isBalancePayment) {
+                // Pago de saldo pendiente
+                paymentAmount = balanceInfo.balance_due;
+            } else if (payAmount !== null) {
+                // Pago de seña (monto específico)
+                paymentAmount = payAmount;
+            } else {
+                // Pago total (payAmount es null)
+                paymentAmount = reservationData?.total_price || 0;
+            }
+            
             const response = await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/payments/`, {
                 method: "POST",
                 body: JSON.stringify({
-                    amount: pref?.amount || 100,
+                    amount: paymentAmount,
                     method: paymentType,
                     date: new Date().toISOString().split('T')[0] // Fecha actual en formato YYYY-MM-DD
                 })
             });
 
             if (response?.id) {
-                // Actualizar el estado de la reserva a confirmada
-                await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/`, {
-                    method: "PATCH",
-                    body: JSON.stringify({
-                        status: "confirmed"
-                    })
-                });
+                // Solo actualizar el estado de la reserva a confirmada si es confirmación inicial
+                if (!isBalancePayment) {
+                    await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/`, {
+                        method: "PATCH",
+                        body: JSON.stringify({
+                            status: "confirmed"
+                        })
+                    });
+                }
 
                 setPayStatus("approved");
                 setPayDetail("manual_payment");
-                showResult("approved", `Pago ${paymentType} registrado y reserva confirmada`);
+                const message = isBalancePayment 
+                    ? `Pago ${paymentType} registrado exitosamente` 
+                    : `Pago ${paymentType} registrado y reserva confirmada`;
+                showResult("approved", message);
             } else {
                 throw new Error("Error al registrar el pago");
             }
@@ -102,12 +125,25 @@ export default function PaymentModal({
             const tokenData = await tokenResp.json();
             if (!tokenResp.ok || !tokenData?.id) throw new Error("No se pudo generar card_token");
 
+            // Determinar el monto correcto del pago
+            let paymentAmount;
+            if (isBalancePayment) {
+                // Pago de saldo pendiente
+                paymentAmount = balanceInfo.balance_due;
+            } else if (payAmount !== null) {
+                // Pago de seña (monto específico)
+                paymentAmount = payAmount;
+            } else {
+                // Pago total (payAmount es null)
+                paymentAmount = reservationData?.total_price || 0;
+            }
+            
             const payload = {
                 reservation_id: reservationId,
                 token: tokenData.id,
                 payment_method_id: "master",
                 installments: 1,
-                amount: pref?.amount ? Number(pref.amount) : undefined,
+                amount: paymentAmount,
             };
             const url = `${getApiURL()}/api/payments/process-card/`;
             const resp = await fetchWithAuth(url, { method: "POST", body: JSON.stringify(payload) });
@@ -146,12 +182,25 @@ export default function PaymentModal({
             const first = String(cardBody.card_number)[0];
             const method = first === "4" ? "visa" : first === "5" ? "master" : "visa";
 
+            // Determinar el monto correcto del pago
+            let paymentAmount;
+            if (isBalancePayment) {
+                // Pago de saldo pendiente
+                paymentAmount = balanceInfo.balance_due;
+            } else if (payAmount !== null) {
+                // Pago de seña (monto específico)
+                paymentAmount = payAmount;
+            } else {
+                // Pago total (payAmount es null)
+                paymentAmount = reservationData?.total_price || 0;
+            }
+
             const payload = {
                 reservation_id: reservationId,
                 token: tokenData.id,
                 payment_method_id: method,
                 installments: Number(installments) || 1,
-                amount: pref?.amount ? Number(pref.amount) : undefined,
+                amount: paymentAmount,
             };
             const url = `${getApiURL()}/api/payments/process-card/`;
             const resp = await fetchWithAuth(url, { method: "POST", body: JSON.stringify(payload) });
@@ -258,9 +307,12 @@ export default function PaymentModal({
             setPolicy(null);
             setDepositInfo(null);
             setPayAmount(null);
-            setStep("amount");
+            setStep(isBalancePayment ? "select" : "amount");
+        } else {
+            // Cuando se abre el modal, establecer el step inicial
+            setStep(isBalancePayment ? "select" : "amount");
         }
-    }, [isOpen]);
+    }, [isOpen, isBalancePayment]);
 
     // Cargar datos de la reserva y la política cuando se abre
     useEffect(() => {
@@ -269,28 +321,40 @@ export default function PaymentModal({
         (async () => {
             try {
                 setError("");
-                // Obtener reserva para conocer hotel y total
-                const res = await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/`);
-                if (cancelled) return;
-                setReservationData({ hotel: res?.hotel, total_price: res?.total_price });
-                // Obtener política activa
-                if (res?.hotel) {
-                    const pol = await paymentPolicyService.getActivePolicyForHotel(res.hotel);
+                
+                if (isBalancePayment) {
+                    // Para pago de saldo pendiente, usar la información proporcionada
+                    setReservationData({ 
+                        hotel: null, // No necesitamos cargar esto para saldo pendiente
+                        total_price: balanceInfo.total_reservation 
+                    });
+                    setStep("select");
+                    setPayAmount(balanceInfo.balance_due);
+                } else {
+                    // Para confirmación inicial, cargar datos normalmente
+                    const res = await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/`);
                     if (cancelled) return;
-                    setPolicy(pol);
-                    if (pol && res?.total_price != null) {
-                        const dep = paymentPolicyService.calculateDeposit(pol, Number(res.total_price));
-                        setDepositInfo(dep);
-                        // Si no hay depósito requerido, ir directo a selección de método
-                        if (!dep?.required || pol?.allow_deposit === false) {
+                    setReservationData({ hotel: res?.hotel, total_price: res?.total_price });
+                    
+                    // Obtener política activa
+                    if (res?.hotel) {
+                        const pol = await paymentPolicyService.getActivePolicyForHotel(res.hotel);
+                        if (cancelled) return;
+                        setPolicy(pol);
+                        if (pol && res?.total_price != null) {
+                            const dep = paymentPolicyService.calculateDeposit(pol, Number(res.total_price));
+                            setDepositInfo(dep);
+                            // Si no hay depósito requerido, ir directo a selección de método
+                            if (!dep?.required || pol?.allow_deposit === false) {
+                                setStep("select");
+                                setPayAmount(null); // total
+                            }
+                        } else {
                             setStep("select");
-                            setPayAmount(null); // total
                         }
                     } else {
                         setStep("select");
                     }
-                } else {
-                    setStep("select");
                 }
             } catch (e) {
                 if (!cancelled) {
@@ -300,13 +364,13 @@ export default function PaymentModal({
             }
         })();
         return () => { cancelled = true; };
-    }, [isOpen, reservationId]);
+    }, [isOpen, reservationId, isBalancePayment, balanceInfo]);
 
-    // Crear preferencia cuando tengamos decidido el monto (seña o total)
+    // Crear preferencia solo cuando se selecciona tarjeta (no para métodos manuales)
     useEffect(() => {
         if (!isOpen || !reservationId) return;
-        // Creamos preferencia al pasar a step select (cuando ya hay payAmount decidido o null para total)
-        if (step !== "select") return;
+        // Solo crear preferencia cuando se selecciona tarjeta en el step form
+        if (step !== "form" || paymentMethod !== "card") return;
         let cancelled = false;
         (async () => {
             try {
@@ -315,7 +379,7 @@ export default function PaymentModal({
                 setPref(null);
                 const resp = await createPreference({
                     reservationId,
-                    ...(payAmount != null ? { amount: payAmount } : {}),
+                    ...(isBalancePayment ? { amount: balanceInfo.balance_due } : (payAmount != null ? { amount: payAmount } : {})),
                 });
                 if (!cancelled) setPref(resp);
             } catch (e) {
@@ -325,7 +389,7 @@ export default function PaymentModal({
             }
         })();
         return () => { cancelled = true; };
-    }, [isOpen, reservationId, step, payAmount]);
+    }, [isOpen, reservationId, step, paymentMethod, payAmount, isBalancePayment, balanceInfo]);
 
     // Polling para detectar status=confirmed (solo con preferencia creada)
   useEffect(() => {
@@ -372,13 +436,41 @@ export default function PaymentModal({
                 setError("");
                 onClose && onClose();
             }}
-      title="Pago de reserva"
+      title={isBalancePayment ? `Pago de Saldo Pendiente - ${balanceInfo.payment_required_at === 'check_in' ? 'Check-in' : 'Check-out'}` : "Pago de reserva"}
       size="lg"
     >
       <div className="space-y-3 p-1">
-        {loading && <SpinnerLoading />}
+        {loading && paymentMethod === "card" && step === "form" && pref === null && <SpinnerLoading />}
         {error && <div style={{ color: "red" }}>{error}</div>}
-                {step === "amount" && (
+        
+        
+        {/* Información del saldo pendiente */}
+        {isBalancePayment && balanceInfo && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <h3 className="font-semibold text-gray-800 mb-2">Resumen de Pagos</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Total Reserva:</span>
+                <span className="font-semibold ml-2">
+                  {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(balanceInfo.total_reservation || 0)}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Total Pagado:</span>
+                <span className="font-semibold ml-2 text-green-600">
+                  {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(balanceInfo.total_paid || 0)}
+                </span>
+              </div>
+              <div className="col-span-2 border-t pt-2">
+                <span className="text-gray-600">Saldo Pendiente:</span>
+                <span className="font-bold text-lg ml-2 text-red-600">
+                  {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(balanceInfo.balance_due || 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+                {step === "amount" && !isBalancePayment && (
                     <div className="relative overflow-hidden">
                         <div 
                             className={`transition-all duration-300 ease-in-out ${
@@ -429,7 +521,7 @@ export default function PaymentModal({
                     </div>
                 )}
 
-                {step !== "amount" && pref ? (
+                {(step === "select" || step === "form") && (
                     <div className="relative overflow-hidden">
                         {/* Paso 1 - Selección de método */}
                         <div 
@@ -441,15 +533,19 @@ export default function PaymentModal({
                         >
                             {/* Header con flecha de volver */}
                             <div className="flex items-center mb-4">
-                                <button
-                                    onClick={() => setStep("amount")}
-                                    className="mr-3 p-1 hover:bg-gray-100 rounded-full transition cursor-pointer"
-                                >
-                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                    </svg>
-                                </button>
-                                <h3 className="text-lg font-semibold">¿Cómo querés pagar?</h3>
+                                {!isBalancePayment && (
+                                    <button
+                                        onClick={() => setStep("amount")}
+                                        className="mr-3 p-1 hover:bg-gray-100 rounded-full transition cursor-pointer"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                    </button>
+                                )}
+                                <h3 className="text-lg font-semibold">
+                                    {isBalancePayment ? "¿Cómo querés pagar el saldo pendiente?" : "¿Cómo querés pagar?"}
+                                </h3>
                             </div>
 
                             {/* Selector de método de pago */}
@@ -559,36 +655,47 @@ export default function PaymentModal({
                                     </svg>
                                 </button>
                                 <h3 className="text-lg font-semibold">
-                                    {paymentMethod === "card" && "Pagar con Tarjeta"}
-                                    {paymentMethod === "cash" && "Pago en Efectivo"}
-                                    {paymentMethod === "transfer" && "Transferencia Bancaria"}
-                                    {paymentMethod === "pos" && "Pago con PostNet"}
+                                    {paymentMethod === "card" && (isBalancePayment ? "Pagar Saldo con Tarjeta" : "Pagar con Tarjeta")}
+                                    {paymentMethod === "cash" && (isBalancePayment ? "Pago de Saldo en Efectivo" : "Pago en Efectivo")}
+                                    {paymentMethod === "transfer" && (isBalancePayment ? "Transferencia para Saldo" : "Transferencia Bancaria")}
+                                    {paymentMethod === "pos" && (isBalancePayment ? "Pago de Saldo con PostNet" : "Pago con PostNet")}
                                 </h3>
                             </div>
 
                                 {/* Formularios según método seleccionado */}
-                                {paymentMethod === "card" && (
+                                {paymentMethod === "card" && pref && (
                                     <PaymentBrick
-                                        key={`pb-${reservationId}-${payAmount || 'total'}-${pref?.preference_id || 'x'}`}
+                                        key={`pb-${reservationId}-${isBalancePayment ? balanceInfo.balance_due : (payAmount || 'total')}-${pref?.preference_id || 'x'}`}
                                         reservationId={reservationId}
-                                        amount={pref?.amount || undefined}
+                                        amount={isBalancePayment ? balanceInfo.balance_due : (pref?.amount || undefined)}
                                         onSuccess={(resp) => { setPayStatus(resp?.status || "approved"); setPayDetail(resp?.status_detail || "accredited"); showResult(resp?.status, resp?.status_detail); }}
                                         onError={(err) => { setError(err?.message || "Error en el pago"); showResult("error", err?.message); }}
                                     />
+                                )}
+                                
+                                {paymentMethod === "card" && !pref && (
+                                    <div className="p-4 bg-gray-50 rounded-lg">
+                                        <div className="text-center">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                            <p className="text-sm text-gray-600">Preparando pago con tarjeta...</p>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {paymentMethod === "cash" && (
                                     <div className="p-4 bg-gray-50 rounded-lg">
                                         <h4 className="font-medium mb-2">Pago en Efectivo</h4>
                                         <p className="text-sm text-gray-600 mb-4">
-                                            El huésped pagará en efectivo al llegar al hotel. 
-                                            La reserva quedará confirmada sin pago previo.
+                                            {isBalancePayment 
+                                                ? "El huésped pagará el saldo pendiente en efectivo."
+                                                : "El huésped pagará en efectivo al llegar al hotel. La reserva quedará confirmada sin pago previo."
+                                            }
                                         </p>
                                         <button
                                             onClick={() => registerManualPayment("cash")}
                                             className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition"
                                         >
-                                            Confirmar Pago en Efectivo
+                                            {isBalancePayment ? "Confirmar Pago de Saldo en Efectivo" : "Confirmar Pago en Efectivo"}
                                         </button>
             </div>
                                 )}
@@ -597,8 +704,10 @@ export default function PaymentModal({
                                     <div className="p-4 bg-gray-50 rounded-lg">
                                         <h4 className="font-medium mb-2">Transferencia Bancaria</h4>
                                         <p className="text-sm text-gray-600 mb-4">
-                                            El huésped realizará una transferencia bancaria. 
-                                            Sube el comprobante para confirmar el pago.
+                                            {isBalancePayment 
+                                                ? "El huésped realizará una transferencia bancaria por el saldo pendiente. Sube el comprobante para confirmar el pago."
+                                                : "El huésped realizará una transferencia bancaria. Sube el comprobante para confirmar el pago."
+                                            }
                                         </p>
                                         <div className="space-y-3">
                                             <div>
@@ -625,7 +734,7 @@ export default function PaymentModal({
                                                 onClick={() => registerManualPayment("transfer")}
                                                 className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition"
                                             >
-                                                Confirmar Transferencia
+                                                {isBalancePayment ? "Confirmar Transferencia de Saldo" : "Confirmar Transferencia"}
                                             </button>
                                         </div>
         </div>
@@ -635,7 +744,10 @@ export default function PaymentModal({
                                     <div className="p-4 bg-gray-50 rounded-lg">
                                         <h4 className="font-medium mb-2">Pago con PostNet</h4>
                                         <p className="text-sm text-gray-600 mb-4">
-                                            Procesa el pago con la terminal PostNet del hotel.
+                                            {isBalancePayment 
+                                                ? "Procesa el pago del saldo pendiente con la terminal PostNet del hotel."
+                                                : "Procesa el pago con la terminal PostNet del hotel."
+                                            }
                                         </p>
                                         <div className="space-y-3">
                                             <div>
@@ -663,14 +775,14 @@ export default function PaymentModal({
                                                 onClick={() => registerManualPayment("pos")}
                                                 className="w-full bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 transition"
                                             >
-                                                Confirmar Pago PostNet
+                                                {isBalancePayment ? "Confirmar Pago de Saldo PostNet" : "Confirmar Pago PostNet"}
                                             </button>
                                         </div>
         </div>
                                 )}
                         </div>
                     </div>
-                ) : null}
+                )}
       </div>
     </ModalLayout>
   );

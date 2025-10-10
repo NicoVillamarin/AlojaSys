@@ -330,12 +330,30 @@ def webhook(request):
             intent.status = PaymentIntentStatus.CREATED
         intent.save(update_fields=["mp_payment_id", "status", "updated_at"])
 
-        # Confirmar reserva si corresponde
+        # Confirmar reserva si corresponde y crear registro de pago
         try:
             reservation = reservation or intent.reservation
-            if reservation and status_detail == "approved" and reservation.status == ReservationStatus.PENDING:
-                reservation.status = ReservationStatus.CONFIRMED
-                reservation.save(update_fields=["status", "updated_at"])
+            if reservation and status_detail == "approved":
+                # Crear registro de pago en la tabla Payment si no existe
+                from apps.reservations.models import Payment
+                existing_payment = Payment.objects.filter(
+                    reservation=reservation,
+                    amount=intent.amount,
+                    method="card"
+                ).first()
+                
+                if not existing_payment:
+                    Payment.objects.create(
+                        reservation=reservation,
+                        date=timezone.now().date(),
+                        method="card",
+                        amount=intent.amount
+                    )
+                
+                # Confirmar reserva si está pendiente
+                if reservation.status == ReservationStatus.PENDING:
+                    reservation.status = ReservationStatus.CONFIRMED
+                    reservation.save(update_fields=["status", "updated_at"])
         except Exception:
             pass
 
@@ -433,10 +451,21 @@ def process_card_payment(request):
     )
     intent.save(update_fields=["mp_payment_id", "status", "updated_at"])
 
-    # Confirmar reserva si aprobado
-    if status_detail == "approved" and reservation.status == ReservationStatus.PENDING:
-        reservation.status = ReservationStatus.CONFIRMED
-        reservation.save(update_fields=["status", "updated_at"])
+    # Confirmar reserva si aprobado y crear registro de pago
+    if status_detail == "approved":
+        # Crear registro de pago en la tabla Payment
+        from apps.reservations.models import Payment
+        Payment.objects.create(
+            reservation=reservation,
+            date=timezone.now().date(),
+            method="card",
+            amount=amount
+        )
+        
+        # Confirmar reserva si está pendiente
+        if reservation.status == ReservationStatus.PENDING:
+            reservation.status = ReservationStatus.CONFIRMED
+            reservation.save(update_fields=["status", "updated_at"])
 
     return Response({
         "payment_id": payment.get("id"),

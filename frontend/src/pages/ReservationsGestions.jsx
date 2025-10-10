@@ -13,6 +13,9 @@ import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import PaymentModal from 'src/components/modals/PaymentModal'
 import Badge from 'src/components/Badge'
+import fetchWithAuth from 'src/services/fetchWithAuth'
+import { getApiURL } from 'src/services/utils'
+import { useAuthStore } from 'src/stores/useAuthStore'
 
 
 
@@ -22,6 +25,10 @@ export default function ReservationsGestions() {
   const [editReservation, setEditReservation] = useState(null)
   const [payOpen, setPayOpen] = useState(false)
   const [payReservationId, setPayReservationId] = useState(null)
+  const [balancePayOpen, setBalancePayOpen] = useState(false)
+  const [balancePayReservationId, setBalancePayReservationId] = useState(null)
+  const [balanceInfo, setBalanceInfo] = useState(null)
+  const [pendingAction, setPendingAction] = useState(null) // 'check_in' o 'check_out'
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
@@ -78,13 +85,82 @@ export default function ReservationsGestions() {
   const canConfirm = (r) => r.status === 'pending'
   const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
 
-  const onCheckIn = (r) => {
+  const onCheckIn = async (r) => {
     console.log(t('dashboard.reservations_management.console_messages.check_in_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
-    doAction({ action: `${r.id}/check_in`, body: {}, method: 'POST' })
+    
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${getApiURL()}/api/reservations/${r.id}/check_in/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (response.status === 402 && data.requires_payment) {
+        // Mostrar modal de pago de saldo pendiente
+        setBalancePayReservationId(r.id);
+        setBalanceInfo({
+          balance_due: data.balance_due,
+          total_paid: data.total_paid,
+          total_reservation: data.total_reservation,
+          payment_required_at: data.payment_required_at
+        });
+        setPendingAction('check_in');
+        setBalancePayOpen(true);
+      } else if (response.ok) {
+        // Check-in exitoso, refrescar datos
+        refetch();
+      } else {
+        throw new Error(data.detail || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error en check-in:', error);
+      // Si hay error, intentar con el método original
+      doAction({ action: `${r.id}/check_in`, body: {}, method: 'POST' });
+    }
   }
-  const onCheckOut = (r) => {
+  
+  const onCheckOut = async (r) => {
     console.log(t('dashboard.reservations_management.console_messages.check_out_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
-    doAction({ action: `${r.id}/check_out`, body: {}, method: 'POST' })
+    
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${getApiURL()}/api/reservations/${r.id}/check_out/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (response.status === 402 && data.requires_payment) {
+        // Mostrar modal de pago de saldo pendiente
+        setBalancePayReservationId(r.id);
+        setBalanceInfo({
+          balance_due: data.balance_due,
+          total_paid: data.total_paid,
+          total_reservation: data.total_reservation,
+          payment_required_at: data.payment_required_at
+        });
+        setPendingAction('check_out');
+        setBalancePayOpen(true);
+      } else if (response.ok) {
+        // Check-out exitoso, refrescar datos
+        refetch();
+      } else {
+        throw new Error(data.detail || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error en check-out:', error);
+      // Si hay error, intentar con el método original
+      doAction({ action: `${r.id}/check_out`, body: {}, method: 'POST' });
+    }
   }
   const onCancel = (r) => {
     console.log(t('dashboard.reservations_management.console_messages.cancel_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
@@ -121,6 +197,39 @@ export default function ReservationsGestions() {
         reservationId={payReservationId}
         onClose={() => setPayOpen(false)}
         onPaid={() => { setPayOpen(false); refetch(); }}
+      />
+
+      <PaymentModal
+        isOpen={balancePayOpen}
+        reservationId={balancePayReservationId}
+        balanceInfo={balanceInfo}
+        onClose={() => { 
+          setBalancePayOpen(false); 
+          setBalancePayReservationId(null); 
+          setBalanceInfo(null); 
+          setPendingAction(null);
+        }}
+        onPaid={async () => { 
+          setBalancePayOpen(false); 
+          setBalancePayReservationId(null); 
+          setBalanceInfo(null); 
+          
+          // Después del pago exitoso, ejecutar la acción pendiente automáticamente
+          if (balancePayReservationId && pendingAction) {
+            try {
+              const action = pendingAction === 'check_in' ? 'check_in' : 'check_out';
+              await fetchWithAuth(`${getApiURL()}/api/reservations/${balancePayReservationId}/${action}/`, {
+                method: 'POST'
+              });
+              console.log(`${action} realizado automáticamente después del pago`);
+            } catch (error) {
+              console.error(`Error en ${pendingAction} automático:`, error);
+            }
+          }
+          
+          setPendingAction(null);
+          refetch(); 
+        }}
       />
 
      <Filter>
@@ -240,6 +349,41 @@ export default function ReservationsGestions() {
           },
           { key: 'guests', header: t('dashboard.reservations_management.table_headers.guests_count'), sortable: true, right: true },
           { key: 'total_price', header: t('dashboard.reservations_management.table_headers.total'), sortable: true, right: true, render: (r) => `$ ${convertToDecimal(r.total_price)}` },
+          { 
+            key: 'balance_due', 
+            header: 'Saldo Pendiente', 
+            sortable: true, 
+            right: true, 
+            render: (r) => {
+              const balance = r.balance_due || 0;
+              const totalPaid = r.total_paid || 0;
+              const totalPrice = r.total_price || 0;
+              
+              if (balance > 0.01) {
+                return (
+                  <div className="text-right">
+                    <div className="text-red-600 font-semibold">
+                      ${convertToDecimal(balance)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Pagado: ${convertToDecimal(totalPaid)}
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="text-right">
+                    <div className="text-green-600 font-semibold">
+                      Pagado
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      ${convertToDecimal(totalPaid)}
+                    </div>
+                  </div>
+                );
+              }
+            }
+          },
           { 
             key: 'status', 
             header: t('dashboard.reservations_management.table_headers.status'), 

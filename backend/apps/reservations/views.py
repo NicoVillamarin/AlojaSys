@@ -108,6 +108,24 @@ class ReservationViewSet(viewsets.ModelViewSet):
             return Response({"detail": "La reserva debe estar confirmada para hacer check-in."}, status=status.HTTP_400_BAD_REQUEST)
         if not (reservation.check_in <= today < reservation.check_out):
             return Response({"detail": "El check-in solo puede realizarse dentro del rango de la reserva."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verificar si hay saldo pendiente según la política de pago
+        from apps.payments.services.payment_calculator import calculate_balance_due
+        balance_info = calculate_balance_due(reservation)
+        
+        # Si hay saldo pendiente y la política indica que se debe cobrar en check-in
+        if (balance_info['has_balance'] and 
+            balance_info.get('policy') and 
+            balance_info['policy'].balance_due == 'check_in'):
+            return Response({
+                "detail": "Check-in requiere pago del saldo pendiente.",
+                "requires_payment": True,
+                "balance_due": float(balance_info['balance_due']),
+                "total_paid": float(balance_info['total_paid']),
+                "total_reservation": float(balance_info['total_reservation']),
+                "payment_required_at": "check_in"
+            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+        
         reservation.status = ReservationStatus.CHECK_IN
         reservation.room.status = RoomStatus.OCCUPIED
         reservation.room.save(update_fields=["status"])
@@ -126,6 +144,24 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation = self.get_object()
         if reservation.status != ReservationStatus.CHECK_IN:
             return Response({"detail": "La reserva debe estar en check-in para hacer check-out."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verificar si hay saldo pendiente según la política de pago
+        from apps.payments.services.payment_calculator import calculate_balance_due
+        balance_info = calculate_balance_due(reservation)
+        
+        # Si hay saldo pendiente y la política indica que se debe cobrar en check-out
+        if (balance_info['has_balance'] and 
+            balance_info.get('policy') and 
+            balance_info['policy'].balance_due == 'check_out'):
+            return Response({
+                "detail": "Check-out requiere pago del saldo pendiente.",
+                "requires_payment": True,
+                "balance_due": float(balance_info['balance_due']),
+                "total_paid": float(balance_info['total_paid']),
+                "total_reservation": float(balance_info['total_reservation']),
+                "payment_required_at": "check_out"
+            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+        
         reservation.status = ReservationStatus.CHECK_OUT
         # Verificar si hay otra reserva activa hoy para la misma room
         today = date.today()
@@ -146,6 +182,25 @@ class ReservationViewSet(viewsets.ModelViewSet):
             changed_by=request.user if request.user.is_authenticated else None,
         )
         return Response({"detail": "Check-out realizado."}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"])
+    def balance_info(self, request, pk=None):
+        """Obtiene información del saldo pendiente de una reserva"""
+        reservation = self.get_object()
+        from apps.payments.services.payment_calculator import calculate_balance_due
+        balance_info = calculate_balance_due(reservation)
+        
+        return Response({
+            "has_balance": balance_info['has_balance'],
+            "balance_due": float(balance_info['balance_due']),
+            "total_paid": float(balance_info['total_paid']),
+            "total_reservation": float(balance_info['total_reservation']),
+            "policy": {
+                "balance_due": balance_info.get('policy').balance_due if balance_info.get('policy') else None,
+                "deposit_type": balance_info.get('policy').deposit_type if balance_info.get('policy') else None,
+                "deposit_value": float(balance_info.get('policy').deposit_value) if balance_info.get('policy') else None,
+            } if balance_info.get('policy') else None
+        })
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
