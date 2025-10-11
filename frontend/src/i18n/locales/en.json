@@ -32,7 +32,8 @@
     "promotions": "Promotions",
     "taxes": "Taxes",
     "payment_policies": "Payment Policies",
-    "history": "History"
+    "history": "History",
+    "reservations_calendar": "Reservations Calendar"
   },
   "common": {
     "save": "Save",

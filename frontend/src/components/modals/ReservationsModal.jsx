@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
+import DatePickedRange from 'src/components/DatePickedRange'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 import Tabs from 'src/components/Tabs'
@@ -74,6 +75,49 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       console.error('Error calculating stay duration:', error)
       return 0
     }
+  }
+
+  // Función para extraer fechas ocupadas de los datos de la habitación
+  const getOccupiedDates = (roomData) => {
+    if (!roomData) return []
+    
+    const occupiedDates = new Set()
+    
+    // Agregar reserva actual si existe
+    if (roomData.current_reservation) {
+      const { check_in, check_out } = roomData.current_reservation
+      if (check_in && check_out) {
+        const startDate = new Date(check_in)
+        const endDate = new Date(check_out)
+        
+        // Agregar todas las fechas entre check_in y check_out (incluyendo check_out)
+        let currentDate = new Date(startDate)
+        while (currentDate <= endDate) {
+          occupiedDates.add(currentDate.toISOString().split('T')[0])
+          currentDate.setDate(currentDate.getDate() + 1)
+        }
+      }
+    }
+    
+    // Agregar reservas futuras
+    if (roomData.future_reservations && Array.isArray(roomData.future_reservations)) {
+      roomData.future_reservations.forEach(reservation => {
+        const { check_in, check_out } = reservation
+        if (check_in && check_out) {
+          const startDate = new Date(check_in)
+          const endDate = new Date(check_out)
+          
+          // Agregar todas las fechas entre check_in y check_out (incluyendo check_out)
+          let currentDate = new Date(startDate)
+          while (currentDate <= endDate) {
+            occupiedDates.add(currentDate.toISOString().split('T')[0])
+            currentDate.setDate(currentDate.getDate() + 1)
+          }
+        }
+      })
+    }
+    
+    return Array.from(occupiedDates).sort()
   }
 
   const { mutate: createReservation, isPending: creating } = useCreate({
@@ -152,8 +196,14 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     ...primaryGuestData,
     guests: reservation?.guests ?? 1,
     other_guests: otherGuestsData,
+    // Campos individuales para compatibilidad
     check_in: reservation?.check_in ? reservation.check_in.split('T')[0] : '',
     check_out: reservation?.check_out ? reservation.check_out.split('T')[0] : '',
+    // Campo unificado para el rango de fechas
+    date_range: {
+      startDate: reservation?.check_in ? reservation.check_in.split('T')[0] : '',
+      endDate: reservation?.check_out ? reservation.check_out.split('T')[0] : '',
+    },
     room: reservation?.room ?? '',
     room_data: reservation?.room_data ?? null, // Información completa de la habitación
     status: reservation?.status ?? 'pending',
@@ -210,6 +260,53 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         return true
       })
       .required(t('reservations_modal.guests_required')),
+    // Validación del rango de fechas
+    date_range: Yup.object({
+      startDate: Yup.date()
+        .required(t('reservations_modal.check_in_required'))
+        .test('not-before-today', t('reservations_modal.check_in_not_before_today'), function (value) {
+          if (!value) return true
+          const today = new Date()
+          const checkInDate = new Date(value)
+          
+          // Establecer ambas fechas a medianoche para comparar solo la fecha
+          today.setHours(0, 0, 0, 0)
+          checkInDate.setHours(0, 0, 0, 0)
+          
+          return checkInDate >= today
+        }),
+      endDate: Yup.date()
+        .required(t('reservations_modal.check_out_required'))
+        .test('is-after-checkin', t('reservations_modal.check_out_after_checkin'), function (value) {
+          const { startDate } = this.parent
+          if (!startDate || !value) return true
+          
+          const checkInDate = new Date(startDate)
+          const checkOutDate = new Date(value)
+          
+          // Establecer ambas fechas a medianoche para comparar solo la fecha
+          checkInDate.setHours(0, 0, 0, 0)
+          checkOutDate.setHours(0, 0, 0, 0)
+          
+          return checkOutDate > checkInDate
+        })
+        .test('min-stay', t('reservations_modal.min_stay'), function (value) {
+          const { startDate } = this.parent
+          if (!startDate || !value) return true
+          
+          const checkInDate = new Date(startDate)
+          const checkOutDate = new Date(value)
+          
+          // Establecer ambas fechas a medianoche para comparar solo la fecha
+          checkInDate.setHours(0, 0, 0, 0)
+          checkOutDate.setHours(0, 0, 0, 0)
+          
+          const diffTime = checkOutDate - checkInDate
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+          return diffDays >= 1
+        }),
+    }),
+    // Mantener validaciones individuales para compatibilidad
     check_in: Yup.date()
       .required(t('reservations_modal.check_in_required'))
       .test('not-before-today', t('reservations_modal.check_in_not_before_today'), function (value) {
@@ -291,7 +388,10 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   const isBasicComplete = () => {
     const { values } = formikRef.current || { values: {} }
     const effGuests = getEffectiveGuests(values)
-    return Boolean(values?.hotel && values?.room && values?.check_in && values?.check_out && effGuests >= 1)
+    // Verificar tanto el rango de fechas como los campos individuales para compatibilidad
+    const hasDateRange = values?.date_range?.startDate && values?.date_range?.endDate
+    const hasIndividualDates = values?.check_in && values?.check_out
+    return Boolean(values?.hotel && values?.room && (hasDateRange || hasIndividualDates) && effGuests >= 1)
   }
 
   const isGuestsComplete = () => {
@@ -377,13 +477,17 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         })
       }
 
+      // Usar el rango de fechas si está disponible, sino usar los campos individuales
+      const checkIn = values.date_range?.startDate || values.check_in
+      const checkOut = values.date_range?.endDate || values.check_out
+
       const payload = {
         hotel: values.hotel ? Number(values.hotel) : undefined,
         room: values.room ? Number(values.room) : undefined,
         guests: values.guests ? Number(values.guests) : 1,
         guests_data: guestsData,
-        check_in: values.check_in || undefined,
-        check_out: values.check_out || undefined,
+        check_in: checkIn || undefined,
+        check_out: checkOut || undefined,
         channel: values.channel || undefined,
         notes: values.notes || undefined,
         status: values.status || 'pending',
@@ -471,6 +575,15 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         // Guardar referencia a Formik para helpers del footer
         formikRef.current = { values, setFieldValue, errors, touched }
 
+        // Extraer fechas ocupadas de los datos de la habitación
+        const occupiedDates = getOccupiedDates(values.room_data)
+        
+        // Debug: mostrar fechas ocupadas en consola
+        if (values.room_data && occupiedDates.length > 0) {
+          console.log('Datos de la habitación:', values.room_data)
+          console.log('Fechas ocupadas extraídas:', occupiedDates)
+        }
+
         // Limpiar habitación si cambió el número de huéspedes y la habitación actual no tiene capacidad suficiente
         if (values.guests !== previousGuests) {
           setPreviousGuests(values.guests)
@@ -483,14 +596,21 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         const titleNode = (
           <div className="flex flex-col">
             <span className="text-base sm:text-lg">{isEdit ? t('reservations_modal.edit_reservation') : t('reservations_modal.create_reservation')}</span>
-            {values.check_in && values.check_out && (
-              <div className="text-xs sm:text-sm font-normal text-gray-600 mt-1">
-                {(() => {
-                  const duration = calculateStayDuration(values.check_in, values.check_out)
-                  return `${formatDate(values.check_in, 'dd/MM/yyyy')} - ${formatDate(values.check_out, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})`
-                })()}
-              </div>
-            )}
+            {(() => {
+              // Usar el rango de fechas si está disponible, sino usar los campos individuales
+              const checkIn = values.date_range?.startDate || values.check_in
+              const checkOut = values.date_range?.endDate || values.check_out
+              
+              if (checkIn && checkOut) {
+                const duration = calculateStayDuration(checkIn, checkOut)
+                return (
+                  <div className="text-xs sm:text-sm font-normal text-gray-600 mt-1">
+                    {`${formatDate(checkIn, 'dd/MM/yyyy')} - ${formatDate(checkOut, 'dd/MM/yyyy')} (${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})`}
+                  </div>
+                )
+              }
+              return null
+            })()}
           </div>
         )
 
@@ -508,116 +628,141 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
               {activeTab === 'basic' && (
                 <>
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <SelectAsync
-                      title={`${t('reservations_modal.hotel')} *`}
-                      name='hotel'
-                      resource='hotels'
-                      extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
-                      placeholder={t('common.search_placeholder')}
-                      getOptionLabel={(h) => h?.name}
-                      getOptionValue={(h) => h?.id}
-                      value={values.hotel}
-                      onChange={(option) => setFieldValue('hotel', option?.value || null)}
-                      error={touched.hotel && errors.hotel}
-                    />
+                    <div>
+                      <SelectAsync
+                        title={`${t('reservations_modal.hotel')} *`}
+                        name='hotel'
+                        resource='hotels'
+                        extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
+                        placeholder={t('common.search_placeholder')}
+                        getOptionLabel={(h) => h?.name}
+                        getOptionValue={(h) => h?.id}
+                        value={values.hotel}
+                        onChange={(option) => setFieldValue('hotel', option?.value || null)}
+                        error={touched.hotel && errors.hotel}
+                      />
+                    </div>
 
-                    <InputText
-                      title={`${t('reservations_modal.guests_number')} *`}
-                      name='guests'
-                      type='number'
-                      min='1'
-                      max={values.room_data?.max_capacity || 10}
-                      placeholder='Ej: 2'
-                      value={values.guests}
-                      onChange={(e) => setFieldValue('guests', Number(e.target.value))}
-                      error={touched.guests && errors.guests}
-                    />
-
-                    <InputText
-                      title={`${t('reservations_modal.check_in')} *`}
-                      name='check_in'
-                      type='date'
-                      value={values.check_in}
-                      onChange={(e) => setFieldValue('check_in', e.target.value)}
-                      error={touched.check_in && errors.check_in}
-                    />
-                    <InputText
-                      title={`${t('reservations_modal.check_out')} *`}
-                      name='check_out'
-                      type='date'
-                      value={values.check_out}
-                      onChange={(e) => setFieldValue('check_out', e.target.value)}
-                      error={touched.check_out && errors.check_out}
-                    />
-
-                    <SelectAsync
-                      title={`${t('reservations_modal.room')} *`}
-                      name='room'
-                      resource='rooms'
-                      placeholder={
-                        !values.hotel
-                          ? t('reservations_modal.room_placeholder_no_hotel')
-                          : values.guests
-                            ? t('reservations_modal.room_placeholder_with_guests', { 
-                                guests: values.guests, 
-                                plural: values.guests > 1 ? 'es' : '' 
-                              })
-                            : t('reservations_modal.room_placeholder_loading')
-                      }
-                      getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
-                      getOptionValue={(r) => r?.id}
-                      extraParams={{
-                        hotel: values.hotel || undefined,
-                        min_capacity: getEffectiveGuests(values) || undefined,
-                      }}
-                      value={values.room}
-                      onValueChange={(option) => {
-                        setFieldValue('room', option?.id || null)
-                        setFieldValue('room_data', option || null)
-                      }}
-                      error={touched.room && errors.room}
-                      disabled={!values.hotel || getEffectiveGuests(values) === 0}
-                    />
-                  </div>
-
-                  {values.check_in && values.check_out && (
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg border border-blue-200 w-full sm:w-3/4 lg:w-1/2 mx-auto">
-                      <div className="flex flex-col sm:flex-row items-center justify-center space-y-3 sm:space-y-0 sm:space-x-6">
-                        <div className="text-center">
-                          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_in')}</div>
-                          <div className="text-base sm:text-lg font-bold text-blue-600">{formatDate(values.check_in, 'EEE, dd MMM')}</div>
-                          <div className="text-xs text-gray-500">{formatDate(values.check_in, 'yyyy')}</div>
+                    <div>
+                      <InputText
+                        title={`${t('reservations_modal.guests_number')} *`}
+                        name='guests'
+                        type='number'
+                        min='1'
+                        max={values.room_data?.max_capacity || 10}
+                        placeholder='Ej: 2'
+                        value={values.guests}
+                        onChange={(e) => setFieldValue('guests', Number(e.target.value))}
+                        error={touched.guests && errors.guests}
+                      />
+                    </div>
+                    <div>
+                      <SelectAsync
+                        title={`${t('reservations_modal.room')} *`}
+                        name='room'
+                        resource='rooms'
+                        placeholder={
+                          !values.hotel
+                            ? t('reservations_modal.room_placeholder_no_hotel')
+                            : values.guests
+                              ? t('reservations_modal.room_placeholder_with_guests', { 
+                                  guests: values.guests, 
+                                  plural: values.guests > 1 ? 'es' : '' 
+                                })
+                              : t('reservations_modal.room_placeholder_loading')
+                        }
+                        getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
+                        getOptionValue={(r) => r?.id}
+                        extraParams={{
+                          hotel: values.hotel || undefined,
+                          min_capacity: getEffectiveGuests(values) || undefined,
+                        }}
+                        value={values.room}
+                        onValueChange={(option) => {
+                          setFieldValue('room', option?.id || null)
+                          setFieldValue('room_data', option || null)
+                        }}
+                        error={touched.room && errors.room}
+                        disabled={!values.hotel || getEffectiveGuests(values) === 0}
+                      />
+                      {values.guests && values.hotel && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          💡 {t('reservations_modal.capacity_filter_info', { 
+                            guests: values.guests, 
+                            plural: values.guests > 1 ? 'es' : '' 
+                          })}
                         </div>
-                        <div className="flex items-center space-x-2 sm:space-x-3">
-                          <div className="w-4 sm:w-6 h-0.5 bg-blue-300"></div>
-                          <div className="bg-blue-100 px-2 sm:px-3 py-1 rounded-full">
-                            <span className="text-blue-700 font-semibold text-xs sm:text-sm">
-                              {(() => {
-                                const duration = calculateStayDuration(values.check_in, values.check_out)
-                                return `${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')}`
-                              })()}
-                            </span>
-                          </div>
-                          <div className="w-4 sm:w-6 h-0.5 bg-blue-300"></div>
+                      )}
+                      {values.room_data && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {t('reservations_modal.capacity_info', { max: values.room_data.max_capacity })}
                         </div>
-                        <div className="text-center">
-                          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_out')}</div>
-                          <div className="text-base sm:text-lg font-bold text-blue-600">{formatDate(values.check_out, 'EEE, dd MMM')}</div>
-                          <div className="text-xs text-gray-500">{formatDate(values.check_out, 'yyyy')}</div>
-                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <DatePickedRange
+                        label="Fechas de estadía *"
+                        startDate={values.date_range?.startDate || values.check_in}
+                        endDate={values.date_range?.endDate || values.check_out}
+                        minDate={new Date().toISOString().split('T')[0]}
+                        onChange={(startDate, endDate) => {
+                          // Actualizar tanto el rango como los campos individuales para compatibilidad
+                          setFieldValue('date_range', { startDate, endDate })
+                          setFieldValue('check_in', startDate)
+                          setFieldValue('check_out', endDate)
+                        }}
+                        placeholder="Check-in — Check-out"
+                        inputClassName="w-full"
+                        containerClassName=""
+                        occupiedDates={occupiedDates}
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        💡 La primera fecha es el <strong>check-in</strong> y la segunda el <strong>check-out</strong>
+                        {values.room && occupiedDates.length > 0 && (
+                          <span className="text-red-600 ml-2">🚫 {occupiedDates.length} fecha(s) ocupada(s)</span>
+                        )}
                       </div>
                     </div>
-                  )}
+                  </div>
 
-                  {values.guests && values.hotel && (
-                    <div className="text-sm text-blue-600 mt-1">💡 {t('reservations_modal.capacity_filter_info', { 
-                      guests: values.guests, 
-                      plural: values.guests > 1 ? 'es' : '' 
-                    })}</div>
-                  )}
-                  {values.room_data && (
-                    <div className="text-sm text-gray-600 mt-1">{t('reservations_modal.capacity_info', { max: values.room_data.max_capacity })}</div>
-                  )}
+                  {(() => {
+                    // Usar el rango de fechas si está disponible, sino usar los campos individuales
+                    const checkIn = values.date_range?.startDate || values.check_in
+                    const checkOut = values.date_range?.endDate || values.check_out
+                    
+                    if (checkIn && checkOut) {
+                      return (
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg border border-blue-200 w-full sm:w-3/4 lg:w-1/2 mx-auto">
+                          <div className="flex flex-col sm:flex-row items-center justify-center space-y-3 sm:space-y-0 sm:space-x-6">
+                            <div className="text-center">
+                              <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_in')}</div>
+                              <div className="text-base sm:text-lg font-bold text-blue-600">{formatDate(checkIn, 'EEE, dd MMM')}</div>
+                              <div className="text-xs text-gray-500">{formatDate(checkIn, 'yyyy')}</div>
+                            </div>
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              <div className="w-4 sm:w-6 h-0.5 bg-blue-300"></div>
+                              <div className="bg-blue-100 px-2 sm:px-3 py-1 rounded-full">
+                                <span className="text-blue-700 font-semibold text-xs sm:text-sm">
+                                  {(() => {
+                                    const duration = calculateStayDuration(checkIn, checkOut)
+                                    return `${duration} ${duration === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')}`
+                                  })()}
+                                </span>
+                              </div>
+                              <div className="w-4 sm:w-6 h-0.5 bg-blue-300"></div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{t('reservations_modal.check_out')}</div>
+                              <div className="text-base sm:text-lg font-bold text-blue-600">{formatDate(checkOut, 'EEE, dd MMM')}</div>
+                              <div className="text-xs text-gray-500">{formatDate(checkOut, 'yyyy')}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+
                   <div>
                     <InputText
                       title={t('reservations_modal.notes')}

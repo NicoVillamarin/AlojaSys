@@ -31,7 +31,8 @@
     "rate_rules": "Regras de Tarifas",
     "promotions": "Promoções",
     "taxes": "Impostos",
-    "history": "Históricos"
+    "history": "Históricos",
+    "reservations_calendar": "Calendário de Reservas"
   },
   "common": {
     "save": "Salvar",

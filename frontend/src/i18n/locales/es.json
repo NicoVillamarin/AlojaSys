@@ -32,7 +32,8 @@
     "promotions": "Promociones",
     "taxes": "Impuestos",
     "payment_policies": "Políticas de Pago",
-    "history": "Históricos"
+    "history": "Históricos",
+    "reservations_calendar": "Calendario de Reservas"
   },
   "common": {
     "save": "Guardar",

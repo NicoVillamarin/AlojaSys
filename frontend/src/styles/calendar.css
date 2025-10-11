@@ -1,0 +1,340 @@
+/* Estilos modernos para FullCalendar */
+.fc {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --fc-border-color: #E2E8F0;
+  --fc-today-bg-color: rgba(59, 130, 246, 0.1);
+  --fc-neutral-bg-color: #F8FAFC;
+  --fc-list-event-hover-bg-color: #F1F5F9;
+}
+
+.fc-toolbar {
+  margin-bottom: 2rem;
+  padding: 0 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.fc-toolbar .fc-toolbar-chunk {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fc-toolbar .fc-toolbar-chunk:first-child {
+  gap: 0.75rem;
+}
+
+.fc-toolbar-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #1E293B;
+  letter-spacing: -0.025em;
+}
+
+/* Reset completo de botones para evitar conflictos */
+.fc-button {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #475569 !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  padding: 0.5rem 1rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  margin: 0 !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Espaciado específico para botones individuales */
+.fc-toolbar .fc-button:not(.fc-button-group .fc-button) {
+  margin: 0 4px !important;
+}
+
+.fc-button:hover {
+  background: #3B82F6 !important;
+  border-color: #3B82F6 !important;
+  color: white !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+.fc-button:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+.fc-button-active {
+  background: #3B82F6 !important;
+  border-color: #3B82F6 !important;
+  color: white !important;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4) !important;
+  transform: none !important;
+}
+
+.fc-button-active:hover {
+  background: #3B82F6 !important;
+  border-color: #3B82F6 !important;
+  color: white !important;
+  transform: none !important;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4) !important;
+}
+
+/* Estilos específicos para el grupo de botones de vista */
+.fc-toolbar .fc-button-group {
+  display: flex !important;
+  gap: 0 !important;
+}
+
+.fc-toolbar .fc-button-group .fc-button {
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border-right: none !important;
+}
+
+.fc-toolbar .fc-button-group .fc-button:first-child {
+  border-top-left-radius: 8px !important;
+  border-bottom-left-radius: 8px !important;
+}
+
+.fc-toolbar .fc-button-group .fc-button:last-child {
+  border-top-right-radius: 8px !important;
+  border-bottom-right-radius: 8px !important;
+  border-right: 1px solid #E2E8F0 !important;
+}
+
+.fc-toolbar .fc-button-group .fc-button:not(:last-child) {
+  border-right: none !important;
+}
+
+.fc-daygrid-day {
+  border-color: #E2E8F0;
+  transition: all 0.2s ease;
+}
+
+.fc-daygrid-day:hover {
+  background-color: #F8FAFC;
+}
+
+.fc-daygrid-day-number {
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.fc-daygrid-day:hover .fc-daygrid-day-number {
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  color: white;
+  border-radius: 8px;
+  transform: scale(1.1);
+}
+
+.fc-day-today {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(29, 78, 216, 0.05) 100%);
+  position: relative;
+}
+
+.fc-day-today::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3B82F6, #1D4ED8);
+}
+
+.fc-day-today .fc-daygrid-day-number {
+  color: #3B82F6;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Estilos modernos para eventos de reservas */
+.fc-event {
+  border-radius: 12px;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.fc-event::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.6s;
+}
+
+.fc-event:hover::before {
+  left: 100%;
+}
+
+.fc-event:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+/* Colores modernos por estado de reserva */
+.reservation-pending {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3) !important;
+}
+
+.reservation-confirmed {
+  background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
+}
+
+.reservation-check_in {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+}
+
+.reservation-check_out {
+  background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3) !important;
+}
+
+.reservation-cancelled {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+}
+
+.reservation-no_show {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3) !important;
+}
+
+/* Estilos modernos para el popover de más eventos */
+.fc-more-popover {
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  border: 1px solid #E2E8F0;
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.fc-more-popover .fc-event {
+  margin-bottom: 4px;
+  border-radius: 8px;
+}
+
+/* Estilos modernos para la selección de fechas */
+.fc-highlight {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(29, 78, 216, 0.05) 100%);
+  border-radius: 12px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Estilos modernos para el header de días de la semana */
+.fc-col-header-cell {
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 16px 12px;
+  border-bottom: 2px solid #E2E8F0;
+  position: relative;
+}
+
+.fc-col-header-cell::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #3B82F6, #1D4ED8);
+  transition: width 0.3s ease;
+}
+
+.fc-col-header-cell:hover::after {
+  width: 60%;
+}
+
+/* Estilos modernos para el scrollbar */
+.fc-scroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.fc-scroller::-webkit-scrollbar-track {
+  background: #F1F5F9;
+  border-radius: 8px;
+}
+
+.fc-scroller::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #CBD5E1, #94A3B8);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.fc-scroller::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #94A3B8, #64748B);
+}
+
+/* Animaciones adicionales */
+.fc-daygrid-day {
+  position: relative;
+}
+
+.fc-daygrid-day::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.02) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.fc-daygrid-day:hover::before {
+  opacity: 1;
+}
+
+/* Mejoras en la tipografía */
+.fc-event-title {
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+/* Efectos de glassmorphism para el calendario */
+.fc-view-harness {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}

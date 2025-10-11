@@ -15,6 +15,7 @@ import BitacoraIcon from "src/assets/icons/BitacoraIcon";
 import CardCreditIcon from "src/assets/icons/CardCreditIcon";
 import UserIcon from "src/assets/icons/UserIcon";
 import ReceptionIcon from "src/assets/icons/ReceptionIcon";
+import CalendarIcon from "src/assets/icons/CalendarIcon";
 
 const Item = ({ to, children, onMobileClose, isMobile }) => (
   <NavLink
@@ -97,10 +98,11 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         <Item to="/" onMobileClose={onMobileClose} isMobile={isMobile}><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
         <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
         <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
+        <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
         <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
         <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}><CardCreditIcon size="20" /> {!isMini && <span>{t('sidebar.payments')}</span>}</Item>
-        {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}><BitacoraIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_history')}</span>}</Item>
+        {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}
         {/*<Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>*/}
         {!isMini && (
