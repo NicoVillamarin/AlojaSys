@@ -56,32 +56,32 @@
 }
 
 .fc-button:hover {
-  background: #3B82F6 !important;
-  border-color: #3B82F6 !important;
+  background: #D4AF37 !important;
+  border-color: #D4AF37 !important;
   color: white !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 4px 8px rgba(212, 175, 55, 0.3) !important;
 }
 
 .fc-button:focus {
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2) !important;
 }
 
 .fc-button-active {
-  background: #3B82F6 !important;
-  border-color: #3B82F6 !important;
+  background: #D4AF37 !important;
+  border-color: #D4AF37 !important;
   color: white !important;
-  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 4px 8px rgba(212, 175, 55, 0.4) !important;
   transform: none !important;
 }
 
 .fc-button-active:hover {
-  background: #3B82F6 !important;
-  border-color: #3B82F6 !important;
+  background: #D4AF37 !important;
+  border-color: #D4AF37 !important;
   color: white !important;
   transform: none !important;
-  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 4px 8px rgba(212, 175, 55, 0.4) !important;
 }
 
 /* Estilos específicos para el grupo de botones de vista */
@@ -129,14 +129,14 @@
 }
 
 .fc-daygrid-day:hover .fc-daygrid-day-number {
-  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  background: linear-gradient(135deg, #D4AF37, #B8860B);
   color: white;
   border-radius: 8px;
   transform: scale(1.1);
 }
 
 .fc-day-today {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(29, 78, 216, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(184, 134, 11, 0.05) 100%);
   position: relative;
 }
 
@@ -147,13 +147,13 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #3B82F6, #1D4ED8);
+  background: linear-gradient(90deg, #D4AF37, #B8860B);
 }
 
 .fc-day-today .fc-daygrid-day-number {
-  color: #3B82F6;
+  color: #D4AF37;
   font-weight: 700;
-  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  background: linear-gradient(135deg, #D4AF37, #B8860B);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -247,9 +247,9 @@
 
 /* Estilos modernos para la selección de fechas */
 .fc-highlight {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(29, 78, 216, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(184, 134, 11, 0.05) 100%);
   border-radius: 12px;
-  border: 2px solid rgba(59, 130, 246, 0.3);
+  border: 2px solid rgba(212, 175, 55, 0.3);
 }
 
 /* Estilos modernos para el header de días de la semana */
@@ -273,7 +273,7 @@
   transform: translateX(-50%);
   width: 0;
   height: 2px;
-  background: linear-gradient(90deg, #3B82F6, #1D4ED8);
+  background: linear-gradient(90deg, #D4AF37, #B8860B);
   transition: width 0.3s ease;
 }
 
@@ -314,7 +314,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.02) 100%);
+  background: linear-gradient(135deg, transparent 0%, rgba(212, 175, 55, 0.02) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;

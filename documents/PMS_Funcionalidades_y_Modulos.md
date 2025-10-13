@@ -10,8 +10,9 @@
    - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
    - [3.5 Gestión de Tarifas](#35-gestión-de-tarifas)
    - [3.6 Dashboard y Reportes](#36-dashboard-y-reportes)
-   - [3.7 Gestión de Usuarios](#37-gestión-de-usuarios)
-   - [3.8 Gestión de Empresas](#38-gestión-de-empresas)
+   - [3.7 Calendario de Reservas](#37-calendario-de-reservas)
+   - [3.8 Gestión de Usuarios](#38-gestión-de-usuarios)
+   - [3.9 Gestión de Empresas](#39-gestión-de-empresas)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
 5. [Casos de Uso Reales](#casos-de-uso-reales)
 6. [Beneficios del Sistema](#beneficios-del-sistema)
@@ -24,6 +25,7 @@
 
 - 🏨 **Gestionar las habitaciones** y su disponibilidad
 - 📅 **Administrar las reservas** desde la consulta hasta el check-out
+- 📆 **Visualizar reservas** en un calendario interactivo y elegante
 - 💰 **Procesar pagos** de manera segura y flexible
 - 📊 **Generar reportes** y métricas del negocio
 - 👥 **Gestionar usuarios** y permisos del personal
@@ -443,7 +445,228 @@ Distribución actual:
 
 ---
 
-## 3.7 Gestión de Usuarios
+## 3.7 Calendario de Reservas
+
+### ¿Qué hace?
+Proporciona una vista visual e interactiva de todas las reservas del hotel, permitiendo una gestión eficiente y una comprensión rápida del estado de ocupación.
+
+### ¿Cómo funciona?
+
+#### Vista de Calendario Inteligente
+```
+Vista mensual:
+- Calendario completo del mes actual
+- Reservas mostradas como bloques de colores
+- Información de habitación y huésped visible
+- Estados diferenciados por colores
+
+Vista semanal:
+- Detalle de una semana específica
+- Mayor espacio para ver información
+- Ideal para planificación detallada
+
+Vista diaria:
+- Enfoque en un día específico
+- Lista detallada de todas las reservas
+- Perfecta para operaciones diarias
+```
+
+#### Colores por Estado de Reserva
+```
+🟡 Pendiente: Amarillo - Reserva creada, pendiente de confirmación
+🔵 Confirmada: Azul - Reserva confirmada, pago procesado
+🟢 Check-in: Verde - Huéspedes en el hotel
+⚫ Check-out: Gris - Huéspedes se fueron
+🔴 Cancelada: Rojo - Reserva cancelada
+🟣 No-show: Púrpura - Huésped no se presentó
+```
+
+#### Funcionalidades Interactivas
+
+##### Visualización de Reservas
+```
+Información mostrada:
+- Nombre de la habitación (ej: "HAB-101")
+- Nombre del huésped (ej: "Juan Pérez")
+- Fechas de check-in y check-out
+- Estado actual de la reserva
+- Duración de la estadía
+```
+
+##### Gestión desde el Calendario
+```
+Acciones disponibles:
+- Crear nueva reserva haciendo clic en fecha vacía
+- Editar reserva existente haciendo clic en el evento
+- Ver detalles completos de la reserva
+- Filtrar por hotel, habitación o estado
+- Buscar reservas por nombre de huésped
+```
+
+##### Filtros Avanzados
+```
+Filtros disponibles:
+- Por hotel: Ver reservas de un hotel específico
+- Por habitación: Filtrar por habitación particular
+- Por estado: Mostrar solo reservas en cierto estado
+- Por búsqueda: Buscar por nombre de huésped
+- Limpiar filtros: Volver a vista completa
+```
+
+#### Indicadores Visuales
+
+##### Día Actual
+```
+Marcado especial:
+- Fondo dorado sutil
+- Borde superior dorado
+- Número del día en dorado
+- Efecto de gradiente elegante
+```
+
+##### Hover y Selección
+```
+Interacciones:
+- Hover en fechas: Efecto dorado corporativo
+- Selección de rango: Resaltado dorado
+- Botones activos: Color dorado de la empresa
+- Transiciones suaves y elegantes
+```
+
+#### Información Detallada de Reservas
+
+##### Modal de Detalles
+```
+Al hacer clic en una reserva:
+- Información completa del huésped
+- Datos de la habitación asignada
+- Fechas de check-in y check-out
+- Estado actual de la reserva
+- Opción para editar la reserva
+- Botón para cerrar el modal
+```
+
+##### Datos Mostrados
+```
+Información del huésped:
+- Nombre completo
+- Email de contacto
+- Teléfono
+- Documento de identidad
+- Dirección de contacto
+
+Información de la reserva:
+- Número de habitación
+- Piso de la habitación
+- Tipo de habitación
+- Número de huéspedes
+- Precio total de la estadía
+```
+
+#### Navegación Intuitiva
+
+##### Controles de Navegación
+```
+Botones disponibles:
+- Anterior: Ir al mes/semana/día anterior
+- Siguiente: Ir al mes/semana/día siguiente
+- Hoy: Volver a la fecha actual
+- Cambiar vista: Mes/Semana/Día
+```
+
+##### Responsive Design
+```
+Adaptación automática:
+- Vista optimizada para móviles
+- Botones táctiles en tablets
+- Navegación simplificada en pantallas pequeñas
+- Información condensada pero completa
+```
+
+### Beneficios
+
+#### Para el Personal de Recepción
+- ✅ **Vista rápida** del estado de ocupación
+- ✅ **Identificación inmediata** de habitaciones disponibles
+- ✅ **Gestión eficiente** de check-ins y check-outs
+- ✅ **Prevención de errores** con información visual clara
+
+#### Para los Gerentes
+- ✅ **Análisis visual** de la ocupación
+- ✅ **Planificación estratégica** basada en patrones
+- ✅ **Identificación de tendencias** de reservas
+- ✅ **Toma de decisiones** informada
+
+#### Para el Personal de Limpieza
+- ✅ **Lista visual** de habitaciones a limpiar
+- ✅ **Priorización** por horarios de check-in
+- ✅ **Seguimiento** del estado de cada habitación
+- ✅ **Coordinación** con recepción
+
+#### Para el Personal de Mantenimiento
+- ✅ **Identificación** de habitaciones fuera de servicio
+- ✅ **Planificación** de tareas de mantenimiento
+- ✅ **Seguimiento** del estado de habitaciones
+- ✅ **Coordinación** con otros departamentos
+
+### Casos de Uso Prácticos
+
+#### Caso 1: Recepción Matutina
+```
+Situación: Recepcionista inicia el día
+Proceso:
+1. Abre el calendario en vista diaria
+2. Ve todas las llegadas del día (check-ins)
+3. Identifica habitaciones que necesitan limpieza
+4. Planifica el trabajo del día
+5. Coordina con limpieza y mantenimiento
+```
+
+#### Caso 2: Planificación Semanal
+```
+Situación: Gerente planifica la semana
+Proceso:
+1. Cambia a vista semanal
+2. Analiza la ocupación por días
+3. Identifica días de alta ocupación
+4. Planifica recursos adicionales
+5. Coordina con personal de limpieza
+```
+
+#### Caso 3: Gestión de Emergencias
+```
+Situación: Habitación necesita mantenimiento urgente
+Proceso:
+1. Identifica la habitación en el calendario
+2. Ve si hay reservas futuras
+3. Reasigna huéspedes si es necesario
+4. Marca habitación como fuera de servicio
+5. Actualiza el calendario en tiempo real
+```
+
+### Integración con Otros Módulos
+
+#### Con Gestión de Reservas
+- **Sincronización automática** de cambios
+- **Actualización en tiempo real** del estado
+- **Validación visual** de disponibilidad
+- **Prevención de conflictos** de reservas
+
+#### Con Dashboard
+- **Métricas visuales** complementarias
+- **Análisis de ocupación** gráfico
+- **Tendencias** de reservas
+- **Reportes** basados en datos del calendario
+
+#### Con Sistema de Pagos
+- **Indicadores visuales** de estado de pago
+- **Alertas** de pagos pendientes
+- **Seguimiento** de saldos
+- **Confirmación** automática de pagos
+
+---
+
+## 3.8 Gestión de Usuarios
 
 ### ¿Qué hace?
 Administra el acceso y permisos del personal del hotel.
@@ -484,7 +707,7 @@ Un usuario puede trabajar en:
 
 ---
 
-## 3.8 Gestión de Empresas
+## 3.9 Gestión de Empresas
 
 ### ¿Qué hace?
 Administra empresas que pueden tener múltiples hoteles.
@@ -526,31 +749,32 @@ Configuración global:
 #### Check-outs del Día
 ```
 1. Recepcionista abre el sistema
-2. Ve la lista de check-outs programados
-3. Prepara las facturas
-4. Realiza check-outs cuando huéspedes se van
-5. Sistema actualiza habitaciones a "Disponible"
+2. Abre el calendario en vista diaria
+3. Ve los check-outs programados visualmente
+4. Prepara las facturas
+5. Realiza check-outs cuando huéspedes se van
+6. Sistema actualiza habitaciones a "Disponible" en el calendario
 ```
 
 #### Check-ins del Día
 ```
-1. Ve la lista de llegadas esperadas
-2. Prepara habitaciones asignadas
+1. Ve las llegadas esperadas en el calendario
+2. Identifica habitaciones asignadas visualmente
 3. Verifica pagos pendientes
 4. Realiza check-ins cuando huéspedes llegan
-5. Sistema actualiza habitaciones a "Ocupada"
+5. Sistema actualiza habitaciones a "Ocupada" en el calendario
 ```
 
 ### 2. Gestión de Reservas (Todo el día)
 
 #### Nuevas Reservas
 ```
-1. Cliente consulta disponibilidad
-2. Sistema muestra habitaciones disponibles
-3. Cliente selecciona habitación y fechas
+1. Cliente consulta disponibilidad en el calendario
+2. Sistema muestra habitaciones disponibles visualmente
+3. Cliente selecciona habitación y fechas desde el calendario
 4. Sistema calcula precio total
 5. Cliente completa datos y pago
-6. Sistema confirma reserva
+6. Sistema confirma reserva y actualiza el calendario
 ```
 
 #### Modificaciones
@@ -585,11 +809,11 @@ Configuración global:
 
 #### Revisión de Métricas
 ```
-1. Gerente revisa dashboard
-2. Analiza ocupación del día
+1. Gerente revisa dashboard y calendario
+2. Analiza ocupación del día visualmente
 3. Revisa ingresos generados
-4. Identifica oportunidades
-5. Planifica para el día siguiente
+4. Identifica oportunidades en el calendario
+5. Planifica para el día siguiente usando vista semanal
 ```
 
 ---
@@ -653,6 +877,7 @@ Hotel que maneja precios dinámicos según la temporada.
 
 ### Para el Hotel
 - 🏨 **Gestión eficiente** de habitaciones y reservas
+- 📆 **Visualización clara** de ocupación en calendario
 - 💰 **Maximización de ingresos** con precios dinámicos
 - 📊 **Análisis del negocio** con métricas en tiempo real
 - 🔒 **Pagos seguros** con integración bancaria
@@ -660,6 +885,7 @@ Hotel que maneja precios dinámicos según la temporada.
 
 ### Para el Personal
 - 👥 **Interfaz intuitiva** fácil de usar
+- 📆 **Calendario visual** para gestión de reservas
 - 🔍 **Información centralizada** en un solo lugar
 - 📱 **Acceso desde cualquier dispositivo**
 - 🚫 **Menos errores** con validaciones automáticas

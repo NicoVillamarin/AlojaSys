@@ -43,8 +43,10 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def get_future_reservations(self, obj):
         today = timezone.localdate()
+        # Solo incluir reservas que NO están en current_reservation
+        # (es decir, que no están activas hoy)
         qs = (obj.reservations
-              .filter(check_out__gt=today)
+              .filter(check_out__gt=today, check_in__gt=today)
               .order_by("check_in")
               .values("id", "status", "guests_data", "check_in", "check_out")
         )
@@ -72,12 +74,22 @@ class RoomSerializer(serializers.ModelSerializer):
     def get_current_reservation(self, obj):
         today = timezone.localdate()
         # Consideramos ocupación si la reserva está confirmada o en check-in
+        # Y que esté dentro del rango de fechas de la reserva
         active_status = ["confirmed", "check_in"]
         res = (obj.reservations
                .filter(check_in__lte=today, check_out__gt=today, status__in=active_status)
                .order_by("-status")
                .values("id", "status", "guests_data", "check_in", "check_out")
                .first())
+        
+        # Si no hay reserva activa en el rango de fechas, verificar si hay una reserva en CHECK_IN
+        # que aún no haya hecho checkout manual (incluso si ya pasó la fecha de checkout)
+        if not res:
+            res = (obj.reservations
+                   .filter(status="check_in", check_in__lte=today)
+                   .order_by("-check_in")
+                   .values("id", "status", "guests_data", "check_in", "check_out")
+                   .first())
         
         if res:
             guest_name = ""
@@ -105,6 +117,14 @@ class RoomSerializer(serializers.ModelSerializer):
         reservation = (obj.reservations
                       .filter(check_in__lte=today, check_out__gt=today, status__in=active_status)
                       .first())
+        
+        # Si no hay reserva activa en el rango de fechas, verificar si hay una reserva en CHECK_IN
+        # que aún no haya hecho checkout manual (incluso si ya pasó la fecha de checkout)
+        if not reservation:
+            reservation = (obj.reservations
+                          .filter(status="check_in", check_in__lte=today)
+                          .order_by("-check_in")
+                          .first())
         
         if reservation:
             # Retornar el número real de huéspedes de la reserva

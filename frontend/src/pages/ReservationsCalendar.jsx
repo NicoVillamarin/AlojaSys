@@ -84,11 +84,27 @@ const ReservationsCalendar = () => {
       // Agregar reserva actual si existe
       if (room.current_reservation) {
         const reservation = room.current_reservation
+        const startDate = parseISO(reservation.check_in)
+        // Para FullCalendar con allDay, la fecha de fin debe ser el día después del último día
+        const endDate = parseISO(reservation.check_out)
+        endDate.setDate(endDate.getDate() + 1)
+        
+        console.log(`Reserva ${reservation.id}:`, {
+          check_in: reservation.check_in,
+          check_out: reservation.check_out,
+          startDate: startDate,
+          endDate: endDate,
+          startDateString: startDate.toISOString(),
+          endDateString: endDate.toISOString(),
+          room: room.name
+        })
+        
         events.push({
           id: `current-${reservation.id}`,
           title: `${room.name} - ${reservation.guest_name}`,
-          start: reservation.check_in,
-          end: reservation.check_out,
+          start: startDate,
+          end: endDate,
+          allDay: true,
           backgroundColor: getStatusColor(reservation.status),
           borderColor: getStatusColor(reservation.status),
           textColor: '#FFFFFF',
@@ -103,11 +119,16 @@ const ReservationsCalendar = () => {
       // Agregar reservas futuras
       if (room.future_reservations && room.future_reservations.length > 0) {
         room.future_reservations.forEach(reservation => {
+          const startDate = parseISO(reservation.check_in)
+          const endDate = parseISO(reservation.check_out)
+          endDate.setDate(endDate.getDate() + 1)
+          
           events.push({
             id: `future-${reservation.id}`,
             title: `${room.name} - ${reservation.guest_name}`,
-            start: reservation.check_in,
-            end: reservation.check_out,
+            start: startDate,
+            end: endDate,
+            allDay: true,
             backgroundColor: getStatusColor(reservation.status),
             borderColor: getStatusColor(reservation.status),
             textColor: '#FFFFFF',

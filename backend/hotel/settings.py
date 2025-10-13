@@ -203,6 +203,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.dashboard.tasks.calculate_dashboard_metrics_daily",
         "schedule": crontab(hour=6, minute=10),
     },
+    "process_automatic_checkouts_hourly": {
+        "task": "apps.reservations.tasks.process_automatic_checkouts",
+        "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
+    },
 }
 
 CHANNEL_COMMISSION_RATES = {
