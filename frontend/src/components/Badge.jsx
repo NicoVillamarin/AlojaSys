@@ -6,7 +6,7 @@ import CancelIcon from 'src/assets/icons/CancelIcon'
 import CheckIcon from 'src/assets/icons/CheckIcon'
 import WarningIcon from 'src/assets/icons/WarningIcon'
 import WrenchScrewdriverIcon from 'src/assets/icons/WrenchScrewdriverIcon'
-import XIcon from 'src/assets/icons/XIcon'
+import XIcon from 'src/assets/icons/Xicon'
 
 const Badge = ({ 
   variant = 'default', 

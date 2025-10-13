@@ -7,7 +7,7 @@ import EditIcon from 'src/assets/icons/EditIcon'
 import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 import CheckIcon from 'src/assets/icons/CheckIcon'
-import XIcon from 'src/assets/icons/XIcon'
+import XIcon from 'src/assets/icons/Xicon'
 
 export default function PaymentPolicies() {
   const { t } = useTranslation()
