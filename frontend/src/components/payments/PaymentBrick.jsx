@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import fetchWithAuth from "src/services/fetchWithAuth";
-import { getApiURL } from "src/services/utils";
+import { getApiURL, getMercadoPagoPublicKey } from "src/services/utils";
 
 export default function PaymentBrick({ reservationId, amount, onSuccess, onError }) {
   const containerId = useMemo(() => `payment-brick-${Math.random().toString(36).slice(2)}`, []);
@@ -22,7 +22,7 @@ export default function PaymentBrick({ reservationId, amount, onSuccess, onError
     const timeoutId = setTimeout(() => {
       if (cancelled) return;
       
-      const mp = new window.MercadoPago(import.meta.env.VITE_MP_PUBLIC_KEY, { locale: "es-AR" });
+      const mp = new window.MercadoPago(getMercadoPagoPublicKey(), { locale: "es-AR" });
       const bricksBuilder = mp.bricks();
 
       // Verificar que el contenedor existe antes de crear el Brick

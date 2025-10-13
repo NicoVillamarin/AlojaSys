@@ -29,3 +29,14 @@ export const getApiParams = (params = {}) => {
     .join("&");
   return qs ? `?${qs}` : "";
 };
+
+export const getMercadoPagoPublicKey = () => {
+  // Permite configurar en runtime via window.__MP_PUBLIC_KEY__ (inyectado por /public/config.js)
+  const runtimeMpKey = typeof window !== 'undefined' && window.__MP_PUBLIC_KEY__ ? window.__MP_PUBLIC_KEY__ : "";
+  const envMpKey = import.meta.env.VITE_MP_PUBLIC_KEY || "";
+  
+  const finalKey = runtimeMpKey || envMpKey;
+  console.log('MercadoPago Public Key:', finalKey ? 'Found' : 'Not found', { runtimeMpKey, envMpKey, finalKey });
+  
+  return finalKey;
+};

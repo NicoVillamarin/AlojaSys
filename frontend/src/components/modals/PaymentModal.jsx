@@ -4,7 +4,7 @@ import { createPreference } from "src/services/payments";
 import Swal from "sweetalert2";
 import "animate.css";
 import fetchWithAuth from "src/services/fetchWithAuth";
-import { getApiURL } from "src/services/utils";
+import { getApiURL, getMercadoPagoPublicKey } from "src/services/utils";
 import PaymentBrick from "../payments/PaymentBrick";
 import CrashIcon from "src/assets/icons/CrashIcon";
 import TranfCrash from "src/assets/icons/TranfCrash";
@@ -110,7 +110,7 @@ export default function PaymentModal({
     const payWithTestCard = async () => {
         try {
             setError("");
-            const pubKey = import.meta.env.VITE_MP_PUBLIC_KEY;
+            const pubKey = getMercadoPagoPublicKey();
             const cardBody = {
                 card_number: "5031755734530604", // Mastercard APRO
                 expiration_month: 11,
@@ -164,7 +164,7 @@ export default function PaymentModal({
                 setError("Completa los datos de la tarjeta");
                 return;
             }
-            const pubKey = import.meta.env.VITE_MP_PUBLIC_KEY;
+            const pubKey = getMercadoPagoPublicKey();
             const cardBody = {
                 card_number: String(ccNumber).replace(/\s+/g, ""),
                 expiration_month: Number(ccMonth),

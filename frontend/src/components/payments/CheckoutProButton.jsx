@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
+import { getMercadoPagoPublicKey } from "src/services/utils";
 
 function CheckoutProButtonInner({
   preferenceId,
@@ -27,7 +28,7 @@ function CheckoutProButtonInner({
     if (!window.MercadoPago || !preferenceId || createdRef.current) return;
 
     const mp = new window.MercadoPago(
-      import.meta.env.VITE_MP_PUBLIC_KEY,
+      getMercadoPagoPublicKey(),
       { locale }
     );
     const bricksBuilder = mp.bricks();
