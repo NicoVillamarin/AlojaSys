@@ -23,6 +23,7 @@ export default function PaymentModal({
   onPaid,            // callback cuando detectamos status=confirmed
 }) {
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true); // Nuevo estado para carga inicial
   const [pref, setPref] = useState(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -315,11 +316,13 @@ export default function PaymentModal({
             setDepositInfo(null);
             setPayAmount(null);
             setStep(isBalancePayment ? "select" : "amount");
+            setInitialLoading(true); // Resetear estado de carga
         } else {
             // Cuando se abre el modal, establecer el step inicial
             setStep(isBalancePayment ? "select" : "amount");
         }
     }, [isOpen, isBalancePayment]);
+
 
     // Cargar datos de la reserva y la política cuando se abre
     useEffect(() => {
@@ -328,6 +331,7 @@ export default function PaymentModal({
         (async () => {
             try {
                 setError("");
+                setInitialLoading(true); // Iniciar carga
                 
                 if (isBalancePayment) {
                     // Para pago de saldo pendiente, usar la información proporcionada
@@ -367,6 +371,10 @@ export default function PaymentModal({
                 if (!cancelled) {
                     setError(e?.message || "Error cargando datos de la reserva");
                     setStep("select");
+                }
+            } finally {
+                if (!cancelled) {
+                    setInitialLoading(false); // Finalizar carga
                 }
             }
         })();
@@ -447,12 +455,24 @@ export default function PaymentModal({
       size="lg"
     >
       <div className="space-y-3 p-1">
+        {/* Pantalla de carga inicial mientras se cargan los datos de la reserva */}
+        {initialLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <SpinnerData size={80} className="mb-4" />
+            <h3 className="text-lg font-medium text-gray-700 mb-2">Cargando datos de pago...</h3>
+            <p className="text-sm text-gray-500">Obteniendo información de la reserva y política de pagos</p>
+          </div>
+        )}
+        
         {loading && paymentMethod === "card" && step === "form" && pref === null && <SpinnerLoading />}
         {error && <div style={{ color: "red" }}>{error}</div>}
         
         
-        {/* Información del saldo pendiente */}
-        {isBalancePayment && balanceInfo && (
+        {/* Contenido principal - solo se muestra cuando no está cargando inicialmente */}
+        {!initialLoading && (
+          <>
+            {/* Información del saldo pendiente */}
+            {isBalancePayment && balanceInfo && (
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
             <h3 className="font-semibold text-gray-800 mb-2">Resumen de Pagos</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -790,6 +810,8 @@ export default function PaymentModal({
                         </div>
                     </div>
                 )}
+          </>
+        )}
       </div>
     </ModalLayout>
   );
