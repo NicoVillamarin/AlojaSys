@@ -29,7 +29,6 @@ export const getApiParams = (params = {}) => {
     .join("&");
   return qs ? `?${qs}` : "";
 };
-
 export const getMercadoPagoPublicKey = () => {
   // Permite configurar en runtime via window.__MP_PUBLIC_KEY__ (inyectado por /public/config.js)
   const runtimeMpKey = typeof window !== 'undefined' && window.__MP_PUBLIC_KEY__ ? window.__MP_PUBLIC_KEY__ : "";

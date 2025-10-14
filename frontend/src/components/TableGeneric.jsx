@@ -84,7 +84,7 @@ export default function TableGeneric({
     <div className={`bg-white rounded-xl shadow overflow-x-auto ${className}`}>
       {isLoading ? (
         <div className="p-6 flex items-center justify-center">
-          <SpinnerData label="Cargando datos…" />
+          <SpinnerData />
         </div>
       ) : (
         <table className="w-full text-sm border-separate border-spacing-0">

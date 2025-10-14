@@ -428,6 +428,7 @@ def process_card_payment(request):
 
     payment = mp_resp.get("response", {})
     status_detail = payment.get("status")  # approved / rejected / in_process
+    status_detail_code = payment.get("status_detail")  # accredited, cc_rejected_*, etc.
 
     # Registrar/actualizar intent
     intent = PaymentIntent.objects.filter(external_reference=external_reference).order_by("-created_at").first()
@@ -470,7 +471,7 @@ def process_card_payment(request):
     return Response({
         "payment_id": payment.get("id"),
         "status": status_detail,
-        "status_detail": payment.get("status_detail"),
+        "status_detail": status_detail_code,
     }, status=200)
 
 

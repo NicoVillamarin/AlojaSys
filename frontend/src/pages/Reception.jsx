@@ -21,6 +21,7 @@ import ConfigurateIcon from 'src/assets/icons/ConfigurateIcon'
 import ExclamationTriangleIcon from 'src/assets/icons/ExclamationTriangleIcon'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
 import RoomStatusLegend from 'src/components/RoomStatusLegend'
+import SpinnerData from 'src/components/SpinnerData'
 
 const Reception = () => {
   const { t, i18n } = useTranslation()
@@ -231,7 +232,7 @@ const Reception = () => {
       {hotelsLoading ? (
         <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
           <div className="text-gray-500">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <SpinnerData size={80} className="mb-4" />
             <h3 className="text-lg font-medium text-gray-700 mb-2">{t('reception.loading_hotels')}</h3>
             <p className="text-sm">{t('reception.getting_hotel_info')}</p>
           </div>

@@ -12,6 +12,7 @@ import PostnetIcon from "src/assets/icons/PostnetIcon";
 import CardCreditIcon from "src/assets/icons/CardCreditIcon";
 import { paymentPolicyService } from "src/services/paymentPolicyService";
 import SpinnerLoading from "src/components/SpinnerLoading";
+import SpinnerData from "src/components/SpinnerData";
 
 export default function PaymentModal({
   isOpen,
@@ -231,7 +232,13 @@ export default function PaymentModal({
     const showResult = (status, detail) => {
         const map = {
             approved: { icon: "success", title: "Pago aprobado", text: detail || "accredited" },
-            in_process: { icon: "info", title: "Pago en proceso", text: "Te avisaremos cuando se acredite" },
+            in_process: { 
+                icon: "info", 
+                title: detail === "pending_contingency" ? "Pago en revisión" : "Pago en proceso", 
+                text: detail === "pending_contingency" 
+                    ? "Mercado Pago está revisando tu pago. Te notificaremos el resultado." 
+                    : "Te avisaremos cuando se acredite" 
+            },
             rejected: { icon: "error", title: "Pago rechazado", text: detail || "Intenta nuevamente" },
             error: { icon: "error", title: "Error", text: detail || "Ocurrió un error" },
         };
@@ -676,7 +683,7 @@ export default function PaymentModal({
                                 {paymentMethod === "card" && !pref && (
                                     <div className="p-4 bg-gray-50 rounded-lg">
                                         <div className="text-center">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                            <SpinnerData size={60} className="mb-2" />
                                             <p className="text-sm text-gray-600">Preparando pago con tarjeta...</p>
                                         </div>
                                     </div>
