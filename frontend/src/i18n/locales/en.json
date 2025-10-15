@@ -865,7 +865,11 @@
     "phone_code": "Country code",
     "phone_code_placeholder": "+1",
     "currency_code": "Currency",
-    "currency_code_placeholder": "USD"
+    "currency_code_placeholder": "USD",
+    "timezone": "Timezone",
+    "default_check_in_time": "Default check-in time",
+    "default_check_out_time": "Default check-out time",
+    "time_format": "Format must be HH:MM"
   },
   "plans_rate_modal": {
     "edit_plan": "Edit plan",

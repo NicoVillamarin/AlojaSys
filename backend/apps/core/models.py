@@ -32,3 +32,24 @@ class Hotel(models.Model):
     def clean(self):
         if self.check_in_time == self.check_out_time:
             raise ValidationError("check_in_time y check_out_time no pueden ser iguales.")
+
+    def save(self, *args, **kwargs):
+        # Si el hotel tiene país definido y no tiene timezone/horarios seteados explícitamente,
+        # tomar valores por defecto del país.
+        if self.country_id:
+            try:
+                from apps.locations.models import Country
+                country = Country.objects.filter(id=self.country_id).only(
+                    "timezone", "default_check_in_time", "default_check_out_time"
+                ).first()
+                if country:
+                    if (not self.timezone) and country.timezone:
+                        self.timezone = country.timezone
+                    if (not self.check_in_time) and country.default_check_in_time:
+                        self.check_in_time = country.default_check_in_time
+                    if (not self.check_out_time) and country.default_check_out_time:
+                        self.check_out_time = country.default_check_out_time
+            except Exception:
+                # En caso de migraciones iniciales u otros contextos, no bloquear el guardado
+                pass
+        super().save(*args, **kwargs)

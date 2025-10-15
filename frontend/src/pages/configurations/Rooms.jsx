@@ -43,93 +43,6 @@ export default function Rooms() {
     enabled: !!filters.hotel,
   });
 
-
-  const roomsKpis = useMemo(() => {
-    if (!filters.hotel || !summary) return [];
-
-    const totalRooms = summary?.rooms?.total ?? 0
-    const occupiedRooms = summary?.rooms?.occupied ?? 0
-    const availableRooms = summary?.rooms?.available ?? 0
-    const maintenanceRooms = summary?.rooms?.maintenance ?? 0
-    const outOfServiceRooms = summary?.rooms?.out_of_service ?? 0
-    const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
-
-    return [
-      {
-        title: t('dashboard.kpis.total_rooms'),
-        value: totalRooms,
-        icon: HomeIcon,
-        color: "from-indigo-500 to-indigo-600",
-        bgColor: "bg-indigo-100",
-        iconColor: "text-indigo-600",
-        change: "+2",
-        changeType: "positive",
-        subtitle: t('dashboard.kpis.total_rooms_subtitle'),
-        showProgress: false
-      },
-      {
-        title: t('dashboard.kpis.occupied_rooms'),
-        value: occupiedRooms,
-        icon: PleopleOccupatedIcon,
-        color: "from-emerald-500 to-emerald-600",
-        bgColor: "bg-emerald-100",
-        iconColor: "text-emerald-600",
-        change: "+2",
-        changeType: "positive",
-        subtitle: t('dashboard.kpis.occupied_rooms_subtitle', { total: totalRooms }),
-        progressWidth: totalRooms > 0 ? `${Math.min((occupiedRooms / totalRooms) * 100, 100)}%` : '0%'
-      },
-      {
-        title: t('dashboard.kpis.available_rooms'),
-        value: availableRooms,
-        icon: CheckIcon,
-        color: "from-blue-500 to-blue-600",
-        bgColor: "bg-blue-100",
-        iconColor: "text-blue-600",
-        change: "-2",
-        changeType: "negative",
-        subtitle: t('dashboard.kpis.available_rooms_subtitle'),
-        progressWidth: totalRooms > 0 ? `${Math.min((availableRooms / totalRooms) * 100, 100)}%` : '0%'
-      },
-      {
-        title: t('dashboard.kpis.maintenance_rooms'),
-        value: maintenanceRooms,
-        icon: ConfigurateIcon,
-        color: "from-orange-500 to-orange-600",
-        bgColor: "bg-orange-100",
-        iconColor: "text-orange-600",
-        change: maintenanceRooms > 0 ? "+1" : "0",
-        changeType: maintenanceRooms > 0 ? "positive" : "neutral",
-        subtitle: t('dashboard.kpis.maintenance_rooms_subtitle'),
-        progressWidth: totalRooms > 0 ? `${Math.min((maintenanceRooms / totalRooms) * 100, 100)}%` : '0%'
-      },
-      {
-        title: t('dashboard.kpis.out_of_service_rooms'),
-        value: outOfServiceRooms,
-        icon: ExclamationTriangleIcon,
-        color: "from-rose-500 to-rose-600",
-        bgColor: "bg-rose-100",
-        iconColor: "text-rose-600",
-        change: "0",
-        changeType: "neutral",
-        subtitle: t('dashboard.kpis.out_of_service_rooms_subtitle'),
-        progressWidth: totalRooms > 0 ? `${Math.min((outOfServiceRooms / totalRooms) * 100, 100)}%` : '0%'
-      },
-      {
-        title: t('dashboard.kpis.occupancy_rate'),
-        value: `${occupancyRate}%`,
-        icon: ChartBarIcon,
-        color: "from-purple-500 to-purple-600",
-        bgColor: "bg-purple-100",
-        iconColor: "text-purple-600",
-        change: "+5%",
-        changeType: "positive",
-        subtitle: t('dashboard.kpis.occupancy_rate_subtitle'),
-        progressWidth: `${occupancyRate}%`
-      }
-    ];
-  }, [filters.hotel, summary, t]);
-
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
     if (!q) return results;
@@ -262,13 +175,6 @@ export default function Rooms() {
           </div>
         </div>
         </Filter>
-
-      {filters.hotel && (
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">{t('rooms.status_title')}</h2>
-          <Kpis kpis={roomsKpis} loading={kpiLoading} />
-        </div>
-      )}
       <TableGeneric
         isLoading={isPending}
         data={displayResults}

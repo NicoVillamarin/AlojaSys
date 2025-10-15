@@ -22,6 +22,10 @@ import ExclamationTriangleIcon from 'src/assets/icons/ExclamationTriangleIcon'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
 import RoomStatusLegend from 'src/components/RoomStatusLegend'
 import SpinnerData from 'src/components/SpinnerData'
+import ToggleButton from 'src/components/ToggleButton'
+import EyeIcon from 'src/assets/icons/EyeIcon'
+import EyeSlashIcon from 'src/assets/icons/EyeSlashIcon'
+import InfoIcon from 'src/assets/icons/InfoIcon'
 
 const Reception = () => {
   const { t, i18n } = useTranslation()
@@ -31,6 +35,7 @@ const Reception = () => {
   const [filters, setFilters] = useState({ search: "", status: "" })
   const [showReservationModal, setShowReservationModal] = useState(false)
   const [selectedRoomData, setSelectedRoomData] = useState(null)
+  const [showLegend, setShowLegend] = useState(false)
   const didMountRef = useRef(false)
   const [language, setLanguage] = useState(i18n.language)
 
@@ -139,6 +144,17 @@ const Reception = () => {
   // Forzar re-render cuando cambie el idioma
   const currentLanguage = language
 
+  // Crear leyenda de colores para estados de habitaciones
+  const roomColorLegend = useMemo(() => [
+    { status: 'available', label: 'Disponible', color: '#10B981', description: 'Habitación libre y lista para ocupar' },
+    { status: 'confirmed', label: 'Confirmada', color: '#3B82F6', description: 'Reserva confirmada para hoy (pendiente check-in)' },
+    { status: 'occupied', label: 'Ocupada', color: '#F59E0B', description: 'Habitación con huésped actualmente (check-in)' },
+    { status: 'maintenance', label: 'Mantenimiento', color: '#EAB308', description: 'Habitación en reparación o mantenimiento' },
+    { status: 'cleaning', label: 'Limpieza', color: '#3B82F6', description: 'Habitación siendo limpiada' },
+    { status: 'blocked', label: 'Bloqueada', color: '#8B5CF6', description: 'Habitación bloqueada temporalmente' },
+    { status: 'out_of_service', label: 'Fuera de servicio', color: '#6B7280', description: 'Habitación no disponible' }
+  ], [])
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -158,74 +174,119 @@ const Reception = () => {
         />
       </div>
 
-      {/* Filtros */}
-      <Filter>
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 flex-1">
-            <div className="relative w-full lg:w-80">
-            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l3.387 3.387a1 1 0 01-1.414 1.414l-3.387-3.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <input
-              className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-full transition-all"
-              placeholder={t('reception.search_rooms_placeholder')}
-              value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-              onKeyDown={(e) => e.key === "Enter" && onSearch()}
-            />
-            {filters.search && (
-              <button
-                className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
-                onClick={() => {
-                  setFilters((f) => ({ ...f, search: "" }));
-                  setTimeout(() => refetchRooms(), 0);
-                }}
-                aria-label={t('reception.clear_search')}
-              >
-                ✕
-              </button>
-            )}
-            </div>
+      <div className="space-y-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1">
+            <Filter>
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 flex-1">
+                  <div className="relative w-full lg:w-80">
+                  <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l3.387 3.387a1 1 0 01-1.414 1.414l-3.387-3.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                  <input
+                    className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-full transition-all"
+                    placeholder={t('reception.search_rooms_placeholder')}
+                    value={filters.search}
+                    onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && onSearch()}
+                  />
+                  {filters.search && (
+                    <button
+                      className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
+                      onClick={() => {
+                        setFilters((f) => ({ ...f, search: "" }));
+                        setTimeout(() => refetchRooms(), 0);
+                      }}
+                      aria-label={t('reception.clear_search')}
+                    >
+                      ✕
+                    </button>
+                  )}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="w-full lg:w-56">
+                    <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">{t('reception.status')}</label>
+                    <Select
+                      value={statusList.find(s => String(s.value) === String(filters.status)) || null}
+                      onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
+                      options={[
+                        { value: "", label: t('reception.all') },
+                        ...statusList
+                      ]}
+                      placeholder={t('reception.all')}
+                      isClearable
+                      isSearchable
+                      classNamePrefix="rs"
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          minHeight: 36,
+                          borderRadius: 6,
+                          borderColor: '#e5e7eb',
+                          fontSize: 14,
+                        }),
+                        valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
+                        indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
+                        dropdownIndicator: (base) => ({ ...base, padding: 6 }),
+                        clearIndicator: (base) => ({ ...base, padding: 6 }),
+                        menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Filter>
           </div>
-          <div className="flex gap-3">
-            <div className="w-full lg:w-56">
-              <label className="block text-xs font-medium text-aloja-gray-800/70 mb-1">{t('reception.status')}</label>
-              <Select
-                value={statusList.find(s => String(s.value) === String(filters.status)) || null}
-                onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
-                options={[
-                  { value: "", label: t('reception.all') },
-                  ...statusList
-                ]}
-                placeholder={t('reception.all')}
-                isClearable
-                isSearchable
-                classNamePrefix="rs"
-                styles={{
-                  control: (base) => ({
-                    ...base,
-                    minHeight: 36,
-                    borderRadius: 6,
-                    borderColor: '#e5e7eb',
-                    fontSize: 14,
-                  }),
-                  valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
-                  indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
-                  dropdownIndicator: (base) => ({ ...base, padding: 6 }),
-                  clearIndicator: (base) => ({ ...base, padding: 6 }),
-                  menu: (base) => ({ ...base, borderRadius: 8, overflow: 'hidden', zIndex: 9999 }),
-                }}
-              />
+          
+          <div className="flex items-center gap-3">
+            <ToggleButton
+              isOpen={showLegend}
+              onToggle={() => setShowLegend(!showLegend)}
+              openLabel="Ocultar Leyenda"
+              closedLabel="Leyenda"
+              icon={EyeSlashIcon}
+              closedIcon={EyeIcon}
+            />
+          </div>
+        </div>
+
+      {/* Leyenda de colores con animación */}
+      <div 
+        className={`overflow-hidden transition-all duration-500 ease-in-out ${
+          showLegend 
+            ? 'max-h-96 opacity-100 transform translate-y-0' 
+            : 'max-h-0 opacity-0 transform -translate-y-4'
+        }`}
+      >
+        <div className={`transition-all duration-300 delay-75 ${
+          showLegend ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-2'
+        }`}>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <InfoIcon className="w-5 h-5 text-blue-600" />
+              Leyenda de Estados de Habitaciones
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {roomColorLegend.map((item) => (
+                <div key={item.status} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
+                  <div 
+                    className="w-4 h-4 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: item.color }}
+                  ></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900">{item.label}</div>
+                    <div className="text-sm text-gray-600">{item.description}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </Filter>
-
-      {/* Botón de leyenda de estados */}
-      <div className="flex justify-end">
-        <RoomStatusLegend />
+      </div>
       </div>
 
       {/* Mapa de habitaciones */}

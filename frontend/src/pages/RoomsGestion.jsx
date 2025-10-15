@@ -22,10 +22,14 @@ import SelectStandalone from "src/components/selects/SelectStandalone";
 import { useUserHotels } from "src/hooks/useUserHotels";
 import { convertToDecimal } from "./utils";
 import Badge from "src/components/Badge";
+import ToggleButton from "src/components/ToggleButton";
+import EyeIcon from "src/assets/icons/EyeIcon";
+import EyeSlashIcon from "src/assets/icons/EyeSlashIcon";
 
 export default function RoomsGestion() {
   const { t, i18n } = useTranslation();
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
+  const [showKpis, setShowKpis] = useState(true);
   const didMountRef = useRef(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
@@ -302,80 +306,122 @@ export default function RoomsGestion() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-aloja-navy">{t('rooms.title')}</h1>
-        <div className="text-sm text-aloja-gray-800/70">{kpi.total} {t('rooms.rooms')}</div>
+        <div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('rooms.title')}</h1>
+          <div className="text-sm text-aloja-gray-800/70">{kpi.total} {t('rooms.rooms')}</div>
+        </div>
       </div>
 
-      {/* KPIs principales */}
-      <Kpis kpis={roomsGestionKpis} loading={shouldUseSummary && kpiLoading} />
-
-      {/* KPIs adicionales cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel */}
-      {shouldUseSummary && (
-        <Kpis kpis={additionalKpis} loading={kpiLoading} />
-      )}
-
-      {/* Filtros */}
-      <Filter title={t('rooms.filters_title')}>
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
-            <div className="relative w-full lg:w-80">
-            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l3.387 3.387a1 1 0 01-1.414 1.414l-3.387-3.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <input
-              className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-full transition-all"
-              placeholder={t('rooms.search_placeholder')}
-              value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-              onKeyDown={(e) => e.key === "Enter" && onSearch()}
-            />
-            {filters.search && (
-              <button
-                className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
-                onClick={() => {
-                  setFilters((f) => ({ ...f, search: "" }));
-                  setTimeout(() => refetch(), 0);
-                }}
-                aria-label={t('common.clear_search')}
-              >
-                ✕
-              </button>
-            )}
-            </div>
+      <div className="space-y-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1">
+            <Filter title={t('rooms.filters_title')}>
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                  <div className="relative w-full lg:w-80">
+                  <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-aloja-gray-800/60">
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l3.387 3.387a1 1 0 01-1.414 1.414l-3.387-3.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                  <input
+                    className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-full transition-all"
+                    placeholder={t('rooms.search_placeholder')}
+                    value={filters.search}
+                    onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && onSearch()}
+                  />
+                  {filters.search && (
+                    <button
+                      className="absolute inset-y-0 right-1 my-1 px-2 rounded-md text-xs text-aloja-gray-800/70 hover:bg-gray-100"
+                      onClick={() => {
+                        setFilters((f) => ({ ...f, search: "" }));
+                        setTimeout(() => refetch(), 0);
+                      }}
+                      aria-label={t('common.clear_search')}
+                    >
+                      ✕
+                    </button>
+                  )}
+                  </div>
+                </div>
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                  <SelectStandalone
+                    title={t('common.status')}
+                    className="w-full lg:w-56"
+                    value={statusList.find(s => String(s.value) === String(filters.status)) || null}
+                    onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
+                    options={[
+                      { value: "", label: t('common.all') },
+                      ...statusList
+                    ]}
+                    placeholder={t('common.all')}
+                    isClearable
+                    isSearchable
+                  />
+                  
+                  <SelectStandalone
+                    title={hasSingleHotel ? t('rooms.hotel_autoselected') : t('common.hotel')}
+                    className="w-full lg:w-56"
+                    value={hotels?.find(h => String(h.id) === String(filters.hotel)) || null}
+                    onChange={(option) => setFilters((f) => ({ ...f, hotel: option ? String(option.id) : '' }))}
+                    options={hotels || []}
+                    getOptionLabel={(h) => h?.name}
+                    getOptionValue={(h) => h?.id}
+                    placeholder={t('common.all')}
+                    isClearable={!hasSingleHotel}
+                    isSearchable
+                    isDisabled={hasSingleHotel}
+                  />
+                </div>
+              </div>
+            </Filter>
           </div>
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
-            <SelectStandalone
-              title={t('common.status')}
-              className="w-full lg:w-56"
-              value={statusList.find(s => String(s.value) === String(filters.status)) || null}
-              onChange={(option) => setFilters((f) => ({ ...f, status: option ? String(option.value) : '' }))}
-              options={[
-                { value: "", label: t('common.all') },
-                ...statusList
-              ]}
-              placeholder={t('common.all')}
-              isClearable
-              isSearchable
-            />
-            
-            <SelectStandalone
-              title={hasSingleHotel ? t('rooms.hotel_autoselected') : t('common.hotel')}
-              className="w-full lg:w-56"
-              value={hotels?.find(h => String(h.id) === String(filters.hotel)) || null}
-              onChange={(option) => setFilters((f) => ({ ...f, hotel: option ? String(option.id) : '' }))}
-              options={hotels || []}
-              getOptionLabel={(h) => h?.name}
-              getOptionValue={(h) => h?.id}
-              placeholder={t('common.all')}
-              isClearable={!hasSingleHotel}
-              isSearchable
-              isDisabled={hasSingleHotel}
+          
+          <div className="flex items-center gap-3">
+            <ToggleButton
+              isOpen={showKpis}
+              onToggle={() => setShowKpis(!showKpis)}
+              openLabel="Ocultar KPIs"
+              closedLabel="Mostrar KPIs"
+              icon={EyeSlashIcon}
+              closedIcon={EyeIcon}
             />
           </div>
         </div>
-      </Filter>
+
+        {/* KPIs principales con animación */}
+        <div 
+          className={`overflow-hidden transition-all duration-500 ease-in-out ${
+            showKpis 
+              ? 'max-h-96 opacity-100 transform translate-y-0' 
+              : 'max-h-0 opacity-0 transform -translate-y-4'
+          }`}
+        >
+          <div className={`transition-all duration-300 delay-75 ${
+            showKpis ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-2'
+          }`}>
+            <Kpis kpis={roomsGestionKpis} loading={shouldUseSummary && kpiLoading} />
+          </div>
+        </div>
+
+        {/* KPIs adicionales cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel */}
+        {shouldUseSummary && (
+          <div 
+            className={`overflow-hidden transition-all duration-500 ease-in-out ${
+              showKpis 
+                ? 'max-h-96 opacity-100 transform translate-y-0' 
+                : 'max-h-0 opacity-0 transform -translate-y-4'
+            }`}
+          >
+            <div className={`transition-all duration-300 delay-75 ${
+              showKpis ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-2'
+            }`}>
+              <Kpis kpis={additionalKpis} loading={kpiLoading} />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Tabla */}
       <TableGeneric

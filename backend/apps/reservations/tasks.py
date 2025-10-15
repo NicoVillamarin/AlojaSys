@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from django.db import transaction
 from django.utils import timezone
 from celery import shared_task
@@ -29,30 +30,39 @@ def sync_room_occupancy_for_today(self):
                 res.room.save(update_fields=["status"])
 
     with transaction.atomic():
-        # Procesar checkout automático basado en horario del hotel
-        now = timezone.now()
-        current_time = now.time()
-        
-        # Obtener todas las reservas que deberían hacer checkout hoy
+        # Procesar checkout automático basado en horario del hotel (usando zona horaria del hotel)
+        # Obtener todas las reservas que deberían hacer checkout hoy (fecha basada en TZ del servidor)
         checkout_reservations = Reservation.objects.select_related("room", "hotel").filter(
             status=ReservationStatus.CHECK_IN,
             check_out=today,
         )
-        
+
         for res in checkout_reservations:
-            # Verificar si ya pasó la hora de checkout del hotel
+            # Hora actual en la zona horaria configurada del hotel
+            try:
+                hotel_tz = ZoneInfo(res.hotel.timezone) if res.hotel and res.hotel.timezone else None
+            except Exception:
+                hotel_tz = None
+
+            aware_now = timezone.now()
+            local_now = timezone.localtime(aware_now, hotel_tz) if hotel_tz else aware_now
+            current_time_local = local_now.time()
+
+            # Verificar si ya pasó la hora de checkout del hotel (en hora local del hotel)
             hotel_checkout_time = res.hotel.check_out_time
-            if current_time >= hotel_checkout_time:
+            if current_time_local >= hotel_checkout_time:
                 # Realizar checkout automático
                 res.status = ReservationStatus.CHECK_OUT
                 res.save(update_fields=["status"])
-                
+
                 # Liberar la habitación
                 if res.room.status == RoomStatus.OCCUPIED:
                     res.room.status = RoomStatus.AVAILABLE
                     res.room.save(update_fields=["status"])
-                
-                print(f"✅ Checkout automático realizado para reserva {res.id} - {res.room.name}")
+
+                print(
+                    f"✅ Checkout automático realizado para reserva {res.id} - {res.room.name} (hora local {current_time_local}, tz={res.hotel.timezone})"
+                )
 
     with transaction.atomic():
         # Actualizar el estado de las habitaciones basándose en reservas activas
@@ -100,10 +110,8 @@ def process_automatic_checkouts(self):
     Esta tarea debe ejecutarse cada hora para verificar si hay reservas que deben hacer checkout.
     """
     today = timezone.localdate() if timezone.is_aware(timezone.now()) else date.today()
-    now = timezone.now()
-    current_time = now.time()
     
-    print(f"🕐 Procesando checkouts automáticos - Hora actual: {current_time}")
+    print("🕐 Procesando checkouts automáticos - evaluando por hotel en su zona horaria")
     
     # Obtener todas las reservas que deberían hacer checkout hoy y están en CHECK_IN
     checkout_reservations = Reservation.objects.select_related("room", "hotel").filter(
@@ -114,12 +122,24 @@ def process_automatic_checkouts(self):
     processed_count = 0
     
     for res in checkout_reservations:
+        # Hora actual en la zona horaria del hotel
+        try:
+            hotel_tz = ZoneInfo(res.hotel.timezone) if res.hotel and res.hotel.timezone else None
+        except Exception:
+            hotel_tz = None
+
+        aware_now = timezone.now()
+        local_now = timezone.localtime(aware_now, hotel_tz) if hotel_tz else aware_now
+        current_time_local = local_now.time()
+
         # Verificar si ya pasó la hora de checkout del hotel
         hotel_checkout_time = res.hotel.check_out_time
-        
-        print(f"📋 Reserva {res.id} - Hotel: {res.hotel.name} - Checkout configurado: {hotel_checkout_time}")
-        
-        if current_time >= hotel_checkout_time:
+
+        print(
+            f"📋 Reserva {res.id} - Hotel: {res.hotel.name} - TZ: {res.hotel.timezone} - Ahora local: {current_time_local} - Checkout configurado: {hotel_checkout_time}"
+        )
+
+        if current_time_local >= hotel_checkout_time:
             try:
                 with transaction.atomic():
                     # Realizar checkout automático

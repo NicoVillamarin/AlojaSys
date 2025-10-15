@@ -338,3 +338,691 @@
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
+
+/* Estilos para drag & drop */
+.event-draggable {
+  cursor: move !important;
+  user-select: none;
+}
+
+.event-draggable:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
+  z-index: 1000 !important;
+}
+
+/* Estilos para eventos de fechas pasadas (no arrastrables pero clickeables) */
+.event-past-disabled {
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.event-past-disabled:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Eventos con estado que no permite movimiento - no arrastrables */
+.event-status-disabled {
+  cursor: not-allowed !important;
+  opacity: 0.8;
+  filter: grayscale(0.2);
+  border: 2px solid #EF4444 !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Asegurar altura mínima consistente para todas las celdas del calendario */
+.fc-daygrid-day {
+  min-height: 120px !important;
+  height: 120px !important;
+}
+
+.fc-daygrid-day-frame {
+  min-height: 120px !important;
+  height: 120px !important;
+}
+
+.fc-daygrid-day-events {
+  min-height: 100px !important;
+}
+
+/* Asegurar que las celdas vacías mantengan el mismo tamaño */
+.fc-daygrid-day.fc-day-today {
+  min-height: 120px !important;
+  height: 120px !important;
+}
+
+.fc-daygrid-day.fc-day-other {
+  min-height: 120px !important;
+  height: 120px !important;
+}
+
+/* Mejorar el espaciado entre días */
+.fc-daygrid-day-top {
+  padding: 8px 4px !important;
+}
+
+.fc-daygrid-day-number {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+/* Asegurar altura mínima para las filas del calendario */
+.fc-daygrid-body {
+  min-height: 120px !important;
+}
+
+.fc-daygrid-day-bg {
+  min-height: 120px !important;
+  height: 120px !important;
+}
+
+
+.event-past-disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Deshabilitar el cursor de arrastre para fechas pasadas */
+.fc-event.event-past-disabled {
+  cursor: default !important;
+}
+
+.fc-event.event-past-disabled .fc-event-main {
+  cursor: default !important;
+}
+
+/* Estilos para eventos seleccionados */
+.event-selected {
+  border: 3px solid #D4AF37 !important;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.3) !important;
+  transform: scale(1.05) !important;
+  z-index: 1001 !important;
+}
+
+/* Estilos para eventos durante el drag */
+.fc-event.fc-event-dragging {
+  opacity: 0.8 !important;
+  transform: rotate(5deg) scale(1.1) !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3) !important;
+  z-index: 1002 !important;
+}
+
+/* Estilos para el área de drop */
+.fc-daygrid-day.fc-day-today.fc-day-highlight {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(184, 134, 11, 0.1) 100%) !important;
+  border: 2px dashed #D4AF37 !important;
+  border-radius: 12px !important;
+}
+
+/* Estilos para el indicador de resize */
+.fc-event .fc-event-resizer {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border: 2px solid #D4AF37 !important;
+  border-radius: 50% !important;
+  width: 12px !important;
+  height: 12px !important;
+  cursor: nw-resize !important;
+  transition: all 0.2s ease !important;
+}
+
+.fc-event .fc-event-resizer:hover {
+  background: #D4AF37 !important;
+  transform: scale(1.2) !important;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4) !important;
+}
+
+/* Estilos para la vista de recursos (habitaciones) */
+.fc-resource-timeline .fc-timeline-header {
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%) !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+}
+
+.fc-resource-timeline .fc-timeline-lane {
+  border-right: 1px solid #E2E8F0 !important;
+  transition: all 0.2s ease !important;
+}
+
+.fc-resource-timeline .fc-timeline-lane:hover {
+  background: rgba(212, 175, 55, 0.05) !important;
+}
+
+.fc-resource-timeline .fc-timeline-event {
+  border-radius: 8px !important;
+  border: none !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  margin: 2px !important;
+}
+
+/* Estilos mejorados para la vista de habitaciones */
+.fc-resource-area {
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%) !important;
+  border-right: 2px solid #E2E8F0 !important;
+}
+
+.fc-resource-area .fc-resource {
+  border-bottom: 1px solid #E2E8F0 !important;
+  padding: 12px 16px !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.fc-resource-area .fc-resource:hover {
+  background: rgba(212, 175, 55, 0.1) !important;
+  transform: translateX(4px) !important;
+}
+
+.fc-resource-area .fc-resource .fc-resource-title {
+  font-weight: 700 !important;
+  color: #1E293B !important;
+  font-size: 0.875rem !important;
+  margin-bottom: 4px !important;
+}
+
+.fc-resource-area .fc-resource .fc-resource-meta {
+  font-size: 0.75rem !important;
+  color: #64748B !important;
+  margin-bottom: 2px !important;
+}
+
+.fc-resource-area .fc-resource .fc-resource-meta:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Estilos para el timeline de fechas en vista de habitaciones */
+.fc-timeline-slots .fc-timeline-slot {
+  border-right: 1px solid #E2E8F0 !important;
+  background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+  transition: all 0.2s ease !important;
+}
+
+.fc-timeline-slots .fc-timeline-slot:hover {
+  background: rgba(212, 175, 55, 0.05) !important;
+}
+
+.fc-timeline-slots .fc-timeline-slot-label {
+  font-weight: 600 !important;
+  color: #475569 !important;
+  font-size: 0.75rem !important;
+  padding: 8px 4px !important;
+}
+
+/* Estilos para las celdas de tiempo en vista de habitaciones */
+.fc-timeline-lane .fc-timeline-event-container {
+  position: relative !important;
+}
+
+.fc-timeline-lane .fc-timeline-event {
+  border-radius: 6px !important;
+  border: none !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  padding: 3px 6px !important;
+  margin: 1px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.fc-timeline-lane .fc-timeline-event:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+  z-index: 10 !important;
+}
+
+/* Colores específicos para estados en vista de habitaciones */
+.fc-timeline-lane .fc-timeline-event.reservation-pending {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+  color: white !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.reservation-confirmed {
+  background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important;
+  color: white !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.reservation-check_in {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+  color: white !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.reservation-check_out {
+  background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%) !important;
+  color: white !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.reservation-cancelled {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%) !important;
+  color: white !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.reservation-no_show {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%) !important;
+  color: white !important;
+}
+
+/* Estilos para el scrollbar en vista de habitaciones */
+.fc-resource-area .fc-scroller::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.fc-resource-area .fc-scroller::-webkit-scrollbar-track {
+  background: #F1F5F9 !important;
+  border-radius: 6px !important;
+}
+
+.fc-resource-area .fc-scroller::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #CBD5E1, #94A3B8) !important;
+  border-radius: 6px !important;
+}
+
+.fc-resource-area .fc-scroller::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #94A3B8, #64748B) !important;
+}
+
+/* Estilos para el indicador de "sin habitación asignada" */
+.fc-timeline-lane .fc-timeline-event.no-room {
+  background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%) !important;
+  color: #6B7280 !important;
+  border: 1px dashed #9CA3AF !important;
+  font-style: italic !important;
+}
+
+/* Estilos para el header de la vista de habitaciones */
+.fc-resource-timeline .fc-timeline-header .fc-timeline-slot-label {
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%) !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+  font-weight: 700 !important;
+  color: #1E293B !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  font-size: 0.75rem !important;
+  padding: 12px 8px !important;
+}
+
+/* Estilos para el indicador de disponibilidad */
+.fc-timeline-lane .fc-timeline-event.available {
+  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%) !important;
+  color: #065F46 !important;
+  border: 1px solid #A7F3D0 !important;
+  font-weight: 500 !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.maintenance {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%) !important;
+  color: #92400E !important;
+  border: 1px solid #FCD34D !important;
+  font-weight: 500 !important;
+}
+
+.fc-timeline-lane .fc-timeline-event.blocked {
+  background: linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%) !important;
+  color: #7C2D12 !important;
+  border: 1px solid #C4B5FD !important;
+  font-weight: 500 !important;
+}
+
+/* Estilos para el indicador de carga durante drag & drop */
+.fc-event.fc-event-loading {
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+}
+
+.fc-event.fc-event-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #D4AF37;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Estilos para el feedback visual de drop válido/inválido */
+.fc-daygrid-day.fc-day-drop-valid {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.1) 100%) !important;
+  border: 2px solid #10B981 !important;
+  border-radius: 12px !important;
+}
+
+.fc-daygrid-day.fc-day-drop-invalid {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%) !important;
+  border: 2px solid #EF4444 !important;
+  border-radius: 12px !important;
+}
+
+/* Estilos para el tooltip de drag & drop */
+.fc-event-tooltip {
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+/* Estilos para la selección múltiple */
+.fc-event.fc-event-multi-select {
+  border: 2px solid #D4AF37 !important;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(184, 134, 11, 0.05) 100%) !important;
+}
+
+/* Estilos para el indicador de estado de la operación */
+.fc-event.fc-event-success {
+  border: 2px solid #10B981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3) !important;
+}
+
+.fc-event.fc-event-error {
+  border: 2px solid #EF4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+  animation: shake 0.5s ease-in-out !important;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* Estilos personalizados para SweetAlert2 - Solo para el calendario */
+.calendar-swal2-popup {
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid #E2E8F0 !important;
+  backdrop-filter: blur(10px) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+.calendar-swal2-title {
+  color: #1E293B !important;
+  font-weight: 700 !important;
+  font-size: 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.calendar-swal2-confirm {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 12px 24px !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+.calendar-swal2-confirm:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4) !important;
+}
+
+.calendar-swal2-cancel {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 12px 24px !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+.calendar-swal2-cancel:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Estilos para fechas pasadas que no se pueden seleccionar */
+.fc-daygrid-day.fc-day-past {
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%) !important;
+  opacity: 0.6 !important;
+  position: relative !important;
+}
+
+.fc-daygrid-day.fc-day-past::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(148, 163, 184, 0.1) 2px,
+    rgba(148, 163, 184, 0.1) 4px
+  );
+  pointer-events: none;
+}
+
+.fc-daygrid-day.fc-day-past .fc-daygrid-day-number {
+  color: #94A3B8 !important;
+  text-decoration: line-through !important;
+}
+
+.fc-daygrid-day.fc-day-past .fc-daygrid-day-events {
+  opacity: 1 !important;
+}
+
+/* Deshabilitar selección en fechas pasadas */
+.fc-daygrid-day.fc-day-past.fc-day-selectable {
+  cursor: not-allowed !important;
+}
+
+.fc-daygrid-day.fc-day-past.fc-day-selectable:hover {
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%) !important;
+  transform: none !important;
+}
+
+.fc-daygrid-day.fc-day-past.fc-day-selectable:hover .fc-daygrid-day-number {
+  background: none !important;
+  color: #94A3B8 !important;
+  transform: none !important;
+}
+
+/* Estilos para el indicador de "fecha pasada" */
+.fc-daygrid-day.fc-day-past::after {
+  content: 'VER DETALLES';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  color: #94A3B8;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Hover effect para fechas pasadas */
+.fc-daygrid-day.fc-day-past:hover {
+  opacity: 0.8 !important;
+  background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%) !important;
+}
+
+.fc-daygrid-day.fc-day-past:hover::after {
+  opacity: 0.6;
+  color: #64748B;
+}
+
+/* Animaciones para el modal de detalles del evento */
+.event-detail-modal {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.event-detail-modal-backdrop {
+  animation: backdropFadeIn 0.3s ease-out;
+}
+
+.event-detail-modal-content {
+  animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Animaciones de salida para el modal */
+.event-detail-modal.closing {
+  animation: modalFadeOut 0.2s ease-in forwards;
+}
+
+.event-detail-modal-backdrop.closing {
+  animation: backdropFadeOut 0.2s ease-in forwards;
+}
+
+.event-detail-modal-content.closing {
+  animation: modalSlideOut 0.2s ease-in forwards;
+}
+
+@keyframes modalFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes backdropFadeOut {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes modalSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+}
+
+/* Estilos mejorados para el modal de detalles */
+.event-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.event-detail-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+}
+
+.event-detail-modal-content {
+  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 28rem;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Animación de entrada para elementos del modal */
+.event-detail-modal-content > * {
+  animation: contentFadeIn 0.4s ease-out 0.1s both;
+}
+
+.event-detail-modal-content > *:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.event-detail-modal-content > *:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.event-detail-modal-content > *:nth-child(4) {
+  animation-delay: 0.25s;
+}
+
+.event-detail-modal-content > *:nth-child(5) {
+  animation-delay: 0.3s;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Efectos hover mejorados para botones del modal */
+.event-detail-modal-content button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.event-detail-modal-content button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.event-detail-modal-content button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

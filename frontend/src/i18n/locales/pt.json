@@ -802,7 +802,11 @@
     "phone_code": "Código país",
     "phone_code_placeholder": "+55",
     "currency_code": "Moeda",
-    "currency_code_placeholder": "BRL"
+    "currency_code_placeholder": "BRL",
+    "timezone": "Fuso horário",
+    "default_check_in_time": "Hora de check-in padrão",
+    "default_check_out_time": "Hora de check-out padrão",
+    "time_format": "Formato deve ser HH:MM"
   },
   "plans_rate_modal": {
     "edit_plan": "Editar plano",

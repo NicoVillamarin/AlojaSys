@@ -865,7 +865,11 @@
     "phone_code": "Tel. país",
     "phone_code_placeholder": "+54",
     "currency_code": "Moneda",
-    "currency_code_placeholder": "ARS"
+    "currency_code_placeholder": "ARS",
+    "timezone": "Zona horaria",
+    "default_check_in_time": "Hora de check-in por defecto",
+    "default_check_out_time": "Hora de check-out por defecto",
+    "time_format": "Formato debe ser HH:MM"
   },
   "plans_rate_modal": {
     "edit_plan": "Editar plan",

@@ -2,7 +2,7 @@ import { Formik } from 'formik'
 import * as Yup from 'yup'
 import { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO, isValid } from 'date-fns'
+import { format, parseISO, isValid, startOfDay, isAfter, isBefore, isSameDay, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
@@ -32,8 +32,9 @@ import { useUserHotels } from 'src/hooks/useUserHotels'
  * - isEdit?: boolean
  * - reservation?: objeto reserva existente (para editar)
  * - onSuccess?: (data) => void (se llama al crear/editar OK)
+ * - initialData?: objeto con datos iniciales (ej: { check_in: '2025-01-15', check_out: '2025-01-17' })
  */
-const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reservation }) => {
+const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reservation, initialData }) => {
   const { t } = useTranslation()
   const [modalKey, setModalKey] = useState(0)
   const [activeTab, setActiveTab] = useState('basic')
@@ -197,12 +198,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     guests: reservation?.guests ?? 1,
     other_guests: otherGuestsData,
     // Campos individuales para compatibilidad
-    check_in: reservation?.check_in ? reservation.check_in.split('T')[0] : '',
-    check_out: reservation?.check_out ? reservation.check_out.split('T')[0] : '',
+    check_in: reservation?.check_in ? reservation.check_in.split('T')[0] : (initialData?.check_in ?? ''),
+    check_out: reservation?.check_out ? reservation.check_out.split('T')[0] : (initialData?.check_out ?? ''),
     // Campo unificado para el rango de fechas
     date_range: {
-      startDate: reservation?.check_in ? reservation.check_in.split('T')[0] : '',
-      endDate: reservation?.check_out ? reservation.check_out.split('T')[0] : '',
+      startDate: reservation?.check_in ? reservation.check_in.split('T')[0] : (initialData?.check_in ?? ''),
+      endDate: reservation?.check_out ? reservation.check_out.split('T')[0] : (initialData?.check_out ?? ''),
     },
     room: reservation?.room ?? '',
     room_data: reservation?.room_data ?? null, // Información completa de la habitación
@@ -266,14 +267,11 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         .required(t('reservations_modal.check_in_required'))
         .test('not-before-today', t('reservations_modal.check_in_not_before_today'), function (value) {
           if (!value) return true
-          const today = new Date()
-          const checkInDate = new Date(value)
+          const today = startOfDay(new Date())
+          const checkInDate = startOfDay(new Date(value))
           
-          // Establecer ambas fechas a medianoche para comparar solo la fecha
-          today.setHours(0, 0, 0, 0)
-          checkInDate.setHours(0, 0, 0, 0)
-          
-          return checkInDate >= today
+          // Permitir fechas de hoy en adelante (no bloquear hoy)
+          return isAfter(checkInDate, today) || isSameDay(checkInDate, today)
         }),
       endDate: Yup.date()
         .required(t('reservations_modal.check_out_required'))
@@ -311,14 +309,11 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       .required(t('reservations_modal.check_in_required'))
       .test('not-before-today', t('reservations_modal.check_in_not_before_today'), function (value) {
         if (!value) return true
-        const today = new Date()
-        const checkInDate = new Date(value)
+        const today = startOfDay(new Date())
+        const checkInDate = startOfDay(new Date(value))
         
-        // Establecer ambas fechas a medianoche para comparar solo la fecha
-        today.setHours(0, 0, 0, 0)
-        checkInDate.setHours(0, 0, 0, 0)
-        
-        return checkInDate >= today
+        // Permitir fechas de hoy en adelante (no bloquear hoy)
+        return isAfter(checkInDate, today) || isSameDay(checkInDate, today)
       }),
     check_out: Yup.date()
       .required(t('reservations_modal.check_out_required'))
@@ -369,12 +364,33 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     ),
   })
 
-  const tabs = [
-    { id: 'basic', label: t('reservations_modal.basic_info'), icon: <CandelarClock /> },
-    { id: 'guests', label: t('reservations_modal.guests'), icon: <PeopleIcon /> },
-    { id: 'payment', label: t('reservations_modal.payment'), icon: <WalletIcon /> },
-    { id: 'review', label: t('reservations_modal.review'), icon: <CheckIcon /> }
-  ]
+  // Función para verificar si hay reservas existentes en la habitación
+  const hasExistingReservations = (roomData) => {
+    if (!roomData) return false
+    return !!(roomData.current_reservation || (roomData.future_reservations && roomData.future_reservations.length > 0))
+  }
+
+  // Tabs dinámicos basados en si hay reservas existentes
+  const getTabs = () => {
+    const baseTabs = [
+      { id: 'basic', label: t('reservations_modal.basic_info'), icon: <CandelarClock /> },
+      { id: 'guests', label: t('reservations_modal.guests'), icon: <PeopleIcon /> },
+      { id: 'payment', label: t('reservations_modal.payment'), icon: <WalletIcon /> },
+      { id: 'review', label: t('reservations_modal.review'), icon: <CheckIcon /> }
+    ]
+
+    // Si hay reservas existentes, agregar el tab de reservas al inicio
+    if (hasExistingReservations(reservation?.room_data)) {
+      return [
+        { id: 'existing', label: 'Reservas Existentes', icon: <CheckCircleIcon /> },
+        ...baseTabs
+      ]
+    }
+
+    return baseTabs
+  }
+
+  const tabs = getTabs()
 
   // Helpers de pasos
   const getEffectiveGuests = (vals) => {
@@ -410,6 +426,8 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     }
     
     switch (stepId) {
+      case 'existing':
+        return true // El tab de reservas existentes siempre está "completo" (solo muestra información)
       case 'basic':
         return isBasicComplete()
       case 'guests':
@@ -625,6 +643,119 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
             <div className="space-y-4 sm:space-y-6">
               <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
+              {activeTab === 'existing' && (
+                <div className="space-y-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                      Reservas de la Habitación {reservation?.room_data?.name || reservation?.room_data?.number}
+                    </h3>
+                    <p className="text-sm text-blue-700">
+                      Esta habitación tiene reservas existentes. Revisa los detalles antes de crear una nueva reserva.
+                    </p>
+                  </div>
+
+                  {/* Reserva Actual */}
+                  {reservation?.room_data?.current_reservation && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-md font-semibold text-gray-900 flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                          Reserva Actual
+                        </h4>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          reservation.room_data.current_reservation.status === 'check_in' 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {reservation.room_data.current_reservation.status === 'check_in' ? 'Ocupada' : 'Confirmada'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Huésped</p>
+                          <p className="font-medium">{reservation.room_data.current_reservation.guest_name || 'No especificado'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">N° de Reserva</p>
+                          <p className="font-medium">#{reservation.room_data.current_reservation.id}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Check-in</p>
+                          <p className="font-medium">{formatDate(reservation.room_data.current_reservation.check_in, 'dd MMM yyyy')}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Check-out</p>
+                          <p className="font-medium">{formatDate(reservation.room_data.current_reservation.check_out, 'dd MMM yyyy')}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reservas Futuras */}
+                  {reservation?.room_data?.future_reservations && reservation.room_data.future_reservations.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-md font-semibold text-gray-900 flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        Reservas Futuras ({reservation.room_data.future_reservations.length})
+                      </h4>
+                      {reservation.room_data.future_reservations.map((res, index) => (
+                        <div key={res.id || index} className="bg-white border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-gray-900">Reserva #{res.id}</h5>
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {res.status === 'confirmed' ? 'Confirmada' : res.status}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">Huésped</p>
+                              <p className="font-medium">{res.guest_name || 'No especificado'}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Check-in</p>
+                              <p className="font-medium">{formatDate(res.check_in, 'dd MMM yyyy')}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Check-out</p>
+                              <p className="font-medium">{formatDate(res.check_out, 'dd MMM yyyy')}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Duración</p>
+                              <p className="font-medium">
+                                {calculateStayDuration(res.check_in, res.check_out)} noche(s)
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Información de la Habitación */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-md font-semibold text-gray-900 mb-3">Información de la Habitación</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Número</p>
+                        <p className="font-medium">{reservation?.room_data?.name || reservation?.room_data?.number}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Tipo</p>
+                        <p className="font-medium">{reservation?.room_data?.room_type || 'No especificado'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Capacidad</p>
+                        <p className="font-medium">{reservation?.room_data?.capacity || 'No especificado'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Piso</p>
+                        <p className="font-medium">{reservation?.room_data?.floor || 'No especificado'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'basic' && (
                 <>
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -704,7 +835,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         label="Fechas de estadía *"
                         startDate={values.date_range?.startDate || values.check_in}
                         endDate={values.date_range?.endDate || values.check_out}
-                        minDate={new Date().toISOString().split('T')[0]}
+                        minDate={format(new Date(), 'yyyy-MM-dd')}
                         onChange={(startDate, endDate) => {
                           // Actualizar tanto el rango como los campos individuales para compatibilidad
                           setFieldValue('date_range', { startDate, endDate })

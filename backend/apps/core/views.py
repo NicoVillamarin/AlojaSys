@@ -1,274 +1,219 @@
-from .serializers import HotelSerializer
-from django.utils import timezone
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import status, permissions, viewsets
-from apps.rooms.models import Room, RoomStatus
-from apps.reservations.models import Reservation, ReservationStatus, RoomBlock
+from rest_framework import status
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from datetime import datetime, date
 from .models import Hotel
+from .services.business_rules import get_business_rules
+from .serializers import HotelSerializer
 
 
-class HotelViewSet(viewsets.ModelViewSet):
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def validate_reservation_action(request):
+    """
+    Valida si se puede realizar una acción sobre una reserva
+    """
+    try:
+        hotel_id = request.data.get('hotel_id')
+        reservation_id = request.data.get('reservation_id')
+        action = request.data.get('action')  # 'move', 'resize', 'cancel', 'check_in', 'check_out'
+        
+        if not all([hotel_id, reservation_id, action]):
+            return Response({
+                'error': 'Faltan parámetros requeridos: hotel_id, reservation_id, action'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        hotel = get_object_or_404(Hotel, id=hotel_id)
+        business_rules = get_business_rules(hotel)
+        
+        # Importar aquí para evitar import circular
+        from apps.reservations.models import Reservation
+        reservation = get_object_or_404(Reservation, id=reservation_id, hotel=hotel)
+        
+        # Validar según la acción
+        if action == 'move':
+            can_do, reason = business_rules.can_move_reservation(reservation)
+        elif action == 'resize':
+            can_do, reason = business_rules.can_resize_reservation(reservation)
+        elif action == 'cancel':
+            can_do, reason = business_rules.can_cancel_reservation(reservation)
+        elif action == 'check_in':
+            can_do, reason = business_rules.can_check_in_reservation(reservation)
+        elif action == 'check_out':
+            can_do, reason = business_rules.can_check_out_reservation(reservation)
+        else:
+            return Response({
+                'error': f'Acción no válida: {action}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'can_do': can_do,
+            'reason': reason,
+            'action': action,
+            'reservation_id': reservation_id,
+            'hotel_id': hotel_id
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': f'Error interno: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def validate_reservation_dates(request):
+    """
+    Valida fechas de reserva según reglas de negocio
+    """
+    try:
+        hotel_id = request.data.get('hotel_id')
+        check_in = request.data.get('check_in')
+        check_out = request.data.get('check_out')
+        room_id = request.data.get('room_id')
+        
+        if not all([hotel_id, check_in, check_out]):
+            return Response({
+                'error': 'Faltan parámetros requeridos: hotel_id, check_in, check_out'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Convertir strings a date
+        try:
+            check_in_date = datetime.strptime(check_in, '%Y-%m-%d').date()
+            check_out_date = datetime.strptime(check_out, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'error': 'Formato de fecha inválido. Use YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        hotel = get_object_or_404(Hotel, id=hotel_id)
+        business_rules = get_business_rules(hotel)
+        
+        is_valid, errors = business_rules.validate_reservation_dates(
+            check_in_date, check_out_date, room_id
+        )
+        
+        return Response({
+            'is_valid': is_valid,
+            'errors': errors,
+            'check_in': check_in,
+            'check_out': check_out,
+            'room_id': room_id
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': f'Error interno: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_hotel_business_config(request, hotel_id):
+    """
+    Obtiene configuración de reglas de negocio del hotel
+    """
+    try:
+        hotel = get_object_or_404(Hotel, id=hotel_id)
+        business_rules = get_business_rules(hotel)
+        
+        config = business_rules.get_hotel_config()
+        payment_policy = business_rules.get_payment_policy()
+        
+        return Response({
+            'hotel_config': config,
+            'payment_policy': {
+                'id': payment_policy.id if payment_policy else None,
+                'name': payment_policy.name if payment_policy else None,
+                'allow_deposit': payment_policy.allow_deposit if payment_policy else False,
+                'deposit_type': payment_policy.deposit_type if payment_policy else 'none',
+                'deposit_value': float(payment_policy.deposit_value) if payment_policy else 0,
+                'deposit_due': payment_policy.deposit_due if payment_policy else 'confirmation',
+            } if payment_policy else None
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': f'Error interno: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class HotelViewSet(ModelViewSet):
+    """
+    ViewSet para gestionar hoteles
+    """
+    queryset = Hotel.objects.all()
     serializer_class = HotelSerializer
+    permission_classes = [IsAuthenticated]
+    
     def get_queryset(self):
-        qs = Hotel.objects.select_related("city", "city__state", "city__state__country").order_by("name")
-        enterprise = self.request.query_params.get("enterprise")
-        city = self.request.query_params.get("city")
-        state = self.request.query_params.get("state")
-        country = self.request.query_params.get("country")
-        ids = self.request.query_params.get("ids")  # Nuevo: filtrar por IDs específicos
-        
-        if enterprise and enterprise.isdigit():
-            qs = qs.filter(enterprise_id=enterprise)
-        if city and city.isdigit():
-            qs = qs.filter(city_id=city)
-        if state and state.isdigit():
-            qs = qs.filter(city__state_id=state)
-        if country:
-            qs = qs.filter(city__state__country__code2=country.upper())
-        
-        # Filtrar por IDs específicos (útil para filtrar por hoteles del usuario)
-        # Formato: ?ids=1,2,3 o ?ids=1
-        if ids:
-            try:
-                id_list = [int(x.strip()) for x in ids.split(',') if x.strip().isdigit()]
-                if id_list:
-                    qs = qs.filter(id__in=id_list)
-            except (ValueError, AttributeError):
-                pass  # Ignorar si el formato es inválido
-        
-        return qs
+        # Filtrar por usuario autenticado si es necesario
+        return Hotel.objects.filter(is_active=True)
 
-
- 
 
 class StatusSummaryView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
+    """
+    Vista para obtener resumen de estados
+    """
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
-        hotel_id = request.query_params.get("hotel")
-        if not (hotel_id and hotel_id.isdigit()):
-            return Response({"detail": "Parámetro requerido: hotel=<id>"}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
-            hotel = Hotel.objects.select_related("city", "city__state", "city__state__country").get(pk=hotel_id)
-        except Hotel.DoesNotExist:
-            return Response({"detail": "Hotel no encontrado"}, status=status.HTTP_404_NOT_FOUND)
-
-        # Fecha local (si querés por timezone del hotel, podés ajustar aquí)
-        today = timezone.localdate()
-
-        rooms_qs = Room.objects.filter(hotel=hotel)
-        total_rooms = rooms_qs.count()
-        available = rooms_qs.filter(status=RoomStatus.AVAILABLE).count()
-        occupied = rooms_qs.filter(status=RoomStatus.OCCUPIED).count()
-        maintenance = rooms_qs.filter(status=RoomStatus.MAINTENANCE).count()
-        out_of_service = rooms_qs.filter(status=RoomStatus.OUT_OF_SERVICE).count()
-        
-        # Calcular capacidades
-        total_capacity = sum(room.capacity for room in rooms_qs)
-        max_capacity = sum(room.max_capacity for room in rooms_qs)
-
-        arrivals_today = Reservation.objects.filter(
-            hotel=hotel,
-            check_in=today,
-            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-        ).count()
-
-        inhouse_today = Reservation.objects.filter(
-            hotel=hotel,
-            check_in__lte=today,
-            check_out__gt=today,
-            status__in=[ReservationStatus.CHECK_IN],
-        ).count()
-
-        departures_today = Reservation.objects.filter(
-            hotel=hotel,
-            check_out=today,
-            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
-        ).count()
-
-        # Lista de CHECK-INS DE HOY (llegadas del día): incluye confirmadas (pendientes de check-in) y ya check-in
-        reservations_qs = Reservation.objects.filter(
-            hotel=hotel,
-            check_in=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-        ).select_related("room").order_by("room__name")
-        
-        # Procesar las reservas para extraer el nombre del huésped principal
-        current_reservations = []
-        for reservation in reservations_qs:
-            guest_name = ""
-            if reservation.guests_data and isinstance(reservation.guests_data, list):
-                # Buscar el huésped principal
-                primary_guest = next((guest for guest in reservation.guests_data if guest.get('is_primary', False)), None)
-                if not primary_guest and reservation.guests_data:
-                    # Si no hay huésped principal marcado, tomar el primero
-                    primary_guest = reservation.guests_data[0]
-                guest_name = primary_guest.get('name', '') if primary_guest else ''
+            # Importar aquí para evitar import circular
+            from apps.reservations.models import Reservation
+            from django.db.models import Count
             
-            current_reservations.append({
-                "id": reservation.id,
-                "room": reservation.room.name,
-                "guest_name": guest_name,
-                "status": reservation.status,
-                "check_in": reservation.check_in,
-                "check_out": reservation.check_out,
-                "total_price": float(reservation.total_price or 0),
+            # Obtener estadísticas de reservas
+            stats = Reservation.objects.values('status').annotate(
+                count=Count('id')
+            ).order_by('status')
+            
+            return Response({
+                'reservation_statuses': list(stats),
+                'total_reservations': sum(item['count'] for item in stats)
             })
-        
-        # Calcular huéspedes actuales (in-house) para KPI general
-        active_reservations = Reservation.objects.filter(
-            hotel=hotel,
-            status__in=[ReservationStatus.CHECK_IN],
-            check_in__lte=today,
-            check_out__gt=today,
-        )
-        current_guests = sum(r.guests for r in active_reservations)
-
-        # Bloqueos que solapan hoy (opcional)
-        blocks_today = RoomBlock.objects.filter(
-            hotel=hotel,
-            is_active=True,
-            start_date__lte=today,
-            end_date__gt=today,
-        ).count()
-
-        return Response({
-            "hotel": {
-                "id": hotel.id,
-                "name": hotel.name,
-                "city": hotel.city.name if hotel.city else None,
-                "check_in_time": hotel.check_in_time,
-                "check_out_time": hotel.check_out_time,
-            },
-            "rooms": {
-                "total": total_rooms,
-                "available": available,
-                "occupied": occupied,
-                "maintenance": maintenance,
-                "out_of_service": out_of_service,
-                "total_capacity": total_capacity,
-                "max_capacity": max_capacity,
-                "current_guests": current_guests,
-            },
-            "today": {
-                "date": today,
-                "arrivals": arrivals_today,
-                "inhouse": inhouse_today,
-                "departures": departures_today,
-                "blocks": blocks_today,
-            },
-            "current_reservations": current_reservations,
-        }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error interno: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class GlobalSummaryView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
+    """
+    Vista para obtener resumen global del sistema
+    """
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
-        # Fecha local
-        today = timezone.localdate()
-        
-        # Obtener todos los hoteles activos
-        hotels = Hotel.objects.filter(is_active=True)
-        
-        # Calcular métricas globales de habitaciones
-        rooms_qs = Room.objects.filter(hotel__in=hotels)
-        total_rooms = rooms_qs.count()
-        available = rooms_qs.filter(status=RoomStatus.AVAILABLE).count()
-        occupied = rooms_qs.filter(status=RoomStatus.OCCUPIED).count()
-        maintenance = rooms_qs.filter(status=RoomStatus.MAINTENANCE).count()
-        out_of_service = rooms_qs.filter(status=RoomStatus.OUT_OF_SERVICE).count()
-        
-        # Calcular capacidades globales
-        total_capacity = sum(room.capacity for room in rooms_qs)
-        max_capacity = sum(room.max_capacity for room in rooms_qs)
-        
-        # Calcular métricas globales de reservas
-        arrivals_today = Reservation.objects.filter(
-            hotel__in=hotels,
-            check_in=today,
-            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-        ).count()
-        
-        inhouse_today = Reservation.objects.filter(
-            hotel__in=hotels,
-            check_in__lte=today,
-            check_out__gt=today,
-            status__in=[ReservationStatus.CHECK_IN],
-        ).count()
-        
-        departures_today = Reservation.objects.filter(
-            hotel__in=hotels,
-            check_out=today,
-            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
-        ).count()
-        
-        # Calcular huéspedes actuales globales
-        active_reservations = Reservation.objects.filter(
-            hotel__in=hotels,
-            check_in__lte=today,
-            check_out__gt=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-        ).select_related('hotel', 'room')
-        
-        current_guests = sum(reservation.guests for reservation in active_reservations)
-        
-        # Bloqueos globales de hoy
-        blocks_today = RoomBlock.objects.filter(
-            hotel__in=hotels,
-            is_active=True,
-            start_date__lte=today,
-            end_date__gt=today,
-        ).count()
-        
-        # Lista de CHECK-INS DE HOY global (limitada para performance)
-        current_reservations = []
-        checkins_today_qs = Reservation.objects.filter(
-            hotel__in=hotels,
-            check_in=today,
-            status__in=[ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-        ).select_related('hotel', 'room').order_by('hotel__name', 'room__name')
-        for reservation in checkins_today_qs[:50]:
-            # Obtener huésped principal si existe
-            guest_name = ""
-            if reservation.guests_data and isinstance(reservation.guests_data, list):
-                primary_guest = next((g for g in reservation.guests_data if g.get('is_primary')), None)
-                if not primary_guest and reservation.guests_data:
-                    primary_guest = reservation.guests_data[0]
-                guest_name = primary_guest.get('name', '') if primary_guest else ''
-            current_reservations.append({
-                "id": reservation.id,
-                "guest_name": guest_name,
-                "room": reservation.room.name,
-                "hotel_name": reservation.hotel.name,
-                "check_in": reservation.check_in.isoformat(),
-                "check_out": reservation.check_out.isoformat(),
-                "status": reservation.status,
-                "total_price": float(reservation.total_price or 0),
-                "guests": reservation.guests,
+        try:
+            # Importar aquí para evitar import circular
+            from apps.reservations.models import Reservation
+            from apps.rooms.models import Room
+            from django.db.models import Count, Sum
+            
+            # Estadísticas globales
+            total_hotels = Hotel.objects.filter(is_active=True).count()
+            total_rooms = Room.objects.count()
+            total_reservations = Reservation.objects.count()
+            
+            # Reservas por estado
+            reservation_stats = Reservation.objects.values('status').annotate(
+                count=Count('id')
+            ).order_by('status')
+            
+            return Response({
+                'total_hotels': total_hotels,
+                'total_rooms': total_rooms,
+                'total_reservations': total_reservations,
+                'reservation_statuses': list(reservation_stats)
             })
-        
-        return Response({
-            "summary_type": "global",
-            "hotels_count": hotels.count(),
-            "rooms": {
-                "total": total_rooms,
-                "available": available,
-                "occupied": occupied,
-                "maintenance": maintenance,
-                "out_of_service": out_of_service,
-                "total_capacity": total_capacity,
-                "max_capacity": max_capacity,
-                "current_guests": current_guests,
-            },
-            "today": {
-                "date": today.isoformat(),
-                "arrivals": arrivals_today,
-                "inhouse": inhouse_today,
-                "departures": departures_today,
-                "blocks": blocks_today,
-            },
-            "current_reservations": current_reservations,
-        }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error interno: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
