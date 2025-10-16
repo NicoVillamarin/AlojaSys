@@ -202,20 +202,333 @@ class ReservationViewSet(viewsets.ModelViewSet):
             } if balance_info.get('policy') else None
         })
 
+    @action(detail=True, methods=["get"])
+    def test_cancellation(self, request, pk=None):
+        """Endpoint de prueba para verificar que las acciones funcionan"""
+        return Response({
+            "message": "Endpoint de prueba funcionando",
+            "reservation_id": pk,
+            "timestamp": "2024-01-01T00:00:00Z"
+        })
+
+    @action(detail=True, methods=["get"])
+    def cancellation_rules(self, request, pk=None):
+        """Obtiene las reglas de cancelación y devolución para una reserva"""
+        try:
+            reservation = self.get_object()
+            
+            # Usar la política de cancelación aplicada a la reserva (histórica)
+            if not reservation.applied_cancellation_policy:
+                return Response({
+                    "error": "No hay política de cancelación aplicada a esta reserva"
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Obtener política de devolución del hotel
+            from apps.payments.models import RefundPolicy
+            refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
+            
+            if not refund_policy:
+                return Response({
+                    "error": "No hay política de devolución configurada para este hotel"
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Calcular tiempo hasta el check-in
+            from datetime import datetime
+            check_in_date = reservation.check_in
+            now = datetime.now().date()
+            time_until_checkin = (check_in_date - now).total_seconds()
+            
+            # Obtener reglas de cancelación usando la política histórica
+            cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(check_in_date)
+            
+            # Obtener reglas de devolución
+            refund_rules = refund_policy.get_refund_rules(check_in_date)
+            
+            return Response({
+                "cancellation_rules": cancellation_rules,
+                "refund_rules": refund_rules,
+                "applied_cancellation_policy": {
+                    "id": reservation.applied_cancellation_policy.id,
+                    "name": reservation.applied_cancellation_policy.name,
+                    "applied_at": reservation.created_at.isoformat()
+                },
+                "reservation": {
+                    "id": reservation.id,
+                    "total_price": float(reservation.total_price),
+                    "check_in": reservation.check_in.isoformat(),
+                    "check_out": reservation.check_out.isoformat(),
+                    "status": reservation.status
+                }
+            })
+        except Exception as e:
+            return Response({
+                "error": f"Error interno del servidor: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
+        """
+        Cancela una reserva con opción de solo calcular o confirmar cancelación
+        
+        Parámetros:
+        - confirm: true/false - Si es true, cancela la reserva. Si es false, solo calcula.
+        """
         reservation = self.get_object()
+        
+        # Obtener parámetro confirm (por defecto true para mantener compatibilidad)
+        confirm = request.data.get('confirm', True)
+        if isinstance(confirm, str):
+            confirm = confirm.lower() in ['true', '1', 'yes']
+        
         if reservation.status not in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]:
             return Response({"detail": "Solo se pueden cancelar reservas pendientes o confirmadas."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Usar la política de cancelación aplicada a la reserva (histórica)
+        if not reservation.applied_cancellation_policy:
+            return Response({
+                "detail": "No hay política de cancelación aplicada a esta reserva"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener política de devolución del hotel
+        from apps.payments.models import RefundPolicy
+        refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
+        
+        if not refund_policy:
+            return Response({
+                "detail": "No hay política de devolución configurada para este hotel"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calcular reglas de cancelación y devolución
+        cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in)
+        refund_rules = refund_policy.get_refund_rules(reservation.check_in)
+        
+        # Calcular información financiera
+        from apps.payments.services.refund_processor import RefundProcessor
+        from decimal import Decimal
+        
+        # Calcular monto total pagado
+        total_paid = RefundProcessor._calculate_total_paid(reservation)
+        
+        # Calcular penalidad
+        penalty_amount = RefundProcessor._calculate_penalty(reservation, cancellation_rules, total_paid)
+        
+        # Calcular monto de devolución
+        refund_amount = RefundProcessor._calculate_refund_amount(total_paid, penalty_amount, refund_rules)
+        
+        # Preparar respuesta base
+        response_data = {
+            "cancellation_rules": cancellation_rules,
+            "refund_rules": refund_rules,
+            "financial_summary": {
+                "total_paid": float(total_paid),
+                "penalty_amount": float(penalty_amount),
+                "refund_amount": float(refund_amount),
+                "net_refund": float(refund_amount - penalty_amount)
+            },
+            "reservation": {
+                "id": reservation.id,
+                "status": reservation.status,
+                "check_in": reservation.check_in.isoformat(),
+                "check_out": reservation.check_out.isoformat(),
+                "total_price": float(reservation.total_price)
+            }
+        }
+        
+        # Si solo es cálculo, devolver la información
+        if not confirm:
+            return Response({
+                "detail": "Cálculo de cancelación completado",
+                "action": "calculation",
+                **response_data
+            })
+        
+        # Si es confirmación, proceder con la cancelación
+        refund_result = RefundProcessor.process_refund(reservation)
+        
+        if not refund_result or not refund_result.get('success', False):
+            error_msg = refund_result.get('error', 'Error desconocido') if refund_result else 'Error procesando devolución'
+            return Response({
+                "detail": f"Error procesando devolución: {error_msg}",
+                "action": "calculation",
+                **response_data
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Actualizar estado de la reserva
         reservation.status = ReservationStatus.CANCELLED
-        reservation.save(update_fields=["status"]) 
+        reservation.save(update_fields=["status"])
+        
+        # Actualizar estado de la habitación a disponible
+        if reservation.room:
+            from apps.rooms.models import RoomStatus
+            reservation.room.status = RoomStatus.AVAILABLE
+            reservation.room.save(update_fields=["status"])
+        
+        # Obtener método de devolución de forma segura
+        refund_method = 'N/A'
+        if refund_result and refund_result.get('refund_result'):
+            refund_method = refund_result['refund_result'].get('method', 'N/A')
+        
+        return Response({
+            "detail": "Reserva cancelada exitosamente.",
+            "action": "cancelled",
+            "refund_info": {
+                "total_paid": refund_result.get('total_paid', 0) if refund_result else 0,
+                "penalty_amount": refund_result.get('penalty_amount', 0) if refund_result else 0,
+                "refund_amount": refund_result.get('refund_amount', 0) if refund_result else 0,
+                "refund_processed": refund_result.get('refund_processed', False) if refund_result else False,
+                "refund_method": refund_method
+            },
+            **response_data
+        })
+
+    @action(detail=True, methods=["get"])
+    def refund_history(self, request, pk=None):
+        """Obtiene el historial de devoluciones de una reserva"""
+        reservation = self.get_object()
+        
+        # Obtener pagos de devolución (montos negativos)
+        refund_payments = reservation.payments.filter(
+            amount__lt=0
+        ).order_by('-date')
+        
+        # Obtener logs de cancelación con información de devolución
         from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
-        ReservationChangeLog.objects.create(
-            reservation=reservation,
-            event_type=ReservationChangeEvent.CANCEL,
-            changed_by=request.user if request.user.is_authenticated else None,
-        )
-        return Response({"detail": "Reserva cancelada."}, status=status.HTTP_200_OK)
+        cancellation_logs = reservation.change_logs.filter(
+            event_type=ReservationChangeEvent.CANCEL
+        ).order_by('-changed_at')
+        
+        refund_data = []
+        
+        # Procesar pagos de devolución
+        for payment in refund_payments:
+            refund_data.append({
+                'type': 'payment_refund',
+                'date': payment.date.isoformat(),
+                'amount': float(abs(payment.amount)),
+                'method': payment.method,
+                'status': 'completed',
+                'notes': payment.notes
+            })
+        
+        # Procesar logs de cancelación
+        for log in cancellation_logs:
+            if log.metadata and 'refund_amount' in log.metadata:
+                refund_data.append({
+                    'type': 'cancellation_refund',
+                    'date': log.changed_at.isoformat(),
+                    'amount': log.metadata.get('refund_amount', 0),
+                    'method': log.metadata.get('refund_result', {}).get('method', 'N/A'),
+                    'status': 'processed' if log.metadata.get('refund_processed', False) else 'pending',
+                    'notes': f"Devolución por cancelación - Penalidad: ${log.metadata.get('penalty_amount', 0)}"
+                })
+        
+        return Response({
+            'reservation_id': reservation.id,
+            'total_refunds': len(refund_data),
+            'refunds': sorted(refund_data, key=lambda x: x['date'], reverse=True)
+        })
+
+    @action(detail=False, methods=['post'])
+    def auto_cancel_expired(self, request):
+        """Ejecuta manualmente la auto-cancelación de reservas vencidas"""
+        from apps.reservations.tasks import auto_cancel_expired_reservations
+        
+        try:
+            # Ejecutar la tarea de auto-cancelación
+            result = auto_cancel_expired_reservations.delay()
+            
+            return Response({
+                'success': True,
+                'message': 'Tarea de auto-cancelación iniciada',
+                'task_id': result.id
+            })
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Error iniciando auto-cancelación: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def pending_expiration_stats(self, request):
+        """Obtiene estadísticas de reservas pendientes y sus fechas de vencimiento"""
+        from apps.payments.services.payment_calculator import calculate_balance_due
+        from apps.payments.models import PaymentPolicy
+        
+        try:
+            # Obtener reservas pendientes
+            pending_reservations = Reservation.objects.select_related("hotel", "room").filter(
+                status=ReservationStatus.PENDING
+            )
+            
+            stats = {
+                'total_pending': pending_reservations.count(),
+                'expired_today': 0,
+                'expires_tomorrow': 0,
+                'expires_this_week': 0,
+                'expires_next_week': 0,
+                'expires_later': 0,
+                'no_policy': 0,
+                'reservations': []
+            }
+            
+            from datetime import date, timedelta
+            today = date.today()
+            tomorrow = today + timedelta(days=1)
+            next_week = today + timedelta(days=7)
+            week_after = today + timedelta(days=14)
+            
+            for reservation in pending_reservations:
+                # Obtener política de pago del hotel
+                payment_policy = PaymentPolicy.resolve_for_hotel(reservation.hotel)
+                
+                if not payment_policy:
+                    stats['no_policy'] += 1
+                    continue
+                
+                # Calcular información de pago
+                balance_info = calculate_balance_due(reservation)
+                deposit_due_date = balance_info.get('deposit_due_date')
+                
+                if not deposit_due_date:
+                    continue
+                
+                # Categorizar por fecha de vencimiento
+                if deposit_due_date < today:
+                    stats['expired_today'] += 1
+                elif deposit_due_date == today:
+                    stats['expires_tomorrow'] += 1
+                elif deposit_due_date <= next_week:
+                    stats['expires_this_week'] += 1
+                elif deposit_due_date <= week_after:
+                    stats['expires_next_week'] += 1
+                else:
+                    stats['expires_later'] += 1
+                
+                # Agregar detalles de la reserva
+                stats['reservations'].append({
+                    'id': reservation.id,
+                    'hotel_name': reservation.hotel.name,
+                    'room_name': reservation.room.name if reservation.room else 'N/A',
+                    'guest_name': reservation.guest_name,
+                    'check_in': reservation.check_in.isoformat(),
+                    'check_out': reservation.check_out.isoformat(),
+                    'total_price': float(reservation.total_price),
+                    'deposit_due_date': deposit_due_date.isoformat(),
+                    'days_until_expiry': (deposit_due_date - today).days,
+                    'is_expired': deposit_due_date < today,
+                    'payment_policy_name': payment_policy.name
+                })
+            
+            # Ordenar reservas por fecha de vencimiento
+            stats['reservations'].sort(key=lambda x: x['deposit_due_date'])
+            
+            return Response(stats)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error obteniendo estadísticas: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AvailabilityView(GenericAPIView):
@@ -924,3 +1237,43 @@ def reservation_history(request, pk: int):
         })
     timeline.sort(key=lambda x: x["changed_at"], reverse=True)
     return Response({"reservation_id": reservation.id, "timeline": timeline})
+
+@api_view(['POST'])
+def auto_mark_no_show(request):
+    """
+    Marca automáticamente las reservas confirmadas vencidas como no-show
+    """
+    from django.utils import timezone
+    from datetime import date
+    
+    today = timezone.now().date()
+    
+    # Buscar reservas confirmadas con check-in pasado
+    expired_reservations = Reservation.objects.filter(
+        status='confirmed',
+        check_in__lt=today
+    )
+    
+    updated_count = 0
+    for reservation in expired_reservations:
+        # Cambiar estado a no_show
+        reservation.status = 'no_show'
+        reservation.save()
+        
+        # Registrar el cambio de estado
+        from .models import ReservationStatusChange
+        ReservationStatusChange.objects.create(
+            reservation=reservation,
+            from_status='confirmed',
+            to_status='no_show',
+            changed_by=request.user if request.user.is_authenticated else None,
+            reason='Auto no-show: check-in date passed'
+        )
+        
+        updated_count += 1
+    
+    return Response({
+        'message': f'Se marcaron {updated_count} reservas como no-show',
+        'updated_count': updated_count,
+        'date_checked': today.isoformat()
+    })

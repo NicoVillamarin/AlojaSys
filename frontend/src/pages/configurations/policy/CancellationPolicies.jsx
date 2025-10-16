@@ -2,14 +2,14 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
-import PaymentPoliciesModal from 'src/components/modals/PaymentPoliciesModal'
+import CancellationPoliciesModal from 'src/components/modals/CancellationPoliciesModal'
 import EditIcon from 'src/assets/icons/EditIcon'
 import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 import CheckIcon from 'src/assets/icons/CheckIcon'
 import XIcon from 'src/assets/icons/Xicon'
 
-export default function PaymentPolicies() {
+export default function CancellationPolicies() {
   const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editPolicy, setEditPolicy] = useState(null)
@@ -17,7 +17,7 @@ export default function PaymentPolicies() {
   const didMountRef = useRef(false)
 
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
-    resource: 'payments/policies',
+    resource: 'payments/cancellation-policies',
     params: { 
       search: filters.search
     },
@@ -39,30 +39,25 @@ export default function PaymentPolicies() {
     return () => clearTimeout(id)
   }, [filters.search, refetch])
 
-  const getDepositTypeLabel = (type) => {
+  const getFeeTypeLabel = (type) => {
     const types = {
-      'none': t('payments.policies.deposit_types.none'),
-      'percentage': t('payments.policies.deposit_types.percentage'),
-      'fixed': t('payments.policies.deposit_types.fixed')
+      'none': t('payments.cancellation.policies.fee_types.none'),
+      'percentage': t('payments.cancellation.policies.fee_types.percentage'),
+      'fixed': t('payments.cancellation.policies.fee_types.fixed'),
+      'first_night': t('payments.cancellation.policies.fee_types.first_night'),
+      'nights_percentage': t('payments.cancellation.policies.fee_types.nights_percentage')
     }
     return types[type] || type
   }
 
-  const getDepositDueLabel = (due) => {
-    const dues = {
-      'confirmation': t('payments.policies.deposit_due.confirmation'),
-      'days_before': t('payments.policies.deposit_due.days_before'),
-      'check_in': t('payments.policies.deposit_due.check_in')
-    }
-    return dues[due] || due
-  }
 
-  const getBalanceDueLabel = (due) => {
-    const dues = {
-      'check_in': t('payments.policies.balance_due.check_in'),
-      'check_out': t('payments.policies.balance_due.check_out')
+  const getTimeUnitLabel = (unit) => {
+    const units = {
+      'hours': t('payments.cancellation.policies.time_units.hours'),
+      'days': t('payments.cancellation.policies.time_units.days'),
+      'weeks': t('payments.cancellation.policies.time_units.weeks')
     }
-    return dues[due] || due
+    return units[unit] || unit
   }
 
   return (
@@ -70,21 +65,21 @@ export default function PaymentPolicies() {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">{t('payments.policies.title')}</h1>
-          <p className="text-sm text-gray-600 mt-1">{t('payments.policies.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('payments.cancellation.policies.title')}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t('payments.cancellation.policies.subtitle')}</p>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          {t('payments.policies.add_policy_payment')}
+          {t('payments.cancellation.policies.add_policy_cancellation')}
         </Button>
       </div>
 
-      <PaymentPoliciesModal 
+      <CancellationPoliciesModal 
         isOpen={showModal} 
         onClose={() => setShowModal(false)} 
         isEdit={false} 
         onSuccess={refetch} 
       />
-      <PaymentPoliciesModal 
+      <CancellationPoliciesModal 
         isOpen={!!editPolicy} 
         onClose={() => setEditPolicy(null)} 
         isEdit={true} 
@@ -102,7 +97,7 @@ export default function PaymentPolicies() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder={t('payments.policies.search_placeholder')}
+              placeholder={t('payments.cancellation.policies.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && refetch()}
@@ -125,47 +120,35 @@ export default function PaymentPolicies() {
         data={displayResults}
         getRowId={(p) => p.id}
         columns={[
-          { key: 'name', header: t('payments.policies.policy_name'), sortable: true },
+          { key: 'name', header: t('payments.cancellation.policies.policy_name'), sortable: true },
           { key: 'hotel_name', header: t('sidebar.hotels'), sortable: true },
           { 
-            key: 'deposit_type', 
-            header: t('payments.policies.deposit_type'), 
-            render: (p) => getDepositTypeLabel(p.deposit_type),
+            key: 'free_cancellation_time', 
+            header: t('payments.cancellation.policies.free_cancellation'), 
+            render: (p) => `${p.free_cancellation_time} ${getTimeUnitLabel(p.free_cancellation_unit)}`,
             sortable: true 
           },
           { 
-            key: 'deposit_value', 
-            header: t('payments.policies.deposit_value'), 
-            render: (p) => p.deposit_type === 'percentage' ? `${p.deposit_value}%` : `$${p.deposit_value}`,
+            key: 'partial_refund_time', 
+            header: t('payments.cancellation.policies.partial_refund'), 
+            render: (p) => `${p.partial_refund_time} ${getTimeUnitLabel(p.partial_refund_unit)} (${p.partial_refund_percentage}%)`,
             sortable: true 
           },
           { 
-            key: 'deposit_due', 
-            header: t('payments.policies.deposit_due_header'), 
-            render: (p) => getDepositDueLabel(p.deposit_due),
-            sortable: true 
-          },
-          { 
-            key: 'balance_due', 
-            header: t('payments.policies.balance_due_header'), 
-            render: (p) => getBalanceDueLabel(p.balance_due),
-            sortable: true 
-          },
-          { 
-            key: 'auto_cancel_enabled', 
-            header: t('payments.policies.auto_cancel'), 
-            render: (p) => p.auto_cancel_enabled ? <CheckIcon color="green" /> : <XIcon color="red" />, 
+            key: 'cancellation_fee_type', 
+            header: t('payments.cancellation.policies.fee_type'), 
+            render: (p) => getFeeTypeLabel(p.cancellation_fee_type),
             sortable: true 
           },
           { 
             key: 'is_default', 
-            header: t('payments.policies.is_default'), 
+            header: t('payments.cancellation.policies.is_default'), 
             render: (p) => p.is_default ? <CheckIcon color="green" /> : <XIcon color="red" />, 
             sortable: true 
           },
           { 
             key: 'is_active', 
-            header: t('payments.policies.is_active'), 
+            header: t('payments.cancellation.policies.is_active'), 
             render: (p) => p.is_active ? <CheckIcon color="green" /> : <XIcon color="red" />, 
             sortable: true 
           },
@@ -177,7 +160,7 @@ export default function PaymentPolicies() {
             render: (p) => (
               <div className="flex justify-end items-center gap-x-2">
                 <EditIcon size="18" onClick={() => setEditPolicy(p)} />
-                <DeleteButton resource="payments/policies" id={p.id} onDeleted={refetch} />
+                <DeleteButton resource="payments/cancellation-policies" id={p.id} onDeleted={refetch} />
               </div>
             ),
           },

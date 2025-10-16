@@ -36,6 +36,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
     check_out_time: (hotel?.check_out_time ?? '11:00').slice(0, 5),
     is_active: hotel?.is_active ?? true,
     auto_check_in_enabled: hotel?.auto_check_in_enabled ?? false,
+    auto_no_show_enabled: hotel?.auto_no_show_enabled ?? false,
   }
 
   const validationSchema = Yup.object().shape({
@@ -64,6 +65,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
           check_out_time: values.check_out_time || undefined,
           is_active: values.is_active,
           auto_check_in_enabled: values.auto_check_in_enabled || false,
+          auto_no_show_enabled: values.auto_no_show_enabled || false,
         }
         if (isEdit && hotel?.id) updateHotel({ id: hotel.id, body: payload })
         else createHotel(payload)
@@ -132,31 +134,49 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             />
             <InputText title={t('hotels_modal.check_in_time')} name='check_in_time' type='time' />
             <InputText title={t('hotels_modal.check_out_time')} name='check_out_time' type='time' />
-            <div className='lg:col-span-2'>
-              <label className='text-xs text-aloja-gray-800/70 '>{t('hotels_modal.active')}</label>
-              <label htmlFor='auto_check_in_enabled' className='flex items-center gap-2 cursor-pointer pb-3'>
-                <input
-                  id='auto_check_in_enabled'
-                  name='auto_check_in_enabled'
-                  type='checkbox'
-                  className='rounded border-gray-300'
-                  checked={!!values.auto_check_in_enabled}
-                  onChange={(e) => setFieldValue('auto_check_in_enabled', e.target.checked)}
-                />
-                <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_check_in_enabled')}</span>
-              </label>
-              <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.active')}</label>
-              <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer'>
-                <input
-                  id='is_active'
-                  name='is_active'
-                  type='checkbox'
-                  className='rounded border-gray-300'
-                  checked={!!values.is_active}
-                  onChange={(e) => setFieldValue('is_active', e.target.checked)}
-                />
-                <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.enabled_for_operation')}</span>
-              </label>
+            <div className='lg:col-span-2 space-y-4'>
+              <div>
+                <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.automation_settings')}</label>
+                <div className='space-y-3 mt-2'>
+                  <label htmlFor='auto_check_in_enabled' className='flex items-center gap-2 cursor-pointer'>
+                    <input
+                      id='auto_check_in_enabled'
+                      name='auto_check_in_enabled'
+                      type='checkbox'
+                      className='rounded border-gray-300'
+                      checked={!!values.auto_check_in_enabled}
+                      onChange={(e) => setFieldValue('auto_check_in_enabled', e.target.checked)}
+                    />
+                    <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_check_in_enabled')}</span>
+                  </label>
+                  <label htmlFor='auto_no_show_enabled' className='flex items-center gap-2 cursor-pointer'>
+                    <input
+                      id='auto_no_show_enabled'
+                      name='auto_no_show_enabled'
+                      type='checkbox'
+                      className='rounded border-gray-300'
+                      checked={!!values.auto_no_show_enabled}
+                      onChange={(e) => setFieldValue('auto_no_show_enabled', e.target.checked)}
+                    />
+                    <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_no_show_enabled')}</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div>
+                <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.status')}</label>
+                <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer mt-2'>
+                  <input
+                    id='is_active'
+                    name='is_active'
+                    type='checkbox'
+                    className='rounded border-gray-300'
+                    checked={!!values.is_active}
+                    onChange={(e) => setFieldValue('is_active', e.target.checked)}
+                  />
+                  <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.enabled_for_operation')}</span>
+                </label>
+              </div>
             </div>
           </div>
         </ModalLayout>

@@ -13,6 +13,7 @@ import CardCreditIcon from "src/assets/icons/CardCreditIcon";
 import { paymentPolicyService } from "src/services/paymentPolicyService";
 import SpinnerLoading from "src/components/SpinnerLoading";
 import SpinnerData from "src/components/SpinnerData";
+import AlertSwal from "src/components/AlertSwal";
 
 export default function PaymentModal({
   isOpen,
@@ -27,8 +28,11 @@ export default function PaymentModal({
   const [pref, setPref] = useState(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-    const [payStatus, setPayStatus] = useState("");
-    const [payDetail, setPayDetail] = useState("");
+  const [payStatus, setPayStatus] = useState("");
+  const [payDetail, setPayDetail] = useState("");
+  // Estados para el modal de resultado
+  const [showResultAlert, setShowResultAlert] = useState(false);
+  const [resultData, setResultData] = useState(null);
     // sin brick embebido: usaremos link directo a init_point
     const attemptsRef = useRef(0);
     // Campos de formulario simple (Checkout API)
@@ -232,78 +236,36 @@ export default function PaymentModal({
 
     const showResult = (status, detail) => {
         const map = {
-            approved: { icon: "success", title: "Pago aprobado", text: detail || "accredited" },
+            approved: { title: "Pago aprobado", text: detail || "accredited", tone: "success" },
             in_process: { 
-                icon: "info", 
                 title: detail === "pending_contingency" ? "Pago en revisión" : "Pago en proceso", 
                 text: detail === "pending_contingency" 
                     ? "Mercado Pago está revisando tu pago. Te notificaremos el resultado." 
-                    : "Te avisaremos cuando se acredite" 
+                    : "Te avisaremos cuando se acredite",
+                tone: "info"
             },
-            rejected: { icon: "error", title: "Pago rechazado", text: detail || "Intenta nuevamente" },
-            error: { icon: "error", title: "Error", text: detail || "Ocurrió un error" },
+            rejected: { title: "Pago rechazado", text: detail || "Intenta nuevamente", tone: "danger" },
+            error: { title: "Error", text: detail || "Ocurrió un error", tone: "danger" },
         };
         const cfg = map[status] || map.error;
-        const palette = {
-            approved: { bg: "#16a34a", color: "#ffffff", iconColor: "#ffffff" }, // verde
-            in_process: { bg: "#2563eb", color: "#ffffff", iconColor: "#ffffff" }, // azul
-            rejected: { bg: "#b91c1c", color: "#ffffff", iconColor: "#ffffff" },   // rojo oscuro
-            error: { bg: "#b91c1c", color: "#ffffff", iconColor: "#ffffff" },      // rojo oscuro
-        };
-        const colors = palette[status] || palette.error;
-        const approvedBtn = status === "approved";
-        const anim = status === "approved"
-            ? { show: "animate__zoomIn", hide: "animate__zoomOut" }
-            : status === "rejected" || status === "error"
-            ? { show: "animate__shakeX", hide: "animate__fadeOutDown" }
-            : { show: "animate__fadeInDown", hide: "animate__fadeOutUp" };
-        Swal.fire({
-            icon: cfg.icon,
+        
+        setResultData({
+            status,
             title: cfg.title,
-            text: translateDetail(cfg.text),
-            confirmButtonText: "Aceptar",
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            allowEnterKey: true,
-            background: colors.bg,
-            color: colors.color,
-            iconColor: colors.iconColor,
-            buttonsStyling: true,
-            confirmButtonColor: approvedBtn ? "#ffffff" : "#16a34a",
-            showClass: {
-                popup: `animate__animated ${anim.show}`,
-                icon: `animate__animated ${anim.show}`,
-                backdrop: "animate__animated animate__fadeIn",
-            },
-            hideClass: {
-                popup: `animate__animated ${anim.hide}`,
-                backdrop: "animate__animated animate__fadeOut",
-            },
-            didOpen: () => {
-                const c = Swal.getContainer();
-                if (c) {
-                    c.style.zIndex = "10000";
-                    // Blur del fondo
-                    c.style.backdropFilter = "blur(6px)";
-                    c.style.background = "rgba(0,0,0,0.25)";
-                    c.style.webkitBackdropFilter = "blur(6px)";
-                }
-                const p = Swal.getPopup();
-                if (p) p.style.borderRadius = "18px";
-                const btn = Swal.getConfirmButton();
-                if (btn) {
-                    btn.style.backgroundColor = approvedBtn ? "#ffffff" : "#16a34a";
-                    btn.style.color = approvedBtn ? "#166534" : "#ffffff";
-                    btn.style.borderRadius = "9999px";
-                    btn.style.border = approvedBtn ? "1px solid #166534" : "none";
-                }
-            },
-        }).then((r) => {
-            if (r.isConfirmed && status === "approved") {
-                onPaid?.({ ok: true });
-                onClose?.();
-            }
+            message: translateDetail(cfg.text),
+            tone: cfg.tone
         });
+        setShowResultAlert(true);
+    };
+
+    // Función para manejar la confirmación del resultado
+    const handleResultConfirm = () => {
+        if (resultData?.status === "approved") {
+            onPaid?.({ ok: true });
+            onClose?.();
+        }
+        setShowResultAlert(false);
+        setResultData(null);
     };
 
     // Reset estados al cerrar
@@ -317,6 +279,8 @@ export default function PaymentModal({
             setPayAmount(null);
             setStep(isBalancePayment ? "select" : "amount");
             setInitialLoading(true); // Resetear estado de carga
+            setShowResultAlert(false);
+            setResultData(null);
         } else {
             // Cuando se abre el modal, establecer el step inicial
             setStep(isBalancePayment ? "select" : "amount");
@@ -813,6 +777,19 @@ export default function PaymentModal({
           </>
         )}
       </div>
+
+      {/* Modal de resultado de pago */}
+      <AlertSwal
+        isOpen={showResultAlert}
+        onClose={() => setShowResultAlert(false)}
+        onConfirm={handleResultConfirm}
+        confirmLoading={false}
+        title={resultData?.title || ""}
+        description={resultData?.message || ""}
+        confirmText="Aceptar"
+        cancelText=""
+        tone={resultData?.tone || "info"}
+      />
     </ModalLayout>
   );
 }

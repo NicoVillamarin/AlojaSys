@@ -18,6 +18,7 @@ import Kpis from 'src/components/Kpis'
 import { format, parseISO, startOfDay, endOfDay, isToday, isAfter, isBefore, subDays, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Swal from 'sweetalert2'
+import AlertSwal from 'src/components/AlertSwal'
 import 'src/styles/calendar.css'
 
 // Iconos para los KPIs
@@ -47,6 +48,13 @@ const ReservationsCalendar = () => {
   const [showLegend, setShowLegend] = useState(false)
   const [forceRender, setForceRender] = useState(0)
   const calendarRef = useRef(null)
+  
+  // Estados para modales de confirmación
+  const [showDragDropAlert, setShowDragDropAlert] = useState(false)
+  const [showResizeAlert, setShowResizeAlert] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showErrorModal, setShowErrorModal] = useState(false)
+  const [alertData, setAlertData] = useState(null)
   
   // Función para forzar re-render del calendario
   const forceCalendarRender = () => {
@@ -525,145 +533,42 @@ const ReservationsCalendar = () => {
 
   // Función para mostrar confirmación de drag & drop
   const showDragDropConfirmation = (guestName, oldDates, newDates) => {
-    return Swal.fire({
-      title: '¿Mover Reserva?',
-      html: `
-        <div class="text-left">
-          <div class="flex items-center mb-4">
-            <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mr-3">
-              <svg class="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold text-gray-900">Confirmar Movimiento</h3>
-              <p class="text-sm text-gray-600">Esta acción cambiará las fechas de la reserva</p>
-            </div>
-          </div>
-          <div class="bg-gray-50 rounded-lg p-4 space-y-3">
-            <div>
-              <p class="text-sm font-medium text-gray-700 mb-1">Huésped:</p>
-              <p class="text-lg font-semibold text-gray-900">${guestName}</p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p class="text-sm font-medium text-gray-700 mb-1">Fechas actuales:</p>
-                <p class="font-semibold text-red-600 bg-red-50 px-3 py-2 rounded-md">${oldDates}</p>
-              </div>
-              <div>
-                <p class="text-sm font-medium text-gray-700 mb-1">Nuevas fechas:</p>
-                <p class="font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">${newDates}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonColor: '#10B981',
-      cancelButtonColor: '#EF4444',
-      confirmButtonText: 'Sí, mover reserva',
-      cancelButtonText: 'Cancelar',
-      customClass: {
-        popup: 'calendar-swal2-popup',
-        title: 'calendar-swal2-title',
-        confirmButton: 'calendar-swal2-confirm',
-        cancelButton: 'calendar-swal2-cancel'
-      }
+    return new Promise((resolve) => {
+      setAlertData({
+        guestName,
+        oldDates,
+        newDates,
+        type: 'dragDrop',
+        resolve
+      })
+      setShowDragDropAlert(true)
     })
   }
 
   // Función para mostrar confirmación de resize
   const showResizeConfirmation = (guestName, oldDates, newDates) => {
-    return Swal.fire({
-      title: '¿Cambiar Fechas?',
-      html: `
-        <div class="text-left">
-          <div class="flex items-center mb-4">
-            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-              <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold text-gray-900">Confirmar Cambio de Fechas</h3>
-              <p class="text-sm text-gray-600">Esta acción modificará la duración de la reserva</p>
-            </div>
-          </div>
-          <div class="bg-gray-50 rounded-lg p-4 space-y-3">
-            <div>
-              <p class="text-sm font-medium text-gray-700 mb-1">Huésped:</p>
-              <p class="text-lg font-semibold text-gray-900">${guestName}</p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p class="text-sm font-medium text-gray-700 mb-1">Fechas actuales:</p>
-                <p class="font-semibold text-red-600 bg-red-50 px-3 py-2 rounded-md">${oldDates}</p>
-              </div>
-              <div>
-                <p class="text-sm font-medium text-gray-700 mb-1">Nuevas fechas:</p>
-                <p class="font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">${newDates}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonColor: '#3B82F6',
-      cancelButtonColor: '#EF4444',
-      confirmButtonText: 'Sí, cambiar fechas',
-      cancelButtonText: 'Cancelar',
-      customClass: {
-        popup: 'calendar-swal2-popup',
-        title: 'calendar-swal2-title',
-        confirmButton: 'calendar-swal2-confirm',
-        cancelButton: 'calendar-swal2-cancel'
-      }
+    return new Promise((resolve) => {
+      setAlertData({
+        guestName,
+        oldDates,
+        newDates,
+        type: 'resize',
+        resolve
+      })
+      setShowResizeAlert(true)
     })
   }
 
   // Función para mostrar éxito
   const showSuccessAlert = (title, message) => {
-    Swal.fire({
-      title: title,
-      html: `
-        <div class="text-center">
-          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-            </svg>
-          </div>
-          <p class="text-gray-700">${message}</p>
-        </div>
-      `,
-      confirmButtonColor: '#10B981',
-      timer: 2000,
-      timerProgressBar: true,
-      showConfirmButton: false,
-      customClass: {
-        popup: 'calendar-swal2-popup'
-      }
-    })
+    setAlertData({ title, message })
+    setShowSuccessModal(true)
   }
 
   // Función para mostrar error
   const showErrorAlert = (title, message) => {
-    Swal.fire({
-      title: title,
-      html: `
-        <div class="text-center">
-          <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-            </svg>
-          </div>
-          <p class="text-gray-700">${message}</p>
-        </div>
-      `,
-      confirmButtonColor: '#EF4444',
-      customClass: {
-        popup: 'calendar-swal2-popup'
-      }
-    })
+    setAlertData({ title, message })
+    setShowErrorModal(true)
   }
 
   // Función para cerrar el modal con animación
@@ -673,6 +578,39 @@ const ReservationsCalendar = () => {
       setSelectedEvent(null)
       setIsModalClosing(false)
     }, 200) // Duración de la animación de salida
+  }
+
+  // Funciones de manejo para los modales de confirmación
+  const handleDragDropConfirm = () => {
+    if (alertData?.resolve) {
+      alertData.resolve({ isConfirmed: true })
+    }
+    setShowDragDropAlert(false)
+    setAlertData(null)
+  }
+
+  const handleDragDropCancel = () => {
+    if (alertData?.resolve) {
+      alertData.resolve({ isConfirmed: false })
+    }
+    setShowDragDropAlert(false)
+    setAlertData(null)
+  }
+
+  const handleResizeConfirm = () => {
+    if (alertData?.resolve) {
+      alertData.resolve({ isConfirmed: true })
+    }
+    setShowResizeAlert(false)
+    setAlertData(null)
+  }
+
+  const handleResizeCancel = () => {
+    if (alertData?.resolve) {
+      alertData.resolve({ isConfirmed: false })
+    }
+    setShowResizeAlert(false)
+    setAlertData(null)
   }
 
   // Manejar clic en evento
@@ -1514,6 +1452,115 @@ const ReservationsCalendar = () => {
           </div>
         </div>
       )}
+
+      {/* Modales de confirmación y alertas */}
+      <AlertSwal
+        isOpen={showDragDropAlert}
+        onClose={handleDragDropCancel}
+        onConfirm={handleDragDropConfirm}
+        confirmLoading={false}
+        title="¿Mover Reserva?"
+        description={
+          alertData ? (
+            <div className="text-left space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <span className="text-amber-600 font-bold text-sm">⚠️</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">Confirmar Movimiento</p>
+                  <p className="text-sm text-gray-600">Esta acción cambiará las fechas de la reserva</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Huésped:</p>
+                  <p className="text-lg font-semibold text-gray-900">{alertData.guestName}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">Fechas actuales:</p>
+                    <p className="font-semibold text-red-600 bg-red-50 px-3 py-2 rounded-md">{alertData.oldDates}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">Nuevas fechas:</p>
+                    <p className="font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">{alertData.newDates}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : ''
+        }
+        confirmText="Sí, mover reserva"
+        cancelText="Cancelar"
+        tone="warning"
+      />
+
+      <AlertSwal
+        isOpen={showResizeAlert}
+        onClose={handleResizeCancel}
+        onConfirm={handleResizeConfirm}
+        confirmLoading={false}
+        title="¿Cambiar Fechas?"
+        description={
+          alertData ? (
+            <div className="text-left space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <span className="text-blue-600 font-bold text-sm">⏰</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">Confirmar Cambio de Fechas</p>
+                  <p className="text-sm text-gray-600">Esta acción modificará la duración de la reserva</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Huésped:</p>
+                  <p className="text-lg font-semibold text-gray-900">{alertData.guestName}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">Fechas actuales:</p>
+                    <p className="font-semibold text-red-600 bg-red-50 px-3 py-2 rounded-md">{alertData.oldDates}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">Nuevas fechas:</p>
+                    <p className="font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">{alertData.newDates}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : ''
+        }
+        confirmText="Sí, cambiar fechas"
+        cancelText="Cancelar"
+        tone="info"
+      />
+
+      <AlertSwal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        onConfirm={() => setShowSuccessModal(false)}
+        confirmLoading={false}
+        title={alertData?.title || "Éxito"}
+        description={alertData?.message || ""}
+        confirmText="OK"
+        cancelText=""
+        tone="success"
+      />
+
+      <AlertSwal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        onConfirm={() => setShowErrorModal(false)}
+        confirmLoading={false}
+        title={alertData?.title || "Error"}
+        description={alertData?.message || ""}
+        confirmText="OK"
+        cancelText=""
+        tone="danger"
+      />
     </div>
   )
 }

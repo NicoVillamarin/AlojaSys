@@ -17,6 +17,10 @@ class ReservationSerializer(serializers.ModelSerializer):
     total_price = serializers.SerializerMethodField()
     balance_due = serializers.SerializerMethodField()
     total_paid = serializers.SerializerMethodField()
+    applied_cancellation_policy_name = serializers.CharField(
+        source="applied_cancellation_policy.name", 
+        read_only=True
+    )
 
     class Meta:
         model = Reservation
@@ -24,7 +28,7 @@ class ReservationSerializer(serializers.ModelSerializer):
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "balance_due", "total_paid", "notes",
-            "channel", "promotion_code",
+            "channel", "promotion_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
             "display_name", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "balance_due", "total_paid", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
@@ -51,6 +55,15 @@ class ReservationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         with transaction.atomic():
+            # Asignar política de cancelación vigente al momento de crear la reserva
+            if 'applied_cancellation_policy' not in validated_data:
+                from apps.payments.models import CancellationPolicy
+                hotel = validated_data.get('hotel')
+                if hotel:
+                    cancellation_policy = CancellationPolicy.resolve_for_hotel(hotel)
+                    if cancellation_policy:
+                        validated_data['applied_cancellation_policy'] = cancellation_policy
+            
             instance = Reservation(**validated_data)
             instance.full_clean()
             instance.save()

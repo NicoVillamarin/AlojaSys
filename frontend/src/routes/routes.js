@@ -19,6 +19,8 @@ import Promos from "src/pages/configurations/rates/Promos";
 import Taxes from "src/pages/configurations/rates/Taxes";
 import PaymentPolicies from "src/pages/configurations/policy/PaymentPolicies";
 import ReservationsCalendar from "src/pages/ReservationsCalendar";
+import CancellationPolicies from "src/pages/configurations/policy/CancellationPolicies";
+import DevolutionPolicies from "src/pages/configurations/policy/DevolutionPolicies";
 
 
 export const appRoutes = [
@@ -44,6 +46,8 @@ export const appRoutes = [
       { path: "settings/rates/promos", element: React.createElement(Promos) },
       { path: "settings/rates/taxes", element: React.createElement(Taxes) },
       { path: "settings/payments/policies", element: React.createElement(PaymentPolicies) },
+      { path: "settings/policies/cancellation", element: React.createElement(CancellationPolicies) },
+      { path: "settings/policies/devolution", element: React.createElement(DevolutionPolicies) },
       { path: "reservations-calendar", element: React.createElement(ReservationsCalendar) },
     ],
   },

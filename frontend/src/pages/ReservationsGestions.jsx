@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
+import fetchWithAuth from 'src/services/fetchWithAuth'
+import { getApiURL } from 'src/services/utils'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
 import Button from 'src/components/Button'
 import SelectAsync from 'src/components/selects/SelectAsync'
@@ -12,10 +14,12 @@ import { convertToDecimal, getStatusLabel, RES_STATUS } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import PaymentModal from 'src/components/modals/PaymentModal'
+import CancellationModal from 'src/components/modals/CancellationModal'
 import Badge from 'src/components/Badge'
-import fetchWithAuth from 'src/services/fetchWithAuth'
-import { getApiURL } from 'src/services/utils'
 import { useAuthStore } from 'src/stores/useAuthStore'
+import Swal from 'sweetalert2'
+import AutoNoShowButton from 'src/components/AutoNoShowButton'
+import AlertSwal from 'src/components/AlertSwal'
 
 
 
@@ -29,6 +33,10 @@ export default function ReservationsGestions() {
   const [balancePayReservationId, setBalancePayReservationId] = useState(null)
   const [balanceInfo, setBalanceInfo] = useState(null)
   const [pendingAction, setPendingAction] = useState(null) // 'check_in' o 'check_out'
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelReservation, setCancelReservation] = useState(null)
+  const [showEarlyCheckOutAlert, setShowEarlyCheckOutAlert] = useState(false)
+  const [earlyCheckOutReservation, setEarlyCheckOutReservation] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
@@ -42,6 +50,19 @@ export default function ReservationsGestions() {
       show_historical: true,
     },
   })
+
+  // Obtener lista de hoteles para verificar configuración
+  const { results: hotels } = useList({ 
+    resource: "hotels",
+    params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}
+  });
+
+  // Obtener información del hotel seleccionado para verificar configuración
+  const selectedHotel = hotels?.find(h => String(h.id) === String(filters.hotel)) || 
+                       (hasSingleHotel ? hotels?.[0] : null);
+  
+  // Verificar si el hotel tiene auto no-show habilitado
+  const hasAutoNoShowEnabled = selectedHotel?.auto_no_show_enabled || false;
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ resource: 'reservations', onSuccess: () => refetch() })
 
@@ -84,6 +105,27 @@ export default function ReservationsGestions() {
   const canCancel = (r) => r.status === 'pending' || r.status === 'confirmed'
   const canConfirm = (r) => r.status === 'pending'
   const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
+  const canEarlyCheckOut = (r) => r.status === 'check_in' // Early check-out para reservas en check-in
+  
+  // Función para obtener el mensaje de cancelación según el estado
+  const getCancelMessage = (r) => {
+    if (r.status === 'pending') {
+      return t('dashboard.reservations_management.actions.cancel_free')
+    } else if (r.status === 'confirmed') {
+      return t('dashboard.reservations_management.actions.cancel_with_policy')
+    }
+    return t('dashboard.reservations_management.actions.cancel')
+  }
+  
+  // Función para obtener el tooltip de cancelación
+  const getCancelTooltip = (r) => {
+    if (r.status === 'pending') {
+      return t('dashboard.reservations_management.tooltips.cancel_free')
+    } else if (r.status === 'confirmed') {
+      return t('dashboard.reservations_management.tooltips.cancel_with_policy')
+    }
+    return ''
+  }
 
   const onCheckIn = async (r) => {
     console.log(t('dashboard.reservations_management.console_messages.check_in_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
@@ -164,7 +206,8 @@ export default function ReservationsGestions() {
   }
   const onCancel = (r) => {
     console.log(t('dashboard.reservations_management.console_messages.cancel_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
-    doAction({ action: `${r.id}/cancel`, body: {}, method: 'POST' })
+    setCancelReservation(r)
+    setCancelModalOpen(true)
   }
   const onConfirm = (r) => {
     console.log(t('dashboard.reservations_management.console_messages.confirm_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
@@ -176,6 +219,60 @@ export default function ReservationsGestions() {
     console.log(t('dashboard.reservations_management.console_messages.edit_reservation'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
     setEditReservation(r)
   }
+  
+  const onEarlyCheckOut = (r) => {
+    console.log(t('dashboard.reservations_management.console_messages.early_check_out_for'), r.id, t('dashboard.reservations_management.console_messages.current_status'), r.status)
+    
+    // Guardar la reserva y mostrar el modal de confirmación
+    setEarlyCheckOutReservation(r)
+    setShowEarlyCheckOutAlert(true)
+  }
+
+  const handleEarlyCheckOutConfirm = async () => {
+    if (!earlyCheckOutReservation) return
+    
+    const r = earlyCheckOutReservation
+    
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${getApiURL()}/api/reservations/${r.id}/check_out/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (response.status === 402 && data.requires_payment) {
+        // Mostrar modal de pago de saldo pendiente
+        setBalancePayReservationId(r.id);
+        setBalanceInfo({
+          balance_due: data.balance_due,
+          total_paid: data.total_paid,
+          total_reservation: data.total_reservation,
+          payment_required_at: data.payment_required_at
+        });
+        setPendingAction('check_out');
+        setBalancePayOpen(true);
+      } else if (response.ok) {
+        // Early check-out exitoso, refrescar datos
+        refetch();
+      } else {
+        throw new Error(data.detail || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error en early check-out:', error);
+      // Si hay error, intentar con el método original
+      doAction({ action: `${r.id}/check_out`, body: {}, method: 'POST' });
+    } finally {
+      // Cerrar el modal
+      setShowEarlyCheckOutAlert(false)
+      setEarlyCheckOutReservation(null)
+    }
+  }
+  
 
   return (
     <div className="space-y-5">
@@ -184,9 +281,16 @@ export default function ReservationsGestions() {
           <div className="text-xs text-aloja-gray-800/60">{t('dashboard.reservations_management.title')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">{t('dashboard.reservations_management.subtitle')}</h1>
         </div>
-        <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          {t('dashboard.reservations_management.create_reservation')}
-        </Button>
+        <div className="flex gap-3">
+          <AutoNoShowButton 
+            selectedHotel={selectedHotel}
+            hasAutoNoShowEnabled={hasAutoNoShowEnabled}
+            onSuccess={refetch}
+          />
+          <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
+            {t('dashboard.reservations_management.create_reservation')}
+          </Button>
+        </div>
       </div>
 
       <ReservationsModal isOpen={showModal} onClose={() => setShowModal(false)} onSuccess={refetch} />
@@ -229,6 +333,20 @@ export default function ReservationsGestions() {
           
           setPendingAction(null);
           refetch(); 
+        }}
+      />
+
+      <CancellationModal
+        isOpen={cancelModalOpen}
+        onClose={() => {
+          setCancelModalOpen(false)
+          setCancelReservation(null)
+        }}
+        reservation={cancelReservation}
+        onSuccess={() => {
+          setCancelModalOpen(false)
+          setCancelReservation(null)
+          refetch()
         }}
       />
 
@@ -423,6 +541,7 @@ export default function ReservationsGestions() {
                   `}
                   disabled={!canEdit(r) || acting}
                   onClick={() => onEdit(r)}
+                  title={t('dashboard.reservations_management.tooltips.edit')}
                 >
                   {t('dashboard.reservations_management.actions.edit')}
                 </button>
@@ -434,6 +553,7 @@ export default function ReservationsGestions() {
                   `}
                   disabled={!canConfirm(r) || acting}
                   onClick={() => onConfirm(r)}
+                  title={t('dashboard.reservations_management.tooltips.confirm')}
                 >
                   {t('dashboard.reservations_management.actions.confirm')}
                 </button>
@@ -445,6 +565,7 @@ export default function ReservationsGestions() {
                   `}
                   disabled={!canCheckIn(r) || acting}
                   onClick={() => onCheckIn(r)}
+                  title={t('dashboard.reservations_management.tooltips.check_in')}
                 >
                   {t('dashboard.reservations_management.actions.check_in')}
                 </button>
@@ -456,8 +577,21 @@ export default function ReservationsGestions() {
                   `}
                   disabled={!canCheckOut(r) || acting}
                   onClick={() => onCheckOut(r)}
+                  title={t('dashboard.reservations_management.tooltips.check_out')}
                 >
                   {t('dashboard.reservations_management.actions.check_out')}
+                </button>
+                <button
+                  className={`px-2 py-1 rounded text-xs border transition-colors
+                    ${canEarlyCheckOut(r)
+                      ? 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'
+                      : 'opacity-40 cursor-not-allowed bg-orange-50 text-orange-700 border-orange-300'}
+                  `}
+                  disabled={!canEarlyCheckOut(r) || acting}
+                  onClick={() => onEarlyCheckOut(r)}
+                  title={t('dashboard.reservations_management.tooltips.early_check_out')}
+                >
+                  {t('dashboard.reservations_management.actions.early_check_out')}
                 </button>
                 <button
                   className={`px-2 py-1 rounded text-xs border transition-colors
@@ -467,8 +601,9 @@ export default function ReservationsGestions() {
                   `}
                   disabled={!canCancel(r) || acting}
                   onClick={() => onCancel(r)}
+                  title={getCancelTooltip(r)}
                 >
-                  {t('dashboard.reservations_management.actions.cancel')}
+                  {getCancelMessage(r)}
                 </button>
               </div>
             )
@@ -483,6 +618,25 @@ export default function ReservationsGestions() {
           </button>
         </div>
       )}
+
+      {/* Modal de confirmación para Early Check-out */}
+      <AlertSwal
+        isOpen={showEarlyCheckOutAlert}
+        onClose={() => {
+          setShowEarlyCheckOutAlert(false)
+          setEarlyCheckOutReservation(null)
+        }}
+        onConfirm={handleEarlyCheckOutConfirm}
+        confirmLoading={false}
+        title={t('dashboard.reservations_management.confirmations.early_check_out_title')}
+        description={earlyCheckOutReservation ? t('dashboard.reservations_management.confirmations.early_check_out', {
+          guest: earlyCheckOutReservation.guest_name,
+          room: earlyCheckOutReservation.room_name
+        }) : ''}
+        confirmText={t('common.yes')}
+        cancelText={t('common.cancel')}
+        tone="warning"
+      />
     </div>
   )
 }

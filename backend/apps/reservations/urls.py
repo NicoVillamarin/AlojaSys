@@ -14,6 +14,7 @@ from .views import (
     can_book,
     quote_range,
     quote,
+    auto_mark_no_show,
 )
 
 router = DefaultRouter()
@@ -31,5 +32,6 @@ urlpatterns = [
     path("reservations/<int:pk>/payments/", reservation_payments, name="reservation-payments"),
     path("reservations/<int:pk>/commission/", reservation_commission, name="reservation-commission"),
     path("reservations/<int:pk>/history/", reservation_history, name="reservation-history"),
+    path("reservations/auto-no-show/", auto_mark_no_show, name="auto-no-show"),
     path("", include(router.urls)),
 ]

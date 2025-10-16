@@ -2,14 +2,14 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import { useList } from 'src/hooks/useList'
-import PaymentPoliciesModal from 'src/components/modals/PaymentPoliciesModal'
+import DevolutionPoliciesModal from 'src/components/modals/DevolutionPoliciesModal'
 import EditIcon from 'src/assets/icons/EditIcon'
 import DeleteButton from 'src/components/DeleteButton'
 import Button from 'src/components/Button'
 import CheckIcon from 'src/assets/icons/CheckIcon'
 import XIcon from 'src/assets/icons/Xicon'
 
-export default function PaymentPolicies() {
+export default function DevolutionPolicies() {
   const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editPolicy, setEditPolicy] = useState(null)
@@ -17,7 +17,7 @@ export default function PaymentPolicies() {
   const didMountRef = useRef(false)
 
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
-    resource: 'payments/policies',
+    resource: 'payments/refund-policies',
     params: { 
       search: filters.search
     },
@@ -39,30 +39,24 @@ export default function PaymentPolicies() {
     return () => clearTimeout(id)
   }, [filters.search, refetch])
 
-  const getDepositTypeLabel = (type) => {
-    const types = {
-      'none': t('payments.policies.deposit_types.none'),
-      'percentage': t('payments.policies.deposit_types.percentage'),
-      'fixed': t('payments.policies.deposit_types.fixed')
+  const getRefundMethodLabel = (method) => {
+    const methods = {
+      'cash': t('payments.refund.policies.refund_methods.cash'),
+      'bank_transfer': t('payments.refund.policies.refund_methods.bank_transfer'),
+      'credit_card': t('payments.refund.policies.refund_methods.credit_card'),
+      'voucher': t('payments.refund.policies.refund_methods.voucher'),
+      'original_payment': t('payments.refund.policies.refund_methods.original_payment')
     }
-    return types[type] || type
+    return methods[method] || method
   }
 
-  const getDepositDueLabel = (due) => {
-    const dues = {
-      'confirmation': t('payments.policies.deposit_due.confirmation'),
-      'days_before': t('payments.policies.deposit_due.days_before'),
-      'check_in': t('payments.policies.deposit_due.check_in')
+  const getTimeUnitLabel = (unit) => {
+    const units = {
+      'hours': t('payments.refund.policies.time_units.hours'),
+      'days': t('payments.refund.policies.time_units.days'),
+      'weeks': t('payments.refund.policies.time_units.weeks')
     }
-    return dues[due] || due
-  }
-
-  const getBalanceDueLabel = (due) => {
-    const dues = {
-      'check_in': t('payments.policies.balance_due.check_in'),
-      'check_out': t('payments.policies.balance_due.check_out')
-    }
-    return dues[due] || due
+    return units[unit] || unit
   }
 
   return (
@@ -70,21 +64,21 @@ export default function PaymentPolicies() {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
-          <h1 className="text-2xl font-semibold text-aloja-navy">{t('payments.policies.title')}</h1>
-          <p className="text-sm text-gray-600 mt-1">{t('payments.policies.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('payments.refund.policies.title')}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t('payments.refund.policies.subtitle')}</p>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          {t('payments.policies.add_policy_payment')}
+          {t('payments.refund.policies.add_policy_devolution')}
         </Button>
       </div>
 
-      <PaymentPoliciesModal 
+      <DevolutionPoliciesModal 
         isOpen={showModal} 
         onClose={() => setShowModal(false)} 
         isEdit={false} 
         onSuccess={refetch} 
       />
-      <PaymentPoliciesModal 
+      <DevolutionPoliciesModal 
         isOpen={!!editPolicy} 
         onClose={() => setEditPolicy(null)} 
         isEdit={true} 
@@ -102,7 +96,7 @@ export default function PaymentPolicies() {
             </span>
             <input
               className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg pl-8 pr-8 py-2 text-sm w-64 transition-all"
-              placeholder={t('payments.policies.search_placeholder')}
+              placeholder={t('payments.refund.policies.search_placeholder')}
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && refetch()}
@@ -125,47 +119,41 @@ export default function PaymentPolicies() {
         data={displayResults}
         getRowId={(p) => p.id}
         columns={[
-          { key: 'name', header: t('payments.policies.policy_name'), sortable: true },
+          { key: 'name', header: t('payments.refund.policies.policy_name'), sortable: true },
           { key: 'hotel_name', header: t('sidebar.hotels'), sortable: true },
           { 
-            key: 'deposit_type', 
-            header: t('payments.policies.deposit_type'), 
-            render: (p) => getDepositTypeLabel(p.deposit_type),
+            key: 'full_refund_time', 
+            header: t('payments.refund.policies.full_refund'), 
+            render: (p) => `${p.full_refund_time} ${getTimeUnitLabel(p.full_refund_unit)}`,
             sortable: true 
           },
           { 
-            key: 'deposit_value', 
-            header: t('payments.policies.deposit_value'), 
-            render: (p) => p.deposit_type === 'percentage' ? `${p.deposit_value}%` : `$${p.deposit_value}`,
+            key: 'partial_refund_time', 
+            header: t('payments.refund.policies.partial_refund'), 
+            render: (p) => `${p.partial_refund_time} ${getTimeUnitLabel(p.partial_refund_unit)} (${p.partial_refund_percentage}%)`,
             sortable: true 
           },
           { 
-            key: 'deposit_due', 
-            header: t('payments.policies.deposit_due_header'), 
-            render: (p) => getDepositDueLabel(p.deposit_due),
+            key: 'refund_method', 
+            header: t('payments.refund.policies.refund_method'), 
+            render: (p) => getRefundMethodLabel(p.refund_method),
             sortable: true 
           },
           { 
-            key: 'balance_due', 
-            header: t('payments.policies.balance_due_header'), 
-            render: (p) => getBalanceDueLabel(p.balance_due),
-            sortable: true 
-          },
-          { 
-            key: 'auto_cancel_enabled', 
-            header: t('payments.policies.auto_cancel'), 
-            render: (p) => p.auto_cancel_enabled ? <CheckIcon color="green" /> : <XIcon color="red" />, 
+            key: 'refund_processing_days', 
+            header: t('payments.refund.policies.processing_days'), 
+            render: (p) => `${p.refund_processing_days} días`,
             sortable: true 
           },
           { 
             key: 'is_default', 
-            header: t('payments.policies.is_default'), 
+            header: t('payments.refund.policies.is_default'), 
             render: (p) => p.is_default ? <CheckIcon color="green" /> : <XIcon color="red" />, 
             sortable: true 
           },
           { 
             key: 'is_active', 
-            header: t('payments.policies.is_active'), 
+            header: t('payments.refund.policies.is_active'), 
             render: (p) => p.is_active ? <CheckIcon color="green" /> : <XIcon color="red" />, 
             sortable: true 
           },
@@ -177,7 +165,7 @@ export default function PaymentPolicies() {
             render: (p) => (
               <div className="flex justify-end items-center gap-x-2">
                 <EditIcon size="18" onClick={() => setEditPolicy(p)} />
-                <DeleteButton resource="payments/policies" id={p.id} onDeleted={refetch} />
+                <DeleteButton resource="payments/refund-policies" id={p.id} onDeleted={refetch} />
               </div>
             ),
           },

@@ -18,6 +18,7 @@ class Hotel(models.Model):
     check_in_time = models.TimeField(default=time(15, 0))
     check_out_time = models.TimeField(default=time(11, 0))
     auto_check_in_enabled = models.BooleanField(default=False)
+    auto_no_show_enabled = models.BooleanField(default=False, help_text="Habilita el marcado automático de reservas como no-show")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -33,7 +33,10 @@
     "taxes": "Taxes",
     "payment_policies": "Payment Policies",
     "history": "History",
-    "reservations_calendar": "Reservations Calendar"
+    "reservations_calendar": "Reservations Calendar",
+    "policies": "Policies",
+    "cancellation_policies": "Cancellation Policies",
+    "devolution_policies": "Devolution Policies"
   },
   "common": {
     "save": "Save",
@@ -53,6 +56,7 @@
     "load_more": "Load more",
     "yes": "Yes",
     "no": "No",
+    "ok": "OK",
     "actions": "Actions",
     "confirm_delete": "Are you sure you want to delete this item?",
     "no_hotel_selected": "No hotel selected",
@@ -62,6 +66,8 @@
     "invalid_format": "Invalid format",
     "min_value_0": "Value must be greater than or equal to 0",
     "min_value_0_01": "Minimum value is 0.01",
+    "min_value_1": "Minimum value is 1",
+    "max_value_365": "Maximum value is 365",
     "code_help": "Only lowercase letters and underscores (e.g: credit_card)",
     "saving": "Saving..."
   },
@@ -569,16 +575,43 @@
         "confirm": "Confirm",
         "check_in": "Check-in",
         "check_out": "Check-out",
-        "cancel": "Cancel"
+        "early_check_out": "Early Check-out",
+        "auto_no_show": "Auto No-Show",
+        "cancel": "Cancel",
+        "cancel_free": "Cancel (No Penalty)",
+        "cancel_with_policy": "Cancel (With Policy)"
       },
       "load_more": "Load more",
       "console_messages": {
         "check_in_for": "Check-in for reservation:",
         "current_status": "current status:",
         "check_out_for": "Check-out for reservation:",
+        "early_check_out_for": "Early check-out for reservation:",
         "cancel_for": "Cancel for reservation:",
         "confirm_for": "Confirm for reservation:",
         "edit_reservation": "Edit reservation:"
+      },
+      "tooltips": {
+        "edit": "Edit reservation (pending only)",
+        "confirm": "Confirm reservation with payment",
+        "check_in": "Register guest arrival",
+        "check_out": "Register guest departure",
+        "early_check_out": "Early departure (before scheduled date)",
+        "cancel_free": "Cancel without penalty (pending reservation)",
+        "cancel_with_policy": "Cancel with cancellation policy applied",
+        "auto_no_show_manual": "Manually mark expired reservations as no-show (only if not automated)"
+      },
+      "confirmations": {
+        "early_check_out_title": "Confirm Early Check-out",
+        "early_check_out": "Confirm early check-out for {{guest}} in {{room}}? This action cannot be undone.",
+        "auto_no_show_title": "Auto No-Show",
+        "auto_no_show": "Automatically mark expired confirmed reservations as no-show? This action cannot be undone."
+      },
+      "messages": {
+        "auto_no_show_success_title": "No-Show Processed",
+        "auto_no_show_success": "Successfully marked {{count}} reservations as no-show.",
+        "auto_no_show_error_title": "No-Show Error",
+        "auto_no_show_error": "Error marking reservations as no-show. Please try again."
       }
     }
   },
@@ -770,7 +803,10 @@
     "city_placeholder": "Search city…",
     "check_in_time": "Check-in",
     "check_out_time": "Check-out",
+    "automation_settings": "Automation Settings",
+    "status": "Status",
     "auto_check_in_enabled": "Self-check-in upon arrival on the check-in date",
+    "auto_no_show_enabled": "Auto no-show for expired reservations",
     "active": "Active",
     "enabled_for_operation": "Enabled for operation"
   },
@@ -1135,6 +1171,8 @@
       "subtitle": "Configure when and how guests are charged",
       "add_policy": "Add Policy",
       "edit_policy": "Edit Policy",
+      "add_policy_payment": "Add Payment Policy",
+      "edit_policy_payment": "Edit Payment Policy",
       "policy_name": "Policy Name",
       "is_default": "Default Policy",
       "is_active": "Active",
@@ -1142,14 +1180,8 @@
       "deposit_section": "Deposit Configuration",
       "deposit_type": "Deposit Type",
       "deposit_value": "Deposit Value",
-      "deposit_due": "When to Charge Deposit",
       "deposit_days_before": "Days Before Check-in",
       "balance_section": "Balance Configuration",
-      "balance_due": "When to Charge Balance",
-      "deposit_due_header": "When to Charge Deposit",
-      "balance_due_header": "When to Charge Balance",
-      "deposit_due_title": "When to Charge Deposit",
-      "balance_due_title": "When to Charge Balance",
       "enabled_methods": "Enabled Payment Methods",
       "search_placeholder": "Search by name or hotel...",
       "deposit_types": {
@@ -1162,9 +1194,147 @@
         "days_before": "Days Before Check-in",
         "check_in": "At Check-in"
       },
+      "deposit_due_header": "When to Charge Deposit",
       "balance_due": {
         "check_in": "At Check-in",
         "check_out": "At Check-out"
+      },
+      "balance_due_header": "When to Charge Balance",
+      "auto_cancel_section": "Reservation Auto-cancellation",
+      "auto_cancel_enabled": "Enable Auto-cancellation",
+      "auto_cancel_enabled_desc": "Automatically cancel pending reservations without payment",
+      "auto_cancel": "Auto-cancellation",
+      "auto_cancel_days": "Days for Auto-cancellation",
+      "auto_cancel_days_desc": "Days after creating the reservation to automatically cancel if no payments"
+    },
+    "cancellation": {
+      "policies": {
+        "title": "Cancellation Policies",
+        "subtitle": "Configure cancellation and refund rules",
+        "add_policy": "Add Policy",
+        "edit_policy": "Edit Policy",
+        "add_policy_cancellation": "Add Cancellation Policy",
+        "edit_policy_cancellation": "Edit Cancellation Policy",
+        "policy_name": "Policy Name",
+        "is_default": "Default Policy",
+        "is_active": "Active",
+        "search_placeholder": "Search by name or hotel...",
+        "free_cancellation": "Free Cancellation",
+        "partial_refund": "Partial Refund",
+        "fee_type": "Penalty Type",
+        "refund_method": "Refund Method",
+        "tabs": {
+          "basic": "Basic",
+          "times": "Times",
+          "restrictions": "Restrictions",
+          "refund": "Refund",
+          "messages": "Messages",
+          "advanced": "Advanced"
+        },
+        "fee_types": {
+          "none": "No Penalty",
+          "percentage": "Percentage of Total",
+          "fixed": "Fixed Amount",
+          "first_night": "First Night",
+          "nights_percentage": "Percentage per Night"
+        },
+        "refund_types": {
+          "full": "Full Refund",
+          "partial": "Partial Refund",
+          "none": "No Refund",
+          "voucher": "Credit Voucher"
+        },
+        "time_units": {
+          "hours": "Hours",
+          "days": "Days",
+          "weeks": "Weeks"
+        },
+        "free_cancellation_time": "Free Cancellation Time",
+        "partial_refund_time": "Partial Refund Time",
+        "partial_refund_percentage": "Partial Refund Percentage",
+        "no_refund_time": "No Refund Time",
+        "time_unit": "Time Unit",
+        "cancellation_fee_type": "Cancellation Fee Type",
+        "cancellation_fee_value": "Cancellation Fee Value",
+        "allow_cancellation_after_checkin": "Allow cancellation after check-in",
+        "allow_cancellation_after_checkout": "Allow cancellation after check-out",
+        "allow_cancellation_no_show": "Allow no-show cancellation",
+        "allow_cancellation_early_checkout": "Allow early checkout cancellation",
+        "free_cancellation_message": "Free Cancellation Message",
+        "free_cancellation_message_placeholder": "Free cancellation up to 24 hours before check-in",
+        "partial_cancellation_message": "Partial Cancellation Message",
+        "partial_cancellation_message_placeholder": "Cancellation with 50% penalty up to 72 hours before check-in",
+        "no_cancellation_message": "No Cancellation Message",
+        "no_cancellation_message_placeholder": "No cancellation allowed after 7 days before check-in",
+        "cancellation_fee_message": "Cancellation Fee Message",
+        "cancellation_fee_message_placeholder": "A 25% penalty will be applied for cancellation",
+        "refund_processing_days": "Refund Processing Days",
+        "voucher_expiry_days": "Voucher Expiry Days",
+        "voucher_minimum_amount": "Voucher Minimum Amount",
+        "apply_to_all_room_types": "Apply to all room types",
+        "apply_to_all_channels": "Apply to all channels",
+        "apply_to_all_seasons": "Apply to all seasons"
+      }
+    },
+    "refund": {
+      "policies": {
+        "title": "Refund Policies",
+        "subtitle": "Configure money refund rules",
+        "add_policy": "Add Policy",
+        "edit_policy": "Edit Policy",
+        "add_policy_payment": "Add Payment Policy",
+        "edit_policy_payment": "Edit Payment Policy",
+        "add_policy_cancellation": "Add Cancellation Policy",
+        "edit_policy_cancellation": "Edit Cancellation Policy",
+        "add_policy_devolution": "Add Devolution Policy",
+        "edit_policy_devolution": "Edit Devolution Policy",
+        "policy_name": "Policy Name",
+        "is_default": "Default Policy",
+        "is_active": "Active",
+        "search_placeholder": "Search by name or hotel...",
+        "full_refund": "Full Refund",
+        "partial_refund": "Partial Refund",
+        "no_refund": "No Refund",
+        "refund_method": "Refund Method",
+        "processing_days": "Processing Days",
+        "tabs": {
+          "basic": "Basic",
+          "times": "Times",
+          "methods": "Methods",
+          "voucher": "Voucher",
+          "messages": "Messages",
+          "advanced": "Advanced"
+        },
+        "hotel": "Hotel",
+        "full_refund_time": "Time for full refund",
+        "partial_refund_time": "Time for partial refund",
+        "partial_refund_percentage": "Partial refund percentage",
+        "no_refund_time": "Time after which there is no refund",
+        "time_unit": "Time Unit",
+        "time_units": {
+          "hours": "Hours",
+          "days": "Days",
+          "weeks": "Weeks"
+        },
+        "refund_methods": {
+          "cash": "Cash",
+          "bank_transfer": "Bank Transfer",
+          "credit_card": "Credit Card",
+          "voucher": "Credit Voucher",
+          "original_payment": "Original Payment Method"
+        },
+        "voucher_expiry_days": "Voucher validity days",
+        "voucher_minimum_amount": "Minimum amount for voucher",
+        "full_refund_message": "Message for full refund",
+        "partial_refund_message": "Message for partial refund",
+        "no_refund_message": "Message for no refund",
+        "voucher_message": "Message for credit voucher",
+        "apply_to_all_room_types": "Apply to all room types",
+        "room_types": "Specific room types",
+        "apply_to_all_channels": "Apply to all channels",
+        "channels": "Specific channels",
+        "apply_to_all_seasons": "Apply to all seasons",
+        "seasonal_rules": "Specific seasonal rules"
       }
     }
   }

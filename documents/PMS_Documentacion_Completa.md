@@ -84,6 +84,7 @@ class Hotel(models.Model):
     check_in_time = TimeField()          # Hora de check-in
     check_out_time = TimeField()         # Hora de check-out
     auto_check_in_enabled = BooleanField # Check-in automático
+    auto_no_show_enabled = BooleanField  # Auto no-show automático
     is_active = BooleanField             # Estado activo
 ```
 
@@ -91,6 +92,7 @@ class Hotel(models.Model):
 - ✅ Gestión de información básica del hotel
 - ✅ Configuración de horarios de check-in/check-out
 - ✅ Gestión de zona horaria
+- ✅ Configuración de auto no-show automático
 - ✅ Validación de datos (horarios no pueden ser iguales)
 - ✅ Relación con empresa y ubicación
 
@@ -379,6 +381,60 @@ class PaymentGatewayConfig(models.Model):
     is_active = BooleanField            # Activa/Inactiva
 ```
 
+#### CancellationPolicy
+```python
+class CancellationPolicy(models.Model):
+    hotel = ForeignKey(Hotel)           # Hotel al que pertenece
+    name = CharField(120)               # Nombre descriptivo
+    is_active = BooleanField            # Activa/Inactiva
+    is_default = BooleanField           # Política por defecto
+    
+    # Configuración de tiempos de cancelación
+    free_cancellation_time = PositiveIntegerField  # Tiempo para cancelación gratuita
+    free_cancellation_unit = CharField(10)         # Unidad de tiempo (horas/días/semanas)
+    partial_cancellation_time = PositiveIntegerField  # Tiempo para cancelación parcial
+    partial_cancellation_unit = CharField(10)         # Unidad de tiempo
+    partial_cancellation_percentage = DecimalField    # Porcentaje de penalidad
+    no_cancellation_time = PositiveIntegerField    # Tiempo después del cual no hay cancelación
+    no_cancellation_unit = CharField(10)           # Unidad de tiempo
+    
+    # Configuración de penalidades
+    cancellation_fee_type = CharField(20)          # Tipo de penalidad
+    cancellation_fee_value = DecimalField          # Valor de la penalidad
+    cancellation_fee_percentage = DecimalField     # Porcentaje de penalidad
+    
+    # Mensajes personalizados
+    free_cancellation_message = TextField          # Mensaje para cancelación gratuita
+    partial_cancellation_message = TextField       # Mensaje para cancelación parcial
+    no_cancellation_message = TextField            # Mensaje para sin cancelación
+    cancellation_fee_message = TextField           # Mensaje para penalidad
+    
+    # Configuración avanzada
+    apply_to_all_room_types = BooleanField         # Aplicar a todos los tipos
+    room_types = JSONField                         # Tipos específicos
+    apply_to_all_channels = BooleanField           # Aplicar a todos los canales
+    channels = JSONField                           # Canales específicos
+    apply_to_all_seasons = BooleanField            # Aplicar a todas las temporadas
+    seasonal_rules = JSONField                     # Reglas por temporada
+```
+
+#### Tipos de Penalidad
+```python
+class CancellationFeeType(models.TextChoices):
+    NONE = "none", "Sin penalidad"
+    PERCENTAGE = "percentage", "Porcentaje del total"
+    FIXED = "fixed", "Monto fijo"
+    NIGHTS = "nights", "Por número de noches"
+```
+
+#### Unidades de Tiempo
+```python
+class TimeUnit(models.TextChoices):
+    HOURS = "hours", "Horas"
+    DAYS = "days", "Días"
+    WEEKS = "weeks", "Semanas"
+```
+
 ### Funcionalidades Principales
 
 #### Gestión de Políticas de Pago
@@ -387,6 +443,16 @@ class PaymentGatewayConfig(models.Model):
 - ✅ **Fechas de vencimiento** configurables
 - ✅ **Métodos de pago** habilitados por política
 - ✅ **Política por defecto** automática
+
+#### Gestión de Políticas de Cancelación
+- ✅ **Configuración flexible** de políticas por hotel
+- ✅ **Tiempos configurables**: Cancelación gratuita, parcial, sin cancelación
+- ✅ **Tipos de penalidad**: Sin penalidad, porcentaje, monto fijo, por noches
+- ✅ **Unidades de tiempo**: Horas, días, semanas
+- ✅ **Mensajes personalizados** para cada tipo de cancelación
+- ✅ **Targeting avanzado**: Por tipo de habitación, canal, temporada
+- ✅ **Política por defecto** automática
+- ✅ **Validación de tiempos** progresivos (gratuita > parcial > sin cancelación)
 
 #### Procesamiento de Pagos
 - ✅ **Integración con Mercado Pago** (tarjetas de crédito/débito)
@@ -428,6 +494,213 @@ def calculate_balance_due(reservation, policy=None):
     # - Considerar política de pagos
 ```
 
+#### get_cancellation_rules()
+```python
+def get_cancellation_rules(self, check_in_date, room_type=None, channel=None):
+    """
+    Obtiene las reglas de cancelación aplicables para una reserva específica
+    """
+    # Lógica para:
+    # - Calcular tiempo hasta el check-in
+    # - Determinar tipo de cancelación (gratuita/parcial/sin cancelación)
+    # - Calcular penalidad según tipo y valor configurado
+    # - Retornar reglas aplicables con mensajes personalizados
+```
+
+#### resolve_for_hotel()
+```python
+@staticmethod
+def resolve_for_hotel(hotel: Hotel):
+    """
+    Obtiene la política de cancelación activa para un hotel
+    """
+    # Lógica para:
+    # - Buscar política por defecto activa
+    # - Fallback a cualquier política activa
+    # - Retornar política aplicable o None
+```
+
+### Servicio de Procesamiento de Devoluciones
+
+#### RefundProcessor
+```python
+class RefundProcessor:
+    """
+    Servicio para procesar devoluciones automáticas basadas en políticas de cancelación
+    """
+    
+    @staticmethod
+    def process_refund(reservation: Reservation, cancellation_policy: CancellationPolicy):
+        """
+        Procesa la devolución automática de una reserva cancelada
+        """
+        # Lógica para:
+        # - Obtener política de devolución del hotel
+        # - Calcular reglas de cancelación y devolución
+        # - Calcular monto total pagado
+        # - Calcular penalidad según política de cancelación
+        # - Calcular monto de devolución según política de devolución
+        # - Procesar devolución si aplica
+        # - Registrar log de cancelación con detalles financieros
+```
+
+#### Métodos de Cálculo de Devoluciones
+```python
+def _calculate_total_paid(reservation: Reservation) -> Decimal:
+    """
+    Calcula el total pagado de una reserva (manuales + tarjetas)
+    """
+
+def _calculate_penalty(reservation, cancellation_rules, total_paid) -> Decimal:
+    """
+    Calcula la penalidad según las reglas de cancelación
+    """
+
+def _calculate_refund_amount(total_paid, penalty_amount, refund_rules) -> Decimal:
+    """
+    Calcula el monto de devolución según las reglas de devolución
+    """
+```
+
+### Modelo de Reembolsos Explícitos
+
+#### Refund
+```python
+class Refund(models.Model):
+    """
+    Modelo para manejar reembolsos explícitos
+    Rastrea el flujo financiero de devoluciones de dinero
+    """
+    reservation = ForeignKey(Reservation, related_name="refunds")
+    payment = ForeignKey('reservations.Payment', related_name="refunds")
+    amount = DecimalField(max_digits=10, decimal_places=2)
+    reason = CharField(max_length=30, choices=RefundReason.choices)
+    status = CharField(max_length=20, choices=RefundStatus.choices)
+    refund_method = CharField(max_length=30)
+    processing_days = PositiveIntegerField(default=7)
+    external_reference = CharField(max_length=200, blank=True, null=True)
+    notes = TextField(blank=True, null=True)
+    processed_at = DateTimeField(null=True, blank=True)
+    created_at = DateTimeField(auto_now_add=True)
+    updated_at = DateTimeField(auto_now=True)
+    created_by = ForeignKey(User, on_delete=SET_NULL)
+```
+
+#### Estados de Reembolso
+```python
+class RefundStatus(models.TextChoices):
+    PENDING = "pending", "Pendiente"
+    PROCESSING = "processing", "Procesando"
+    COMPLETED = "completed", "Completado"
+    FAILED = "failed", "Fallido"
+    CANCELLED = "cancelled", "Cancelado"
+```
+
+#### Razones de Reembolso
+```python
+class RefundReason(models.TextChoices):
+    CANCELLATION = "cancellation", "Cancelación de Reserva"
+    PARTIAL_CANCELLATION = "partial_cancellation", "Cancelación Parcial"
+    OVERPAYMENT = "overpayment", "Sobrepago"
+    DISCOUNT_APPLIED = "discount_applied", "Descuento Aplicado"
+    ADMIN_ADJUSTMENT = "admin_adjustment", "Ajuste Administrativo"
+    CUSTOMER_REQUEST = "customer_request", "Solicitud del Cliente"
+    SYSTEM_ERROR = "system_error", "Error del Sistema"
+```
+
+#### Métodos del Modelo
+```python
+def mark_as_processing(self):
+    """Marca el reembolso como en procesamiento"""
+
+def mark_as_completed(self, external_reference=None):
+    """Marca el reembolso como completado"""
+
+def mark_as_failed(self, notes=None):
+    """Marca el reembolso como fallido"""
+
+def cancel(self, notes=None):
+    """Cancela el reembolso"""
+```
+
+### Tareas de Celery
+
+#### Auto-cancelación de Reservas Vencidas
+```python
+@shared_task
+def auto_cancel_expired_reservations():
+    """
+    Cancela automáticamente reservas pendientes que no han pagado el adelanto
+    dentro del tiempo configurado en la política de pago
+    """
+    # Lógica para:
+    # - Obtener reservas pendientes
+    # - Calcular fecha de vencimiento del adelanto
+    # - Cancelar reservas vencidas
+    # - Liberar habitaciones
+    # - Registrar logs de cancelación automática
+```
+
+#### Auto-cancelación de Reservas PENDING Vencidas
+```python
+@shared_task
+def auto_cancel_expired_pending_reservations():
+    """
+    Cancela automáticamente reservas PENDING que ya pasaron su fecha de check-in
+    Estas reservas no pagaron el depósito y ya no pueden hacer check-in
+    """
+    # Lógica para:
+    # - Buscar reservas PENDING con check_in < hoy
+    # - Cambiar estado a CANCELLED
+    # - Liberar habitaciones automáticamente
+    # - Registrar logs de cancelación automática
+    # - Motivo: "Auto-cancelación: fecha de check-in vencida sin pago del depósito"
+```
+
+#### Auto No-Show de Reservas CONFIRMED
+```python
+@shared_task
+def auto_mark_no_show_daily():
+    """
+    Marca automáticamente las reservas confirmadas vencidas como no-show
+    Solo procesa hoteles que tienen auto_no_show_enabled=True
+    """
+    # Lógica para:
+    # - Obtener hoteles con auto_no_show_enabled=True
+    # - Buscar reservas CONFIRMED con check_in < hoy
+    # - Cambiar estado a NO_SHOW
+    # - Registrar logs de cambio de estado
+    # - Motivo: "Auto no-show: check-in date passed"
+```
+
+#### Configuración de Celery Beat
+```python
+CELERY_BEAT_SCHEDULE = {
+    "auto_cancel_expired_reservations_daily": {
+        "task": "apps.reservations.tasks.auto_cancel_expired_reservations",
+        "schedule": crontab(hour=8, minute=0),  # Diario a las 8:00 AM
+    },
+    "auto_cancel_expired_pending_daily": {
+        "task": "apps.reservations.tasks.auto_cancel_expired_pending_reservations",
+        "schedule": crontab(hour=8, minute=30),  # Diario a las 8:30 AM
+    },
+    "auto_mark_no_show_daily": {
+        "task": "apps.reservations.tasks.auto_mark_no_show_daily",
+        "schedule": crontab(hour=9, minute=0),  # Diario a las 9:00 AM
+    },
+}
+```
+
+#### Cronograma de Tareas Automáticas
+1. **8:00 AM** - `auto_cancel_expired_reservations`: Cancela por falta de pago del depósito
+2. **8:30 AM** - `auto_cancel_expired_pending_reservations`: Cancela PENDING vencidas
+3. **9:00 AM** - `auto_mark_no_show_daily`: Marca CONFIRMED como no-show
+
+#### Lógica de Cancelación Automática
+- **Reservas PENDING vencidas**: `PENDING` → `CANCELLED` (liberar habitación)
+- **Reservas CONFIRMED vencidas**: `CONFIRMED` → `NO_SHOW` (mantener habitación ocupada)
+- **Configuración por hotel**: Campo `auto_no_show_enabled` en modelo Hotel
+
 ### APIs Principales
 - `GET /api/payments/policies/` - Listar políticas de pago
 - `POST /api/payments/policies/` - Crear política de pago
@@ -435,6 +708,27 @@ def calculate_balance_due(reservation, policy=None):
 - `POST /api/payments/process_card/` - Procesar pago con tarjeta
 - `POST /api/payments/webhook/` - Webhook de Mercado Pago
 - `GET /api/payments/reservation/{id}/payments/` - Pagos de una reserva
+
+### APIs de Políticas de Cancelación
+- `GET /api/payments/cancellation-policies/` - Listar políticas de cancelación
+- `POST /api/payments/cancellation-policies/` - Crear política de cancelación
+- `GET /api/payments/cancellation-policies/{id}/` - Obtener política específica
+- `PUT /api/payments/cancellation-policies/{id}/` - Actualizar política
+- `DELETE /api/payments/cancellation-policies/{id}/` - Eliminar política
+- `GET /api/payments/cancellation-policies/for_hotel/` - Política activa por hotel
+- `POST /api/payments/cancellation-policies/set_default/` - Establecer como predeterminada
+- `POST /api/payments/cancellation-policies/{id}/calculate_cancellation/` - Calcular reglas
+- `GET /api/reservations/{id}/cancellation_rules/` - Reglas para reserva específica (usa política histórica)
+- `GET /api/reservations/{id}/refund_history/` - Historial de devoluciones
+- `GET /api/payments/refunds/` - Listar reembolsos
+- `POST /api/payments/refunds/` - Crear reembolso
+- `GET /api/payments/refunds/{id}/` - Obtener reembolso específico
+- `PUT /api/payments/refunds/{id}/` - Actualizar reembolso
+- `POST /api/payments/refunds/{id}/update_status/` - Actualizar estado del reembolso
+- `GET /api/payments/refunds/for_reservation/` - Reembolsos por reserva
+- `GET /api/payments/refunds/stats/` - Estadísticas de reembolsos
+- `POST /api/reservations/auto_cancel_expired/` - Ejecutar auto-cancelación manual
+- `GET /api/reservations/pending_expiration_stats/` - Estadísticas de reservas pendientes
 
 ---
 
@@ -943,6 +1237,42 @@ def calculate_metrics(cls, hotel, target_date=None):
 3. **Sistema crea registro** de Payment
 4. **Sistema actualiza saldo** de reserva
 
+### 4. Flujo de Cancelación de Reservas
+
+#### 4.1 Endpoint Unificado de Cancelación
+El sistema ahora utiliza un endpoint unificado `/api/reservations/{id}/cancel/` que maneja tanto el cálculo como la confirmación de cancelación, simplificando el flujo del frontend.
+
+#### 4.2 Flujo de Dos Pasos
+1. **Paso 1 - Cálculo**: Frontend llama al endpoint con `confirm=false`
+   - Sistema evalúa políticas históricas y actuales
+   - Calcula penalidades y devoluciones
+   - Devuelve información completa sin procesar cancelación
+2. **Paso 2 - Confirmación**: Frontend llama al endpoint con `confirm=true`
+   - Sistema procesa la cancelación real
+   - Ejecuta devolución automática
+   - Actualiza estados y registra logs
+
+#### 4.3 Evaluación de Políticas
+1. **Política Histórica**: Se usa `reservation.applied_cancellation_policy` (vigente al crear la reserva)
+2. **Política de Devolución**: Se obtiene la política actual del hotel
+3. **Cálculo de Reglas**: Se evalúan según la fecha de check-in
+4. **Consistencia Garantizada**: Independientemente de cambios posteriores
+
+#### 4.4 Procesamiento Automático de Devoluciones
+1. **Sistema calcula total pagado** de la reserva
+2. **Sistema aplica penalidad** según política de cancelación histórica
+3. **Sistema calcula monto de devolución** según política de devolución
+4. **Sistema procesa devolución** por método de pago original
+5. **Sistema crea registro explícito** en tabla `Refund`
+6. **Sistema registra log** con detalles financieros completos
+
+#### 4.5 Ventajas del Endpoint Unificado
+- **Simplificación**: Un solo endpoint para cálculo y confirmación
+- **Consistencia**: Misma lógica para ambos pasos
+- **Flexibilidad**: Frontend puede decidir cuándo confirmar
+- **Eficiencia**: Menos llamadas API necesarias
+- **Mantenibilidad**: Lógica centralizada en un solo lugar
+
 ---
 
 ## APIs y Endpoints
@@ -962,6 +1292,8 @@ def calculate_metrics(cls, hotel, target_date=None):
 - `POST /api/reservations/{id}/check_out/` - Check-out
 - `GET /api/reservations/{id}/balance_info/` - Saldo pendiente
 - `POST /api/reservations/{id}/payments/` - Registrar pago
+- `POST /api/reservations/{id}/cancel/` - **Cancelar reserva (unificado)**
+- `GET /api/reservations/{id}/cancellation_rules/` - Reglas de cancelación (deprecated)
 - `GET /api/reservations/pricing_quote/` - Cotizar precio
 - `GET /api/reservations/can_book/` - Validar disponibilidad
 - `POST /api/reservations/quote/` - Cotización completa
@@ -980,6 +1312,17 @@ def calculate_metrics(cls, hotel, target_date=None):
 - `POST /api/payments/process_card/` - Procesar tarjeta
 - `POST /api/payments/webhook/` - Webhook Mercado Pago
 - `GET /api/payments/reservation/{id}/payments/` - Pagos de reserva
+
+### Políticas de Cancelación
+- `GET /api/payments/cancellation-policies/` - Políticas de cancelación
+- `POST /api/payments/cancellation-policies/` - Crear política
+- `GET /api/payments/cancellation-policies/{id}/` - Obtener política
+- `PUT /api/payments/cancellation-policies/{id}/` - Actualizar política
+- `DELETE /api/payments/cancellation-policies/{id}/` - Eliminar política
+- `GET /api/payments/cancellation-policies/for_hotel/` - Política por hotel
+- `POST /api/payments/cancellation-policies/set_default/` - Establecer predeterminada
+- `POST /api/payments/cancellation-policies/{id}/calculate_cancellation/` - Calcular reglas
+- `GET /api/reservations/{id}/cancellation_rules/` - Reglas de cancelación
 
 ### Tarifas
 - `GET /api/rates/plans/` - Planes de tarifas
@@ -1023,6 +1366,15 @@ def calculate_metrics(cls, hotel, target_date=None):
 - **Monto fijo**: Adelanto de $X fijo
 - **Vencimiento**: Al confirmar, días antes, al check-in
 - **Saldo**: Al check-in o al check-out
+
+### Políticas de Cancelación
+- **Cancelación gratuita**: Sin penalidad hasta X tiempo antes
+- **Cancelación parcial**: Penalidad del X% hasta Y tiempo antes
+- **Sin cancelación**: No se permite cancelación después de Z tiempo
+- **Tipos de penalidad**: Sin penalidad, porcentaje, monto fijo, por noches
+- **Unidades de tiempo**: Horas, días, semanas
+- **Targeting**: Por tipo de habitación, canal, temporada
+- **Mensajes personalizados**: Para cada tipo de cancelación
 
 ### Reglas de Tarifas
 - **Modo absoluto**: Precio fijo por noche

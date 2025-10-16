@@ -8,11 +8,12 @@
    - [3.2 Gestión de Habitaciones](#32-gestión-de-habitaciones)
    - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
    - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
-   - [3.5 Gestión de Tarifas](#35-gestión-de-tarifas)
-   - [3.6 Dashboard y Reportes](#36-dashboard-y-reportes)
-   - [3.7 Calendario de Reservas](#37-calendario-de-reservas)
-   - [3.8 Gestión de Usuarios](#38-gestión-de-usuarios)
-   - [3.9 Gestión de Empresas](#39-gestión-de-empresas)
+   - [3.5 Políticas de Cancelación](#35-políticas-de-cancelación)
+   - [3.6 Gestión de Tarifas](#36-gestión-de-tarifas)
+   - [3.7 Dashboard y Reportes](#37-dashboard-y-reportes)
+   - [3.8 Calendario de Reservas](#38-calendario-de-reservas)
+   - [3.9 Gestión de Usuarios](#39-gestión-de-usuarios)
+   - [3.10 Gestión de Empresas](#310-gestión-de-empresas)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
 5. [Casos de Uso Reales](#casos-de-uso-reales)
 6. [Beneficios del Sistema](#beneficios-del-sistema)
@@ -74,6 +75,7 @@ Permite configurar y administrar la información básica de cada hotel en el sis
 - **Ubicación**: País, provincia, ciudad
 - **Horarios**: Hora de check-in y check-out
 - **Zona Horaria**: Para manejar reservas en diferentes zonas
+- **Auto No-Show**: Configuración para marcar automáticamente reservas como no-show
 
 #### Ejemplo Práctico
 ```
@@ -82,6 +84,7 @@ Dirección: "Av. Corrientes 1234, Buenos Aires"
 Check-in: 15:00 hs
 Check-out: 11:00 hs
 Zona horaria: America/Argentina/Buenos_Aires
+Auto no-show: Habilitado
 ```
 
 ### Beneficios
@@ -89,6 +92,7 @@ Zona horaria: America/Argentina/Buenos_Aires
 - ✅ **Configuración flexible** de horarios
 - ✅ **Soporte multi-hotel** desde una sola plataforma
 - ✅ **Datos legales** para facturación
+- ✅ **Auto no-show configurable** por hotel
 
 ---
 
@@ -205,6 +209,316 @@ Datos de la reserva:
 ### ¿Qué hace?
 Procesa pagos de manera segura y flexible, con políticas configurables.
 
+---
+
+## 3.5 Políticas de Cancelación
+
+### ¿Qué hace?
+Permite configurar reglas flexibles de cancelación para cada hotel, definiendo cuándo se puede cancelar una reserva y qué penalidades aplican.
+
+### ¿Cómo funciona?
+
+#### Configuración de Tiempos de Cancelación
+
+##### Cancelación Gratuita
+```
+Política: "Cancelación sin penalidad"
+Tiempo: 24 horas antes del check-in
+Aplicación: Todas las habitaciones
+Resultado: Cliente puede cancelar sin costo adicional
+```
+
+##### Cancelación Parcial
+```
+Política: "Cancelación con penalidad"
+Tiempo: 72 horas antes del check-in
+Penalidad: 50% del total de la reserva
+Aplicación: Suites solamente
+Resultado: Cliente paga 50% como penalidad
+```
+
+##### Sin Cancelación
+```
+Política: "No se permite cancelación"
+Tiempo: 168 horas (7 días) antes del check-in
+Aplicación: Temporada alta
+Resultado: No se puede cancelar la reserva
+```
+
+#### Tipos de Penalidades
+
+##### Porcentaje del Total
+```
+Ejemplo:
+- Total de reserva: $100,000
+- Penalidad: 25%
+- Monto a pagar: $25,000
+- Devolución: $75,000
+```
+
+##### Monto Fijo
+```
+Ejemplo:
+- Total de reserva: $100,000
+- Penalidad fija: $20,000
+- Monto a pagar: $20,000
+- Devolución: $80,000
+```
+
+##### Por Número de Noches
+```
+Ejemplo:
+- Total de reserva: $100,000 (4 noches)
+- Penalidad: 1 noche
+- Monto a pagar: $25,000
+- Devolución: $75,000
+```
+
+#### Configuración Avanzada
+
+##### Por Tipo de Habitación
+```
+Configuración:
+- Singles: Cancelación gratuita hasta 24h
+- Dobles: Cancelación parcial hasta 48h
+- Suites: Sin cancelación después de 7 días
+```
+
+##### Por Canal de Reserva
+```
+Configuración:
+- Directo: Cancelación gratuita hasta 24h
+- Booking.com: Cancelación parcial hasta 48h
+- Expedia: Sin cancelación después de 72h
+```
+
+##### Por Temporada
+```
+Configuración:
+- Temporada baja: Cancelación gratuita hasta 24h
+- Temporada media: Cancelación parcial hasta 48h
+- Temporada alta: Sin cancelación después de 7 días
+```
+
+#### Mensajes Personalizados
+
+##### Para Cancelación Gratuita
+```
+"Puedes cancelar tu reserva sin costo adicional hasta 24 horas antes de tu llegada. Después de ese tiempo, se aplicará una penalidad del 50%."
+```
+
+##### Para Cancelación Parcial
+```
+"Cancelación con penalidad: Se cobrará el 50% del total de la reserva como penalidad por cancelación tardía."
+```
+
+##### Para Sin Cancelación
+```
+"No se permite cancelación después de 7 días antes de la llegada. La reserva es no reembolsable."
+```
+
+### Flujo de Cancelación
+
+#### 1. Usuario Solicita Cancelación
+```
+Proceso:
+1. Usuario hace clic en "Cancelar" en su reserva
+2. Sistema evalúa la política de cancelación
+3. Sistema calcula tiempo hasta check-in
+4. Sistema determina tipo de cancelación aplicable
+```
+
+#### 2. Sistema Muestra Opciones
+```
+Modal de cancelación muestra:
+- Tipo de cancelación (gratuita/parcial/sin cancelación)
+- Monto de penalidad (si aplica)
+- Monto de devolución (si aplica)
+- Mensaje personalizado de la política
+- Resumen financiero final
+```
+
+#### 3. Usuario Confirma Cancelación
+```
+Proceso:
+1. Usuario revisa las consecuencias
+2. Usuario confirma la cancelación
+3. Sistema procesa devolución automáticamente
+4. Sistema actualiza estado de reserva
+5. Sistema libera habitación automáticamente
+6. Sistema envía confirmación con detalles de devolución
+```
+
+#### 4. Procesamiento Automático de Devoluciones
+```
+Proceso automático:
+1. Sistema calcula total pagado de la reserva
+2. Sistema aplica penalidad según política de cancelación histórica
+3. Sistema calcula monto de devolución según política de devolución
+4. Sistema procesa devolución por método de pago original
+5. Sistema crea registro de pago negativo para devolución
+6. Sistema registra log detallado con información financiera
+```
+
+#### 5. Registro Histórico de Políticas
+```
+Garantía de consistencia:
+1. Al crear reserva se asigna automáticamente la política vigente
+2. Campo "applied_cancellation_policy" mantiene referencia histórica
+3. Cancelaciones siempre usan la política que estaba vigente al crear la reserva
+4. Consistencia garantizada independientemente de cambios posteriores en políticas
+```
+
+#### 6. Manejo Explícito de Reembolsos
+```
+Flujo financiero claro:
+1. Sistema crea registro explícito de reembolso (modelo Refund)
+2. Cada reembolso está vinculado al pago original específico
+3. Estados claros: Pendiente, Procesando, Completado, Fallido, Cancelado
+4. Razones específicas: Cancelación, Sobrepago, Ajuste Administrativo, etc.
+5. Trazabilidad completa del flujo financiero
+6. Gestión de reembolsos parciales y completos
+```
+
+#### 7. Auto-cancelación de Reservas Vencidas
+```
+Gestión automática de vencimientos:
+1. Sistema revisa diariamente reservas pendientes
+2. Calcula fecha de vencimiento del adelanto según política de pago
+3. Cancela automáticamente reservas vencidas sin pago
+4. Libera habitaciones automáticamente
+5. Registra logs detallados de cancelación automática
+6. Proporciona estadísticas de reservas pendientes
+```
+
+#### 8. Auto-cancelación de Reservas PENDING Vencidas
+```
+Gestión automática de check-ins vencidos:
+1. Sistema revisa diariamente reservas PENDING
+2. Identifica reservas con fecha de check-in ya pasada
+3. Cancela automáticamente reservas vencidas sin pago
+4. Libera habitaciones automáticamente
+5. Registra logs detallados de cancelación automática
+6. Motivo: "Auto-cancelación: fecha de check-in vencida sin pago del depósito"
+```
+
+#### 9. Auto No-Show de Reservas CONFIRMED
+```
+Gestión automática de no-shows:
+1. Sistema revisa diariamente reservas confirmadas
+2. Identifica reservas con fecha de check-in ya pasada
+3. Marca automáticamente como no-show
+4. Mantiene habitación ocupada (ya se cobró)
+5. Registra logs detallados de cambio de estado
+6. Motivo: "Auto no-show: check-in date passed"
+7. Solo procesa hoteles con auto_no_show_enabled=True
+```
+
+#### 10. Cronograma de Tareas Automáticas
+```
+Horario de ejecución diario:
+- 8:00 AM: Auto-cancelación por falta de pago del depósito
+- 8:30 AM: Auto-cancelación de PENDING vencidas
+- 9:00 AM: Auto no-show de CONFIRMED vencidas
+
+Lógica de cancelación:
+- PENDING vencidas → CANCELLED (liberar habitación)
+- CONFIRMED vencidas → NO_SHOW (mantener habitación ocupada)
+- Configuración por hotel: Campo auto_no_show_enabled
+```
+
+### Beneficios
+
+#### Para el Hotel
+- ✅ **Control total** sobre políticas de cancelación
+- ✅ **Protección de ingresos** con penalidades configurables
+- ✅ **Flexibilidad** para diferentes tipos de habitaciones
+- ✅ **Adaptación** a temporadas y canales
+- ✅ **Transparencia** con mensajes claros
+- ✅ **Devoluciones automáticas** sin intervención manual
+- ✅ **Liberación automática** de habitaciones canceladas
+- ✅ **Auditoría completa** de transacciones financieras
+- ✅ **Registro histórico** de políticas aplicadas
+- ✅ **Consistencia garantizada** en cancelaciones
+- ✅ **Flujo financiero claro** con reembolsos explícitos
+- ✅ **Trazabilidad completa** de devoluciones
+- ✅ **Gestión automática** de vencimientos de reservas
+- ✅ **Liberación automática** de habitaciones vencidas
+
+#### Para el Huésped
+- ✅ **Transparencia** sobre reglas de cancelación
+- ✅ **Información clara** sobre penalidades
+- ✅ **Proceso simple** de cancelación
+- ✅ **Conocimiento previo** de consecuencias
+- ✅ **Devoluciones automáticas** por método de pago original
+- ✅ **Confirmación inmediata** de devolución procesada
+- ✅ **Tiempos de procesamiento** claros y transparentes
+- ✅ **Políticas consistentes** según lo acordado al reservar
+- ✅ **Seguimiento detallado** del estado de reembolsos
+- ✅ **Transparencia total** en el flujo financiero
+- ✅ **Tiempos claros** para pago de adelantos
+- ✅ **Notificaciones automáticas** de vencimientos
+
+#### Para el Personal
+- ✅ **Proceso automatizado** de evaluación
+- ✅ **Cálculos precisos** de penalidades
+- ✅ **Información centralizada** de políticas
+- ✅ **Menos errores** en cancelaciones
+- ✅ **Gestión eficiente** del proceso
+- ✅ **Devoluciones automáticas** sin procesamiento manual
+- ✅ **Liberación automática** de habitaciones
+- ✅ **Logs detallados** para auditoría y seguimiento
+- ✅ **Trazabilidad completa** de políticas aplicadas
+- ✅ **Consistencia legal** en todas las cancelaciones
+- ✅ **Gestión explícita** de reembolsos y devoluciones
+- ✅ **Control total** del flujo financiero
+- ✅ **Procesamiento automático** de vencimientos
+- ✅ **Estadísticas detalladas** de reservas pendientes
+
+### Casos de Uso Prácticos
+
+#### Caso 1: Hotel Boutique
+```
+Configuración:
+- Cancelación gratuita: 24 horas
+- Penalidad: 50% después de 24h
+- Aplicación: Todas las habitaciones
+- Canal: Solo directo
+
+Resultado:
+- Flexibilidad para huéspedes
+- Protección de ingresos
+- Proceso simple
+```
+
+#### Caso 2: Hotel de Temporada
+```
+Configuración:
+- Temporada baja: Cancelación gratuita 24h
+- Temporada media: Penalidad 25% hasta 48h
+- Temporada alta: Sin cancelación después de 7 días
+
+Resultado:
+- Adaptación a demanda
+- Maximización de ingresos
+- Políticas diferenciadas
+```
+
+#### Caso 3: Hotel de Lujo
+```
+Configuración:
+- Suites: Sin cancelación después de 14 días
+- Habitaciones estándar: Penalidad 50% hasta 72h
+- Promociones: Cancelación gratuita hasta 24h
+
+Resultado:
+- Políticas premium para suites
+- Flexibilidad para habitaciones estándar
+- Incentivos para promociones
+```
+
+---
+
 ### ¿Cómo funciona?
 
 #### Políticas de Pago Configurables
@@ -296,7 +610,7 @@ Al check-in:
 
 ---
 
-## 3.5 Gestión de Tarifas
+## 3.6 Gestión de Tarifas
 
 ### ¿Qué hace?
 Permite configurar precios dinámicos, promociones e impuestos de manera flexible.
@@ -373,7 +687,7 @@ Total de la reserva: $145,200
 
 ---
 
-## 3.6 Dashboard y Reportes
+## 3.7 Dashboard y Reportes
 
 ### ¿Qué hace?
 Proporciona métricas y análisis del negocio en tiempo real.
@@ -445,7 +759,7 @@ Distribución actual:
 
 ---
 
-## 3.7 Calendario de Reservas
+## 3.8 Calendario de Reservas
 
 ### ¿Qué hace?
 Proporciona una vista visual e interactiva de todas las reservas del hotel, permitiendo una gestión eficiente y una comprensión rápida del estado de ocupación.
@@ -666,7 +980,7 @@ Proceso:
 
 ---
 
-## 3.8 Gestión de Usuarios
+## 3.9 Gestión de Usuarios
 
 ### ¿Qué hace?
 Administra el acceso y permisos del personal del hotel.
@@ -707,7 +1021,7 @@ Un usuario puede trabajar en:
 
 ---
 
-## 3.9 Gestión de Empresas
+## 3.10 Gestión de Empresas
 
 ### ¿Qué hace?
 Administra empresas que pueden tener múltiples hoteles.
@@ -784,6 +1098,17 @@ Configuración global:
 3. Calcula diferencia de precio
 4. Aplica cambio si es posible
 5. Notifica al cliente
+```
+
+#### Cancelaciones
+```
+1. Cliente solicita cancelación de reserva
+2. Sistema evalúa política de cancelación del hotel
+3. Sistema calcula penalidades y devoluciones
+4. Sistema muestra modal con consecuencias de la cancelación
+5. Cliente confirma cancelación conociendo las reglas
+6. Sistema actualiza estado de reserva y procesa devolución
+7. Sistema envía confirmación de cancelación al cliente
 ```
 
 ### 3. Gestión de Pagos (Todo el día)
@@ -870,6 +1195,24 @@ Hotel que maneja precios dinámicos según la temporada.
 - ✅ **Promociones efectivas** para temporada baja
 - ✅ **Control de restricciones** automático
 - ✅ **Maximización de ingresos**
+
+### Caso 4: Hotel con Políticas de Cancelación Flexibles
+
+#### Situación
+Hotel que necesita diferentes políticas de cancelación según el tipo de habitación y temporada.
+
+#### Solución AlojaSys
+- **Políticas diferenciadas**: Por tipo de habitación y temporada
+- **Tiempos configurables**: 24h, 48h, 7 días según política
+- **Penalidades flexibles**: Porcentaje, monto fijo, por noches
+- **Mensajes personalizados**: Para cada tipo de cancelación
+- **Targeting avanzado**: Por canal de reserva y temporada
+
+#### Resultado
+- ✅ **Flexibilidad total** en políticas de cancelación
+- ✅ **Protección de ingresos** con penalidades configurables
+- ✅ **Transparencia** con mensajes claros para huéspedes
+- ✅ **Adaptación** a diferentes tipos de negocio
 
 ---
 

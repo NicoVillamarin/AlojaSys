@@ -208,6 +208,18 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reservations.tasks.process_automatic_checkouts",
         "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
     },
+    "auto_cancel_expired_reservations_daily": {
+        "task": "apps.reservations.tasks.auto_cancel_expired_reservations",
+        "schedule": crontab(hour=8, minute=0),  # Diario a las 8:00 AM
+    },
+    "auto_mark_no_show_daily": {
+        "task": "apps.reservations.tasks.auto_mark_no_show_daily",
+        "schedule": crontab(hour=9, minute=0),  # Diario a las 9:00 AM
+    },
+    "auto_cancel_expired_pending_daily": {
+        "task": "apps.reservations.tasks.auto_cancel_expired_pending_reservations",
+        "schedule": crontab(hour=8, minute=30),  # Diario a las 8:30 AM (antes del auto no-show)
+    },
 }
 
 CHANNEL_COMMISSION_RATES = {

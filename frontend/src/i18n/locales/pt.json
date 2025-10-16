@@ -32,7 +32,10 @@
     "promotions": "Promoções",
     "taxes": "Impostos",
     "history": "Históricos",
-    "reservations_calendar": "Calendário de Reservas"
+    "reservations_calendar": "Calendário de Reservas",
+    "policies": "Políticas",
+    "cancellation_policies": "Políticas de Cancelamento",
+    "devolution_policies": "Políticas de Devolução"
   },
   "common": {
     "save": "Salvar",
@@ -49,7 +52,16 @@
     "status": "Status",
     "hotel": "Hotel",
     "clear_search": "Limpar busca",
-    "load_more": "Carregar mais"
+    "load_more": "Carregar mais",
+    "yes": "Sim",
+    "no": "Não",
+    "ok": "OK",
+    "required": "Este campo é obrigatório",
+    "invalid_format": "Formato inválido",
+    "min_value_0": "O valor deve ser maior ou igual a 0",
+    "min_value_0_01": "O valor mínimo é 0.01",
+    "min_value_1": "O valor mínimo é 1",
+    "max_value_365": "O valor máximo é 365"
   },
   "reservations": {
     "title": "Gestão de Reservas",
@@ -524,16 +536,43 @@
         "confirm": "Confirmar",
         "check_in": "Check-in",
         "check_out": "Check-out",
-        "cancel": "Cancelar"
+        "early_check_out": "Saída Antecipada",
+        "auto_no_show": "Auto No-Show",
+        "cancel": "Cancelar",
+        "cancel_free": "Cancelar (Sem Penalidade)",
+        "cancel_with_policy": "Cancelar (Com Política)"
       },
       "load_more": "Carregar mais",
       "console_messages": {
         "check_in_for": "Check-in para reserva:",
         "current_status": "status atual:",
         "check_out_for": "Check-out para reserva:",
+        "early_check_out_for": "Saída antecipada para reserva:",
         "cancel_for": "Cancelar para reserva:",
         "confirm_for": "Confirmar para reserva:",
         "edit_reservation": "Editar reserva:"
+      },
+      "tooltips": {
+        "edit": "Editar reserva (apenas pendentes)",
+        "confirm": "Confirmar reserva com pagamento",
+        "check_in": "Registrar chegada do hóspede",
+        "check_out": "Registrar saída do hóspede",
+        "early_check_out": "Saída antecipada (antes da data programada)",
+        "cancel_free": "Cancelar sem penalidade (reserva pendente)",
+        "cancel_with_policy": "Cancelar com política de cancelamento aplicada",
+        "auto_no_show_manual": "Marcar manualmente reservas vencidas como no-show (apenas se não estiver automatizado)"
+      },
+      "confirmations": {
+        "early_check_out_title": "Confirmar Saída Antecipada",
+        "early_check_out": "Confirmar saída antecipada para {{guest}} em {{room}}? Esta ação não pode ser desfeita.",
+        "auto_no_show_title": "Auto No-Show",
+        "auto_no_show": "Marcar automaticamente as reservas confirmadas vencidas como no-show? Esta ação não pode ser desfeita."
+      },
+      "messages": {
+        "auto_no_show_success_title": "No-Show Processado",
+        "auto_no_show_success": "Marcadas com sucesso {{count}} reservas como no-show.",
+        "auto_no_show_error_title": "Erro no No-Show",
+        "auto_no_show_error": "Erro ao marcar reservas como no-show. Tente novamente."
       }
     }
   },
@@ -706,9 +745,12 @@
     "city_placeholder": "Buscar cidade…",
     "check_in_time": "Check-in",
     "check_out_time": "Check-out",
+    "automation_settings": "Configurações de Automação",
+    "status": "Status",
     "active": "Ativo",
     "enabled_for_operation": "Habilitado para operação",
-    "auto_check_in_enabled": "Auto check-in ao chegar a data de entrada"
+    "auto_check_in_enabled": "Auto check-in ao chegar a data de entrada",
+    "auto_no_show_enabled": "Auto no-show para reservas vencidas"
 
   },
   "users_modal": {
@@ -1066,6 +1108,177 @@
       "inconsistency_warning_description": "Esta reserva está confirmada/check-in mas nenhum pagamento aprovado foi registrado. É possível que o check-in foi feito manualmente ou o pagamento foi processado fora do sistema.",
       "manual_payment": "Pagamento manual registrado",
       "reference": "Referência"
+    },
+    "policies": {
+      "title": "Políticas de Pagamento",
+      "subtitle": "Configurar quando e como os hóspedes são cobrados",
+      "add_policy": "Adicionar Política",
+      "edit_policy": "Editar Política",
+      "policy_name": "Nome da Política",
+      "is_default": "Política Padrão",
+      "is_active": "Ativa",
+      "allow_deposit": "Permitir depósito/sinal",
+      "deposit_section": "Configuração de Adiantamentos",
+      "deposit_type": "Tipo de Adiantamento",
+      "deposit_value": "Valor do Adiantamento",
+      "deposit_due": "Quando Cobrar Adiantamento",
+      "deposit_days_before": "Dias Antes do Check-in",
+      "balance_section": "Configuração do Saldo",
+      "balance_due": "Quando Cobrar Saldo",
+      "deposit_due_header": "Quando Cobrar Adiantamento",
+      "balance_due_header": "Quando Cobrar Saldo",
+      "auto_cancel_section": "Auto-cancelamento de Reservas",
+      "auto_cancel_enabled": "Habilitar Auto-cancelamento",
+      "auto_cancel": "Auto-cancelamento",
+      "auto_cancel_enabled_desc": "Cancelar automaticamente reservas pendentes sem pagamento",
+      "auto_cancel_days": "Dias para Auto-cancelamento",
+      "auto_cancel_days_desc": "Dias após criar a reserva para cancelar automaticamente se não houver pagamentos",
+      "deposit_due_title": "Quando Cobrar Adiantamento",
+      "balance_due_title": "Quando Cobrar Saldo",
+      "enabled_methods": "Métodos de Pagamento Habilitados",
+      "search_placeholder": "Buscar por nome ou hotel...",
+      "deposit_types": {
+        "none": "Sem Adiantamento",
+        "percentage": "Porcentagem",
+        "fixed": "Valor Fixo"
+      },
+      "deposit_due": {
+        "confirmation": "Na Confirmação da Reserva",
+        "days_before": "Dias Antes do Check-in",
+        "check_in": "No Check-in"
+      },
+      "balance_due": {
+        "check_in": "No Check-in",
+        "check_out": "No Check-out"
+      }
+    },
+    "cancellation": {
+      "policies": {
+        "title": "Políticas de Cancelamento",
+        "subtitle": "Configurar regras de cancelamento e reembolso",
+        "add_policy": "Adicionar Política",
+        "edit_policy": "Editar Política",
+        "add_policy_cancellation": "Adicionar Política de Cancelamento",
+        "edit_policy_cancellation": "Editar Política de Cancelamento",
+        "policy_name": "Nome da Política",
+        "is_default": "Política Padrão",
+        "is_active": "Ativa",
+        "search_placeholder": "Buscar por nome ou hotel...",
+        "free_cancellation": "Cancelamento Gratuito",
+        "partial_refund": "Reembolso Parcial",
+        "fee_type": "Tipo de Penalidade",
+        "refund_method": "Método de Reembolso",
+        "tabs": {
+          "basic": "Básico",
+          "times": "Tempos",
+          "restrictions": "Restrições",
+          "refund": "Reembolso",
+          "messages": "Mensagens",
+          "advanced": "Avançado"
+        },
+        "fee_types": {
+          "none": "Sem Penalidade",
+          "percentage": "Porcentagem do Total",
+          "fixed": "Valor Fixo",
+          "first_night": "Primeira Noite",
+          "nights_percentage": "Porcentagem por Noite"
+        },
+        "refund_types": {
+          "full": "Reembolso Completo",
+          "partial": "Reembolso Parcial",
+          "none": "Sem Reembolso",
+          "voucher": "Voucher de Crédito"
+        },
+        "time_units": {
+          "hours": "Horas",
+          "days": "Dias",
+          "weeks": "Semanas"
+        },
+        "free_cancellation_time": "Tempo para Cancelamento Gratuito",
+        "partial_refund_time": "Tempo para Reembolso Parcial",
+        "partial_refund_percentage": "Porcentagem de Reembolso Parcial",
+        "no_refund_time": "Tempo Sem Reembolso",
+        "time_unit": "Unidade de Tempo",
+        "cancellation_fee_type": "Tipo de Taxa de Cancelamento",
+        "cancellation_fee_value": "Valor da Taxa de Cancelamento",
+        "allow_cancellation_after_checkin": "Permitir cancelamento após check-in",
+        "allow_cancellation_after_checkout": "Permitir cancelamento após check-out",
+        "allow_cancellation_no_show": "Permitir cancelamento de no-show",
+        "allow_cancellation_early_checkout": "Permitir cancelamento por saída antecipada",
+        "free_cancellation_message": "Mensagem para Cancelamento Gratuito",
+        "free_cancellation_message_placeholder": "Cancelamento gratuito até 24 horas antes do check-in",
+        "partial_cancellation_message": "Mensagem para Cancelamento Parcial",
+        "partial_cancellation_message_placeholder": "Cancelamento com penalidade de 50% até 72 horas antes do check-in",
+        "no_cancellation_message": "Mensagem para Sem Cancelamento",
+        "no_cancellation_message_placeholder": "Não é permitido cancelamento após 7 dias antes do check-in",
+        "cancellation_fee_message": "Mensagem para Penalidade de Cancelamento",
+        "cancellation_fee_message_placeholder": "Será aplicada uma penalidade de 25% por cancelamento",
+        "refund_processing_days": "Dias para Processar Reembolso",
+        "voucher_expiry_days": "Dias de Validade do Voucher",
+        "voucher_minimum_amount": "Valor Mínimo para Voucher",
+        "apply_to_all_room_types": "Aplicar a todos os tipos de quarto",
+        "apply_to_all_channels": "Aplicar a todos os canais",
+        "apply_to_all_seasons": "Aplicar a todas as temporadas"
+      }
+    },
+    "refund": {
+      "policies": {
+        "title": "Políticas de Reembolso",
+        "subtitle": "Configurar regras de reembolso de dinheiro",
+        "add_policy": "Adicionar Política",
+        "edit_policy": "Editar Política",
+        "add_policy_payment": "Adicionar Política de Pagamento",
+        "edit_policy_payment": "Editar Política de Pagamento",
+        "policy_name": "Nome da Política",
+        "add_policy_devolution": "Adicionar Política de Reembolso",
+        "edit_policy_devolution": "Editar Política de Reembolso",
+        "is_default": "Política Padrão",
+        "is_active": "Ativa",
+        "search_placeholder": "Buscar por nome ou hotel...",
+        "full_refund": "Reembolso Completo",
+        "partial_refund": "Reembolso Parcial",
+        "no_refund": "Sem Reembolso",
+        "refund_method": "Método de Reembolso",
+        "processing_days": "Dias para Processar Reembolso",
+        "tabs": {
+          "basic": "Básico",
+          "times": "Tempos",
+          "methods": "Métodos",
+          "voucher": "Voucher",
+          "messages": "Mensagens",
+          "advanced": "Avançado"
+        },
+        "hotel": "Hotel",
+        "full_refund_time": "Tempo para reembolso completo",
+        "partial_refund_time": "Tempo para reembolso parcial",
+        "partial_refund_percentage": "Porcentagem de reembolso parcial",
+        "no_refund_time": "Tempo após o qual não há reembolso",
+        "time_unit": "Unidade de Tempo",
+        "time_units": {
+          "hours": "Horas",
+          "days": "Dias",
+          "weeks": "Semanas"
+        },
+        "refund_methods": {
+          "cash": "Dinheiro",
+          "bank_transfer": "Transferência Bancária",
+          "credit_card": "Cartão de Crédito",
+          "voucher": "Voucher de Crédito",
+          "original_payment": "Método de Pagamento Original"
+        },
+        "voucher_expiry_days": "Dias de validade do voucher",
+        "voucher_minimum_amount": "Valor mínimo para voucher",
+        "full_refund_message": "Mensagem para reembolso completo",
+        "partial_refund_message": "Mensagem para reembolso parcial",
+        "no_refund_message": "Mensagem para sem reembolso",
+        "voucher_message": "Mensagem para voucher de crédito",
+        "apply_to_all_room_types": "Aplicar a todos os tipos de quarto",
+        "room_types": "Tipos de quarto específicos",
+        "apply_to_all_channels": "Aplicar a todos os canais",
+        "channels": "Canais específicos",
+        "apply_to_all_seasons": "Aplicar a todas as temporadas",
+        "seasonal_rules": "Regras específicas por temporada"
+      }
     }
   }
 }

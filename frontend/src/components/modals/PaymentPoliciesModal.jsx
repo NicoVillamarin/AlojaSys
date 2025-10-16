@@ -38,7 +38,7 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
 
   const initialValues = {
     name: isEdit ? (policy?.name ?? '') : '',
-    hotel: isEdit ? (String(policy?.hotel ?? '')) : '',
+    hotel: isEdit ? (policy?.hotel ?? '') : '',
     is_default: isEdit ? (policy?.is_default ?? false) : false,
     allow_deposit: isEdit ? (policy?.allow_deposit ?? true) : true,
     deposit_type: isEdit ? (policy?.deposit_type ?? 'none') : 'none',
@@ -46,20 +46,24 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
     deposit_due: isEdit ? (policy?.deposit_due ?? 'confirmation') : 'confirmation',
     deposit_days_before: isEdit ? (policy?.deposit_days_before ?? 0) : 0,
     balance_due: isEdit ? (policy?.balance_due ?? 'check_in') : 'check_in',
+    auto_cancel_enabled: isEdit ? (policy?.auto_cancel_enabled ?? true) : true,
+    auto_cancel_days: isEdit ? (policy?.auto_cancel_days ?? 7) : 7,
   }
+
 
   const validationSchema = Yup.object({
     name: Yup.string().required(t('common.required')),
-    hotel: Yup.string().required(t('common.required')),
+    hotel: Yup.mixed().test('hotel-required', t('common.required'), function(value) {
+      return value !== '' && value != null && value !== undefined
+    }),
     deposit_type: Yup.string().required(t('common.required')),
     deposit_value: Yup.number().min(0, t('common.min_value_0')),
     deposit_due: Yup.string().required(t('common.required')),
     balance_due: Yup.string().required(t('common.required')),
+    auto_cancel_days: Yup.number().min(1, t('common.min_value_1')).max(365, t('common.max_value_365')),
   })
 
   const handleSubmit = (values) => {
-    console.log('Formulario enviado con valores:', values) // Debug
-    
     const data = {
       name: values.name,
       hotel: values.hotel,
@@ -70,9 +74,14 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
       deposit_due: values.deposit_due,
       deposit_days_before: parseInt(values.deposit_days_before) || 0,
       balance_due: values.balance_due,
+      auto_cancel_enabled: values.auto_cancel_enabled,
+      auto_cancel_days: parseInt(values.auto_cancel_days) || 7,
     }
 
-    console.log('Datos a enviar:', data) // Debug
+    // Forzar que hotel siempre esté presente en actualizaciones
+    if (isEdit && !data.hotel) {
+      data.hotel = policy.hotel
+    }
 
     if (isEdit) {
       updatePolicy({ id: policy.id, data })
@@ -108,11 +117,13 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
       onSubmit={handleSubmit}
       enableReinitialize
     >
-      {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }) => (
+      {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }) => {
+
+        return (
         <ModalLayout 
           isOpen={isOpen} 
           onClose={onClose} 
-          title={isEdit ? t('payments.policies.edit_policy') : t('payments.policies.add_policy')}
+          title={isEdit ? t('payments.policies.edit_policy_payment') : t('payments.policies.add_policy_payment')}
           size="lg"
           onSubmit={handleSubmit}
           submitText={isEdit ? t('common.save') : t('common.create')}
@@ -205,9 +216,33 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
                 />
               </div>
             )}
+
+            <div className="border-t pt-4">
+              <h5 className="text-sm font-medium text-gray-700 mb-3">
+                {t('payments.policies.auto_cancel_section')}
+              </h5>
+              <div className="space-y-4">
+                <Checkbox
+                  name="auto_cancel_enabled"
+                  label={t('payments.policies.auto_cancel_enabled')}
+                  description={t('payments.policies.auto_cancel_enabled_desc')}
+                  checked={values.auto_cancel_enabled}
+                  onChange={(checked) => setFieldValue('auto_cancel_enabled', checked)}
+                />
+                <InputText
+                  title={t('payments.policies.auto_cancel_days')}
+                  name="auto_cancel_days"
+                  type="number"
+                  min="1"
+                  max="365"
+                  description={t('payments.policies.auto_cancel_days_desc')}
+                />
+              </div>
+            </div>
           </div>
         </ModalLayout>
-      )}
+        )
+      }}
     </Formik>
   )
 }

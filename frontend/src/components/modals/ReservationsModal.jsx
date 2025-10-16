@@ -84,10 +84,13 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     
     const occupiedDates = new Set()
     
-    // Agregar reserva actual si existe
+    // Estados que SÍ ocupan la habitación
+    const occupyingStatuses = ['CONFIRMED', 'CHECKED_IN', 'PENDING']
+    
+    // Agregar reserva actual si existe y está ocupando
     if (roomData.current_reservation) {
-      const { check_in, check_out } = roomData.current_reservation
-      if (check_in && check_out) {
+      const { check_in, check_out, status } = roomData.current_reservation
+      if (check_in && check_out && occupyingStatuses.includes(status)) {
         const startDate = new Date(check_in)
         const endDate = new Date(check_out)
         
@@ -100,11 +103,11 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       }
     }
     
-    // Agregar reservas futuras
+    // Agregar reservas futuras que estén ocupando
     if (roomData.future_reservations && Array.isArray(roomData.future_reservations)) {
       roomData.future_reservations.forEach(reservation => {
-        const { check_in, check_out } = reservation
-        if (check_in && check_out) {
+        const { check_in, check_out, status } = reservation
+        if (check_in && check_out && occupyingStatuses.includes(status)) {
           const startDate = new Date(check_in)
           const endDate = new Date(check_out)
           
@@ -599,7 +602,17 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         // Debug: mostrar fechas ocupadas en consola
         if (values.room_data && occupiedDates.length > 0) {
           console.log('Datos de la habitación:', values.room_data)
-          console.log('Fechas ocupadas extraídas:', occupiedDates)
+          console.log('Fechas ocupadas extraídas (solo CONFIRMED, CHECKED_IN, PENDING):', occupiedDates)
+          
+          // Mostrar qué reservas se están considerando
+          const allReservations = [
+            ...(values.room_data.current_reservation ? [values.room_data.current_reservation] : []),
+            ...(values.room_data.future_reservations || [])
+          ]
+          const occupyingReservations = allReservations.filter(r => 
+            ['CONFIRMED', 'CHECKED_IN', 'PENDING'].includes(r.status)
+          )
+          console.log('Reservas que ocupan la habitación:', occupyingReservations)
         }
 
         // Limpiar habitación si cambió el número de huéspedes y la habitación actual no tiene capacidad suficiente

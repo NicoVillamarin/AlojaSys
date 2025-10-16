@@ -43,6 +43,7 @@ export default function RoomsGestion() {
     params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}
   });
 
+
   // Auto-seleccionar hotel si el usuario solo tiene uno asignado
   useEffect(() => {
     if (hasSingleHotel && singleHotelId && !filters.hotel && hotels && hotels.length === 1) {
@@ -290,6 +291,7 @@ export default function RoomsGestion() {
     setFilters({ search: "", hotel: "", status: "" });
     setTimeout(() => refetch(), 0);
   };
+
 
   // Debounce de búsqueda al escribir
   useEffect(() => {

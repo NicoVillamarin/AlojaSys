@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status, viewsets, permissions
@@ -12,8 +12,8 @@ from rest_framework import serializers
 from django.utils import timezone
 
 from apps.reservations.models import Reservation, ReservationStatus, Payment
-from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy
-from .serializers import PaymentMethodSerializer, PaymentPolicySerializer
+from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason
+from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer
 from apps.core.models import Hotel
 
 
@@ -76,6 +76,120 @@ class PaymentPolicyViewSet(viewsets.ModelViewSet):
         if hotel_id:
             qs = qs.filter(hotel_id=hotel_id)
         return qs.order_by("-is_default", "name")
+
+
+class CancellationPolicyViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar políticas de cancelación"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CancellationPolicyCreateSerializer
+        return CancellationPolicySerializer
+    
+    def get_queryset(self):
+        qs = CancellationPolicy.objects.all().select_related("hotel", "created_by")
+        hotel_id = self.request.query_params.get("hotel_id")
+        if hotel_id:
+            qs = qs.filter(hotel_id=hotel_id)
+        return qs.order_by("-is_default", "-is_active", "name")
+    
+    @action(detail=False, methods=['get'])
+    def for_hotel(self, request):
+        """Obtiene la política de cancelación activa para un hotel específico"""
+        hotel_id = request.query_params.get('hotel_id')
+        if not hotel_id:
+            return Response(
+                {"detail": "hotel_id es requerido"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            hotel = Hotel.objects.get(id=hotel_id)
+            policy = CancellationPolicy.resolve_for_hotel(hotel)
+            
+            if not policy:
+                return Response(
+                    {"detail": "No hay política de cancelación configurada para este hotel"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            serializer = self.get_serializer(policy)
+            return Response(serializer.data)
+            
+        except Hotel.DoesNotExist:
+            return Response(
+                {"detail": "Hotel no encontrado"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    @action(detail=True, methods=['post'])
+    def calculate_cancellation(self, request, pk=None):
+        """Calcula las reglas de cancelación para una reserva específica"""
+        policy = self.get_object()
+        check_in_date = request.data.get('check_in_date')
+        room_type = request.data.get('room_type')
+        channel = request.data.get('channel')
+        
+        if not check_in_date:
+            return Response(
+                {"detail": "check_in_date es requerido"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from datetime import datetime
+            check_in = datetime.strptime(check_in_date, '%Y-%m-%d').date()
+            rules = policy.get_cancellation_rules(check_in, room_type, channel)
+            
+            return Response({
+                'policy_id': policy.id,
+                'policy_name': policy.name,
+                'check_in_date': check_in_date,
+                'rules': rules
+            })
+            
+        except ValueError:
+            return Response(
+                {"detail": "Formato de fecha inválido. Use YYYY-MM-DD"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['post'])
+    def set_default(self, request):
+        """Establece una política como predeterminada para un hotel"""
+        policy_id = request.data.get('policy_id')
+        hotel_id = request.data.get('hotel_id')
+        
+        if not policy_id or not hotel_id:
+            return Response(
+                {"detail": "policy_id y hotel_id son requeridos"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            policy = CancellationPolicy.objects.get(id=policy_id, hotel_id=hotel_id)
+            
+            # Quitar default de otras políticas del mismo hotel
+            CancellationPolicy.objects.filter(
+                hotel_id=hotel_id, 
+                is_default=True
+            ).update(is_default=False)
+            
+            # Establecer esta como default
+            policy.is_default = True
+            policy.save(update_fields=['is_default'])
+            
+            return Response({
+                'success': True,
+                'message': f'Política "{policy.name}" establecida como predeterminada'
+            })
+            
+        except CancellationPolicy.DoesNotExist:
+            return Response(
+                {"detail": "Política no encontrada"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 
 @api_view(["GET"])
@@ -553,3 +667,229 @@ def process_deposit_payment(request):
         return Response({
             'error': f'Error procesando el pago: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RefundPolicyViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar políticas de devolución"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return RefundPolicyCreateSerializer
+        return RefundPolicySerializer
+    
+    def get_queryset(self):
+        qs = RefundPolicy.objects.all().select_related("hotel", "created_by")
+        hotel_id = self.request.query_params.get("hotel_id")
+        if hotel_id:
+            qs = qs.filter(hotel_id=hotel_id)
+        return qs.order_by("-is_default", "-is_active", "name")
+    
+    @action(detail=False, methods=['get'])
+    def for_hotel(self, request):
+        """Obtiene la política de devolución activa para un hotel específico"""
+        hotel_id = request.query_params.get('hotel_id')
+        if not hotel_id:
+            return Response(
+                {"detail": "hotel_id es requerido"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            hotel = Hotel.objects.get(id=hotel_id)
+            policy = RefundPolicy.resolve_for_hotel(hotel)
+            
+            if not policy:
+                return Response(
+                    {"detail": "No hay política de devolución configurada para este hotel"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            serializer = self.get_serializer(policy)
+            return Response(serializer.data)
+            
+        except Hotel.DoesNotExist:
+            return Response(
+                {"detail": "Hotel no encontrado"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    @action(detail=True, methods=['post'])
+    def calculate_refund(self, request, pk=None):
+        """Calcula las reglas de devolución para una reserva específica"""
+        policy = self.get_object()
+        check_in_date = request.data.get('check_in_date')
+        room_type = request.data.get('room_type')
+        channel = request.data.get('channel')
+        
+        if not check_in_date:
+            return Response(
+                {"detail": "check_in_date es requerido"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from datetime import datetime
+            check_in = datetime.strptime(check_in_date, '%Y-%m-%d').date()
+            rules = policy.get_refund_rules(check_in, room_type, channel)
+            
+            return Response({
+                'policy_id': policy.id,
+                'policy_name': policy.name,
+                'check_in_date': check_in_date,
+                'rules': rules
+            })
+            
+        except ValueError:
+            return Response(
+                {"detail": "Formato de fecha inválido. Use YYYY-MM-DD"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['post'])
+    def set_default(self, request):
+        """Establece una política como predeterminada para un hotel"""
+        policy_id = request.data.get('policy_id')
+        hotel_id = request.data.get('hotel_id')
+        
+        if not policy_id or not hotel_id:
+            return Response(
+                {"detail": "policy_id y hotel_id son requeridos"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            policy = RefundPolicy.objects.get(id=policy_id, hotel_id=hotel_id)
+            
+            # Quitar default de otras políticas del mismo hotel
+            RefundPolicy.objects.filter(
+                hotel_id=hotel_id, 
+                is_default=True
+            ).update(is_default=False)
+            
+            # Establecer esta como default
+            policy.is_default = True
+            policy.save(update_fields=['is_default'])
+            
+            return Response({
+                'success': True,
+                'message': f'Política "{policy.name}" establecida como predeterminada'
+            })
+            
+        except RefundPolicy.DoesNotExist:
+            return Response(
+                {"detail": "Política no encontrada"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class RefundViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar reembolsos"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return RefundCreateSerializer
+        elif self.action in ['update_status', 'partial_update']:
+            return RefundStatusUpdateSerializer
+        return RefundSerializer
+    
+    def get_queryset(self):
+        qs = Refund.objects.all().select_related("reservation", "payment", "created_by")
+        reservation_id = self.request.query_params.get("reservation_id")
+        if reservation_id:
+            qs = qs.filter(reservation_id=reservation_id)
+        return qs.order_by("-created_at")
+    
+    @action(detail=False, methods=['get'])
+    def for_reservation(self, request):
+        """Obtiene todos los reembolsos de una reserva específica"""
+        reservation_id = request.query_params.get('reservation_id')
+        if not reservation_id:
+            return Response(
+                {"detail": "reservation_id es requerido"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            refunds = Refund.objects.filter(
+                reservation_id=reservation_id
+            ).select_related("payment", "created_by").order_by("-created_at")
+            
+            serializer = self.get_serializer(refunds, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {"detail": f"Error obteniendo reembolsos: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def update_status(self, request, pk=None):
+        """Actualiza el estado de un reembolso"""
+        refund = self.get_object()
+        serializer = self.get_serializer(refund, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            # Usar los métodos del modelo para actualizar el estado
+            new_status = serializer.validated_data.get('status')
+            external_reference = serializer.validated_data.get('external_reference')
+            notes = serializer.validated_data.get('notes')
+            
+            if new_status == RefundStatus.PROCESSING:
+                refund.mark_as_processing()
+            elif new_status == RefundStatus.COMPLETED:
+                refund.mark_as_completed(external_reference)
+            elif new_status == RefundStatus.FAILED:
+                refund.mark_as_failed(notes)
+            elif new_status == RefundStatus.CANCELLED:
+                refund.cancel(notes)
+            
+            # Actualizar otros campos si se proporcionan
+            if external_reference and new_status != RefundStatus.COMPLETED:
+                refund.external_reference = external_reference
+            if notes and new_status not in [RefundStatus.FAILED, RefundStatus.CANCELLED]:
+                refund.notes = notes
+            
+            refund.save()
+            
+            return Response({
+                'success': True,
+                'message': f'Estado del reembolso actualizado a {refund.get_status_display()}',
+                'refund': RefundSerializer(refund).data
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Obtiene estadísticas de reembolsos"""
+        from django.db.models import Count, Sum
+        from django.db.models.functions import TruncMonth
+        
+        # Estadísticas por estado
+        status_stats = Refund.objects.values('status').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('status')
+        
+        # Estadísticas por mes
+        monthly_stats = Refund.objects.annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('month')
+        
+        # Estadísticas por razón
+        reason_stats = Refund.objects.values('reason').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('reason')
+        
+        return Response({
+            'status_stats': list(status_stats),
+            'monthly_stats': list(monthly_stats),
+            'reason_stats': list(reason_stats)
+        })

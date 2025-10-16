@@ -40,6 +40,13 @@ class Reservation(models.Model):
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     notes = models.TextField(blank=True, null=True)
+    applied_cancellation_policy = models.ForeignKey(
+        'payments.CancellationPolicy', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        help_text="Política de cancelación vigente al momento de crear la reserva"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -173,7 +173,28 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                 <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
                 <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
                 <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+              </div>
+            </div>
+            <div className="mt-1 ml-2">
+              <button
+                type="button"
+                onClick={() => toggleGroup("policies")}
+                className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
+                  openGroups.policies ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                }`}
+                aria-expanded={openGroups.policies}
+              >
+                <span>{t('sidebar.policies')}</span>
+                <Chevron open={openGroups.policies} />
+              </button>
+              <div
+                className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
+                  openGroups.policies ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                }`}
+              >
                 <Item to="/settings/payments/policies" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payment_policies')}</Item>
+                <Item to="/settings/policies/cancellation" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cancellation_policies')}</Item>
+                <Item to="/settings/policies/devolution" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.devolution_policies')}</Item>
               </div>
             </div>
             {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}
