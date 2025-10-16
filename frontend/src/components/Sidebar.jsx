@@ -55,11 +55,12 @@ const Item = ({ to, children, onMobileClose, isMobile }) => (
 export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen, isMobile = false, onMobileClose }) {
   const { t } = useTranslation();
   const location = useLocation();
-  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false });
+  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false });
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
-    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations }));
+    const isFinancial = location.pathname.startsWith("/refunds") || location.pathname.startsWith("/payments");
+    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, financial: isFinancial }));
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
@@ -101,6 +102,31 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
         <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
         <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}><CardCreditIcon size="20" /> {!isMini && <span>{t('sidebar.payments')}</span>}</Item>
+        {!isMini && (
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => toggleGroup("financial")}
+              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${
+                openGroups.financial ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+              }`}
+              aria-expanded={openGroups.financial}
+            >
+              <span className="inline-flex items-center gap-2">
+                <CurrencyIcon size="20" />
+                <span>{t('sidebar.financial')}</span>
+              </span>
+              <Chevron open={openGroups.financial} />
+            </button>
+            <div
+              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${
+                openGroups.financial ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds')}</Item>
+            </div>
+          </div>
+        )}
         <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}><BitacoraIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_history')}</span>}</Item>
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}

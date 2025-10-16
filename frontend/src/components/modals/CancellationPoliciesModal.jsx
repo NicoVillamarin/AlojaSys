@@ -14,6 +14,7 @@ import { useList } from 'src/hooks/useList'
 const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSuccess }) => {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('basic')
+  const [instanceKey, setInstanceKey] = useState(0)
   const formikRef = useRef()
 
   // Obtener lista de hoteles
@@ -125,7 +126,7 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
     }
 
     if (isEdit) {
-      updatePolicy({ id: policy.id, data })
+      updatePolicy({ id: policy.id, body: data })
     } else {
       createPolicy(data)
     }
@@ -148,6 +149,12 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
 
   const hotelOptions = hotels?.map(h => ({ value: h.id, label: h.name })) || []
 
+  useEffect(() => {
+    if (isOpen && !isEdit) {
+      setInstanceKey((k) => k + 1)
+    }
+  }, [isOpen, isEdit])
+
   const tabs = [
     { id: 'basic', label: t('payments.cancellation.policies.tabs.basic') },
     { id: 'times', label: t('payments.cancellation.policies.tabs.times') },
@@ -158,6 +165,7 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
 
   return (
     <Formik
+      key={isEdit ? `edit-${policy?.id ?? 'new'}` : `create-${instanceKey}`}
       initialValues={initialValues}
       validationSchema={validationSchema}
       onSubmit={handleSubmit}

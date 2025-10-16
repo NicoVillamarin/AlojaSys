@@ -51,6 +51,7 @@
 - **Estado**: Zustand para gestión de estado
 - **Internacionalización**: i18next
 - **Pagos**: Integración con Mercado Pago
+- **Gestión de Reembolsos**: Interfaz completa para administrar devoluciones
 
 ### Infraestructura
 - **Contenedores**: Docker y Docker Compose
@@ -586,6 +587,60 @@ class Refund(models.Model):
     created_by = ForeignKey(User, on_delete=SET_NULL)
 ```
 
+#### RefundPolicy
+```python
+class RefundPolicy(models.Model):
+    """
+    Políticas de devolución configurables por hotel
+    Define cómo se procesan las devoluciones de dinero
+    """
+    hotel = ForeignKey(Hotel)           # Hotel al que pertenece
+    name = CharField(120)               # Nombre descriptivo
+    is_active = BooleanField            # Activa/Inactiva
+    is_default = BooleanField           # Política por defecto
+    
+    # Configuración de tiempos de devolución
+    full_refund_time = PositiveIntegerField  # Tiempo para devolución completa
+    full_refund_unit = CharField(10)         # Unidad de tiempo (horas/días/semanas)
+    partial_refund_time = PositiveIntegerField  # Tiempo para devolución parcial
+    partial_refund_unit = CharField(10)         # Unidad de tiempo
+    partial_refund_percentage = DecimalField    # Porcentaje de devolución parcial
+    no_refund_time = PositiveIntegerField    # Tiempo después del cual no hay devolución
+    no_refund_unit = CharField(10)           # Unidad de tiempo
+    
+    # Configuración de métodos de devolución
+    refund_method = CharField(30)            # Método de devolución
+    refund_processing_days = PositiveIntegerField  # Días de procesamiento
+    
+    # Configuración de voucher
+    voucher_expiry_days = PositiveIntegerField  # Días de vencimiento del voucher
+    voucher_minimum_amount = DecimalField      # Monto mínimo para voucher
+    
+    # Mensajes personalizados
+    full_refund_message = TextField          # Mensaje para devolución completa
+    partial_refund_message = TextField       # Mensaje para devolución parcial
+    no_refund_message = TextField            # Mensaje para sin devolución
+    voucher_message = TextField              # Mensaje para voucher
+    
+    # Configuración avanzada
+    apply_to_all_room_types = BooleanField   # Aplicar a todos los tipos
+    room_types = JSONField                   # Tipos específicos
+    apply_to_all_channels = BooleanField     # Aplicar a todos los canales
+    channels = JSONField                     # Canales específicos
+    apply_to_all_seasons = BooleanField      # Aplicar a todas las temporadas
+    seasonal_rules = JSONField               # Reglas por temporada
+```
+
+#### Tipos de Método de Devolución
+```python
+class RefundMethod(models.TextChoices):
+    CASH = "cash", "Efectivo"
+    BANK_TRANSFER = "bank_transfer", "Transferencia Bancaria"
+    CREDIT_CARD = "credit_card", "Tarjeta de Crédito"
+    VOUCHER = "voucher", "Voucher"
+    ORIGINAL_PAYMENT = "original_payment", "Método de Pago Original"
+```
+
 #### Estados de Reembolso
 ```python
 class RefundStatus(models.TextChoices):
@@ -720,15 +775,108 @@ CELERY_BEAT_SCHEDULE = {
 - `POST /api/payments/cancellation-policies/{id}/calculate_cancellation/` - Calcular reglas
 - `GET /api/reservations/{id}/cancellation_rules/` - Reglas para reserva específica (usa política histórica)
 - `GET /api/reservations/{id}/refund_history/` - Historial de devoluciones
-- `GET /api/payments/refunds/` - Listar reembolsos
-- `POST /api/payments/refunds/` - Crear reembolso
-- `GET /api/payments/refunds/{id}/` - Obtener reembolso específico
-- `PUT /api/payments/refunds/{id}/` - Actualizar reembolso
-- `POST /api/payments/refunds/{id}/update_status/` - Actualizar estado del reembolso
-- `GET /api/payments/refunds/for_reservation/` - Reembolsos por reserva
-- `GET /api/payments/refunds/stats/` - Estadísticas de reembolsos
 - `POST /api/reservations/auto_cancel_expired/` - Ejecutar auto-cancelación manual
 - `GET /api/reservations/pending_expiration_stats/` - Estadísticas de reservas pendientes
+
+### APIs de Políticas de Devolución
+- `GET /api/payments/refund-policies/` - Listar políticas de devolución
+- `POST /api/payments/refund-policies/` - Crear política de devolución
+- `GET /api/payments/refund-policies/{id}/` - Obtener política específica
+- `PUT /api/payments/refund-policies/{id}/` - Actualizar política
+- `DELETE /api/payments/refund-policies/{id}/` - Eliminar política
+- `GET /api/payments/refund-policies/for_hotel/` - Política activa por hotel
+- `POST /api/payments/refund-policies/set_default/` - Establecer como predeterminada
+
+### APIs de Reembolsos
+- `GET /api/payments/refunds/` - Listar reembolsos con filtros
+- `POST /api/payments/refunds/` - Crear reembolso manual
+- `GET /api/payments/refunds/{id}/` - Obtener reembolso específico
+- `PUT /api/payments/refunds/{id}/` - Actualizar reembolso
+- `PATCH /api/payments/refunds/{id}/` - Actualizar estado del reembolso
+- `GET /api/payments/refunds/for_reservation/` - Reembolsos por reserva
+- `GET /api/payments/refunds/stats/` - Estadísticas de reembolsos
+
+### Componentes Frontend
+
+#### RefundsManagement.jsx
+```javascript
+// Página principal de gestión de reembolsos
+- Tabla completa de reembolsos con filtros
+- Filtros por estado, método, fecha, reserva
+- Búsqueda por ID de reserva o huésped
+- Integración con react-select para filtros
+- Cache invalidation automático
+- Paginación y ordenamiento
+```
+
+#### RefundDetailsModal.jsx
+```javascript
+// Modal de detalles y acciones de reembolso
+- Información completa del reembolso
+- Detalles de la reserva asociada
+- Información del pago original
+- Motivo de cancelación (si aplica)
+- Acciones: Marcar como completado/fallido
+- Integración con useUpdate hook
+- Notificaciones automáticas
+```
+
+#### DevolutionPoliciesModal.jsx
+```javascript
+// Modal de configuración de políticas de devolución
+- Configuración por pestañas (Básico, Tiempos, Métodos, etc.)
+- Selects con valores pre-cargados en modo edición
+- Validación con Formik y Yup
+- Integración con useCreate y useUpdate hooks
+- Configuración avanzada por tipo de habitación/canal
+```
+
+#### CancellationModal.jsx
+```javascript
+// Modal de cancelación de reservas
+- Campo obligatorio de motivo de cancelación
+- Cálculo automático de penalidades
+- Información financiera detallada
+- Confirmación en dos pasos
+- Integración con endpoint unificado de cancelación
+```
+
+### Funcionalidades de Frontend
+
+#### Gestión de Reembolsos
+- ✅ **Lista completa** de reembolsos con filtros avanzados
+- ✅ **Filtros por estado**: Pendiente, Procesando, Completado, Fallido, Cancelado
+- ✅ **Filtros por método**: Efectivo, Transferencia, Tarjeta, Voucher, Original
+- ✅ **Búsqueda por reserva** o huésped
+- ✅ **Actualización de estado** en tiempo real
+- ✅ **Cache invalidation** automático
+- ✅ **Paginación** y ordenamiento
+
+#### Detalles de Reembolsos
+- ✅ **Información completa** del reembolso
+- ✅ **Detalles de la reserva** asociada
+- ✅ **Información del pago** original
+- ✅ **Motivo de cancelación** visible
+- ✅ **Acciones de gestión** (completar/fallar)
+- ✅ **Notificaciones** automáticas
+- ✅ **Actualización en tiempo real**
+
+#### Políticas de Devolución
+- ✅ **Configuración completa** por hotel
+- ✅ **Tiempos configurables** (horas/días/semanas)
+- ✅ **Métodos de devolución** flexibles
+- ✅ **Mensajes personalizados** por tipo
+- ✅ **Targeting avanzado** por habitación/canal
+- ✅ **Configuración de vouchers**
+- ✅ **Validación completa** de formularios
+
+#### Cancelación de Reservas
+- ✅ **Motivo obligatorio** de cancelación
+- ✅ **Cálculo automático** de penalidades
+- ✅ **Información financiera** detallada
+- ✅ **Confirmación en dos pasos**
+- ✅ **Procesamiento automático** de devoluciones
+- ✅ **Liberación automática** de habitaciones
 
 ---
 

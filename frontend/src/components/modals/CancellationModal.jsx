@@ -13,6 +13,7 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [step, setStep] = useState('calculation') // 'calculation' o 'confirmation'
+  const [cancellationReason, setCancellationReason] = useState('')
 
   const { mutate: cancelReservation, isPending: cancelling } = useDispatchAction({
     resource: 'reservations',
@@ -30,6 +31,11 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
   useEffect(() => {
     if (isOpen && reservation) {
       fetchCancellationCalculation()
+    } else if (!isOpen) {
+      // Limpiar estado cuando se cierra el modal
+      setCancellationReason('')
+      setError(null)
+      setStep('calculation')
     }
   }, [isOpen, reservation])
 
@@ -70,9 +76,17 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
   const handleConfirmCancel = () => {
     if (!reservation) return
     
+    if (!cancellationReason.trim()) {
+      setError('El motivo de cancelación es obligatorio')
+      return
+    }
+    
     cancelReservation({
       action: `${reservation.id}/cancel`,
-      body: { confirm: true }, // Confirmar cancelación
+      body: { 
+        confirm: true,
+        cancellation_reason: cancellationReason.trim()
+      }, // Confirmar cancelación con motivo
       method: 'POST'
     })
   }
@@ -128,7 +142,7 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
       size="lg"
       onSubmit={step === 'confirmation' ? handleConfirmCancel : undefined}
       submitText={step === 'confirmation' ? "Confirmar Cancelación" : undefined}
-      submitDisabled={loading || cancelling}
+      submitDisabled={loading || cancelling || (step === 'confirmation' && !cancellationReason.trim())}
       submitLoading={cancelling}
       submitVariant="danger"
     >
@@ -256,6 +270,25 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
                 </div>
               </div>
             )}
+
+            {/* Campo de Motivo de Cancelación */}
+            <div className="bg-white border rounded-lg p-4">
+              <label htmlFor="cancellation-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo de Cancelación *
+              </label>
+              <textarea
+                id="cancellation-reason"
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                placeholder="Describe el motivo de la cancelación..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows={3}
+                required
+              />
+              {error && error.includes('motivo') && (
+                <p className="mt-1 text-sm text-red-600">{error}</p>
+              )}
+            </div>
 
             {/* Información de Devolución Automática */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

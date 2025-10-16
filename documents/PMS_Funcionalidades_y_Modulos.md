@@ -9,11 +9,12 @@
    - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
    - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
    - [3.5 Políticas de Cancelación](#35-políticas-de-cancelación)
-   - [3.6 Gestión de Tarifas](#36-gestión-de-tarifas)
-   - [3.7 Dashboard y Reportes](#37-dashboard-y-reportes)
-   - [3.8 Calendario de Reservas](#38-calendario-de-reservas)
-   - [3.9 Gestión de Usuarios](#39-gestión-de-usuarios)
-   - [3.10 Gestión de Empresas](#310-gestión-de-empresas)
+   - [3.6 Políticas de Devolución](#36-políticas-de-devolución)
+   - [3.7 Gestión de Tarifas](#37-gestión-de-tarifas)
+   - [3.8 Dashboard y Reportes](#38-dashboard-y-reportes)
+   - [3.9 Calendario de Reservas](#39-calendario-de-reservas)
+   - [3.10 Gestión de Usuarios](#310-gestión-de-usuarios)
+   - [3.11 Gestión de Empresas](#311-gestión-de-empresas)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
 5. [Casos de Uso Reales](#casos-de-uso-reales)
 6. [Beneficios del Sistema](#beneficios-del-sistema)
@@ -215,6 +216,208 @@ Procesa pagos de manera segura y flexible, con políticas configurables.
 
 ### ¿Qué hace?
 Permite configurar reglas flexibles de cancelación para cada hotel, definiendo cuándo se puede cancelar una reserva y qué penalidades aplican.
+
+---
+
+## 3.6 Políticas de Devolución
+
+### ¿Qué hace?
+Permite configurar cómo se procesan las devoluciones de dinero cuando se cancela una reserva, definiendo tiempos, métodos y condiciones de reembolso.
+
+### ¿Cómo funciona?
+
+#### Configuración de Tiempos de Devolución
+
+##### Devolución Completa
+```
+Política: "Devolución del 100%"
+Tiempo: 24 horas antes del check-in
+Aplicación: Todas las habitaciones
+Resultado: Cliente recibe el 100% de su dinero
+```
+
+##### Devolución Parcial
+```
+Política: "Devolución del 50%"
+Tiempo: 72 horas antes del check-in
+Aplicación: Suites solamente
+Resultado: Cliente recibe el 50% de su dinero
+```
+
+##### Sin Devolución
+```
+Política: "No hay devolución"
+Tiempo: 168 horas (7 días) antes del check-in
+Aplicación: Temporada alta
+Resultado: No se devuelve dinero
+```
+
+#### Métodos de Devolución
+
+##### Método de Pago Original
+```
+Ejemplo:
+- Cliente pagó con tarjeta de crédito
+- Devolución se procesa a la misma tarjeta
+- Tiempo de procesamiento: 7 días hábiles
+- Sin comisiones adicionales
+```
+
+##### Transferencia Bancaria
+```
+Ejemplo:
+- Cliente pagó en efectivo
+- Devolución por transferencia bancaria
+- Tiempo de procesamiento: 3-5 días hábiles
+- Requiere datos bancarios del cliente
+```
+
+##### Voucher
+```
+Ejemplo:
+- Cliente cancela reserva
+- Se genera voucher por el monto
+- Voucher válido por 365 días
+- Usable para futuras reservas
+```
+
+#### Configuración de Vouchers
+
+##### Vencimiento
+```
+Configuración:
+- Voucher válido por: 365 días
+- Monto mínimo: $10,000
+- Usable en cualquier habitación
+- No transferible
+```
+
+##### Mensajes Personalizados
+```
+Para devolución completa:
+"Tu devolución del 100% será procesada en 7 días hábiles por el método de pago original."
+
+Para devolución parcial:
+"Tu devolución del 50% será procesada en 7 días hábiles. El 50% restante se retiene como penalidad por cancelación tardía."
+
+Para voucher:
+"Se ha generado un voucher por $75,000 válido por 365 días. Puedes usarlo para futuras reservas."
+```
+
+### Flujo de Devolución Automática
+
+#### 1. Cancelación de Reserva
+```
+Proceso:
+1. Cliente cancela reserva con motivo
+2. Sistema evalúa política de cancelación histórica
+3. Sistema calcula penalidad según política
+4. Sistema obtiene política de devolución actual
+5. Sistema calcula monto de devolución
+```
+
+#### 2. Procesamiento de Devolución
+```
+Proceso automático:
+1. Sistema crea registro de reembolso
+2. Vincula reembolso al pago original
+3. Establece método de devolución
+4. Calcula días de procesamiento
+5. Registra motivo de cancelación
+6. Marca como "Procesando"
+```
+
+#### 3. Seguimiento de Estado
+```
+Estados del reembolso:
+- Pendiente: Creado pero no procesado
+- Procesando: En proceso de devolución
+- Completado: Devuelto exitosamente
+- Fallido: Error en la devolución
+- Cancelado: Reembolso cancelado
+```
+
+#### 4. Gestión de Reembolsos
+```
+Para el personal:
+- Ver lista completa de reembolsos
+- Filtrar por estado, método, fecha
+- Marcar como completado manualmente
+- Ver detalles de cada reembolso
+- Seguimiento de procesamiento
+```
+
+### Beneficios
+
+#### Para el Hotel
+- ✅ **Control total** sobre políticas de devolución
+- ✅ **Flexibilidad** en métodos de pago
+- ✅ **Transparencia** con tiempos claros
+- ✅ **Gestión centralizada** de reembolsos
+- ✅ **Trazabilidad completa** de devoluciones
+- ✅ **Configuración por hotel** independiente
+
+#### Para el Huésped
+- ✅ **Transparencia** sobre tiempos de devolución
+- ✅ **Múltiples métodos** de devolución
+- ✅ **Seguimiento** del estado del reembolso
+- ✅ **Tiempos claros** de procesamiento
+- ✅ **Confirmación** automática de devolución
+- ✅ **Vouchers** para futuras reservas
+
+#### Para el Personal
+- ✅ **Gestión centralizada** de reembolsos
+- ✅ **Filtros avanzados** para búsqueda
+- ✅ **Actualización de estado** en tiempo real
+- ✅ **Información completa** de cada reembolso
+- ✅ **Seguimiento** de procesamiento
+- ✅ **Notificaciones** automáticas
+
+### Casos de Uso Prácticos
+
+#### Caso 1: Hotel con Devoluciones Rápidas
+```
+Configuración:
+- Devolución completa: 24 horas
+- Método: Original payment
+- Procesamiento: 3 días
+- Aplicación: Todas las habitaciones
+
+Resultado:
+- Clientes satisfechos
+- Proceso rápido
+- Menos consultas
+```
+
+#### Caso 2: Hotel con Vouchers
+```
+Configuración:
+- Devolución: Voucher
+- Vencimiento: 365 días
+- Monto mínimo: $20,000
+- Usable: Cualquier habitación
+
+Resultado:
+- Retención de clientes
+- Ingresos futuros garantizados
+- Flexibilidad para huéspedes
+```
+
+#### Caso 3: Hotel de Lujo
+```
+Configuración:
+- Suites: Devolución completa 48h
+- Estándar: Devolución 50% hasta 72h
+- Método: Transferencia bancaria
+- Procesamiento: 5 días
+
+Resultado:
+- Políticas premium
+- Flexibilidad diferenciada
+- Procesamiento profesional
+```
+
+---
 
 ### ¿Cómo funciona?
 
@@ -610,7 +813,7 @@ Al check-in:
 
 ---
 
-## 3.6 Gestión de Tarifas
+## 3.7 Gestión de Tarifas
 
 ### ¿Qué hace?
 Permite configurar precios dinámicos, promociones e impuestos de manera flexible.
@@ -687,7 +890,7 @@ Total de la reserva: $145,200
 
 ---
 
-## 3.7 Dashboard y Reportes
+## 3.8 Dashboard y Reportes
 
 ### ¿Qué hace?
 Proporciona métricas y análisis del negocio en tiempo real.
@@ -759,7 +962,7 @@ Distribución actual:
 
 ---
 
-## 3.8 Calendario de Reservas
+## 3.9 Calendario de Reservas
 
 ### ¿Qué hace?
 Proporciona una vista visual e interactiva de todas las reservas del hotel, permitiendo una gestión eficiente y una comprensión rápida del estado de ocupación.
@@ -980,7 +1183,7 @@ Proceso:
 
 ---
 
-## 3.9 Gestión de Usuarios
+## 3.10 Gestión de Usuarios
 
 ### ¿Qué hace?
 Administra el acceso y permisos del personal del hotel.
@@ -1021,7 +1224,7 @@ Un usuario puede trabajar en:
 
 ---
 
-## 3.10 Gestión de Empresas
+## 3.11 Gestión de Empresas
 
 ### ¿Qué hace?
 Administra empresas que pueden tener múltiples hoteles.
@@ -1130,7 +1333,27 @@ Configuración global:
 4. Se genera comprobante
 ```
 
-### 4. Cierre del Día (11:00 PM)
+### 4. Gestión de Reembolsos (Todo el día)
+
+#### Procesamiento de Devoluciones
+```
+1. Personal revisa lista de reembolsos pendientes
+2. Filtra por estado: Procesando, Pendiente
+3. Marca como completado los reembolsos procesados
+4. Actualiza estado de reembolsos fallidos
+5. Verifica detalles de cada reembolso
+```
+
+#### Seguimiento de Cancelaciones
+```
+1. Sistema procesa cancelaciones automáticamente
+2. Crea reembolsos según política de devolución
+3. Registra motivo de cancelación
+4. Actualiza estado de reembolsos
+5. Notifica al personal sobre nuevos reembolsos
+```
+
+### 5. Cierre del Día (11:00 PM)
 
 #### Revisión de Métricas
 ```
@@ -1139,6 +1362,15 @@ Configuración global:
 3. Revisa ingresos generados
 4. Identifica oportunidades en el calendario
 5. Planifica para el día siguiente usando vista semanal
+```
+
+#### Revisión de Reembolsos
+```
+1. Gerente revisa estadísticas de reembolsos
+2. Analiza motivos de cancelación más comunes
+3. Evalúa efectividad de políticas de devolución
+4. Planifica ajustes en políticas si es necesario
+5. Revisa reembolsos pendientes para el día siguiente
 ```
 
 ---
@@ -1214,6 +1446,26 @@ Hotel que necesita diferentes políticas de cancelación según el tipo de habit
 - ✅ **Transparencia** con mensajes claros para huéspedes
 - ✅ **Adaptación** a diferentes tipos de negocio
 
+### Caso 5: Hotel con Gestión Completa de Reembolsos
+
+#### Situación
+Hotel que necesita gestionar devoluciones de manera profesional y transparente.
+
+#### Solución AlojaSys
+- **Políticas de devolución**: Configurables por hotel
+- **Múltiples métodos**: Original payment, transferencia, voucher
+- **Tiempos claros**: 3-7 días de procesamiento
+- **Gestión centralizada**: Lista completa de reembolsos
+- **Seguimiento de estado**: Pendiente, Procesando, Completado
+- **Motivo obligatorio**: En todas las cancelaciones
+
+#### Resultado
+- ✅ **Gestión profesional** de devoluciones
+- ✅ **Transparencia total** para huéspedes
+- ✅ **Control centralizado** de reembolsos
+- ✅ **Trazabilidad completa** de cancelaciones
+- ✅ **Satisfacción del cliente** mejorada
+
 ---
 
 ## Beneficios del Sistema
@@ -1225,6 +1477,8 @@ Hotel que necesita diferentes políticas de cancelación según el tipo de habit
 - 📊 **Análisis del negocio** con métricas en tiempo real
 - 🔒 **Pagos seguros** con integración bancaria
 - ⚡ **Automatización** de procesos repetitivos
+- 💸 **Gestión profesional** de reembolsos y devoluciones
+- 🔄 **Procesamiento automático** de cancelaciones
 
 ### Para el Personal
 - 👥 **Interfaz intuitiva** fácil de usar
@@ -1233,6 +1487,8 @@ Hotel que necesita diferentes políticas de cancelación según el tipo de habit
 - 📱 **Acceso desde cualquier dispositivo**
 - 🚫 **Menos errores** con validaciones automáticas
 - 📈 **Reportes automáticos** para análisis
+- 💸 **Gestión centralizada** de reembolsos
+- 🔄 **Procesamiento automático** de devoluciones
 
 ### Para los Huéspedes
 - 🌐 **Reservas online** 24/7
@@ -1240,6 +1496,8 @@ Hotel que necesita diferentes políticas de cancelación según el tipo de habit
 - 📧 **Confirmaciones automáticas** por email
 - 🔄 **Modificaciones fáciles** de reservas
 - 📱 **Experiencia digital** completa
+- 💸 **Devoluciones transparentes** y rápidas
+- 🔄 **Cancelaciones fáciles** con motivo obligatorio
 
 ### Para la Empresa
 - 🏢 **Gestión multi-hotel** desde una plataforma

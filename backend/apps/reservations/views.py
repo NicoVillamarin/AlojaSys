@@ -280,6 +280,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if isinstance(confirm, str):
             confirm = confirm.lower() in ['true', '1', 'yes']
         
+        # Obtener motivo de cancelación (obligatorio cuando se confirma)
+        cancellation_reason = request.data.get('cancellation_reason', '').strip()
+        if confirm and not cancellation_reason:
+            return Response({
+                "detail": "El motivo de cancelación es obligatorio",
+                "field": "cancellation_reason"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         if reservation.status not in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]:
             return Response({"detail": "Solo se pueden cancelar reservas pendientes o confirmadas."}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -343,7 +351,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             })
         
         # Si es confirmación, proceder con la cancelación
-        refund_result = RefundProcessor.process_refund(reservation)
+        refund_result = RefundProcessor.process_refund(reservation, cancellation_reason=cancellation_reason)
         
         if not refund_result or not refund_result.get('success', False):
             error_msg = refund_result.get('error', 'Error desconocido') if refund_result else 'Error procesando devolución'
@@ -362,6 +370,22 @@ class ReservationViewSet(viewsets.ModelViewSet):
             from apps.rooms.models import RoomStatus
             reservation.room.status = RoomStatus.AVAILABLE
             reservation.room.save(update_fields=["status"])
+        
+        # Registrar log de cancelación con motivo
+        from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+        ReservationChangeLog.objects.create(
+            reservation=reservation,
+            event_type=ReservationChangeEvent.CANCEL,
+            changed_by=request.user,
+            message=f"Reserva cancelada manualmente. Motivo: {cancellation_reason}",
+            fields_changed={
+                'cancellation_reason': cancellation_reason,
+                'refund_amount': refund_result.get('refund_amount', 0) if refund_result else 0,
+                'penalty_amount': refund_result.get('penalty_amount', 0) if refund_result else 0,
+                'total_paid': refund_result.get('total_paid', 0) if refund_result else 0,
+                'manual_cancellation': True
+            }
+        )
         
         # Obtener método de devolución de forma segura
         refund_method = 'N/A'
@@ -412,14 +436,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
         
         # Procesar logs de cancelación
         for log in cancellation_logs:
-            if log.metadata and 'refund_amount' in log.metadata:
+            if log.fields_changed and 'refund_amount' in log.fields_changed:
                 refund_data.append({
                     'type': 'cancellation_refund',
                     'date': log.changed_at.isoformat(),
-                    'amount': log.metadata.get('refund_amount', 0),
-                    'method': log.metadata.get('refund_result', {}).get('method', 'N/A'),
-                    'status': 'processed' if log.metadata.get('refund_processed', False) else 'pending',
-                    'notes': f"Devolución por cancelación - Penalidad: ${log.metadata.get('penalty_amount', 0)}"
+                    'amount': log.fields_changed.get('refund_amount', 0),
+                    'method': log.fields_changed.get('refund_result', {}).get('method', 'N/A'),
+                    'status': 'processed' if log.fields_changed.get('refund_processed', False) else 'pending',
+                    'notes': f"Devolución por cancelación - Penalidad: ${log.fields_changed.get('penalty_amount', 0)}"
                 })
         
         return Response({

@@ -15,6 +15,8 @@
     "rooms_management": "Rooms Management",
     "payments": "Payments History",
     "reservations_history": "Reservations History",
+    "financial": "Financial",
+    "refunds": "Refunds",
     "clients": "Clients",
     "rates_management": "Rates Management",
     "configuration": "Configuration",
@@ -38,10 +40,14 @@
     "cancellation_policies": "Cancellation Policies",
     "devolution_policies": "Devolution Policies"
   },
-  "common": {
-    "save": "Save",
-    "cancel": "Cancel",
-    "edit": "Edit",
+    "common": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "refresh": "Refresh",
+      "all_status": "All Status",
+      "all_methods": "All Methods",
+      "days": "days",
     "delete": "Delete",
     "create": "Create",
     "search": "Search",
@@ -1335,6 +1341,55 @@
         "channels": "Specific channels",
         "apply_to_all_seasons": "Apply to all seasons",
         "seasonal_rules": "Specific seasonal rules"
+      }
+    },
+    "refunds": {
+      "title": "Refunds Management",
+      "subtitle": "Manage and track all system refunds",
+      "search_placeholder": "Search by ID, reservation, amount...",
+      "refund_id": "Refund N°",
+      "reservation_id": "Reservation N°",
+      "amount": "Amount",
+      "status_label": "Status",
+      "method": "Method",
+      "reason": "Reason",
+      "created_at": "Created",
+      "updated_at": "Updated",
+      "processed_at": "Processed",
+      "processing_days": "Processing Days",
+      "external_reference": "External Reference",
+      "notes": "Notes",
+      "additional_info": "Additional Information",
+      "cancellation_reason": "Cancellation Reason",
+      "cancellation_reason_title": "Cancellation Reason",
+      "timeline": "Timeline",
+      "actions": "Actions",
+      "details_title": "Refund Details #{id}",
+      "mark_processing": "Mark as Processing",
+      "mark_completed": "Mark as Completed",
+      "mark_failed": "Mark as Failed",
+      "status": {
+        "pending": "Pending",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "methods": {
+        "cash": "Cash",
+        "bank_transfer": "Bank Transfer",
+        "credit_card": "Credit Card",
+        "voucher": "Credit Voucher",
+        "original_payment": "Original Payment Method"
+      },
+      "reasons": {
+        "cancellation": "Reservation Cancellation",
+        "partial_cancellation": "Partial Cancellation",
+        "overpayment": "Overpayment",
+        "discount_applied": "Discount Applied",
+        "admin_adjustment": "Admin Adjustment",
+        "customer_request": "Customer Request",
+        "system_error": "System Error"
       }
     }
   }

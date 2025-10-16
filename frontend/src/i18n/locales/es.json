@@ -15,6 +15,8 @@
     "rooms_management": "Gestión de Habitaciones",
     "payments": "Histórico de Pagos",
     "reservations_history": "Histórico de Reservas",
+    "financial": "Financiero",
+    "refunds": "Reembolsos",
     "clients": "Clientes",
     "rates_management": "Gestión de Tarifas",
     "configuration": "Configuración",
@@ -38,10 +40,14 @@
     "cancellation_policies": "Políticas de Cancelación",
     "devolution_policies": "Políticas de Devolución"
   },
-  "common": {
-    "save": "Guardar",
-    "cancel": "Cancelar",
-    "edit": "Editar",
+    "common": {
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "edit": "Editar",
+      "refresh": "Actualizar",
+      "all_status": "Todos los Estados",
+      "all_methods": "Todos los Métodos",
+      "days": "días",
     "delete": "Eliminar",
     "create": "Crear",
     "search": "Buscar",
@@ -1335,6 +1341,55 @@
         "channels": "Canales específicos",
         "apply_to_all_seasons": "Aplicar a todas las temporadas",
         "seasonal_rules": "Reglas específicas por temporada"
+      }
+    },
+    "refunds": {
+      "title": "Gestión de Reembolsos",
+      "subtitle": "Administra y gestiona todos los reembolsos del sistema",
+      "search_placeholder": "Buscar por ID, reserva, monto...",
+      "refund_id": "N° Reembolso",
+      "reservation_id": "N° Reserva",
+      "amount": "Monto",
+      "status_label": "Estado",
+      "method": "Método",
+      "reason": "Razón",
+      "created_at": "Creado",
+      "updated_at": "Actualizado",
+      "processed_at": "Procesado",
+      "processing_days": "Días de Procesamiento",
+      "external_reference": "Referencia Externa",
+      "notes": "Notas",
+      "additional_info": "Información Adicional",
+      "cancellation_reason": "Motivo de Cancelación",
+      "cancellation_reason_title": "Motivo de la Cancelación",
+      "timeline": "Cronología",
+      "actions": "Acciones",
+      "details_title": "Detalles del Reembolso #{id}",
+      "mark_processing": "Marcar como Procesando",
+      "mark_completed": "Marcar como Completado",
+      "mark_failed": "Marcar como Fallido",
+      "status": {
+        "pending": "Pendiente",
+        "processing": "Procesando",
+        "completed": "Completado",
+        "failed": "Fallido",
+        "cancelled": "Cancelado"
+      },
+      "methods": {
+        "cash": "Efectivo",
+        "bank_transfer": "Transferencia Bancaria",
+        "credit_card": "Tarjeta de Crédito",
+        "voucher": "Voucher de Crédito",
+        "original_payment": "Método de Pago Original"
+      },
+      "reasons": {
+        "cancellation": "Cancelación de Reserva",
+        "partial_cancellation": "Cancelación Parcial",
+        "overpayment": "Sobrepago",
+        "discount_applied": "Descuento Aplicado",
+        "admin_adjustment": "Ajuste Administrativo",
+        "customer_request": "Solicitud del Cliente",
+        "system_error": "Error del Sistema"
       }
     }
   }

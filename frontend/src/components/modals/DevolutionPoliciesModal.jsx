@@ -10,10 +10,12 @@ import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 import { useList } from 'src/hooks/useList'
+import SelectAsync from '../selects/SelectAsync'
 
 const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSuccess }) => {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('basic')
+  const [instanceKey, setInstanceKey] = useState(0)
   const formikRef = useRef()
 
   // Obtener lista de hoteles
@@ -33,7 +35,7 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
   const initialValues = {
     name: isEdit ? (policy?.name ?? '') : '',
-    hotel: isEdit ? (String(policy?.hotel ?? '')) : '',
+    hotel: isEdit ? (policy?.hotel ?? '') : '',
     is_active: isEdit ? (policy?.is_active ?? true) : true,
     is_default: isEdit ? (policy?.is_default ?? false) : false,
     
@@ -84,7 +86,7 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
   const handleSubmit = (values) => {
     const data = {
       name: values.name,
-      hotel: values.hotel,
+      hotel: values.hotel ? Number(values.hotel) : null,
       is_active: values.is_active,
       is_default: values.is_default,
       
@@ -121,7 +123,7 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
     }
 
     if (isEdit) {
-      updatePolicy({ id: policy.id, data })
+      updatePolicy({ id: policy.id, body: data })
     } else {
       createPolicy(data)
     }
@@ -143,6 +145,12 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
   const hotelOptions = hotels?.map(h => ({ value: h.id, label: h.name })) || []
 
+  useEffect(() => {
+    if (isOpen && !isEdit) {
+      setInstanceKey((k) => k + 1)
+    }
+  }, [isOpen, isEdit])
+
   const tabs = [
     { id: 'basic', label: t('payments.refund.policies.tabs.basic') },
     { id: 'times', label: t('payments.refund.policies.tabs.times') },
@@ -154,6 +162,7 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
   return (
     <Formik
+      key={isEdit ? `edit-${policy?.id ?? 'new'}` : `create-${instanceKey}`}
       initialValues={initialValues}
       validationSchema={validationSchema}
       onSubmit={handleSubmit}
@@ -203,11 +212,13 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
                     error={touched.name && errors.name}
                     placeholder={t('payments.refund.policies.policy_name')}
                   />
-                  <SelectBasic
+                  <SelectAsync
+                    resource='hotels' 
                     title={t('sidebar.hotels')}
                     name="hotel"
-                    options={hotelOptions}
                     placeholder={t('common.select_hotel')}
+                    getOptionLabel={(h) => h?.name}
+                    getOptionValue={(h) => h?.id}
                   />
                 </div>
 

@@ -801,6 +801,11 @@ class RefundViewSet(viewsets.ModelViewSet):
             qs = qs.filter(reservation_id=reservation_id)
         return qs.order_by("-created_at")
     
+    def partial_update(self, request, *args, **kwargs):
+        print(f"DEBUG ViewSet: partial_update llamado para reembolso {kwargs.get('pk')}")
+        print(f"DEBUG ViewSet: Datos recibidos: {request.data}")
+        return super().partial_update(request, *args, **kwargs)
+    
     @action(detail=False, methods=['get'])
     def for_reservation(self, request):
         """Obtiene todos los reembolsos de una reserva específica"""

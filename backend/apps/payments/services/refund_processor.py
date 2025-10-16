@@ -13,13 +13,14 @@ class RefundProcessor:
     """
     
     @staticmethod
-    def process_refund(reservation: Reservation, cancellation_policy: CancellationPolicy = None) -> Dict[str, Any]:
+    def process_refund(reservation: Reservation, cancellation_policy: CancellationPolicy = None, cancellation_reason: str = None) -> Dict[str, Any]:
         """
         Procesa la devolución automática de una reserva cancelada
         
         Args:
             reservation: Reserva a cancelar
             cancellation_policy: Política de cancelación aplicable (opcional, usa la aplicada a la reserva si no se proporciona)
+            cancellation_reason: Motivo de cancelación (opcional)
             
         Returns:
             Dict con información del procesamiento de devolución
@@ -76,7 +77,8 @@ class RefundProcessor:
                     refund_result = RefundProcessor._process_refund_payment(
                         reservation, 
                         refund_amount, 
-                        refund_rules
+                        refund_rules,
+                        cancellation_reason
                     )
                 
                 # 7. Registrar log de cancelación con detalles financieros
@@ -180,7 +182,8 @@ class RefundProcessor:
     def _process_refund_payment(
         reservation: Reservation, 
         refund_amount: Decimal, 
-        refund_rules: Dict[str, Any]
+        refund_rules: Dict[str, Any],
+        cancellation_reason: str = None
     ) -> Optional[Dict[str, Any]]:
         """
         Procesa el pago de devolución según el método configurado
@@ -194,6 +197,10 @@ class RefundProcessor:
             return None
         
         # Crear registro de reembolso explícito
+        notes = f"Reembolso por cancelación - Método: {refund_method}"
+        if cancellation_reason:
+            notes += f" - Motivo: {cancellation_reason}"
+        
         refund = Refund.objects.create(
             reservation=reservation,
             payment=original_payment,
@@ -201,7 +208,7 @@ class RefundProcessor:
             reason=RefundReason.CANCELLATION,
             refund_method=refund_method,
             processing_days=refund_rules.get('processing_days', 7),
-            notes=f"Reembolso por cancelación - Método: {refund_method}"
+            notes=notes
         )
         
         # Procesar según el método
@@ -278,7 +285,9 @@ class RefundProcessor:
         
         # Si no hay pagos con tarjeta, crear devolución manual
         refund.mark_as_processing()
-        refund.notes = "Reembolso manual pendiente"
+        # Preservar las notas originales (que incluyen el motivo de cancelación)
+        if not refund.notes or "Reembolso manual pendiente" in refund.notes:
+            refund.notes = "Reembolso manual pendiente"
         refund.save()
         
         return {

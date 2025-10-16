@@ -84,38 +84,60 @@ class CancellationPolicySerializer(serializers.ModelSerializer):
         return obj.get_cancellation_rules(check_in_date)
     
     def validate(self, data):
-        # Validar que hotel y name estén presentes
-        if not data.get('hotel'):
-            raise serializers.ValidationError({'hotel': 'Este campo es requerido.'})
-        if not data.get('name'):
+        # Validar solo campos presentes para soportar PATCH parcial
+        if 'hotel' in data:
+            hotel_value = data.get('hotel')
+            if hotel_value is None or hotel_value == '':
+                raise serializers.ValidationError({'hotel': 'Este campo es requerido.'})
+        if 'name' in data and not data.get('name'):
             raise serializers.ValidationError({'name': 'Este campo es requerido.'})
-        
+
+        # Resolver hotel efectivo (dato nuevo o el de la instancia) para reglas de unicidad
+        effective_hotel = data.get('hotel')
+        if effective_hotel is None and self.instance is not None:
+            effective_hotel = self.instance.hotel
+
         # Validar que solo una política sea default por hotel
-        if data.get('is_default', False):
-            hotel = data.get('hotel')
-            if hotel:
-                existing_default = CancellationPolicy.objects.filter(
-                    hotel=hotel,
-                    is_default=True
-                ).exclude(id=self.instance.id if self.instance else None)
-                if existing_default.exists():
-                    raise serializers.ValidationError(
-                        {'is_default': 'Ya existe una política de cancelación por defecto para este hotel'}
-                    )
+        if data.get('is_default', False) and effective_hotel:
+            existing_default = CancellationPolicy.objects.filter(
+                hotel=effective_hotel,
+                is_default=True
+            ).exclude(id=self.instance.id if self.instance else None)
+            if existing_default.exists():
+                raise serializers.ValidationError(
+                    {'is_default': 'Ya existe una política de cancelación por defecto para este hotel'}
+                )
         
-        # Validar tiempos de cancelación (deben ser progresivos)
+        # Validar tiempos de cancelación (deben ser progresivos: free < partial < no_refund)
         free_time = data.get('free_cancellation_time', 0)
         partial_time = data.get('partial_refund_time', 0)
         no_refund_time = data.get('no_refund_time', 0)
+        free_unit = data.get('free_cancellation_unit', 'hours')
+        partial_unit = data.get('partial_refund_unit', 'hours')
+        no_refund_unit = data.get('no_refund_unit', 'hours')
         
-        if free_time > 0 and partial_time > 0 and free_time <= partial_time:
+        # Convertir todo a horas para comparar
+        def convert_to_hours(time, unit):
+            if unit == 'hours':
+                return time
+            elif unit == 'days':
+                return time * 24
+            elif unit == 'weeks':
+                return time * 24 * 7
+            return time
+        
+        free_hours = convert_to_hours(free_time, free_unit) if free_time > 0 else 0
+        partial_hours = convert_to_hours(partial_time, partial_unit) if partial_time > 0 else 0
+        no_refund_hours = convert_to_hours(no_refund_time, no_refund_unit) if no_refund_time > 0 else 0
+        
+        if free_hours > 0 and partial_hours > 0 and free_hours >= partial_hours:
             raise serializers.ValidationError(
-                {'free_cancellation_time': 'El tiempo de cancelación gratuita debe ser mayor al tiempo de devolución parcial'}
+                {'free_cancellation_time': 'El tiempo de cancelación gratuita debe ser menor al tiempo de devolución parcial'}
             )
         
-        if partial_time > 0 and no_refund_time > 0 and partial_time <= no_refund_time:
+        if partial_hours > 0 and no_refund_hours > 0 and partial_hours >= no_refund_hours:
             raise serializers.ValidationError(
-                {'partial_refund_time': 'El tiempo de devolución parcial debe ser mayor al tiempo de sin devolución'}
+                {'partial_refund_time': 'El tiempo de devolución parcial debe ser menor al tiempo de sin devolución'}
             )
         
         return data
@@ -149,6 +171,7 @@ class CancellationPolicyCreateSerializer(serializers.ModelSerializer):
 
 class RefundSerializer(serializers.ModelSerializer):
     """Serializer para reembolsos"""
+    reservation_id = serializers.IntegerField(source="reservation.id", read_only=True)
     reservation_display_name = serializers.CharField(source="reservation.display_name", read_only=True)
     payment_method_display = serializers.CharField(source="payment.method", read_only=True)
     created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
@@ -158,7 +181,7 @@ class RefundSerializer(serializers.ModelSerializer):
     class Meta:
         model = Refund
         fields = [
-            "id", "reservation", "reservation_display_name", "payment", "payment_method_display",
+            "id", "reservation", "reservation_id", "reservation_display_name", "payment", "payment_method_display",
             "amount", "reason", "reason_display", "status", "status_display",
             "refund_method", "processing_days", "external_reference", "notes",
             "processed_at", "created_at", "updated_at", "created_by", "created_by_name"
@@ -220,6 +243,32 @@ class RefundStatusUpdateSerializer(serializers.ModelSerializer):
                     f"No se puede cambiar el estado de {current_status} a {value}"
                 )
         return value
+    
+    def save(self, **kwargs):
+        print("DEBUG Serializer: save() llamado")
+        return super().save(**kwargs)
+    
+    def update(self, instance, validated_data):
+        print(f"DEBUG: Actualizando reembolso {instance.id}")
+        print(f"DEBUG: Status recibido: {validated_data.get('status')}")
+        print(f"DEBUG: RefundStatus.COMPLETED: {RefundStatus.COMPLETED}")
+        print(f"DEBUG: Son iguales: {validated_data.get('status') == RefundStatus.COMPLETED[0]}")
+        
+        # Si se está marcando como completado, usar el método del modelo
+        if validated_data.get('status') == RefundStatus.COMPLETED[0]:
+            print("DEBUG: Usando mark_as_completed")
+            external_reference = validated_data.get('external_reference')
+            instance.mark_as_completed(external_reference)
+            # Actualizar otros campos si se proporcionan
+            if 'notes' in validated_data:
+                instance.notes = validated_data['notes']
+                instance.save(update_fields=['notes', 'updated_at'])
+        else:
+            print("DEBUG: Usando update normal")
+            # Para otros estados, actualizar normalmente
+            return super().update(instance, validated_data)
+        
+        return instance
 
 
 class RefundPolicySerializer(serializers.ModelSerializer):
@@ -258,24 +307,29 @@ class RefundPolicySerializer(serializers.ModelSerializer):
         return obj.get_refund_rules(check_in_date)
     
     def validate(self, data):
-        # Validar que hotel y name estén presentes
-        if not data.get('hotel'):
-            raise serializers.ValidationError({'hotel': 'Este campo es requerido.'})
-        if not data.get('name'):
+        # Validar solo campos presentes para soportar PATCH parcial
+        if 'hotel' in data:
+            hotel_value = data.get('hotel')
+            if hotel_value is None or hotel_value == '':
+                raise serializers.ValidationError({'hotel': 'Este campo es requerido.'})
+        if 'name' in data and not data.get('name'):
             raise serializers.ValidationError({'name': 'Este campo es requerido.'})
-        
+
+        # Resolver hotel efectivo (dato nuevo o el de la instancia) para reglas de unicidad
+        effective_hotel = data.get('hotel')
+        if effective_hotel is None and self.instance is not None:
+            effective_hotel = self.instance.hotel
+
         # Validar que solo una política sea default por hotel
-        if data.get('is_default', False):
-            hotel = data.get('hotel')
-            if hotel:
-                existing_default = RefundPolicy.objects.filter(
-                    hotel=hotel,
-                    is_default=True
-                ).exclude(id=self.instance.id if self.instance else None)
-                if existing_default.exists():
-                    raise serializers.ValidationError(
-                        {'is_default': 'Ya existe una política de devolución por defecto para este hotel'}
-                    )
+        if data.get('is_default', False) and effective_hotel:
+            existing_default = RefundPolicy.objects.filter(
+                hotel=effective_hotel,
+                is_default=True
+            ).exclude(id=self.instance.id if self.instance else None)
+            if existing_default.exists():
+                raise serializers.ValidationError(
+                    {'is_default': 'Ya existe una política de devolución por defecto para este hotel'}
+                )
         
         # Validar tiempos de devolución (deben ser progresivos)
         full_time = data.get('full_refund_time', 0)
@@ -322,6 +376,7 @@ class RefundPolicyCreateSerializer(serializers.ModelSerializer):
 
 class RefundSerializer(serializers.ModelSerializer):
     """Serializer para reembolsos"""
+    reservation_id = serializers.IntegerField(source="reservation.id", read_only=True)
     reservation_display_name = serializers.CharField(source="reservation.display_name", read_only=True)
     payment_method_display = serializers.CharField(source="payment.method", read_only=True)
     created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
@@ -331,7 +386,7 @@ class RefundSerializer(serializers.ModelSerializer):
     class Meta:
         model = Refund
         fields = [
-            "id", "reservation", "reservation_display_name", "payment", "payment_method_display",
+            "id", "reservation", "reservation_id", "reservation_display_name", "payment", "payment_method_display",
             "amount", "reason", "reason_display", "status", "status_display",
             "refund_method", "processing_days", "external_reference", "notes",
             "processed_at", "created_at", "updated_at", "created_by", "created_by_name"
