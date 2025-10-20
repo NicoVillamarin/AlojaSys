@@ -38,7 +38,40 @@
     "reservations_calendar": "Calendario de Reservas",
     "policies": "Políticas",
     "cancellation_policies": "Políticas de Cancelación",
-    "devolution_policies": "Políticas de Devolución"
+    "devolution_policies": "Políticas de Devolución",
+    "histories": "Históricos",
+    "refunds_history": "Histórico de Reembolsos",
+    "vouchers": "Vouchers"
+  },
+  "vouchers_modal": {
+    "create_voucher": "Crear Voucher",
+    "edit_voucher": "Editar Voucher",
+    "save_changes": "Guardar Cambios",
+    "create": "Crear",
+    "cancel": "Cancelar",
+    "amount": "Monto",
+    "amount_required": "El monto es requerido",
+    "amount_min": "El monto debe ser mayor a 0",
+    "amount_placeholder": "0.00",
+    "expiry_date": "Fecha de Expiración",
+    "expiry_date_required": "La fecha de expiración es requerida",
+    "expiry_date_future": "La fecha de expiración debe ser futura",
+    "expiry_date_placeholder": "Seleccionar fecha",
+    "hotel": "Hotel",
+    "hotel_required": "El hotel es requerido",
+    "hotel_placeholder": "Seleccionar hotel",
+    "notes": "Notas",
+    "notes_placeholder": "Notas adicionales sobre el voucher..."
+  },
+  "vouchers": {
+    "search_placeholder": "Código, hotel, estado, notas...",
+    "code": "Código",
+    "amount": "Monto",
+    "remaining_amount": "Restante",
+    "status": "Estado",
+    "expiry_date": "Expira",
+    "created_at": "Creado",
+    "cancel": "Cancelar"
   },
     "common": {
       "save": "Guardar",
@@ -346,6 +379,10 @@
     "promotion_applied": "Promoción aplicada correctamente",
     "promotion_not_applied": "El código no aplica para este rango/canal/habitación",
     "remove_promotion": "Quitar promoción",
+    "voucher_code": "Código de Voucher",
+    "voucher_code_placeholder": "Ej: VCH-ABC1-2345",
+    "voucher_applied": "Voucher aplicado",
+    "remove_voucher": "Quitar voucher",
     "calculate_rate": "Calcular tarifa",
     "calculating": "Calculando…",
     "payment_summary": "Resumen de Pago",
@@ -694,6 +731,59 @@
       "fields_changed": "Campos modificados:",
       "old_value": "Valor anterior:",
       "new_value": "Valor nuevo:"
+    }
+  },
+  "refund_historical_modal": {
+    "title": "Histórico de Reembolso",
+    "title_with_name": "Histórico — {{name}}",
+    "title_with_id": "Histórico del Reembolso #{{id}}",
+    "loading": "Cargando…",
+    "error": "Error: {{message}}",
+    "no_events": "Sin eventos aún.",
+    "event_labels": {
+      "created": "Creado",
+      "status_changed": "Estado Cambiado",
+      "processing_started": "Procesamiento Iniciado",
+      "processing_completed": "Procesamiento Completado",
+      "processing_failed": "Procesamiento Fallido",
+      "external_reference_updated": "Referencia Externa Actualizada",
+      "notes_updated": "Notas Actualizadas",
+      "cancelled": "Cancelado",
+      "retry_attempt": "Intento de Reintento",
+      "gateway_error": "Error de Pasarela",
+      "manual_intervention": "Intervención Manual"
+    },
+    "status_labels": {
+      "pending": "Pendiente",
+      "processing": "Procesando",
+      "completed": "Completado",
+      "failed": "Fallido",
+      "cancelled": "Cancelado"
+    },
+    "action_labels": {
+      "refund_created": "Reembolso Creado",
+      "status_changed": "Estado Cambiado",
+      "processing_started": "Procesamiento Iniciado",
+      "processing_completed": "Procesamiento Completado",
+      "processing_failed": "Procesamiento Fallido",
+      "retry_attempt": "Intento de Reintento",
+      "gateway_error": "Error de Pasarela",
+      "manual_intervention": "Intervención Manual"
+    },
+    "details": {
+      "amount": "Monto",
+      "external_reference": "Referencia Externa",
+      "attempt": "Intento",
+      "gateway": "Pasarela",
+      "old_status": "Estado Anterior",
+      "new_status": "Estado Nuevo"
+    },
+    "timeline": {
+      "by": "Por:",
+      "status_change": "Estado cambiado de {{from}} a {{to}}",
+      "processing_completed": "Procesamiento completado - Ref: {{reference}}",
+      "processing_failed": "Procesamiento falló: {{error}}",
+      "retry_attempt": "Intento de reintento #{{attempt}}"
     }
   },
   "enterprise_modal": {

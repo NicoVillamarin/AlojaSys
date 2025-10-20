@@ -28,7 +28,7 @@ class ReservationSerializer(serializers.ModelSerializer):
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "balance_due", "total_paid", "notes",
-            "channel", "promotion_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
+            "channel", "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
             "display_name", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "balance_due", "total_paid", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
@@ -78,6 +78,28 @@ class ReservationSerializer(serializers.ModelSerializer):
                     raise ValidationError({
                         'status': 'No se puede confirmar una reserva con fecha de check-in anterior a la fecha actual.'
                     })
+                
+                # Guardar snapshot de la política de cancelación al confirmar la reserva
+                if instance.applied_cancellation_policy and not instance.applied_cancellation_snapshot:
+                    policy = instance.applied_cancellation_policy
+                    instance.applied_cancellation_snapshot = {
+                        'policy_id': policy.id,
+                        'name': policy.name,
+                        'free_cancellation_time': policy.free_cancellation_time,
+                        'free_cancellation_unit': policy.free_cancellation_unit,
+                        'partial_time': policy.partial_refund_time,
+                        'partial_percentage': float(policy.partial_refund_percentage),
+                        'no_cancellation_time': policy.no_refund_time,
+                        'no_cancellation_unit': policy.no_refund_unit,
+                        'fee_type': policy.cancellation_fee_type,
+                        'fee_value': float(policy.cancellation_fee_value),
+                        'auto_refund_on_cancel': policy.auto_refund_on_cancel,
+                        'allow_cancellation_after_checkin': policy.allow_cancellation_after_checkin,
+                        'allow_cancellation_after_checkout': policy.allow_cancellation_after_checkout,
+                        'allow_cancellation_no_show': policy.allow_cancellation_no_show,
+                        'allow_cancellation_early_checkout': policy.allow_cancellation_early_checkout,
+                        'snapshot_created_at': timezone.now().isoformat()
+                    }
             
             for key, value in validated_data.items():
                 setattr(instance, key, value)

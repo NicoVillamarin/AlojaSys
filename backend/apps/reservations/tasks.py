@@ -263,15 +263,20 @@ def auto_cancel_expired_reservations(self):
 def auto_mark_no_show_daily(self):
     """
     Tarea Celery que marca automáticamente las reservas confirmadas vencidas como no-show
+    y aplica penalidades automáticas según las políticas de cancelación
     Solo procesa hoteles que tienen auto_no_show_enabled=True
     """
     from apps.reservations.models import ReservationStatusChange
+    from apps.reservations.services.no_show_processor import NoShowProcessor
+    from decimal import Decimal
     
     today = timezone.now().date()
     processed_count = 0
     no_show_count = 0
+    penalties_applied = 0
+    total_penalty_amount = Decimal('0.00')
     
-    print(f"🚀 Iniciando auto no-show para {today}")
+    print(f"🚀 Iniciando auto no-show con penalidades para {today}")
     
     # Obtener hoteles que tienen auto no-show habilitado
     hotels_with_auto_no_show = Hotel.objects.filter(
@@ -296,6 +301,8 @@ def auto_mark_no_show_daily(self):
             
             hotel_processed = 0
             hotel_no_show = 0
+            hotel_penalties = 0
+            hotel_penalty_amount = Decimal('0.00')
             
             for reservation in expired_reservations:
                 try:
@@ -312,6 +319,22 @@ def auto_mark_no_show_daily(self):
                         notes='Auto no-show: check-in date passed'
                     )
                     
+                    # Procesar penalidades automáticas
+                    penalty_result = NoShowProcessor.process_no_show_penalties(reservation)
+                    
+                    if penalty_result.get('success', False):
+                        penalty_amount = Decimal(str(penalty_result.get('penalty_amount', 0)))
+                        if penalty_amount > 0:
+                            hotel_penalties += 1
+                            hotel_penalty_amount += penalty_amount
+                            penalties_applied += 1
+                            total_penalty_amount += penalty_amount
+                            print(f"  💰 Penalidad aplicada: ${penalty_amount} para reserva {reservation.id}")
+                        else:
+                            print(f"  ℹ️ Sin penalidad para reserva {reservation.id}")
+                    else:
+                        print(f"  ⚠️ Error procesando penalidades para reserva {reservation.id}: {penalty_result.get('error', 'Error desconocido')}")
+                    
                     hotel_no_show += 1
                     no_show_count += 1
                     print(f"  ✅ Hotel {hotel.name}: Reserva {reservation.id} marcada como no-show")
@@ -323,13 +346,13 @@ def auto_mark_no_show_daily(self):
                 processed_count += 1
             
             if hotel_processed > 0:
-                print(f"🏨 Hotel {hotel.name}: {hotel_processed} reservas procesadas, {hotel_no_show} marcadas como no-show")
+                print(f"🏨 Hotel {hotel.name}: {hotel_processed} reservas procesadas, {hotel_no_show} marcadas como no-show, {hotel_penalties} penalidades aplicadas (${hotel_penalty_amount})")
                 
         except Exception as e:
             print(f"❌ Error procesando hotel {hotel.name}: {e}")
     
-    print(f"📊 Auto no-show completado: {processed_count} reservas procesadas, {no_show_count} marcadas como no-show")
-    return f"Procesadas {processed_count} reservas, {no_show_count} marcadas como no-show"
+    print(f"📊 Auto no-show completado: {processed_count} reservas procesadas, {no_show_count} marcadas como no-show, {penalties_applied} penalidades aplicadas (Total: ${total_penalty_amount})")
+    return f"Procesadas {processed_count} reservas, {no_show_count} marcadas como no-show, {penalties_applied} penalidades aplicadas (${total_penalty_amount})"
 
 
 @shared_task(bind=True, autoretry_for=(ProgrammingError, OperationalError), retry_backoff=5, retry_jitter=True, retry_kwargs={"max_retries": 5})
@@ -379,6 +402,19 @@ def auto_cancel_expired_pending_reservations(self):
                     notes='Auto-cancelación: fecha de check-in vencida sin pago del depósito'
                 )
                 
+                # Crear notificación de auto-cancelación
+                try:
+                    from apps.notifications.services import NotificationService
+                    NotificationService.create_auto_cancel_notification(
+                        reservation_code=f"RES-{reservation.id}",
+                        hotel_name=reservation.hotel.name,
+                        reason="Fecha de check-in vencida sin pago del depósito",
+                        hotel_id=reservation.hotel.id,
+                        reservation_id=reservation.id
+                    )
+                except Exception as e:
+                    print(f"  ⚠️ Error creando notificación de auto-cancelación para reserva {reservation.id}: {e}")
+                
                 cancelled_count += 1
                 print(f"❌ Reserva {reservation.id} cancelada automáticamente - Hotel: {reservation.hotel.name} - Habitación: {reservation.room.name if reservation.room else 'N/A'} - Check-in vencido: {reservation.check_in}")
                 
@@ -389,3 +425,183 @@ def auto_cancel_expired_pending_reservations(self):
     
     print(f"📊 Cancelación automática de PENDING completada: {processed_count} reservas procesadas, {cancelled_count} canceladas")
     return f"Procesadas {processed_count} reservas PENDING, {cancelled_count} canceladas automáticamente"
+
+
+@shared_task(bind=True, autoretry_for=(ProgrammingError, OperationalError), retry_backoff=5, retry_jitter=True, retry_kwargs={"max_retries": 5})
+def auto_cancel_pending_deposits(self):
+    """
+    Cancela automáticamente reservas PENDING si venció fecha de depósito.
+    Busca reservas PENDING con deposit_due_date < now y que no tengan pago.
+    Cambia estado a CANCELLED y envía notificación por email al guest y staff.
+    Registra reason: "auto-cancel - deposit expired".
+    """
+    from apps.payments.services.payment_calculator import calculate_balance_due
+    from apps.payments.models import PaymentPolicy
+    from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+    from django.core.mail import send_mail
+    from django.conf import settings
+    from django.db import transaction
+    from django.core.cache import cache
+    import time
+    
+    today = timezone.localdate() if timezone.is_aware(timezone.now()) else date.today()
+    processed_count = 0
+    cancelled_count = 0
+    
+    print(f"🔄 Iniciando auto-cancelación de reservas PENDING por depósito vencido - Fecha: {today}")
+    
+    # Lock para evitar race conditions
+    lock_key = "auto_cancel_pending_deposits_lock"
+    lock_timeout = 300  # 5 minutos
+    
+    # Intentar obtener el lock
+    if not cache.add(lock_key, "locked", lock_timeout):
+        print("⚠️ La tarea de auto-cancelación de depósitos ya está en ejecución")
+        return "Tarea ya en ejecución"
+    
+    try:
+        # Obtener reservas pendientes
+        pending_reservations = Reservation.objects.select_related("hotel", "room").filter(
+            status=ReservationStatus.PENDING
+        )
+        
+        if not pending_reservations.exists():
+            print("ℹ️ No hay reservas PENDING para procesar")
+            return "No hay reservas PENDING para procesar"
+        
+        print(f"📋 Encontradas {pending_reservations.count()} reservas PENDING para verificar")
+        
+        for reservation in pending_reservations:
+            try:
+                # Obtener política de pago del hotel
+                payment_policy = PaymentPolicy.resolve_for_hotel(reservation.hotel)
+                
+                if not payment_policy:
+                    print(f"⚠️ Reserva {reservation.id} - No hay política de pago configurada para el hotel {reservation.hotel.name}")
+                    continue
+                
+                # Calcular información de pago
+                balance_info = calculate_balance_due(reservation)
+                deposit_due_date = balance_info.get('deposit_due_date')
+                
+                if not deposit_due_date:
+                    print(f"⚠️ Reserva {reservation.id} - No se pudo calcular fecha de vencimiento del adelanto")
+                    continue
+                
+                # Verificar si la fecha de vencimiento del depósito ya pasó
+                deposit_expired = deposit_due_date < today
+                
+                if deposit_expired:
+                    # Verificar que no tenga pagos
+                    has_payments = reservation.payments.exists()
+                    
+                    if has_payments:
+                        print(f"ℹ️ Reserva {reservation.id} - Tiene pagos, no se cancela por depósito vencido")
+                        continue
+                    
+                    with transaction.atomic():
+                        # Cambiar estado a CANCELLED
+                        reservation.status = ReservationStatus.CANCELLED
+                        reservation.save(update_fields=['status'])
+                        
+                        # Liberar la habitación
+                        if reservation.room:
+                            reservation.room.status = RoomStatus.AVAILABLE
+                            reservation.room.save(update_fields=['status'])
+                        
+                        # Registrar el cambio de estado
+                        ReservationChangeLog.objects.create(
+                            reservation=reservation,
+                            event=ReservationChangeEvent.STATUS_CHANGED,
+                            fields_changed={
+                                'status': {
+                                    'from': 'pending',
+                                    'to': 'cancelled',
+                                    'reason': 'auto-cancel - deposit expired'
+                                }
+                            },
+                            changed_by=None,  # Sistema automático
+                            notes='Auto-cancelación: depósito vencido sin pago'
+                        )
+                        
+                        # Enviar notificaciones por email
+                        try:
+                            # Email al huésped
+                            guest_email = reservation.guests_data.get('email') if reservation.guests_data else None
+                            if guest_email:
+                                send_mail(
+                                    subject=f'Reserva {reservation.id} cancelada - Depósito vencido',
+                                    message=f'''
+                                    Su reserva #{reservation.id} ha sido cancelada automáticamente.
+                                    
+                                    Motivo: El depósito vencía el {deposit_due_date} y no se recibió pago.
+                                    
+                                    Hotel: {reservation.hotel.name}
+                                    Fechas: {reservation.check_in} - {reservation.check_out}
+                                    Habitación: {reservation.room.name if reservation.room else 'N/A'}
+                                    
+                                    Si desea hacer una nueva reserva, por favor contacte al hotel.
+                                    ''',
+                                    from_email=settings.DEFAULT_FROM_EMAIL,
+                                    recipient_list=[guest_email],
+                                    fail_silently=True
+                                )
+                                print(f"📧 Email enviado al huésped de reserva {reservation.id}")
+                            
+                            # Email al staff del hotel
+                            hotel_emails = [reservation.hotel.email] if reservation.hotel.email else []
+                            if hotel_emails:
+                                send_mail(
+                                    subject=f'Reserva {reservation.id} cancelada automáticamente - Depósito vencido',
+                                    message=f'''
+                                    La reserva #{reservation.id} ha sido cancelada automáticamente.
+                                    
+                                    Motivo: Depósito vencido sin pago
+                                    Fecha de vencimiento: {deposit_due_date}
+                                    Huésped: {reservation.guests_data.get('name', 'N/A') if reservation.guests_data else 'N/A'}
+                                    Email: {reservation.guests_data.get('email', 'N/A') if reservation.guests_data else 'N/A'}
+                                    
+                                    Hotel: {reservation.hotel.name}
+                                    Fechas: {reservation.check_in} - {reservation.check_out}
+                                    Habitación: {reservation.room.name if reservation.room else 'N/A'}
+                                    ''',
+                                    from_email=settings.DEFAULT_FROM_EMAIL,
+                                    recipient_list=hotel_emails,
+                                    fail_silently=True
+                                )
+                                print(f"📧 Email enviado al staff del hotel para reserva {reservation.id}")
+                        
+                        except Exception as email_error:
+                            print(f"⚠️ Error enviando emails para reserva {reservation.id}: {email_error}")
+                        
+                        # Crear notificación de auto-cancelación por depósito vencido
+                        try:
+                            from apps.notifications.services import NotificationService
+                            NotificationService.create_auto_cancel_notification(
+                                reservation_code=f"RES-{reservation.id}",
+                                hotel_name=reservation.hotel.name,
+                                reason=f"Depósito vencido sin pago (vencía: {deposit_due_date})",
+                                hotel_id=reservation.hotel.id,
+                                reservation_id=reservation.id
+                            )
+                        except Exception as e:
+                            print(f"  ⚠️ Error creando notificación de auto-cancelación para reserva {reservation.id}: {e}")
+                        
+                        cancelled_count += 1
+                        print(f"❌ Reserva {reservation.id} cancelada automáticamente por depósito vencido - Hotel: {reservation.hotel.name} - Habitación: {reservation.room.name if reservation.room else 'N/A'} - Depósito vencía: {deposit_due_date}")
+                
+                else:
+                    days_remaining = (deposit_due_date - today).days
+                    print(f"✅ Reserva {reservation.id} - Depósito vence en {days_remaining} días ({deposit_due_date})")
+                
+                processed_count += 1
+                
+            except Exception as e:
+                print(f"❌ Error procesando auto-cancelación por depósito para reserva {reservation.id}: {e}")
+        
+        print(f"📊 Auto-cancelación por depósito vencido completada: {processed_count} reservas procesadas, {cancelled_count} canceladas")
+        return f"Procesadas {processed_count} reservas, {cancelled_count} canceladas por depósito vencido"
+    
+    finally:
+        # Liberar el lock
+        cache.delete(lock_key)

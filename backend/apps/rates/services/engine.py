@@ -58,7 +58,7 @@ def get_applicable_rule(room: Room, on_date: date, channel: Optional[str] = None
             return rule
     return None
 
-def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optional[str] = None, promotion_code: Optional[str] = None) -> Decimal:
+def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optional[str] = None, promotion_code: Optional[str] = None, voucher_code: Optional[str] = None) -> Decimal:
     base_room_price = room.base_price or Decimal('0.00')
     included_capacity = room.capacity or 1
     guest = max(int(guests or 1), 1)
@@ -160,9 +160,38 @@ def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optio
             if not promo.combinable:
                 break
 
-    # Impuestos sobre (base + extra - descuento)
+    # Aplicar vouchers (solo si se ingresó código)
+    voucher_discount = Decimal('0.00')
+    applied_vouchers = []
+    applied_vouchers_detail = []
+    if voucher_code:
+        from apps.payments.models import RefundVoucher
+        try:
+            voucher = RefundVoucher.objects.get(
+                code__iexact=str(voucher_code),
+                hotel=room.hotel,
+                status='active'
+            )
+            if voucher.can_be_used():
+                # El voucher se aplica como descuento fijo
+                voucher_discount = min(voucher.remaining_amount, (base_rate + (Decimal('0.00') if used_occupancy_price else extra_guest_fee) - discount))
+                if voucher_discount > 0:
+                    applied_vouchers.append(voucher.id)
+                    applied_vouchers_detail.append({
+                        'id': voucher.id,
+                        'code': voucher.code,
+                        'amount': float(voucher_discount),
+                        'remaining_amount': float(voucher.remaining_amount)
+                    })
+        except RefundVoucher.DoesNotExist:
+            pass
+
+    # Total de descuentos (promociones + vouchers)
+    total_discount = discount + voucher_discount
+
+    # Impuestos sobre (base + extra - descuento total)
     tax = Decimal('0.00')
-    taxable_base = (base_rate + (Decimal('0.00') if used_occupancy_price else extra_guest_fee) - discount)
+    taxable_base = (base_rate + (Decimal('0.00') if used_occupancy_price else extra_guest_fee) - total_discount)
     if taxable_base < 0:
         taxable_base = Decimal('0.00')
     taxes_qs = TaxRule.objects.filter(hotel=room.hotel, is_active=True).order_by('-priority')
@@ -201,11 +230,15 @@ def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optio
     return {
         "base_rate": base_rate.quantize(Decimal('0.01')),
         "extra_guest_fee": (Decimal("0.00") if used_occupancy_price else extra_guest_fee).quantize(Decimal("0.01")),
-        "discount": discount,
+        "discount": total_discount,  # Total de descuentos (promociones + vouchers)
+        "promotion_discount": discount,  # Solo descuentos de promociones
+        "voucher_discount": voucher_discount,  # Solo descuentos de vouchers
         "tax": tax,
         "total_night": total_night,
         "applied_promos": applied_promos,
         "applied_promos_detail": applied_promos_detail,
+        "applied_vouchers": applied_vouchers,
+        "applied_vouchers_detail": applied_vouchers_detail,
         "applied_taxes_detail": applied_taxes_detail,
     }
             

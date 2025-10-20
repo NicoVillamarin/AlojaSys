@@ -4,6 +4,7 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from datetime import date, timedelta
 from django.core.exceptions import ValidationError
+from django.utils import timezone as django_timezone
 from apps.rooms.models import Room, RoomStatus
 from apps.rooms.serializers import RoomSerializer
 from .models import Reservation, ReservationStatus, RoomBlock, ReservationNight
@@ -288,8 +289,28 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 "field": "cancellation_reason"
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        # Obtener método de reembolso (opcional, por defecto 'money')
+        refund_method = request.data.get('refund_method', 'money')
+        if refund_method not in ['money', 'voucher']:
+            refund_method = 'money'  # Fallback seguro
+        
+        # Debug temporal para ver el estado real de la reserva
+        print(f"DEBUG: Reserva {reservation.id} - Estado actual: '{reservation.status}' (tipo: {type(reservation.status)})")
+        print(f"DEBUG: Estados permitidos: {[ReservationStatus.PENDING, ReservationStatus.CONFIRMED]}")
+        print(f"DEBUG: PENDING valor: '{ReservationStatus.PENDING}' (tipo: {type(ReservationStatus.PENDING)})")
+        print(f"DEBUG: CONFIRMED valor: '{ReservationStatus.CONFIRMED}' (tipo: {type(ReservationStatus.CONFIRMED)})")
+        print(f"DEBUG: ¿Es PENDING? {reservation.status == ReservationStatus.PENDING}")
+        print(f"DEBUG: ¿Es CONFIRMED? {reservation.status == ReservationStatus.CONFIRMED}")
+        print(f"DEBUG: ¿Está en la lista? {reservation.status in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]}")
+        
         if reservation.status not in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]:
-            return Response({"detail": "Solo se pueden cancelar reservas pendientes o confirmadas."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "detail": "Solo se pueden cancelar reservas pendientes o confirmadas.",
+                "debug": {
+                    "current_status": reservation.status,
+                    "allowed_statuses": [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Usar la política de cancelación aplicada a la reserva (histórica)
         if not reservation.applied_cancellation_policy:
@@ -307,11 +328,22 @@ class ReservationViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Calcular reglas de cancelación y devolución
-        cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in)
+        # Usar snapshot si está disponible, sino usar política actual
+        from apps.reservations.services.snapshot_cancellation_calculator import SnapshotCancellationCalculator
+        
+        if SnapshotCancellationCalculator.should_use_snapshot(reservation):
+            cancellation_rules = SnapshotCancellationCalculator.get_cancellation_rules_from_snapshot(reservation)
+            if not cancellation_rules:
+                # Fallback a política actual si no se puede calcular desde snapshot
+                cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in)
+        else:
+            cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in)
+        
         refund_rules = refund_policy.get_refund_rules(reservation.check_in)
         
         # Calcular información financiera
         from apps.payments.services.refund_processor import RefundProcessor
+        from apps.payments.services.refund_processor_v2 import RefundProcessorV2
         from decimal import Decimal
         
         # Calcular monto total pagado
@@ -351,7 +383,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             })
         
         # Si es confirmación, proceder con la cancelación
-        refund_result = RefundProcessor.process_refund(reservation, cancellation_reason=cancellation_reason)
+        refund_result = RefundProcessor.process_refund(reservation, cancellation_reason=cancellation_reason, refund_method=refund_method)
         
         if not refund_result or not refund_result.get('success', False):
             error_msg = refund_result.get('error', 'Error desconocido') if refund_result else 'Error procesando devolución'
@@ -360,6 +392,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 "action": "calculation",
                 **response_data
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Marcar el refund como completado si se creó exitosamente
+        if refund_result.get('refund_result') and refund_result['refund_result'].get('refund'):
+            refund = refund_result['refund_result']['refund']
+            # Marcar como completado con referencia externa simulada
+            external_ref = f"REF-{refund.id}-{int(django_timezone.now().timestamp())}"
+            refund.mark_as_completed(external_reference=external_ref, user=request.user)
         
         # Actualizar estado de la reserva
         reservation.status = ReservationStatus.CANCELLED
@@ -387,14 +426,60 @@ class ReservationViewSet(viewsets.ModelViewSet):
             }
         )
         
+        # Crear notificación de cancelación manual
+        try:
+            from apps.notifications.services import NotificationService
+            NotificationService.create_manual_cancel_notification(
+                reservation_code=f"RES-{reservation.id}",
+                hotel_name=reservation.hotel.name,
+                reason=cancellation_reason,
+                hotel_id=reservation.hotel.id,
+                reservation_id=reservation.id,
+                user_id=request.user.id  # Notificar al usuario que canceló
+            )
+        except Exception as e:
+            print(f"⚠️ Error creando notificación de cancelación manual para reserva {reservation.id}: {e}")
+        
+        # Obtener información detallada del reembolso
+        refund_details = None
+        if refund_result and refund_result.get('refund_result'):
+            refund_obj = refund_result['refund_result'].get('refund')
+            if refund_obj:
+                refund_details = {
+                    "id": refund_obj.id,
+                    "amount": float(refund_obj.amount),
+                    "status": refund_obj.status,
+                    "method": refund_obj.refund_method,
+                    "external_reference": refund_obj.external_reference,
+                    "processing_days": refund_obj.processing_days,
+                    "processed_at": refund_obj.processed_at.isoformat() if refund_obj.processed_at else None,
+                    "notes": refund_obj.notes,
+                    "created_at": refund_obj.created_at.isoformat(),
+                    "requires_manual_processing": refund_result['refund_result'].get('requires_manual_processing', False)
+                }
+        
         # Obtener método de devolución de forma segura
         refund_method = 'N/A'
         if refund_result and refund_result.get('refund_result'):
             refund_method = refund_result['refund_result'].get('method', 'N/A')
         
+        # Información de cancelación detallada
+        cancellation_details = {
+            "reason": cancellation_reason,
+            "policy_applied": reservation.applied_cancellation_policy.name if reservation.applied_cancellation_policy else "N/A",
+            "cancellation_type": cancellation_rules.get('cancellation_type', 'unknown') if cancellation_rules else 'unknown',
+            "cancelled_by": {
+                "id": request.user.id if request.user.is_authenticated else None,
+                "username": request.user.username if request.user.is_authenticated else "Sistema",
+                "full_name": request.user.get_full_name() if request.user.is_authenticated else "Sistema"
+            },
+            "cancelled_at": django_timezone.now().isoformat()
+        }
+        
         return Response({
             "detail": "Reserva cancelada exitosamente.",
             "action": "cancelled",
+            "refund": refund_details,
             "refund_info": {
                 "total_paid": refund_result.get('total_paid', 0) if refund_result else 0,
                 "penalty_amount": refund_result.get('penalty_amount', 0) if refund_result else 0,
@@ -402,7 +487,24 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 "refund_processed": refund_result.get('refund_processed', False) if refund_result else False,
                 "refund_method": refund_method
             },
+            "cancellation_details": cancellation_details,
             **response_data
+        })
+
+    @action(detail=True, methods=["get"])
+    def debug_status(self, request, pk=None):
+        """Endpoint temporal para debug del estado de la reserva"""
+        reservation = self.get_object()
+        return Response({
+            "reservation_id": reservation.id,
+            "current_status": reservation.status,
+            "status_type": type(reservation.status).__name__,
+            "pending_value": ReservationStatus.PENDING,
+            "confirmed_value": ReservationStatus.CONFIRMED,
+            "is_pending": reservation.status == ReservationStatus.PENDING,
+            "is_confirmed": reservation.status == ReservationStatus.CONFIRMED,
+            "in_allowed_list": reservation.status in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED],
+            "all_status_choices": [choice[0] for choice in ReservationStatus.choices]
         })
 
     @action(detail=True, methods=["get"])
@@ -431,7 +533,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'amount': float(abs(payment.amount)),
                 'method': payment.method,
                 'status': 'completed',
-                'notes': payment.notes
+                'notes': None  # El modelo Payment no tiene campo notes
             })
         
         # Procesar logs de cancelación
@@ -1267,10 +1369,9 @@ def auto_mark_no_show(request):
     """
     Marca automáticamente las reservas confirmadas vencidas como no-show
     """
-    from django.utils import timezone
     from datetime import date
     
-    today = timezone.now().date()
+    today = django_timezone.now().date()
     
     # Buscar reservas confirmadas con check-in pasado
     expired_reservations = Reservation.objects.filter(

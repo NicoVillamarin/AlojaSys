@@ -13,7 +13,7 @@ class RefundProcessor:
     """
     
     @staticmethod
-    def process_refund(reservation: Reservation, cancellation_policy: CancellationPolicy = None, cancellation_reason: str = None) -> Dict[str, Any]:
+    def process_refund(reservation: Reservation, cancellation_policy: CancellationPolicy = None, cancellation_reason: str = None, refund_method: str = 'money') -> Dict[str, Any]:
         """
         Procesa la devolución automática de una reserva cancelada
         
@@ -21,11 +21,11 @@ class RefundProcessor:
             reservation: Reserva a cancelar
             cancellation_policy: Política de cancelación aplicable (opcional, usa la aplicada a la reserva si no se proporciona)
             cancellation_reason: Motivo de cancelación (opcional)
+            refund_method: Método de reembolso ('money' o 'voucher')
             
         Returns:
             Dict con información del procesamiento de devolución
         """
-        print(f"DEBUG RefundProcessor: Iniciando procesamiento para reserva {reservation.id}")
         try:
             with transaction.atomic():
                 # 1. Usar la política aplicada a la reserva o la proporcionada
@@ -33,7 +33,6 @@ class RefundProcessor:
                     cancellation_policy = reservation.applied_cancellation_policy
                 
                 if not cancellation_policy:
-                    print(f"DEBUG RefundProcessor: No hay política de cancelación para reserva {reservation.id}")
                     return {
                         'success': False,
                         'error': 'No hay política de cancelación aplicada a esta reserva',
@@ -43,7 +42,6 @@ class RefundProcessor:
                 # 2. Obtener política de devolución del hotel
                 refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
                 if not refund_policy:
-                    print(f"DEBUG RefundProcessor: No hay política de devolución para hotel {reservation.hotel.id}")
                     return {
                         'success': False,
                         'error': 'No hay política de devolución configurada para este hotel',
@@ -51,7 +49,17 @@ class RefundProcessor:
                     }
                 
                 # 3. Calcular reglas de cancelación y devolución
-                cancellation_rules = cancellation_policy.get_cancellation_rules(reservation.check_in)
+                # Usar snapshot si está disponible, sino usar política actual
+                from apps.reservations.services.snapshot_cancellation_calculator import SnapshotCancellationCalculator
+                
+                if SnapshotCancellationCalculator.should_use_snapshot(reservation):
+                    cancellation_rules = SnapshotCancellationCalculator.get_cancellation_rules_from_snapshot(reservation)
+                    if not cancellation_rules:
+                        # Fallback a política actual si no se puede calcular desde snapshot
+                        cancellation_rules = cancellation_policy.get_cancellation_rules(reservation.check_in)
+                else:
+                    cancellation_rules = cancellation_policy.get_cancellation_rules(reservation.check_in)
+                
                 refund_rules = refund_policy.get_refund_rules(reservation.check_in)
                 
                 # 3. Calcular monto total pagado
@@ -78,7 +86,8 @@ class RefundProcessor:
                         reservation, 
                         refund_amount, 
                         refund_rules,
-                        cancellation_reason
+                        cancellation_reason,
+                        refund_method
                     )
                 
                 # 7. Registrar log de cancelación con detalles financieros
@@ -106,7 +115,6 @@ class RefundProcessor:
                     'cancellation_rules': cancellation_rules,
                     'refund_rules': refund_rules
                 }
-                print(f"DEBUG RefundProcessor: Procesamiento exitoso para reserva {reservation.id}, resultado: {result}")
                 return result
                 
         except Exception as e:
@@ -146,12 +154,15 @@ class RefundProcessor:
         """
         Calcula la penalidad según las reglas de cancelación
         """
-        if cancellation_rules.get('type') == 'free':
+        cancellation_type = cancellation_rules.get('cancellation_type', 'no_cancellation')
+        
+        if cancellation_type == 'free':
             return Decimal('0.00')
         
-        if cancellation_rules.get('type') == 'partial':
+        if cancellation_type == 'partial':
             penalty_percentage = cancellation_rules.get('penalty_percentage', 0)
-            return (total_paid * Decimal(penalty_percentage)) / Decimal('100')
+            penalty_amount = (total_paid * Decimal(penalty_percentage)) / Decimal('100')
+            return penalty_amount
         
         # Para 'no_cancellation' o cualquier otro caso, penalidad completa
         return total_paid
@@ -183,12 +194,16 @@ class RefundProcessor:
         reservation: Reservation, 
         refund_amount: Decimal, 
         refund_rules: Dict[str, Any],
-        cancellation_reason: str = None
+        cancellation_reason: str = None,
+        refund_method: str = 'money'
     ) -> Optional[Dict[str, Any]]:
         """
         Procesa el pago de devolución según el método configurado
         """
-        refund_method = refund_rules.get('refund_method', 'original_payment')
+        # Usar el método pasado como parámetro, con fallback a la política
+        if refund_method == 'money':
+            refund_method = refund_rules.get('refund_method', 'original_payment')
+        # Si es 'voucher', mantener 'voucher' independientemente de la política
         
         # Obtener el pago original para el reembolso
         original_payment = RefundProcessor._get_original_payment(reservation)
@@ -211,18 +226,63 @@ class RefundProcessor:
             notes=notes
         )
         
+        # Notificar creación de reembolso (pendiente por defecto)
+        try:
+            from apps.notifications.services import NotificationService
+            NotificationService.create_refund_auto_notification(
+                reservation_code=f"RES-{reservation.id}",
+                hotel_name=reservation.hotel.name,
+                amount=str(refund_amount),
+                status="pending",
+                hotel_id=reservation.hotel.id,
+                reservation_id=reservation.id
+            )
+        except Exception as e:
+            print(f"⚠️ Error creando notificación de reembolso (pending) para reserva {reservation.id}: {e}")
+        
         # Procesar según el método
         if refund_method == 'original_payment':
-            return RefundProcessor._refund_original_payment(reservation, refund_amount, refund)
+            result = RefundProcessor._refund_original_payment(reservation, refund_amount, refund)
+            # Notificar que pasó a processing
+            try:
+                from apps.notifications.services import NotificationService
+                NotificationService.create_refund_auto_notification(
+                    reservation_code=f"RES-{reservation.id}",
+                    hotel_name=reservation.hotel.name,
+                    amount=str(refund_amount),
+                    status=result.get('status', 'processing'),
+                    hotel_id=reservation.hotel.id,
+                    reservation_id=reservation.id
+                )
+            except Exception as e:
+                print(f"⚠️ Error creando notificación de reembolso (processing) para reserva {reservation.id}: {e}")
+            return result
         
         elif refund_method == 'bank_transfer':
-            return RefundProcessor._create_pending_refund(reservation, refund_amount, 'bank_transfer', refund)
+            result = RefundProcessor._create_pending_refund(reservation, refund_amount, 'bank_transfer', refund)
+            # Ya se notificó como pending arriba
+            return result
         
         elif refund_method == 'cash':
-            return RefundProcessor._create_pending_refund(reservation, refund_amount, 'cash', refund)
+            result = RefundProcessor._create_pending_refund(reservation, refund_amount, 'cash', refund)
+            return result
         
         elif refund_method == 'voucher':
-            return RefundProcessor._create_voucher_refund(reservation, refund_amount, refund)
+            result = RefundProcessor._create_voucher_refund(reservation, refund_amount, refund)
+            # Notificar processing
+            try:
+                from apps.notifications.services import NotificationService
+                NotificationService.create_refund_auto_notification(
+                    reservation_code=f"RES-{reservation.id}",
+                    hotel_name=reservation.hotel.name,
+                    amount=str(refund_amount),
+                    status=result.get('status', 'processing'),
+                    hotel_id=reservation.hotel.id,
+                    reservation_id=reservation.id
+                )
+            except Exception as e:
+                print(f"⚠️ Error creando notificación de reembolso (processing voucher) para reserva {reservation.id}: {e}")
+            return result
         
         return None
     
@@ -243,8 +303,7 @@ class RefundProcessor:
                 reservation=reservation,
                 date=last_card_payment.created_at.date(),
                 method='credit_card',
-                amount=last_card_payment.amount,
-                defaults={'notes': f'Pago con tarjeta - ID: {last_card_payment.mp_payment_id}'}
+                amount=last_card_payment.amount
             )
             return payment
         
@@ -329,22 +388,64 @@ class RefundProcessor:
         """
         Crea un voucher de crédito para devolución
         """
-        # Marcar como pendiente de procesamiento
-        refund.mark_as_processing()
-        refund.notes = "Voucher de crédito pendiente de generación"
-        refund.save()
+        from apps.payments.models import RefundVoucher, RefundVoucherStatus
+        from datetime import datetime, timedelta
         
-        return {
-            'refund_id': refund.id,
-            'method': 'voucher',
-            'amount': float(refund_amount),
-            'status': 'processing',
-            'metadata': {
-                'voucher_type': 'credit',
-                'expiry_days': 365,
-                'requires_manual_processing': True
+        try:
+            # Obtener política de devolución para configurar expiración
+            refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
+            voucher_expiry_days = 365  # Default
+            if refund_policy:
+                voucher_expiry_days = refund_policy.voucher_expiry_days
+            
+            # Calcular fecha de expiración
+            expiry_date = datetime.now() + timedelta(days=voucher_expiry_days)
+            
+            # Crear voucher
+            voucher = RefundVoucher.objects.create(
+                amount=refund_amount,
+                expiry_date=expiry_date,
+                hotel=reservation.hotel,
+                original_refund=refund,
+                notes=f"Voucher generado por cancelación de reserva #{reservation.id}"
+            )
+            
+            # Actualizar refund con referencia al voucher
+            refund.generated_voucher = voucher
+            refund.mark_as_completed()
+            refund.external_reference = f"VOUCHER_{voucher.code}"
+            refund.notes = f"Voucher de crédito generado: {voucher.code} - Válido hasta {expiry_date.strftime('%d/%m/%Y')}"
+            refund.save()
+            
+            return {
+                'refund_id': refund.id,
+                'method': 'voucher',
+                'amount': float(refund_amount),
+                'status': 'completed',
+                'voucher_code': voucher.code,
+                'voucher_id': voucher.id,
+                'expiry_date': expiry_date.isoformat(),
+                'metadata': {
+                    'voucher_type': 'credit',
+                    'expiry_days': voucher_expiry_days,
+                    'requires_manual_processing': False
+                }
             }
-        }
+            
+        except Exception as e:
+            # Si falla la creación del voucher, marcar como fallido
+            refund.mark_as_failed(f"Error generando voucher: {str(e)}")
+            return {
+                'refund_id': refund.id,
+                'method': 'voucher',
+                'amount': float(refund_amount),
+                'status': 'failed',
+                'error': str(e),
+                'metadata': {
+                    'voucher_type': 'credit',
+                    'requires_manual_processing': True
+                }
+            }
     
     @staticmethod
     def _log_cancellation_with_refund(
@@ -390,3 +491,40 @@ class RefundProcessor:
                 'refund_result': refund_result
             }
         )
+
+
+# Integración con el nuevo servicio v2
+from .refund_processor_v2 import refund_processor_v2
+
+
+class RefundProcessorV2Integration:
+    """
+    Integración del RefundProcessor original con el nuevo servicio v2
+    """
+    
+    @staticmethod
+    def process_refund_with_gateway(refund: Refund) -> bool:
+        """
+        Procesa un reembolso usando el nuevo servicio v2 con adaptadores de pasarelas
+        
+        Args:
+            refund: Instancia del reembolso a procesar
+            
+        Returns:
+            bool: True si el reembolso se procesó exitosamente
+        """
+        return refund_processor_v2.process_refund(refund)
+    
+    @staticmethod
+    def process_refund_with_retries(refund: Refund, max_retries: int = 3) -> bool:
+        """
+        Procesa un reembolso con reintentos usando el nuevo servicio v2
+        
+        Args:
+            refund: Instancia del reembolso a procesar
+            max_retries: Número máximo de reintentos
+            
+        Returns:
+            bool: True si el reembolso se procesó exitosamente
+        """
+        return refund_processor_v2.process_refund(refund, max_retries)

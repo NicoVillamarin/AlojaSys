@@ -48,9 +48,13 @@ const PaymentInformation = () => {
 
   const [promoDraft, setPromoDraft] = useState(values.promotion_code || '')
   const [appliedPromo, setAppliedPromo] = useState(values.promotion_code || '')
+  const [voucherDraft, setVoucherDraft] = useState(values.voucher_code || '')
+  const [appliedVoucher, setAppliedVoucher] = useState(values.voucher_code || '')
   useEffect(() => {
     setPromoDraft(values.promotion_code || '')
     setAppliedPromo(values.promotion_code || '')
+    setVoucherDraft(values.voucher_code || '')
+    setAppliedVoucher(values.voucher_code || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -61,6 +65,7 @@ const PaymentInformation = () => {
     guests: values.guests || 1,
     ...(values.channel ? { channel: values.channel } : {}),
     ...(appliedPromo ? { promotion_code: appliedPromo } : {}),
+    ...(appliedVoucher ? { voucher_code: appliedVoucher } : {}),
   }
   const { results: quoteRes, isPending: quotePending, refetch: refetchQuote } = useAction({
     resource: 'reservations',
@@ -113,6 +118,8 @@ const PaymentInformation = () => {
     await refetchCanBook()
     setAppliedPromo(promoDraft)
     setFieldValue('promotion_code', promoDraft)
+    setAppliedVoucher(voucherDraft)
+    setFieldValue('voucher_code', voucherDraft)
     await refetchQuote()
   }
 
@@ -120,6 +127,13 @@ const PaymentInformation = () => {
     setPromoDraft('')
     setAppliedPromo('')
     setFieldValue('promotion_code', '')
+    await refetchQuote()
+  }
+
+  const clearVoucher = async () => {
+    setVoucherDraft('')
+    setAppliedVoucher('')
+    setFieldValue('voucher_code', '')
     await refetchQuote()
   }
 
@@ -214,9 +228,9 @@ const PaymentInformation = () => {
 
   return (
     <div className="space-y-6">
-      {/* Controles de canal y código promo */}
+      {/* Controles de canal, código promo y voucher */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div>
             <div className="text-sm font-medium text-gray-700 mb-1">{t('payment_information.channel')}</div>
             <SelectStandalone
@@ -258,6 +272,38 @@ const PaymentInformation = () => {
                   onClick={clearPromotion}
                   className="text-emerald-600 hover:text-emerald-800 font-bold text-lg leading-none flex items-center justify-center w-6 h-6"
                   title={t('payment_information.remove_promotion')}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <InputText
+              name="voucher_code_draft"
+              title={t('payment_information.voucher_code')}
+              placeholder={t('payment_information.voucher_code_placeholder')}
+              value={voucherDraft}
+              onChange={(e) => setVoucherDraft(e.target.value)}
+              statusMessage={
+                appliedVoucher
+                  ? t('payment_information.voucher_applied')
+                  : null
+              }
+              statusType={
+                appliedVoucher
+                  ? "success"
+                  : "info"
+              }
+              inputClassName="pr-10"
+            />
+            {appliedVoucher && (
+              <div className="absolute right-2 top-6 z-20">
+                <button
+                  type="button"
+                  onClick={clearVoucher}
+                  className="text-emerald-600 hover:text-emerald-800 font-bold text-lg leading-none flex items-center justify-center w-6 h-6"
+                  title={t('payment_information.remove_voucher')}
                 >
                   ×
                 </button>

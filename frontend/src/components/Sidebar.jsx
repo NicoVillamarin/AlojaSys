@@ -17,9 +17,10 @@ import UserIcon from "src/assets/icons/UserIcon";
 import ReceptionIcon from "src/assets/icons/ReceptionIcon";
 import CalendarIcon from "src/assets/icons/CalendarIcon";
 
-const Item = ({ to, children, onMobileClose, isMobile }) => (
+const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
   <NavLink
     to={to}
+    end={exact}
     onClick={() => {
       if (isMobile && onMobileClose) {
         onMobileClose();
@@ -55,12 +56,15 @@ const Item = ({ to, children, onMobileClose, isMobile }) => (
 export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen, isMobile = false, onMobileClose }) {
   const { t } = useTranslation();
   const location = useLocation();
-  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false });
+  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false });
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
-    const isFinancial = location.pathname.startsWith("/refunds") || location.pathname.startsWith("/payments");
-    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, financial: isFinancial }));
+    const isFinancial = location.pathname === "/refunds" || location.pathname.startsWith("/payments") || location.pathname === "/vouchers";
+    const isHistories = location.pathname.startsWith("/reservations/") && location.pathname.includes("/history") || 
+                       location.pathname === "/payments" || 
+                       location.pathname === "/refunds/history";
+    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, financial: isFinancial, histories: isHistories }));
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
@@ -73,7 +77,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
           backgroundImage: `linear-gradient(135deg, rgba(212,175,55,0.14), rgba(0,0,0,0)), url(${fondo})`,
         }}
       />
-      
+
       {/* Botón de cerrar para móvil */}
       {isMobile && (
         <div className="flex justify-end mb-2">
@@ -88,7 +92,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
           </button>
         </div>
       )}
-      
+
       <div className="flex items-center justify-center h-auto px-2 shrink-0">
         <div className="flex flex-col items-center">
           <img src={logo} alt="AlojaSys" className="block h-15 w-auto object-contain" />
@@ -101,15 +105,39 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
         <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
         <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
-        <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}><CardCreditIcon size="20" /> {!isMini && <span>{t('sidebar.payments')}</span>}</Item>
+       
+        {!isMini && (
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => toggleGroup("histories")}
+              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${openGroups.histories ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                }`}
+              aria-expanded={openGroups.histories}
+            >
+              <span className="inline-flex items-center gap-2">
+                <BitacoraIcon size="20" />
+                <span>{t('sidebar.histories')}</span>
+              </span>
+              <Chevron open={openGroups.histories} />
+            </button>
+            <div
+              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.histories ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                }`}
+            >
+              <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.reservations_history')}</Item>
+              <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payments')}</Item>
+              <Item to="/refunds/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds_history')}</Item>
+            </div>
+          </div>
+        )}
         {!isMini && (
           <div className="mt-1">
             <button
               type="button"
               onClick={() => toggleGroup("financial")}
-              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${
-                openGroups.financial ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-              }`}
+              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${openGroups.financial ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                }`}
               aria-expanded={openGroups.financial}
             >
               <span className="inline-flex items-center gap-2">
@@ -119,15 +147,15 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               <Chevron open={openGroups.financial} />
             </button>
             <div
-              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${
-                openGroups.financial ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-              }`}
+              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.financial ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                }`}
             >
-              <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds')}</Item>
+              <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.refunds')}</Item>
+              <Item to="/vouchers" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.vouchers')}</Item>
             </div>
           </div>
         )}
-        <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}><BitacoraIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_history')}</span>}</Item>
+
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}
         {/*<Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>*/}
@@ -136,9 +164,8 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
             <button
               type="button"
               onClick={() => toggleGroup("settings")}
-              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${
-                openGroups.settings ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-              }`}
+              className={`w-full flex items-center justify-between h-10 px-4 text-sm rounded-md transition-colors ${openGroups.settings ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                }`}
               aria-expanded={openGroups.settings}
             >
               <span className="inline-flex items-center gap-2">
@@ -147,92 +174,85 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               </span>
               <Chevron open={openGroups.settings} />
             </button>
-          <div
-            className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${
-              openGroups.settings ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
-            }`}
-          >
-            <Item to="/settings/enterprises" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.enterprises')}</Item>
-            <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
-            <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
-            <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
-            <div className="mt-1 ml-2">
-              <button
-                type="button"
-                onClick={() => toggleGroup("locations")}
-                className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
-                  openGroups.locations ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+            <div
+              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.settings ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
                 }`}
-                aria-expanded={openGroups.locations}
-              >
-                <span>{t('sidebar.locations')}</span>
-                <Chevron open={openGroups.locations} />
-              </button>
-              <div
-                className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
-                  openGroups.locations ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                }`}
-              >
-                <Item to="/settings/locations/countries" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.countries')}</Item>
-                <Item to="/settings/locations/states" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.states')}</Item>
-                <Item to="/settings/locations/cities" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cities')}</Item>
+            >
+              <Item to="/settings/enterprises" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.enterprises')}</Item>
+              <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
+              <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
+              <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
+              <div className="mt-1 ml-2">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup("locations")}
+                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.locations ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                    }`}
+                  aria-expanded={openGroups.locations}
+                >
+                  <span>{t('sidebar.locations')}</span>
+                  <Chevron open={openGroups.locations} />
+                </button>
+                <div
+                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.locations ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                    }`}
+                >
+                  <Item to="/settings/locations/countries" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.countries')}</Item>
+                  <Item to="/settings/locations/states" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.states')}</Item>
+                  <Item to="/settings/locations/cities" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cities')}</Item>
+                </div>
               </div>
-            </div>
-            <div className="mt-1 ml-2">
-              <button
-                type="button"
-                onClick={() => toggleGroup("rates")}
-                className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
-                  openGroups.rates ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-                }`}
-                aria-expanded={openGroups.rates}
-              >
-                <span>{t('sidebar.rates')}</span>
-                <Chevron open={openGroups.rates} />
-              </button>
-              <div
-                className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
-                  openGroups.rates ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                }`}
-              >
-                <Item to="/settings/rates/plans" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_plans')}</Item>
-                <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
-                <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
-                <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+              <div className="mt-1 ml-2">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup("rates")}
+                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.rates ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                    }`}
+                  aria-expanded={openGroups.rates}
+                >
+                  <span>{t('sidebar.rates')}</span>
+                  <Chevron open={openGroups.rates} />
+                </button>
+                <div
+                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.rates ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                    }`}
+                >
+                  <Item to="/settings/rates/plans" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_plans')}</Item>
+                  <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
+                  <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
+                  <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+                </div>
               </div>
-            </div>
-            <div className="mt-1 ml-2">
-              <button
-                type="button"
-                onClick={() => toggleGroup("policies")}
-                className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
-                  openGroups.policies ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-                }`}
-                aria-expanded={openGroups.policies}
-              >
-                <span>{t('sidebar.policies')}</span>
-                <Chevron open={openGroups.policies} />
-              </button>
-              <div
-                className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
-                  openGroups.policies ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                }`}
-              >
-                <Item to="/settings/payments/policies" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payment_policies')}</Item>
-                <Item to="/settings/policies/cancellation" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cancellation_policies')}</Item>
-                <Item to="/settings/policies/devolution" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.devolution_policies')}</Item>
+              <div className="mt-1 ml-2">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup("policies")}
+                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.policies ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                    }`}
+                  aria-expanded={openGroups.policies}
+                >
+                  <span>{t('sidebar.policies')}</span>
+                  <Chevron open={openGroups.policies} />
+                </button>
+                <div
+                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.policies ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                    }`}
+                >
+                  <Item to="/settings/payments/policies" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payment_policies')}</Item>
+                  <Item to="/settings/policies/cancellation" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cancellation_policies')}</Item>
+                  <Item to="/settings/policies/devolution" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.devolution_policies')}</Item>
+                </div>
               </div>
+              {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}
             </div>
-            {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}
-          </div>
           </div>
         )}
       </nav>
-      
+
       {!isMini && (
         <div className="mt-auto text-[10px] text-white/50 px-2">v0.1</div>
       )}
-      
+
     </aside>
   );
 }

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason
+from .models import PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, PaymentGatewayConfig, RefundVoucher, RefundVoucherStatus
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -65,6 +65,7 @@ class CancellationPolicySerializer(serializers.ModelSerializer):
             "cancellation_fee_type", "cancellation_fee_value",
             "allow_cancellation_after_checkin", "allow_cancellation_after_checkout",
             "allow_cancellation_no_show", "allow_cancellation_early_checkout",
+            "auto_refund_on_cancel",
             "free_cancellation_message", "partial_cancellation_message",
             "no_cancellation_message", "cancellation_fee_message",
             "apply_to_all_room_types", "room_types",
@@ -130,14 +131,14 @@ class CancellationPolicySerializer(serializers.ModelSerializer):
         partial_hours = convert_to_hours(partial_time, partial_unit) if partial_time > 0 else 0
         no_refund_hours = convert_to_hours(no_refund_time, no_refund_unit) if no_refund_time > 0 else 0
         
-        if free_hours > 0 and partial_hours > 0 and free_hours >= partial_hours:
+        if free_hours > 0 and partial_hours > 0 and free_hours <= partial_hours:
             raise serializers.ValidationError(
-                {'free_cancellation_time': 'El tiempo de cancelación gratuita debe ser menor al tiempo de devolución parcial'}
+                {'free_cancellation_time': 'El tiempo de cancelación gratuita debe ser mayor al tiempo de devolución parcial'}
             )
         
-        if partial_hours > 0 and no_refund_hours > 0 and partial_hours >= no_refund_hours:
+        if partial_hours > 0 and no_refund_hours > 0 and partial_hours <= no_refund_hours:
             raise serializers.ValidationError(
-                {'partial_refund_time': 'El tiempo de devolución parcial debe ser menor al tiempo de sin devolución'}
+                {'partial_refund_time': 'El tiempo de devolución parcial debe ser mayor al tiempo de sin devolución'}
             )
         
         return data
@@ -169,106 +170,6 @@ class CancellationPolicyCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class RefundSerializer(serializers.ModelSerializer):
-    """Serializer para reembolsos"""
-    reservation_id = serializers.IntegerField(source="reservation.id", read_only=True)
-    reservation_display_name = serializers.CharField(source="reservation.display_name", read_only=True)
-    payment_method_display = serializers.CharField(source="payment.method", read_only=True)
-    created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
-    status_display = serializers.CharField(source="get_status_display", read_only=True)
-    reason_display = serializers.CharField(source="get_reason_display", read_only=True)
-    
-    class Meta:
-        model = Refund
-        fields = [
-            "id", "reservation", "reservation_id", "reservation_display_name", "payment", "payment_method_display",
-            "amount", "reason", "reason_display", "status", "status_display",
-            "refund_method", "processing_days", "external_reference", "notes",
-            "processed_at", "created_at", "updated_at", "created_by", "created_by_name"
-        ]
-        read_only_fields = ["created_at", "updated_at", "processed_at"]
-    
-    def validate_amount(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("El monto del reembolso debe ser mayor a 0")
-        return value
-    
-    def validate(self, data):
-        # Validar que el pago pertenezca a la reserva
-        if 'payment' in data and 'reservation' in data:
-            if data['payment'].reservation != data['reservation']:
-                raise serializers.ValidationError(
-                    "El pago debe pertenecer a la reserva especificada"
-                )
-        return data
-
-
-class RefundCreateSerializer(serializers.ModelSerializer):
-    """Serializer para crear reembolsos con valores por defecto"""
-    
-    class Meta:
-        model = Refund
-        fields = [
-            "reservation", "payment", "amount", "reason", "refund_method",
-            "processing_days", "notes"
-        ]
-    
-    def create(self, validated_data):
-        # Establecer el usuario que crea el reembolso
-        validated_data['created_by'] = self.context['request'].user
-        return super().create(validated_data)
-
-
-class RefundStatusUpdateSerializer(serializers.ModelSerializer):
-    """Serializer para actualizar el estado de un reembolso"""
-    
-    class Meta:
-        model = Refund
-        fields = ["status", "external_reference", "notes"]
-    
-    def validate_status(self, value):
-        # Validar transiciones de estado permitidas
-        if self.instance:
-            current_status = self.instance.status
-            allowed_transitions = {
-                RefundStatus.PENDING: [RefundStatus.PROCESSING, RefundStatus.CANCELLED],
-                RefundStatus.PROCESSING: [RefundStatus.COMPLETED, RefundStatus.FAILED],
-                RefundStatus.COMPLETED: [],  # No se puede cambiar
-                RefundStatus.FAILED: [RefundStatus.PROCESSING],  # Se puede reintentar
-                RefundStatus.CANCELLED: []  # No se puede cambiar
-            }
-            
-            if value not in allowed_transitions.get(current_status, []):
-                raise serializers.ValidationError(
-                    f"No se puede cambiar el estado de {current_status} a {value}"
-                )
-        return value
-    
-    def save(self, **kwargs):
-        print("DEBUG Serializer: save() llamado")
-        return super().save(**kwargs)
-    
-    def update(self, instance, validated_data):
-        print(f"DEBUG: Actualizando reembolso {instance.id}")
-        print(f"DEBUG: Status recibido: {validated_data.get('status')}")
-        print(f"DEBUG: RefundStatus.COMPLETED: {RefundStatus.COMPLETED}")
-        print(f"DEBUG: Son iguales: {validated_data.get('status') == RefundStatus.COMPLETED[0]}")
-        
-        # Si se está marcando como completado, usar el método del modelo
-        if validated_data.get('status') == RefundStatus.COMPLETED[0]:
-            print("DEBUG: Usando mark_as_completed")
-            external_reference = validated_data.get('external_reference')
-            instance.mark_as_completed(external_reference)
-            # Actualizar otros campos si se proporcionan
-            if 'notes' in validated_data:
-                instance.notes = validated_data['notes']
-                instance.save(update_fields=['notes', 'updated_at'])
-        else:
-            print("DEBUG: Usando update normal")
-            # Para otros estados, actualizar normalmente
-            return super().update(instance, validated_data)
-        
-        return instance
 
 
 class RefundPolicySerializer(serializers.ModelSerializer):
@@ -374,6 +275,83 @@ class RefundPolicyCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class RefundVoucherSerializer(serializers.ModelSerializer):
+    """Serializer para vouchers de reembolso"""
+    hotel_name = serializers.CharField(source="hotel.name", read_only=True)
+    created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
+    used_by_name = serializers.CharField(source="used_by.get_full_name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    original_refund_id = serializers.IntegerField(source="original_refund.id", read_only=True)
+    used_in_reservation_id = serializers.IntegerField(source="used_in_reservation.id", read_only=True)
+    is_expired = serializers.SerializerMethodField()
+    can_be_used = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RefundVoucher
+        fields = [
+            "id", "code", "amount", "remaining_amount", "expiry_date", "status", "status_display",
+            "hotel", "hotel_name", "original_refund", "original_refund_id",
+            "used_in_reservation", "used_in_reservation_id", "used_at", "used_by", "used_by_name",
+            "created_at", "updated_at", "created_by", "created_by_name", "notes",
+            "is_expired", "can_be_used"
+        ]
+        read_only_fields = ["created_at", "updated_at", "code", "remaining_amount"]
+    
+    def get_is_expired(self, obj):
+        return obj.is_expired()
+    
+    def get_can_be_used(self, obj):
+        return obj.can_be_used()
+    
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("El monto del voucher debe ser mayor a 0")
+        return value
+    
+    def validate_expiry_date(self, value):
+        from django.utils import timezone
+        if value <= timezone.now():
+            raise serializers.ValidationError("La fecha de expiración debe ser futura")
+        return value
+
+
+class RefundVoucherCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear vouchers de reembolso"""
+    
+    class Meta:
+        model = RefundVoucher
+        fields = [
+            "id", "amount", "expiry_date", "hotel", "original_refund", "notes"
+        ]
+        read_only_fields = ["id"]
+    
+    def create(self, validated_data):
+        # Establecer el usuario que crea el voucher
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class RefundVoucherUseSerializer(serializers.Serializer):
+    """Serializer para usar un voucher en una reserva"""
+    voucher_code = serializers.CharField(max_length=50)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    reservation_id = serializers.IntegerField()
+    
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("El monto debe ser mayor a 0")
+        return value
+    
+    def validate_voucher_code(self, value):
+        try:
+            voucher = RefundVoucher.objects.get(code=value)
+            if not voucher.can_be_used():
+                raise serializers.ValidationError("El voucher no puede ser usado")
+        except RefundVoucher.DoesNotExist:
+            raise serializers.ValidationError("Voucher no encontrado")
+        return value
+
+
 class RefundSerializer(serializers.ModelSerializer):
     """Serializer para reembolsos"""
     reservation_id = serializers.IntegerField(source="reservation.id", read_only=True)
@@ -382,6 +360,7 @@ class RefundSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     reason_display = serializers.CharField(source="get_reason_display", read_only=True)
+    generated_voucher = RefundVoucherSerializer(read_only=True)
     
     class Meta:
         model = Refund
@@ -389,7 +368,8 @@ class RefundSerializer(serializers.ModelSerializer):
             "id", "reservation", "reservation_id", "reservation_display_name", "payment", "payment_method_display",
             "amount", "reason", "reason_display", "status", "status_display",
             "refund_method", "processing_days", "external_reference", "notes",
-            "processed_at", "created_at", "updated_at", "created_by", "created_by_name"
+            "processed_at", "created_at", "updated_at", "created_by", "created_by_name",
+            "generated_voucher"
         ]
         read_only_fields = ["created_at", "updated_at", "processed_at"]
     
@@ -448,5 +428,39 @@ class RefundStatusUpdateSerializer(serializers.ModelSerializer):
                     f"No se puede cambiar el estado de {current_status} a {value}"
                 )
         return value
+
+
+class PaymentGatewayConfigSerializer(serializers.ModelSerializer):
+    """Serializer para configuraciones de gateway de pago"""
+    hotel_name = serializers.CharField(source="hotel.name", read_only=True)
+    enterprise_name = serializers.CharField(source="enterprise.name", read_only=True)
+    
+    class Meta:
+        model = PaymentGatewayConfig
+        fields = [
+            "id", "provider", "enterprise", "enterprise_name", "hotel", "hotel_name",
+            "public_key", "access_token", "integrator_id", "is_test", "country_code",
+            "currency_code", "webhook_secret", "is_active", "refund_window_days",
+            "partial_refunds_allowed", "created_at", "updated_at"
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+    
+    def validate(self, data):
+        # Validar que refund_window_days sea >= 0 si no es None
+        refund_window_days = data.get('refund_window_days')
+        if refund_window_days is not None and refund_window_days < 0:
+            raise serializers.ValidationError({
+                'refund_window_days': 'El valor debe ser mayor o igual a 0'
+            })
+        
+        # Validar que al menos uno de hotel o enterprise esté presente
+        hotel = data.get('hotel')
+        enterprise = data.get('enterprise')
+        if not hotel and not enterprise:
+            raise serializers.ValidationError({
+                'hotel': 'Debe especificar un hotel o una empresa'
+            })
+        
+        return data
 
 

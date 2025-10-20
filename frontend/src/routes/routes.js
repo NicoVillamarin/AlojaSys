@@ -22,6 +22,9 @@ import ReservationsCalendar from "src/pages/ReservationsCalendar";
 import CancellationPolicies from "src/pages/configurations/policy/CancellationPolicies";
 import DevolutionPolicies from "src/pages/configurations/policy/DevolutionPolicies";
 import RefundsManagement from "src/pages/RefundsManagement";
+import RefundsHistorical from "src/pages/RefundsHistorical";
+import VouchersManagement from "src/pages/VouchersManagement";
+import Notifications from "src/pages/Notifications";
 
 
 export const appRoutes = [
@@ -50,6 +53,9 @@ export const appRoutes = [
       { path: "settings/policies/cancellation", element: React.createElement(CancellationPolicies) },
       { path: "settings/policies/devolution", element: React.createElement(DevolutionPolicies) },
       { path: "refunds", element: React.createElement(RefundsManagement) },
+      { path: "refunds/history", element: React.createElement(RefundsHistorical) },
+      { path: "vouchers", element: React.createElement(VouchersManagement) },
+      { path: "notificaciones", element: React.createElement(Notifications) },
       { path: "reservations-calendar", element: React.createElement(ReservationsCalendar) },
     ],
   },

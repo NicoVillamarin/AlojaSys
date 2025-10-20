@@ -34,7 +34,8 @@ def generate_nights_for_reservation(reservation):
             reservation.guests,
             current,
             reservation.channel,
-            reservation.promotion_code
+            reservation.promotion_code,
+            getattr(reservation, 'voucher_code', None)
         )
         nights.append({ 'date': current, **base_parts })
         current += timedelta(days=1)

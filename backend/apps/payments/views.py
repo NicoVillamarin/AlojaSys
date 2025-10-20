@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets, permissions
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.db.models import Q
 from decimal import Decimal
 import os
 import mercadopago
@@ -12,8 +13,8 @@ from rest_framework import serializers
 from django.utils import timezone
 
 from apps.reservations.models import Reservation, ReservationStatus, Payment
-from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason
-from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer
+from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, RefundLog, RefundVoucher, RefundVoucherStatus
+from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer, RefundVoucherSerializer, RefundVoucherCreateSerializer, RefundVoucherUseSerializer
 from apps.core.models import Hotel
 
 
@@ -796,11 +797,68 @@ class RefundViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         qs = Refund.objects.all().select_related("reservation", "payment", "created_by")
+        
+        # Filtro por reserva
         reservation_id = self.request.query_params.get("reservation_id")
         if reservation_id:
             qs = qs.filter(reservation_id=reservation_id)
+        
+        # Filtro por status (soporta múltiples valores separados por coma)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            # Dividir por coma y limpiar espacios
+            status_list = [s.strip() for s in status_param.split(',') if s.strip()]
+            if status_list:
+                qs = qs.filter(status__in=status_list)
+        
+        # Filtro por método de reembolso
+        refund_method = self.request.query_params.get("refund_method")
+        if refund_method:
+            qs = qs.filter(refund_method=refund_method)
+        
+        # Filtro por búsqueda general
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(reservation_id__icontains=search) |
+                Q(amount__icontains=search) |
+                Q(reason__icontains=search) |
+                Q(external_reference__icontains=search)
+            )
+        
         return qs.order_by("-created_at")
     
+    def create(self, request, *args, **kwargs):
+        """Crear un nuevo reembolso y enviar notificación"""
+        response = super().create(request, *args, **kwargs)
+        
+        if response.status_code == 201:  # Si se creó exitosamente
+            refund = Refund.objects.get(id=response.data['id'])
+            
+            # Crear notificación de reembolso creado
+            try:
+                from apps.notifications.services import NotificationService
+                from apps.notifications.models import NotificationType
+                NotificationService.create(
+                    notification_type=NotificationType.REFUND_AUTO,
+                    title="Nuevo reembolso creado",
+                    message=f"Se ha creado un reembolso de ${refund.amount} para la reserva #RES-{refund.reservation.id} en {refund.reservation.hotel.name}. Estado: {refund.get_status_display()}",
+                    user_id=request.user.id,
+                    hotel_id=refund.reservation.hotel.id,
+                    reservation_id=refund.reservation.id,
+                    metadata={
+                        'reservation_code': f"RES-{refund.reservation.id}",
+                        'hotel_name': refund.reservation.hotel.name,
+                        'amount': str(refund.amount),
+                        'status': 'created',
+                        'refund_id': refund.id
+                    }
+                )
+            except Exception as e:
+                print(f"⚠️ Error creando notificación de reembolso creado para refund {refund.id}: {e}")
+        
+        return response
+
     def partial_update(self, request, *args, **kwargs):
         print(f"DEBUG ViewSet: partial_update llamado para reembolso {kwargs.get('pk')}")
         print(f"DEBUG ViewSet: Datos recibidos: {request.data}")
@@ -859,6 +917,48 @@ class RefundViewSet(viewsets.ModelViewSet):
             
             refund.save()
             
+            # Crear notificación de cambio de estado del reembolso
+            try:
+                from apps.notifications.services import NotificationService
+                from apps.notifications.models import NotificationType
+                if new_status == RefundStatus.PROCESSING:
+                    NotificationService.create(
+                        notification_type=NotificationType.REFUND_AUTO,
+                        title="Reembolso en procesamiento",
+                        message=f"El reembolso de ${refund.amount} para la reserva #RES-{refund.reservation.id} en {refund.reservation.hotel.name} está siendo procesado.",
+                        user_id=request.user.id,
+                        hotel_id=refund.reservation.hotel.id,
+                        reservation_id=refund.reservation.id,
+                        metadata={
+                            'reservation_code': f"RES-{refund.reservation.id}",
+                            'hotel_name': refund.reservation.hotel.name,
+                            'amount': str(refund.amount),
+                            'status': 'processing'
+                        }
+                    )
+                elif new_status == RefundStatus.COMPLETED:
+                    NotificationService.create_refund_auto_notification(
+                        reservation_code=f"RES-{refund.reservation.id}",
+                        hotel_name=refund.reservation.hotel.name,
+                        amount=str(refund.amount),
+                        status="success",
+                        hotel_id=refund.reservation.hotel.id,
+                        reservation_id=refund.reservation.id,
+                        user_id=request.user.id
+                    )
+                elif new_status == RefundStatus.FAILED:
+                    NotificationService.create_refund_auto_notification(
+                        reservation_code=f"RES-{refund.reservation.id}",
+                        hotel_name=refund.reservation.hotel.name,
+                        amount=str(refund.amount),
+                        status="failed",
+                        hotel_id=refund.reservation.hotel.id,
+                        reservation_id=refund.reservation.id,
+                        user_id=request.user.id
+                    )
+            except Exception as e:
+                print(f"⚠️ Error creando notificación de reembolso para refund {refund.id}: {e}")
+            
             return Response({
                 'success': True,
                 'message': f'Estado del reembolso actualizado a {refund.get_status_display()}',
@@ -897,4 +997,306 @@ class RefundViewSet(viewsets.ModelViewSet):
             'status_stats': list(status_stats),
             'monthly_stats': list(monthly_stats),
             'reason_stats': list(reason_stats)
+        })
+    
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """Obtiene el historial completo de un reembolso"""
+        refund = self.get_object()
+        
+        try:
+            from .services.refund_audit_service import RefundAuditService
+            timeline = RefundAuditService.get_refund_timeline(refund)
+            
+            return Response({
+                'refund_id': refund.id,
+                'timeline': timeline
+            })
+            
+        except Exception as e:
+            return Response(
+                {"detail": f"Error obteniendo historial: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def audit_trail(self, request, pk=None):
+        """Obtiene el trail completo de auditoría de un reembolso"""
+        refund = self.get_object()
+        
+        try:
+            from .services.refund_audit_service import RefundAuditService
+            audit_trail = RefundAuditService.get_refund_audit_trail(refund)
+            
+            # Serializar los logs
+            logs_data = []
+            for log in audit_trail:
+                logs_data.append({
+                    'id': log.id,
+                    'event_type': log.event_type,
+                    'status': log.status,
+                    'timestamp': log.timestamp,
+                    'user': {
+                        'id': log.user.id,
+                        'username': log.user.username,
+                        'email': getattr(log.user, 'email', None)
+                    } if log.user else None,
+                    'action': log.action,
+                    'details': log.details,
+                    'external_reference': log.external_reference,
+                    'error_message': log.error_message,
+                    'message': log.message
+                })
+            
+            return Response({
+                'refund_id': refund.id,
+                'audit_trail': logs_data
+            })
+            
+        except Exception as e:
+            return Response(
+                {"detail": f"Error obteniendo trail de auditoría: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class RefundVoucherViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar vouchers de reembolso"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return RefundVoucherCreateSerializer
+        elif self.action == 'use_voucher':
+            return RefundVoucherUseSerializer
+        return RefundVoucherSerializer
+    
+    def get_queryset(self):
+        qs = RefundVoucher.objects.all().select_related("hotel", "created_by", "used_by", "original_refund", "used_in_reservation")
+        
+        # Filtro por hotel
+        hotel_id = self.request.query_params.get("hotel_id")
+        if hotel_id:
+            qs = qs.filter(hotel_id=hotel_id)
+        
+        # Filtro por estado
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        
+        # Filtro por código
+        code = self.request.query_params.get("code")
+        if code:
+            qs = qs.filter(code__icontains=code)
+        
+        # Filtro por búsqueda general
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(code__icontains=search) |
+                Q(notes__icontains=search)
+            )
+        
+        return qs.order_by("-created_at")
+    
+    def create(self, request, *args, **kwargs):
+        """Crear un nuevo voucher de reembolso"""
+        response = super().create(request, *args, **kwargs)
+        
+        if response.status_code == 201:  # Si se creó exitosamente
+            try:
+                # Obtener el ID del voucher de la respuesta
+                voucher_id = response.data.get('id')
+                if not voucher_id:
+                    print("⚠️ No se pudo obtener el ID del voucher de la respuesta")
+                    return response
+                
+                voucher = RefundVoucher.objects.get(id=voucher_id)
+                
+                # Crear notificación de voucher creado
+                try:
+                    from apps.notifications.services import NotificationService
+                    from apps.notifications.models import NotificationType
+                    NotificationService.create(
+                        notification_type=NotificationType.REFUND_AUTO,
+                        title="Nuevo voucher de reembolso creado",
+                        message=f"Se ha creado un voucher de ${voucher.amount} (código: {voucher.code}) para {voucher.hotel.name}. Válido hasta {voucher.expiry_date.strftime('%d/%m/%Y')}",
+                        user_id=request.user.id,
+                        hotel_id=voucher.hotel.id,
+                        metadata={
+                            'voucher_code': voucher.code,
+                            'hotel_name': voucher.hotel.name,
+                            'amount': str(voucher.amount),
+                            'expiry_date': voucher.expiry_date.isoformat(),
+                            'voucher_id': voucher.id
+                        }
+                    )
+                except Exception as e:
+                    print(f"⚠️ Error creando notificación de voucher creado para voucher {voucher.id}: {e}")
+                    
+            except RefundVoucher.DoesNotExist:
+                print(f"⚠️ Voucher con ID {voucher_id} no encontrado después de crear")
+            except Exception as e:
+                print(f"⚠️ Error procesando voucher creado: {e}")
+        
+        return response
+    
+    @action(detail=False, methods=['post'])
+    def use_voucher(self, request):
+        """Usar un voucher en una reserva"""
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                voucher_code = serializer.validated_data['voucher_code']
+                amount = serializer.validated_data['amount']
+                reservation_id = serializer.validated_data['reservation_id']
+                
+                # Obtener voucher y reserva
+                voucher = RefundVoucher.objects.get(code=voucher_code)
+                reservation = Reservation.objects.get(id=reservation_id)
+                
+                # Usar el voucher
+                voucher.use_voucher(amount, reservation, request.user)
+                
+                # Crear notificación de voucher usado
+                try:
+                    from apps.notifications.services import NotificationService
+                    from apps.notifications.models import NotificationType
+                    NotificationService.create(
+                        notification_type=NotificationType.REFUND_AUTO,
+                        title="Voucher de reembolso usado",
+                        message=f"El voucher {voucher.code} por ${amount} ha sido usado en la reserva #{reservation.id} en {reservation.hotel.name}",
+                        user_id=request.user.id,
+                        hotel_id=reservation.hotel.id,
+                        reservation_id=reservation.id,
+                        metadata={
+                            'voucher_code': voucher.code,
+                            'amount_used': str(amount),
+                            'reservation_id': reservation.id,
+                            'hotel_name': reservation.hotel.name,
+                            'voucher_id': voucher.id
+                        }
+                    )
+                except Exception as e:
+                    print(f"⚠️ Error creando notificación de voucher usado para voucher {voucher.id}: {e}")
+                
+                return Response({
+                    'success': True,
+                    'message': f'Voucher {voucher.code} usado exitosamente por ${amount}',
+                    'voucher': RefundVoucherSerializer(voucher).data,
+                    'remaining_amount': str(voucher.remaining_amount)
+                })
+                
+            except RefundVoucher.DoesNotExist:
+                return Response(
+                    {"detail": "Voucher no encontrado"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except Reservation.DoesNotExist:
+                return Response(
+                    {"detail": "Reserva no encontrada"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except ValueError as e:
+                return Response(
+                    {"detail": str(e)}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def cancel_voucher(self, request, pk=None):
+        """Cancelar un voucher"""
+        voucher = self.get_object()
+        reason = request.data.get('reason', '')
+        
+        try:
+            voucher.cancel_voucher(request.user, reason)
+            
+            # Crear notificación de voucher cancelado
+            try:
+                from apps.notifications.services import NotificationService
+                from apps.notifications.models import NotificationType
+                NotificationService.create(
+                    notification_type=NotificationType.REFUND_AUTO,
+                    title="Voucher de reembolso cancelado",
+                    message=f"El voucher {voucher.code} por ${voucher.amount} ha sido cancelado en {voucher.hotel.name}",
+                    user_id=request.user.id,
+                    hotel_id=voucher.hotel.id,
+                    metadata={
+                        'voucher_code': voucher.code,
+                        'amount': str(voucher.amount),
+                        'hotel_name': voucher.hotel.name,
+                        'voucher_id': voucher.id,
+                        'reason': reason
+                    }
+                )
+            except Exception as e:
+                print(f"⚠️ Error creando notificación de voucher cancelado para voucher {voucher.id}: {e}")
+            
+            return Response({
+                'success': True,
+                'message': f'Voucher {voucher.code} cancelado exitosamente',
+                'voucher': RefundVoucherSerializer(voucher).data
+            })
+            
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['get'])
+    def validate_voucher(self, request):
+        """Validar un voucher por código"""
+        voucher_code = request.query_params.get('code')
+        if not voucher_code:
+            return Response(
+                {"detail": "Código de voucher requerido"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            voucher = RefundVoucher.objects.get(code=voucher_code)
+            return Response({
+                'valid': voucher.can_be_used(),
+                'voucher': RefundVoucherSerializer(voucher).data
+            })
+        except RefundVoucher.DoesNotExist:
+            return Response({
+                'valid': False,
+                'message': 'Voucher no encontrado'
+            })
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Obtiene estadísticas de vouchers"""
+        from django.db.models import Count, Sum
+        from django.db.models.functions import TruncMonth
+        
+        # Estadísticas por estado
+        status_stats = RefundVoucher.objects.values('status').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('status')
+        
+        # Estadísticas por mes
+        monthly_stats = RefundVoucher.objects.annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('month')
+        
+        # Estadísticas por hotel
+        hotel_stats = RefundVoucher.objects.values('hotel__name').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('hotel__name')
+        
+        return Response({
+            'status_stats': list(status_stats),
+            'monthly_stats': list(monthly_stats),
+            'hotel_stats': list(hotel_stats)
         })

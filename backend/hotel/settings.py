@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.rates",
     "apps.payments",
     "apps.calendar",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -216,9 +217,21 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reservations.tasks.auto_mark_no_show_daily",
         "schedule": crontab(hour=9, minute=0),  # Diario a las 9:00 AM
     },
+    "process_pending_refunds_hourly": {
+        "task": "apps.payments.tasks.process_pending_refunds",
+        "schedule": crontab(minute=30),  # Cada hora a los 30 minutos
+    },
+    "retry_failed_refunds_daily": {
+        "task": "apps.payments.tasks.retry_failed_refunds",
+        "schedule": crontab(hour=10, minute=0),  # Diario a las 10:00 AM
+    },
     "auto_cancel_expired_pending_daily": {
         "task": "apps.reservations.tasks.auto_cancel_expired_pending_reservations",
         "schedule": crontab(hour=8, minute=30),  # Diario a las 8:30 AM (antes del auto no-show)
+    },
+    "auto_cancel_pending_deposits_daily": {
+        "task": "apps.reservations.tasks.auto_cancel_pending_deposits",
+        "schedule": crontab(hour=8, minute=15),  # Diario a las 8:15 AM (antes de otras tareas)
     },
 }
 

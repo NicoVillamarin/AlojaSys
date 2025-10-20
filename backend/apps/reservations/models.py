@@ -35,6 +35,7 @@ class Reservation(models.Model):
     guests_data = models.JSONField(default=list, help_text="Información de todos los huéspedes")
     channel = models.CharField(max_length=20, choices=ReservationChannel.choices, default=ReservationChannel.DIRECT)
     promotion_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de promoción aplicado")
+    voucher_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de voucher aplicado")
     check_in = models.DateField()
     check_out = models.DateField()
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
@@ -46,6 +47,11 @@ class Reservation(models.Model):
         null=True, 
         blank=True,
         help_text="Política de cancelación vigente al momento de crear la reserva"
+    )
+    applied_cancellation_snapshot = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Snapshot de la política de cancelación al momento de crear la reserva"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -257,6 +263,8 @@ class ReservationChangeEvent(models.TextChoices):
     CHARGE_REMOVED = "charge_removed", "Cargo eliminado"
     PAYMENT_ADDED = "payment_added", "Pago agregado"
     COMMISSION_UPDATED = "commission_updated", "Comisión actualizada"
+    NO_SHOW_PENALTY = "no_show_penalty", "Penalidad NO_SHOW"
+    NO_SHOW_PROCESSED = "no_show_processed", "NO_SHOW Procesado"
     NIGHTS_REGENERATED = "nights_regenerated", "Noches regeneradas"
 
 class ReservationChangeLog(models.Model):

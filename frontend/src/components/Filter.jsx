@@ -37,7 +37,7 @@ const Filter = ({ children, title, className = "" }) => {
             : 'max-h-0 opacity-0 mt-0 overflow-hidden'
         }`}
       >
-        <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 relative z-50">
+        <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 relative z-1">
           {children}
         </div>
       </div>

@@ -1,0 +1,103 @@
+name: Tests de Integración - Cancelación y Reembolsos
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/apps/payments/**'
+      - 'backend/apps/reservations/**'
+      - 'backend/tests/**'
+      - 'backend/requirements*.txt'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/apps/payments/**'
+      - 'backend/apps/reservations/**'
+      - 'backend/tests/**'
+      - 'backend/requirements*.txt'
+
+jobs:
+  test-cancel-refund:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+    
+    - name: Set up test database
+      run: |
+        cd backend
+        python manage.py migrate --run-syncdb
+      env:
+        DJANGO_SETTINGS_MODULE: hotel.settings
+        DATABASE_URL: sqlite:///test_db.sqlite3
+        CELERY_TASK_ALWAYS_EAGER: True
+        CELERY_TASK_EAGER_PROPAGATES: True
+        EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+    
+    - name: Run integration tests
+      run: |
+        cd backend
+        pytest tests/test_cancel_refund_integration.py -v --tb=short --disable-warnings
+      env:
+        DJANGO_SETTINGS_MODULE: hotel.settings
+        DATABASE_URL: sqlite:///test_db.sqlite3
+        CELERY_TASK_ALWAYS_EAGER: True
+        CELERY_TASK_EAGER_PROPAGATES: True
+        EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+    
+    - name: Run tests with coverage
+      run: |
+        cd backend
+        pytest tests/test_cancel_refund_integration.py --cov=apps.payments --cov=apps.reservations --cov-report=xml --cov-report=html
+      env:
+        DJANGO_SETTINGS_MODULE: hotel.settings
+        DATABASE_URL: sqlite:///test_db.sqlite3
+        CELERY_TASK_ALWAYS_EAGER: True
+        CELERY_TASK_EAGER_PROPAGATES: True
+        EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage.xml
+        flags: cancel-refund-integration
+        name: cancel-refund-integration-coverage
+        fail_ci_if_error: false
+    
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: backend/htmlcov/
+    
+    - name: Run linting
+      run: |
+        cd backend
+        pip install flake8
+        flake8 apps/payments/ apps/reservations/ tests/ --max-line-length=120 --exclude=migrations,__pycache__
+      continue-on-error: true
+

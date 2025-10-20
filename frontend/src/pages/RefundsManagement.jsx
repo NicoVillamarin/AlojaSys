@@ -29,7 +29,7 @@ export default function RefundsManagement() {
     resource: 'payments/refunds',
     params: { 
       search: filters.search,
-      status: filters.status,
+      status: filters.status || 'pending,processing,failed', // Solo estados que requieren acción
       refund_method: filters.method
     },
   })
@@ -113,9 +113,7 @@ export default function RefundsManagement() {
     { value: '', label: t('common.all_status') },
     { value: 'pending', label: t('payments.refunds.status.pending') },
     { value: 'processing', label: t('payments.refunds.status.processing') },
-    { value: 'completed', label: t('payments.refunds.status.completed') },
-    { value: 'failed', label: t('payments.refunds.status.failed') },
-    { value: 'cancelled', label: t('payments.refunds.status.cancelled') }
+    { value: 'failed', label: t('payments.refunds.status.failed') }
   ]
 
   const methodOptions = [
@@ -133,9 +131,16 @@ export default function RefundsManagement() {
         <div>
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.financial')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">{t('payments.refunds.title')}</h1>
-          <p className="text-sm text-gray-600 mt-1">{t('payments.refunds.subtitle')}</p>
+          <p className="text-sm text-gray-600 mt-1">Gestiona reembolsos pendientes, en procesamiento y fallidos</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="md" 
+            onClick={() => window.location.href = '/refunds/history'}
+          >
+            Ver Histórico
+          </Button>
           <Button 
             variant="secondary" 
             size="md" 

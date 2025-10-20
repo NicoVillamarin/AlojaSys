@@ -37,4 +37,5 @@ urlpatterns = [
     path("api/me/", me_view, name="me"),
     path("api/payments/", include("apps.payments.urls")),
     path("api/calendar/", include("apps.calendar.urls")),
+    path("api/", include("apps.notifications.urls")),
 ]

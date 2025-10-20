@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ping, create_checkout_preference, create_brick_intent, process_card_payment, webhook, get_reservation_payments,
-    PaymentMethodViewSet, PaymentPolicyViewSet, CancellationPolicyViewSet, RefundPolicyViewSet, RefundViewSet, process_deposit_payment,
+    PaymentMethodViewSet, PaymentPolicyViewSet, CancellationPolicyViewSet, RefundPolicyViewSet, RefundViewSet, RefundVoucherViewSet, process_deposit_payment,
 )
 
 router = DefaultRouter()
@@ -11,6 +11,7 @@ router.register(r"policies", PaymentPolicyViewSet, basename="payment-policy")
 router.register(r"cancellation-policies", CancellationPolicyViewSet, basename="cancellation-policy")
 router.register(r"refund-policies", RefundPolicyViewSet, basename="refund-policy")
 router.register(r"refunds", RefundViewSet, basename="refund")
+router.register(r"refund-vouchers", RefundVoucherViewSet, basename="refund-voucher")
 
 urlpatterns = [
     path("ping/", ping, name="payments-ping"),

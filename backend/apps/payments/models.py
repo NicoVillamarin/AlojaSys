@@ -21,6 +21,10 @@ class PaymentGatewayConfig(models.Model):
     currency_code = models.CharField(max_length=3, blank=True)  # ej: ARS
     webhook_secret = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
+    
+    # Configuración de reembolsos
+    refund_window_days = models.PositiveIntegerField(null=True, blank=True, help_text="Días límite para procesar reembolsos (null = sin límite)")
+    partial_refunds_allowed = models.BooleanField(default=True, help_text="Permitir reembolsos parciales")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -35,6 +39,13 @@ class PaymentGatewayConfig(models.Model):
         scope = self.hotel.name if self.hotel_id else (self.enterprise.name if self.enterprise_id else "global")
         return f"{self.get_provider_display()} - {scope}"
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        
+        # Validar refund_window_days
+        if self.refund_window_days is not None and self.refund_window_days < 0:
+            raise ValidationError({'refund_window_days': 'El valor debe ser mayor o igual a 0'})
+    
     @staticmethod
     def resolve_for_hotel(hotel: Hotel):
         cfg = PaymentGatewayConfig.objects.filter(hotel=hotel, is_active=True).first()
@@ -207,6 +218,9 @@ class CancellationPolicy(models.Model):
     allow_cancellation_no_show = models.BooleanField(default=True, help_text="Permitir cancelación de no-show")
     allow_cancellation_early_checkout = models.BooleanField(default=False, help_text="Permitir cancelación por salida anticipada")
     
+    # Configuración de reembolsos automáticos
+    auto_refund_on_cancel = models.BooleanField(default=False, help_text="Procesar reembolso automáticamente al cancelar")
+    
     # Mensajes personalizados
     free_cancellation_message = models.TextField(blank=True, help_text="Mensaje para cancelación gratuita")
     partial_cancellation_message = models.TextField(blank=True, help_text="Mensaje para cancelación parcial")
@@ -270,6 +284,9 @@ class CancellationPolicy(models.Model):
         now = datetime.now().date()
         time_until_checkin = (check_in_date - now).total_seconds()
         
+        # Debug: imprimir información de cálculo
+        print(f"DEBUG CancellationPolicy: check_in_date={check_in_date}, now={now}, time_until_checkin={time_until_checkin}")
+        
         # Convertir a la unidad configurada
         if self.free_cancellation_unit == 'hours':
             free_cancellation_seconds = self.free_cancellation_time * 3600
@@ -292,8 +309,13 @@ class CancellationPolicy(models.Model):
         else:  # weeks
             no_refund_seconds = self.no_refund_time * 604800
         
+        # Debug: imprimir valores calculados
+        print(f"DEBUG CancellationPolicy: free_cancellation_seconds={free_cancellation_seconds}, partial_refund_seconds={partial_refund_seconds}, no_refund_seconds={no_refund_seconds}")
+        
         # Determinar el tipo de cancelación
+        # Lógica corregida: free_cancellation_time debe ser MAYOR que partial_refund_time
         if time_until_checkin >= free_cancellation_seconds:
+            print(f"DEBUG CancellationPolicy: Aplicando cancelación gratuita (time_until_checkin={time_until_checkin} >= free_cancellation_seconds={free_cancellation_seconds})")
             return {
                 'type': 'free',
                 'fee_type': 'none',
@@ -301,6 +323,7 @@ class CancellationPolicy(models.Model):
                 'message': self.free_cancellation_message or f"Cancelación gratuita hasta {self.free_cancellation_time} {self.free_cancellation_unit} antes del check-in"
             }
         elif time_until_checkin >= partial_refund_seconds:
+            print(f"DEBUG CancellationPolicy: Aplicando cancelación parcial (time_until_checkin={time_until_checkin} >= partial_refund_seconds={partial_refund_seconds})")
             return {
                 'type': 'partial',
                 'fee_type': self.cancellation_fee_type,
@@ -308,6 +331,7 @@ class CancellationPolicy(models.Model):
                 'message': self.partial_cancellation_message or f"Cancelación con penalidad hasta {self.partial_refund_time} {self.partial_refund_unit} antes del check-in"
             }
         else:
+            print(f"DEBUG CancellationPolicy: Aplicando sin cancelación (time_until_checkin={time_until_checkin} < partial_refund_seconds={partial_refund_seconds})")
             return {
                 'type': 'no_cancellation',
                 'fee_type': self.cancellation_fee_type,
@@ -507,16 +531,20 @@ class Refund(models.Model):
         'reservations.Payment', 
         on_delete=models.CASCADE, 
         related_name="refunds",
+        null=True,
+        blank=True,
         help_text="Pago original que se está reembolsando"
     )
     amount = models.DecimalField(
-        max_digits=10, 
+        max_digits=12, 
         decimal_places=2,
         help_text="Monto del reembolso"
     )
     reason = models.CharField(
         max_length=30, 
         choices=RefundReason.choices,
+        null=True,
+        blank=True,
         help_text="Razón del reembolso"
     )
     status = models.CharField(
@@ -524,6 +552,11 @@ class Refund(models.Model):
         choices=RefundStatus.choices, 
         default=RefundStatus.PENDING,
         help_text="Estado del reembolso"
+    )
+    method = models.CharField(
+        max_length=30,
+        default='original_payment',
+        help_text="Método de reembolso (original_payment, voucher, bank_transfer, etc.)"
     )
     refund_method = models.CharField(
         max_length=30,
@@ -558,6 +591,30 @@ class Refund(models.Model):
         blank=True,
         help_text="Usuario que creó el reembolso"
     )
+    processed_by = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name="processed_refunds",
+        help_text="Usuario que procesó el reembolso"
+    )
+    # Campo para historial compacto (similar a ReservationChangeLog)
+    history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Historial compacto de cambios del reembolso"
+    )
+    
+    # Relación con voucher generado (si el método de reembolso es voucher)
+    generated_voucher = models.ForeignKey(
+        'RefundVoucher',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="source_refund",
+        help_text="Voucher generado por este reembolso"
+    )
 
     class Meta:
         verbose_name = "Reembolso"
@@ -571,34 +628,76 @@ class Refund(models.Model):
 
     def __str__(self):
         return f"Reembolso {self.id} - {self.reservation.display_name} - ${self.amount}"
+    
+    def save(self, *args, **kwargs):
+        """Override save para crear log automático al crear un refund"""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        
+        # Si es un nuevo refund, crear log de creación
+        if is_new:
+            from .services.refund_audit_service import RefundAuditService
+            RefundAuditService.log_refund_created(self, self.created_by)
 
-    def mark_as_processing(self):
+    def mark_as_processing(self, user=None):
         """Marca el reembolso como en procesamiento"""
+        old_status = self.status
         self.status = RefundStatus.PROCESSING
         self.save(update_fields=['status', 'updated_at'])
+        
+        # Log del cambio de estado
+        from .services.refund_audit_service import RefundAuditService
+        RefundAuditService.log_status_change(self, old_status, self.status, user, "Iniciando procesamiento")
+        RefundAuditService.log_processing_started(self, user)
 
-    def mark_as_completed(self, external_reference=None):
+    def mark_as_completed(self, external_reference=None, user=None):
         """Marca el reembolso como completado"""
         from django.utils import timezone
+        old_status = self.status
         self.status = RefundStatus.COMPLETED
         self.processed_at = timezone.now()
+        if user:
+            self.processed_by = user
         if external_reference:
             self.external_reference = external_reference
-        self.save(update_fields=['status', 'processed_at', 'external_reference', 'updated_at'])
+        self.save(update_fields=['status', 'processed_at', 'processed_by', 'external_reference', 'updated_at'])
+        
+        # Log del cambio de estado y completado
+        from .services.refund_audit_service import RefundAuditService
+        RefundAuditService.log_status_change(self, old_status, self.status, user, "Procesamiento completado")
+        RefundAuditService.log_processing_completed(self, external_reference, user)
 
-    def mark_as_failed(self, notes=None):
+    def mark_as_failed(self, notes=None, user=None, error_message=None):
         """Marca el reembolso como fallido"""
+        old_status = self.status
         self.status = RefundStatus.FAILED
         if notes:
             self.notes = notes
         self.save(update_fields=['status', 'notes', 'updated_at'])
+        
+        # Log del cambio de estado y fallo
+        from .services.refund_audit_service import RefundAuditService
+        RefundAuditService.log_status_change(self, old_status, self.status, user, "Procesamiento fallido")
+        RefundAuditService.log_processing_failed(self, error_message or "Error no especificado", user)
 
-    def cancel(self, notes=None):
+    def cancel(self, notes=None, user=None):
         """Cancela el reembolso"""
+        old_status = self.status
         self.status = RefundStatus.CANCELLED
         if notes:
             self.notes = notes
         self.save(update_fields=['status', 'notes', 'updated_at'])
+        
+        # Log del cambio de estado y cancelación
+        from .services.refund_audit_service import RefundAuditService
+        RefundAuditService.log_status_change(self, old_status, self.status, user, "Reembolso cancelado")
+        RefundAuditService.log_refund_event(
+            refund=self,
+            event_type="cancelled",
+            action="refund_cancelled",
+            user=user,
+            message=f"Reembolso cancelado" + (f" - {notes}" if notes else "")
+        )
 
     @property
     def is_pending(self):
@@ -619,3 +718,287 @@ class Refund(models.Model):
     @property
     def is_cancelled(self):
         return self.status == RefundStatus.CANCELLED
+
+
+class RefundLogEvent(models.TextChoices):
+    """Eventos que se pueden registrar en el log de refunds"""
+    CREATED = "created", "Creado"
+    STATUS_CHANGED = "status_changed", "Estado Cambiado"
+    PROCESSING_STARTED = "processing_started", "Procesamiento Iniciado"
+    PROCESSING_COMPLETED = "processing_completed", "Procesamiento Completado"
+    PROCESSING_FAILED = "processing_failed", "Procesamiento Fallido"
+    EXTERNAL_REFERENCE_UPDATED = "external_reference_updated", "Referencia Externa Actualizada"
+    NOTES_UPDATED = "notes_updated", "Notas Actualizadas"
+    CANCELLED = "cancelled", "Cancelado"
+    RETRY_ATTEMPT = "retry_attempt", "Intento de Reintento"
+    GATEWAY_ERROR = "gateway_error", "Error de Pasarela"
+    MANUAL_INTERVENTION = "manual_intervention", "Intervención Manual"
+
+
+class RefundVoucherStatus(models.TextChoices):
+    """Estados de un voucher de reembolso"""
+    ACTIVE = "active", "Activo"
+    USED = "used", "Usado"
+    EXPIRED = "expired", "Expirado"
+    CANCELLED = "cancelled", "Cancelado"
+
+
+class RefundVoucher(models.Model):
+    """
+    Voucher de reembolso reutilizable
+    Permite crear vouchers que pueden ser utilizados en futuras reservas
+    """
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Código único del voucher"
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Monto del voucher"
+    )
+    expiry_date = models.DateTimeField(
+        help_text="Fecha de expiración del voucher"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=RefundVoucherStatus.choices,
+        default=RefundVoucherStatus.ACTIVE,
+        help_text="Estado del voucher"
+    )
+    
+    # Relaciones
+    hotel = models.ForeignKey(
+        Hotel,
+        on_delete=models.CASCADE,
+        related_name="refund_vouchers",
+        help_text="Hotel que emitió el voucher"
+    )
+    original_refund = models.ForeignKey(
+        Refund,
+        on_delete=models.CASCADE,
+        related_name="generated_vouchers",
+        null=True,
+        blank=True,
+        help_text="Reembolso que generó este voucher"
+    )
+    used_in_reservation = models.ForeignKey(
+        Reservation,
+        on_delete=models.SET_NULL,
+        related_name="used_vouchers",
+        null=True,
+        blank=True,
+        help_text="Reserva donde se usó el voucher"
+    )
+    
+    # Metadatos
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Usuario que creó el voucher"
+    )
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora cuando se usó el voucher"
+    )
+    used_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="used_vouchers",
+        help_text="Usuario que usó el voucher"
+    )
+    
+    # Campos adicionales
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notas adicionales sobre el voucher"
+    )
+    remaining_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto restante del voucher (para vouchers parcialmente usados)"
+    )
+
+    class Meta:
+        verbose_name = "Voucher de Reembolso"
+        verbose_name_plural = "Vouchers de Reembolso"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['code']),
+            models.Index(fields=['hotel', 'status']),
+            models.Index(fields=['status', 'expiry_date']),
+            models.Index(fields=['original_refund']),
+        ]
+
+    def __str__(self):
+        return f"Voucher {self.code} - ${self.amount} - {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        """Override save para generar código único y validar estado"""
+        if not self.code:
+            self.code = self.generate_unique_code()
+        
+        # Si es nuevo voucher, establecer remaining_amount igual al amount
+        if not self.pk and not self.remaining_amount:
+            self.remaining_amount = self.amount
+            
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def generate_unique_code(cls):
+        """Genera un código único para el voucher"""
+        import uuid
+        import string
+        import random
+        
+        # Generar código con formato: VCH-XXXX-XXXX
+        while True:
+            code = f"VCH-{''.join(random.choices(string.ascii_uppercase + string.digits, k=4))}-{''.join(random.choices(string.ascii_uppercase + string.digits, k=4))}"
+            if not cls.objects.filter(code=code).exists():
+                return code
+
+    def is_expired(self):
+        """Verifica si el voucher ha expirado"""
+        from django.utils import timezone
+        return timezone.now() > self.expiry_date
+
+    def can_be_used(self):
+        """Verifica si el voucher puede ser usado"""
+        return (
+            self.status == RefundVoucherStatus.ACTIVE and
+            not self.is_expired() and
+            self.remaining_amount and
+            self.remaining_amount > 0
+        )
+
+    def use_voucher(self, amount, reservation, user=None):
+        """Usa el voucher para una reserva específica"""
+        if not self.can_be_used():
+            raise ValueError("El voucher no puede ser usado")
+        
+        if amount > self.remaining_amount:
+            raise ValueError("El monto solicitado excede el monto restante del voucher")
+        
+        from django.utils import timezone
+        
+        # Actualizar voucher
+        self.remaining_amount -= amount
+        if self.remaining_amount <= 0:
+            self.status = RefundVoucherStatus.USED
+            self.used_at = timezone.now()
+            self.used_by = user
+            self.used_in_reservation = reservation
+        
+        self.save(update_fields=[
+            'remaining_amount', 'status', 'used_at', 'used_by', 
+            'used_in_reservation', 'updated_at'
+        ])
+        
+        return self
+
+    def cancel_voucher(self, user=None, reason=None):
+        """Cancela el voucher"""
+        if self.status not in [RefundVoucherStatus.ACTIVE]:
+            raise ValueError("Solo se pueden cancelar vouchers activos")
+        
+        self.status = RefundVoucherStatus.CANCELLED
+        if reason:
+            self.notes = f"{self.notes or ''}\nCancelado: {reason}".strip()
+        
+        self.save(update_fields=['status', 'notes', 'updated_at'])
+
+    @property
+    def is_active(self):
+        return self.status == RefundVoucherStatus.ACTIVE
+
+    @property
+    def is_used(self):
+        return self.status == RefundVoucherStatus.USED
+
+    @property
+    def is_cancelled(self):
+        return self.status == RefundVoucherStatus.CANCELLED
+
+
+class RefundLog(models.Model):
+    """
+    Log detallado de eventos de reembolsos para auditoría
+    Similar a ReservationChangeLog pero específico para refunds
+    """
+    refund = models.ForeignKey(
+        Refund, 
+        on_delete=models.CASCADE, 
+        related_name="logs",
+        help_text="Reembolso asociado al log"
+    )
+    event_type = models.CharField(
+        max_length=30, 
+        choices=RefundLogEvent.choices,
+        help_text="Tipo de evento registrado"
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=RefundStatus.choices,
+        help_text="Estado del reembolso en este momento"
+    )
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Fecha y hora del evento"
+    )
+    user = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        help_text="Usuario que realizó la acción (null = sistema)"
+    )
+    action = models.CharField(
+        max_length=50,
+        help_text="Acción específica realizada"
+    )
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Detalles adicionales del evento"
+    )
+    external_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Referencia externa si aplica"
+    )
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Mensaje de error si aplica"
+    )
+    message = models.CharField(
+        max_length=300,
+        blank=True,
+        null=True,
+        help_text="Mensaje descriptivo del evento"
+    )
+
+    class Meta:
+        verbose_name = "Log de Reembolso"
+        verbose_name_plural = "Logs de Reembolsos"
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['refund', 'timestamp']),
+            models.Index(fields=['event_type', 'timestamp']),
+            models.Index(fields=['status', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"Log {self.id} - {self.refund.id} - {self.get_event_type_display()}"

@@ -1,6 +1,7 @@
 import React from 'react'
 import DropdownUser from './DropdownUser'
 import LanguageSelector from './LanguageSelector'
+import NotificationsBell from './NotificationsBell'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +16,7 @@ const Navbar = ({ onToggleMobile, isMobile }) => {
     '/rooms': t('navbar.rooms'),
     '/rates': t('navbar.rates'),
     '/settings': t('navbar.settings'),
+    '/notificaciones': 'Notificaciones',
   }
   const currentTitle = titleMap[location.pathname] || 'AlojaSys'
 
@@ -39,6 +41,7 @@ const Navbar = ({ onToggleMobile, isMobile }) => {
                 </nav>
             </div>
             <div className='flex items-center gap-3 text-sm'>
+                <NotificationsBell />
                 <LanguageSelector />
                 <DropdownUser />
             </div>
