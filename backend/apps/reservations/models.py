@@ -235,6 +235,13 @@ class Payment(models.Model):
     date = models.DateField()
     method = models.CharField(max_length=30, default='cash')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # Campos específicos para POSTNET
+    terminal_id = models.CharField(max_length=50, blank=True, help_text="ID del terminal POSTNET")
+    batch_number = models.CharField(max_length=100, blank=True, help_text="Número de batch del terminal")
+    status = models.CharField(max_length=20, default='approved', help_text="Estado del pago: approved, pending_settlement, failed")
+    notes = models.TextField(blank=True, help_text="Notas adicionales del pago")
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
 class ReservationStatusChange(models.Model):

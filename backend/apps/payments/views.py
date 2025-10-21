@@ -11,10 +11,13 @@ import mercadopago
 from uuid import uuid4
 from rest_framework import serializers
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 from apps.reservations.models import Reservation, ReservationStatus, Payment
-from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, RefundLog, RefundVoucher, RefundVoucherStatus
-from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer, RefundVoucherSerializer, RefundVoucherCreateSerializer, RefundVoucherUseSerializer
+from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, RefundLog, RefundVoucher, RefundVoucherStatus, BankTransferPayment, BankTransferStatus
+from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer, RefundVoucherSerializer, RefundVoucherCreateSerializer, RefundVoucherUseSerializer, PaymentGatewayConfigSerializer, BankTransferPaymentSerializer, BankTransferPaymentCreateSerializer, BankTransferPaymentUpdateSerializer, BankTransferPaymentListSerializer
 from apps.core.models import Hotel
 
 
@@ -370,109 +373,147 @@ def create_brick_intent(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def webhook(request):
-    # Soportar varios formatos de webhook (query o body)
-    topic = request.query_params.get("type") or request.query_params.get("topic") or request.data.get("type")
-    payment_id = (
-        request.query_params.get("data.id")
-        or request.query_params.get("id")
-        or (request.data.get("data", {}) if isinstance(request.data, dict) else {}).get("id")
-        or request.data.get("id")
-    )
-
-    # Acceso básico con token de entorno (desarrollo). En escenarios multi‑tenant, se resuelve por hotel.
-    access_token = os.environ.get("MP_ACCESS_TOKEN", "")
-    if not access_token:
-        return Response({"detail": "ACCESS_TOKEN no configurado"}, status=status.HTTP_400_BAD_REQUEST)
-
+    """
+    Webhook mejorado con verificación HMAC, idempotencia y actualizaciones atómicas
+    """
+    from apps.payments.services.webhook_security import WebhookSecurityService
+    from apps.payments.services.payment_processor import PaymentProcessorService
+    
+    # Extraer datos del webhook de forma segura
+    webhook_data = WebhookSecurityService.extract_webhook_data(request)
+    topic = webhook_data.get('topic')
+    payment_id = webhook_data.get('payment_id')
+    notification_id = webhook_data.get('notification_id')
+    external_reference = webhook_data.get('external_reference')
+    
+    # Verificar que es un evento de pago
     if topic != "payment" or not payment_id:
         return Response({"received": True, "note": "evento no procesado"}, status=200)
-
-    sdk = mercadopago.SDK(access_token)
-    pay_resp = sdk.payment().get(payment_id)
-    if pay_resp.get("status") != 200:
-        return Response({"detail": "No se pudo consultar el pago", "mp": pay_resp.get("response")}, status=status.HTTP_502_BAD_GATEWAY)
-
-    payment = pay_resp.get("response", {})
-    status_detail = payment.get("status")
-    external_reference = payment.get("external_reference") or ""
-
-    # Intento de localizar el intent/reserva
-    intent = None
-    if external_reference:
-        intent = PaymentIntent.objects.filter(external_reference=external_reference).order_by("-created_at").first()
-
-    # Parsear external_reference para obtener reserva/hotel si no hay intent
-    reservation = None
-    if not intent and external_reference:
-        try:
-            parts = {kv.split(":", 1)[0]: kv.split(":", 1)[1] for kv in external_reference.split("|") if ":" in kv}
-            res_id_str = parts.get("reservation")
-            if res_id_str:
-                reservation = Reservation.objects.filter(pk=int(res_id_str)).first()
-        except Exception:
-            reservation = None
-
-    # Actualizar/crear intent mínimo
-    if intent is None and reservation is not None:
-        try:
-            amount = Decimal(str(payment.get("transaction_amount", "0") or "0"))
-        except Exception:
-            amount = Decimal("0")
-        currency = payment.get("currency_id") or (reservation.hotel.country.currency_code if getattr(reservation.hotel, "country", None) else "ARS")
-        intent = PaymentIntent.objects.create(
-            reservation=reservation,
-            hotel=reservation.hotel,
-            enterprise=reservation.hotel.enterprise if getattr(reservation.hotel, "enterprise", None) else None,
-            amount=amount,
-            currency=currency,
-            description=f"Reserva {reservation.id}",
-            mp_preference_id=payment.get("order", {}).get("id", "") if isinstance(payment.get("order"), dict) else "",
-            mp_payment_id=str(payment.get("id")),
-            external_reference=external_reference,
-            status=PaymentIntentStatus.APPROVED if status_detail == "approved" else (
-                PaymentIntentStatus.REJECTED if status_detail == "rejected" else PaymentIntentStatus.CREATED
-            ),
-        )
-
-    # Si existe intent, sincronizar estado
-    if intent:
-        intent.mp_payment_id = str(payment.get("id"))
-        if status_detail == "approved":
-            intent.status = PaymentIntentStatus.APPROVED
-        elif status_detail == "rejected":
-            intent.status = PaymentIntentStatus.REJECTED
+    
+    # Obtener configuración de la pasarela para verificación HMAC
+    webhook_secret = None
+    try:
+        # Intentar obtener webhook_secret desde configuración del hotel
+        if external_reference:
+            from apps.payments.services.payment_processor import PaymentProcessorService
+            reservation_id = PaymentProcessorService._extract_reservation_id(external_reference)
+            if reservation_id:
+                from apps.reservations.models import Reservation
+                reservation = Reservation.objects.get(id=reservation_id)
+                gateway_config = PaymentGatewayConfig.resolve_for_hotel(reservation.hotel)
+                if gateway_config:
+                    webhook_secret = gateway_config.webhook_secret
+    except Exception as e:
+        logger.warning(f"Error obteniendo webhook_secret: {e}")
+    
+    # Fallback a variable de entorno si no se encontró en configuración
+    if not webhook_secret:
+        webhook_secret = os.environ.get("MP_WEBHOOK_SECRET", "")
+    
+    # Verificar firma HMAC si está configurada
+    if webhook_secret:
+        if not WebhookSecurityService.verify_webhook_signature(request, webhook_secret):
+            WebhookSecurityService.log_webhook_security_event(
+                'hmac_failed',
+                notification_id=notification_id,
+                external_reference=external_reference,
+                details={'payment_id': payment_id}
+            )
+            return Response({
+                "success": False,
+                "error": "Firma HMAC inválida",
+                "code": "HMAC_VERIFICATION_FAILED"
+            }, status=status.HTTP_400_BAD_REQUEST)
         else:
-            intent.status = PaymentIntentStatus.CREATED
-        intent.save(update_fields=["mp_payment_id", "status", "updated_at"])
-
-        # Confirmar reserva si corresponde y crear registro de pago
-        try:
-            reservation = reservation or intent.reservation
-            if reservation and status_detail == "approved":
-                # Crear registro de pago en la tabla Payment si no existe
-                from apps.reservations.models import Payment
-                existing_payment = Payment.objects.filter(
-                    reservation=reservation,
-                    amount=intent.amount,
-                    method="card"
-                ).first()
-                
-                if not existing_payment:
-                    Payment.objects.create(
-                        reservation=reservation,
-                        date=timezone.now().date(),
-                        method="card",
-                        amount=intent.amount
-                    )
-                
-                # Confirmar reserva si está pendiente
-                if reservation.status == ReservationStatus.PENDING:
-                    reservation.status = ReservationStatus.CONFIRMED
-                    reservation.save(update_fields=["status", "updated_at"])
-        except Exception:
-            pass
-
-    return Response({"processed": True}, status=200)
+            WebhookSecurityService.log_webhook_security_event(
+                'hmac_verified',
+                notification_id=notification_id,
+                external_reference=external_reference,
+                details={'payment_id': payment_id}
+            )
+    
+    # Verificar idempotencia
+    if WebhookSecurityService.is_notification_processed(notification_id, external_reference):
+        WebhookSecurityService.log_webhook_security_event(
+            'duplicate_detected',
+            notification_id=notification_id,
+            external_reference=external_reference,
+            details={'payment_id': payment_id}
+        )
+        return Response({
+            "success": True,
+            "processed": False,
+            "message": "Notificación ya procesada",
+            "code": "DUPLICATE_NOTIFICATION"
+        }, status=200)
+    
+    # Obtener datos del pago desde Mercado Pago
+    access_token = os.environ.get("MP_ACCESS_TOKEN", "")
+    if not access_token:
+        return Response({
+            "success": False,
+            "error": "ACCESS_TOKEN no configurado",
+            "code": "MISSING_ACCESS_TOKEN"
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        sdk = mercadopago.SDK(access_token)
+        pay_resp = sdk.payment().get(payment_id)
+        if pay_resp.get("status") != 200:
+            return Response({
+                "success": False,
+                "error": "No se pudo consultar el pago",
+                "code": "MP_API_ERROR",
+                "mp_response": pay_resp.get("response")
+            }, status=status.HTTP_502_BAD_GATEWAY)
+        
+        payment_data = pay_resp.get("response", {})
+        
+    except Exception as e:
+        logger.error(f"Error consultando pago en Mercado Pago: {e}")
+        return Response({
+            "success": False,
+            "error": "Error consultando pago",
+            "code": "MP_CONNECTION_ERROR"
+        }, status=status.HTTP_502_BAD_GATEWAY)
+    
+    # Procesar pago de forma atómica
+    result = PaymentProcessorService.process_webhook_payment(
+        payment_data=payment_data,
+        webhook_secret=webhook_secret,
+        notification_id=notification_id
+    )
+    
+    if result.get('success'):
+        # Encolar tarea de post-procesamiento si el pago fue procesado
+        if result.get('processed', False):
+            from .tasks import process_webhook_post_processing
+            
+            # Encolar tarea de post-procesamiento de forma asíncrona
+            process_webhook_post_processing.delay(
+                payment_intent_id=result.get('payment_intent_id'),
+                webhook_data=payment_data,
+                notification_id=notification_id,
+                external_reference=external_reference
+            )
+            
+            logger.info(f"Tarea de post-procesamiento encolada para PaymentIntent {result.get('payment_intent_id')}")
+        
+        return Response({
+            "success": True,
+            "processed": result.get('processed', False),
+            "payment_intent_id": result.get('payment_intent_id'),
+            "status": result.get('status'),
+            "message": result.get('message'),
+            "post_processing_queued": result.get('processed', False)
+        }, status=200)
+    else:
+        logger.error(f"Error procesando webhook: {result.get('error')}")
+        return Response({
+            "success": False,
+            "error": result.get('error'),
+            "code": "PAYMENT_PROCESSING_ERROR"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -1300,3 +1341,325 @@ class RefundVoucherViewSet(viewsets.ModelViewSet):
             'monthly_stats': list(monthly_stats),
             'hotel_stats': list(hotel_stats)
         })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def rotate_payment_tokens(request):
+    """
+    Endpoint para rotar access_token y public_key de una configuración de pago
+    """
+    try:
+        config_id = request.data.get('config_id')
+        new_access_token = request.data.get('new_access_token')
+        new_public_key = request.data.get('new_public_key')
+        
+        if not config_id:
+            return Response({
+                'success': False,
+                'error': 'config_id es requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not new_access_token or not new_public_key:
+            return Response({
+                'success': False,
+                'error': 'new_access_token y new_public_key son requeridos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener la configuración
+        try:
+            config = PaymentGatewayConfig.objects.get(id=config_id)
+        except PaymentGatewayConfig.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Configuración de pago no encontrada'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Validar que el usuario tenga permisos para modificar esta configuración
+        # (aquí podrías agregar lógica de permisos específica)
+        
+        # Guardar los tokens anteriores para logging
+        old_access_token = config.access_token
+        old_public_key = config.public_key
+        
+        # Actualizar los tokens
+        config.access_token = new_access_token
+        config.public_key = new_public_key
+        
+        # Validar la configuración actualizada
+        try:
+            config.clean()
+            config.save()
+            
+            # Log de la rotación
+            logger.info(f"Tokens rotados para PaymentGatewayConfig {config_id}. Usuario: {request.user}")
+            
+            return Response({
+                'success': True,
+                'message': 'Tokens rotados exitosamente',
+                'config_id': config_id,
+                'rotated_at': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as validation_error:
+            # Revertir cambios si la validación falla
+            config.access_token = old_access_token
+            config.public_key = old_public_key
+            config.save()
+            
+            return Response({
+                'success': False,
+                'error': f'Error de validación: {str(validation_error)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Error rotando tokens: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Error interno del servidor'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BankTransferPaymentViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar transferencias bancarias"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return BankTransferPaymentCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return BankTransferPaymentUpdateSerializer
+        elif self.action == 'list':
+            return BankTransferPaymentListSerializer
+        return BankTransferPaymentSerializer
+    
+    def get_queryset(self):
+        qs = BankTransferPayment.objects.all().select_related("reservation", "hotel", "created_by", "reviewed_by")
+        
+        # Filtro por reserva
+        reservation_id = self.request.query_params.get("reservation_id")
+        if reservation_id:
+            qs = qs.filter(reservation_id=reservation_id)
+        
+        # Filtro por hotel
+        hotel_id = self.request.query_params.get("hotel_id")
+        if hotel_id:
+            qs = qs.filter(hotel_id=hotel_id)
+        
+        # Filtro por estado
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        
+        # Filtro por necesidades de revisión
+        needs_review = self.request.query_params.get("needs_review")
+        if needs_review and needs_review.lower() == 'true':
+            qs = qs.filter(status=BankTransferStatus.PENDING_REVIEW)
+        
+        # Filtro por búsqueda general
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(reservation_id__icontains=search) |
+                Q(cbu_iban__icontains=search) |
+                Q(bank_name__icontains=search) |
+                Q(external_reference__icontains=search)
+            )
+        
+        return qs.order_by("-created_at")
+    
+    def create(self, request, *args, **kwargs):
+        """Crear una nueva transferencia bancaria"""
+        logger.info(f"Creando transferencia bancaria. Usuario: {request.user.id}")
+        logger.info(f"Datos recibidos: {list(request.data.keys())}")
+        
+        response = super().create(request, *args, **kwargs)
+        
+        logger.info(f"Respuesta del serializer: {response.status_code}")
+        if hasattr(response, 'data'):
+            logger.info(f"Datos de respuesta: {list(response.data.keys()) if isinstance(response.data, dict) else 'No es dict'}")
+        
+        if response.status_code == 201:
+            logger.info(f"Transferencia creada y confirmada automáticamente: {response.data.get('id')}")
+        
+        return response
+    
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """Confirmar una transferencia bancaria"""
+        transfer = self.get_object()
+        
+        if transfer.status == BankTransferStatus.CONFIRMED:
+            return Response({
+                'error': 'La transferencia ya está confirmada'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        notes = request.data.get('notes', '')
+        transfer.mark_as_confirmed(user=request.user, notes=notes)
+        
+        return Response({
+            'success': True,
+            'message': 'Transferencia confirmada exitosamente',
+            'transfer': BankTransferPaymentSerializer(transfer, context={'request': request}).data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Rechazar una transferencia bancaria"""
+        transfer = self.get_object()
+        
+        if transfer.status == BankTransferStatus.REJECTED:
+            return Response({
+                'error': 'La transferencia ya está rechazada'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        notes = request.data.get('notes', '')
+        if not notes:
+            return Response({
+                'error': 'Las notas son requeridas para rechazar una transferencia'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        transfer.mark_as_rejected(user=request.user, notes=notes)
+        
+        return Response({
+            'success': True,
+            'message': 'Transferencia rechazada exitosamente',
+            'transfer': BankTransferPaymentSerializer(transfer, context={'request': request}).data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def mark_pending_review(self, request, pk=None):
+        """Marcar transferencia como pendiente de revisión"""
+        transfer = self.get_object()
+        
+        if transfer.status in [BankTransferStatus.CONFIRMED, BankTransferStatus.REJECTED]:
+            return Response({
+                'error': 'No se puede marcar como pendiente una transferencia ya procesada'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        transfer.mark_as_pending_review(user=request.user)
+        
+        return Response({
+            'success': True,
+            'message': 'Transferencia marcada como pendiente de revisión',
+            'transfer': BankTransferPaymentSerializer(transfer, context={'request': request}).data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Obtiene estadísticas de transferencias bancarias"""
+        from django.db.models import Count, Sum
+        from django.db.models.functions import TruncMonth
+        
+        # Estadísticas por estado
+        status_stats = BankTransferPayment.objects.values('status').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('status')
+        
+        # Estadísticas por mes
+        monthly_stats = BankTransferPayment.objects.annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('month')
+        
+        # Estadísticas por hotel
+        hotel_stats = BankTransferPayment.objects.values('hotel__name').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ).order_by('hotel__name')
+        
+        # Transferencias que necesitan revisión
+        pending_review_count = BankTransferPayment.objects.filter(
+            status=BankTransferStatus.PENDING_REVIEW
+        ).count()
+        
+        return Response({
+            'status_stats': list(status_stats),
+            'monthly_stats': list(monthly_stats),
+            'hotel_stats': list(hotel_stats),
+            'pending_review_count': pending_review_count
+        })
+    
+    @action(detail=False, methods=['get'])
+    def pending_review(self, request):
+        """Obtiene transferencias pendientes de revisión"""
+        transfers = BankTransferPayment.objects.filter(
+            status=BankTransferStatus.PENDING_REVIEW
+        ).select_related("reservation", "hotel", "created_by").order_by("-created_at")
+        
+        serializer = self.get_serializer(transfers, many=True)
+        return Response(serializer.data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def upload_bank_transfer_receipt(request):
+    """
+    Endpoint específico para subir comprobante de transferencia bancaria
+    """
+    try:
+        logger.info(f"Iniciando subida de comprobante de transferencia. Usuario: {request.user.id}")
+        logger.info(f"Datos recibidos: {list(request.data.keys())}")
+        logger.info(f"Archivos recibidos: {list(request.FILES.keys())}")
+        
+        # Validar que se envíe un archivo
+        if 'receipt_file' not in request.FILES:
+            logger.warning("No se recibió archivo de comprobante")
+            return Response({
+                'error': 'El archivo de comprobante es requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validar datos requeridos
+        required_fields = ['reservation', 'amount', 'transfer_date', 'cbu_iban']
+        missing_fields = []
+        for field in required_fields:
+            if field not in request.data:
+                missing_fields.append(field)
+        
+        if missing_fields:
+            logger.warning(f"Campos requeridos faltantes: {missing_fields}")
+            return Response({
+                'error': f'Los campos {", ".join(missing_fields)} son requeridos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info("Validando datos con serializer...")
+        
+        # Crear la transferencia
+        serializer = BankTransferPaymentCreateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            logger.info("Serializer válido, creando transferencia...")
+            transfer = serializer.save()
+            logger.info(f"Transferencia creada exitosamente: {transfer.id}")
+            
+            # Encolar tarea de procesamiento OCR
+            try:
+                from .tasks import process_bank_transfer_ocr
+                process_bank_transfer_ocr.delay(transfer.id)
+                logger.info(f"Tarea OCR encolada para transferencia {transfer.id}")
+            except Exception as e:
+                logger.warning(f"Error encolando tarea OCR para transferencia {transfer.id}: {e}")
+            
+            return Response({
+                'success': True,
+                'message': 'Comprobante subido exitosamente',
+                'transfer': BankTransferPaymentSerializer(transfer, context={'request': request}).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            logger.error(f"Serializer inválido: {serializer.errors}")
+            return Response({
+                'error': 'Datos inválidos',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Error subiendo comprobante de transferencia: {str(e)}", exc_info=True)
+        return Response({
+            'error': 'Error interno del servidor'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

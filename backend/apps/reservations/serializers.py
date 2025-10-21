@@ -133,7 +133,7 @@ class ReservationChargeSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ['id', 'date', 'method', 'amount']
+        fields = ['id', 'date', 'method', 'amount', 'terminal_id', 'batch_number', 'status', 'notes']
 
 class ChannelCommissionSerializer(serializers.ModelSerializer):
     class Meta:

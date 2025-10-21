@@ -1287,7 +1287,15 @@ def reservation_payments(request, pk: int):
     # POST
     ser = PaymentSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    payment = reservation.payments.create(**ser.validated_data)
+    
+    # Manejar lógica específica para POSTNET
+    validated_data = ser.validated_data.copy()
+    if validated_data.get('method') == 'pos':
+        # Si es POSTNET, determinar el status basado en si está liquidado
+        is_settled = request.data.get('is_settled', False)
+        validated_data['status'] = 'approved' if is_settled else 'pending_settlement'
+    
+    payment = reservation.payments.create(**validated_data)
     from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
     ReservationChangeLog.objects.create(
         reservation=reservation,

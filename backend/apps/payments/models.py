@@ -17,6 +17,7 @@ class PaymentGatewayConfig(models.Model):
     integrator_id = models.CharField(max_length=200, blank=True)
 
     is_test = models.BooleanField(default=True)
+    is_production = models.BooleanField(default=False, help_text="Indica si esta configuración es para producción")
     country_code = models.CharField(max_length=2, blank=True)   # ej: AR
     currency_code = models.CharField(max_length=3, blank=True)  # ej: ARS
     webhook_secret = models.CharField(max_length=200, blank=True)
@@ -45,6 +46,41 @@ class PaymentGatewayConfig(models.Model):
         # Validar refund_window_days
         if self.refund_window_days is not None and self.refund_window_days < 0:
             raise ValidationError({'refund_window_days': 'El valor debe ser mayor o igual a 0'})
+        
+        # Validar que no se mezclen keys de producción con is_test=True
+        if self.is_production and self.is_test:
+            raise ValidationError({
+                'is_production': 'No se puede marcar como producción si is_test=True',
+                'is_test': 'No se puede usar is_test=True en configuración de producción'
+            })
+        
+        # Validar que las keys de producción no sean de test
+        if self.is_production:
+            # Verificar que access_token no sea de test (contiene 'TEST' o es muy corto)
+            if 'TEST' in self.access_token.upper() or len(self.access_token) < 20:
+                raise ValidationError({
+                    'access_token': 'El access_token parece ser de test. En producción debe usar keys reales.'
+                })
+            
+            # Verificar que public_key no sea de test
+            if 'TEST' in self.public_key.upper() or len(self.public_key) < 20:
+                raise ValidationError({
+                    'public_key': 'El public_key parece ser de test. En producción debe usar keys reales.'
+                })
+        
+        # Validar que las keys de test no sean de producción
+        if self.is_test and not self.is_production:
+            # Verificar que access_token sea de test (contiene 'TEST' o es corto)
+            if 'TEST' not in self.access_token.upper() and len(self.access_token) > 20:
+                raise ValidationError({
+                    'access_token': 'El access_token parece ser de producción. En test debe usar keys de prueba.'
+                })
+            
+            # Verificar que public_key sea de test
+            if 'TEST' not in self.public_key.upper() and len(self.public_key) > 20:
+                raise ValidationError({
+                    'public_key': 'El public_key parece ser de producción. En test debe usar keys de prueba.'
+                })
     
     @staticmethod
     def resolve_for_hotel(hotel: Hotel):
@@ -1002,3 +1038,584 @@ class RefundLog(models.Model):
 
     def __str__(self):
         return f"Log {self.id} - {self.refund.id} - {self.get_event_type_display()}"
+
+
+# ===== CONCILIACIÓN BANCARIA =====
+
+class ReconciliationStatus(models.TextChoices):
+    """Estados de conciliación bancaria"""
+    PENDING = "pending", "Pendiente"
+    PROCESSING = "processing", "Procesando"
+    COMPLETED = "completed", "Completada"
+    FAILED = "failed", "Fallida"
+    MANUAL_REVIEW = "manual_review", "Revisión Manual"
+
+
+class MatchType(models.TextChoices):
+    """Tipos de matching en conciliación"""
+    EXACT = "exact", "Exacto"
+    FUZZY = "fuzzy", "Aproximado"
+    PARTIAL = "partial", "Parcial"
+    MANUAL = "manual", "Manual"
+
+
+class ReconciliationEventType(models.TextChoices):
+    """Tipos de eventos en audit log de conciliación"""
+    CSV_UPLOADED = "csv_uploaded", "CSV Subido"
+    PROCESSING_STARTED = "processing_started", "Procesamiento Iniciado"
+    AUTO_MATCHED = "auto_matched", "Match Automático"
+    MANUAL_MATCHED = "manual_matched", "Match Manual"
+    PENDING_REVIEW = "pending_review", "Pendiente de Revisión"
+    UNMATCHED = "unmatched", "Sin Match"
+    PARTIAL_MATCH = "partial_match", "Match Parcial"
+    REVERSAL_DETECTED = "reversal_detected", "Reversión Detectada"
+    PROCESSING_COMPLETED = "processing_completed", "Procesamiento Completado"
+    ERROR = "error", "Error"
+
+
+class BankReconciliationConfig(models.Model):
+    """Configuración de conciliación bancaria por hotel"""
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="reconciliation_configs")
+    
+    # Tolerancias de matching
+    exact_match_date_tolerance = models.PositiveIntegerField(default=1, help_text="Días de tolerancia para match exacto")
+    fuzzy_match_amount_tolerance_percent = models.FloatField(default=0.5, help_text="Tolerancia de monto para match fuzzy (%)")
+    fuzzy_match_date_tolerance = models.PositiveIntegerField(default=2, help_text="Días de tolerancia para match fuzzy")
+    partial_match_amount_tolerance_percent = models.FloatField(default=1.0, help_text="Tolerancia de monto para match parcial (%)")
+    partial_match_date_tolerance = models.PositiveIntegerField(default=3, help_text="Días de tolerancia para match parcial")
+    
+    # Umbrales de confianza
+    auto_confirm_threshold = models.FloatField(default=90.0, help_text="Umbral para confirmación automática (%)")
+    pending_review_threshold = models.FloatField(default=70.0, help_text="Umbral para revisión manual (%)")
+    
+    # Configuración de moneda
+    default_currency = models.CharField(max_length=3, default="ARS")
+    currency_rate = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True, help_text="Tipo de cambio USD/ARS")
+    currency_rate_date = models.DateField(null=True, blank=True, help_text="Fecha del tipo de cambio")
+    
+    # Notificaciones
+    email_notifications = models.BooleanField(default=True)
+    notification_threshold_percent = models.FloatField(default=10.0, help_text="Umbral para notificación de errores (%)")
+    notification_emails = models.JSONField(default=list, help_text="Emails para notificaciones")
+    
+    # Configuración de archivos
+    csv_encoding = models.CharField(max_length=20, default="utf-8")
+    csv_separator = models.CharField(max_length=5, default=",")
+    csv_columns = models.JSONField(default=list, help_text="Columnas esperadas en el CSV")
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['hotel']
+    
+    def __str__(self):
+        return f"Configuración Conciliación - {self.hotel.name}"
+
+
+class BankReconciliation(models.Model):
+    """Conciliación bancaria principal"""
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="bank_reconciliations")
+    reconciliation_date = models.DateField(help_text="Fecha de la conciliación")
+    
+    # Archivo CSV
+    csv_file = models.FileField(upload_to='bank_reconciliations/%Y/%m/%d/')
+    csv_filename = models.CharField(max_length=255)
+    csv_file_size = models.PositiveIntegerField()
+    
+    # Estadísticas
+    total_transactions = models.PositiveIntegerField(default=0)
+    matched_transactions = models.PositiveIntegerField(default=0)
+    unmatched_transactions = models.PositiveIntegerField(default=0)
+    pending_review_transactions = models.PositiveIntegerField(default=0)
+    error_transactions = models.PositiveIntegerField(default=0)
+    
+    # Estado y procesamiento
+    status = models.CharField(max_length=20, choices=ReconciliationStatus.choices, default=ReconciliationStatus.PENDING)
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    processing_completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Usuario y auditoría
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Metadatos
+    processing_notes = models.TextField(blank=True, help_text="Notas del procesamiento")
+    error_details = models.JSONField(default=dict, help_text="Detalles de errores encontrados")
+    
+    class Meta:
+        ordering = ['-reconciliation_date', '-created_at']
+        indexes = [
+            models.Index(fields=['hotel', 'reconciliation_date']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"Conciliación {self.hotel.name} - {self.reconciliation_date}"
+    
+    @property
+    def match_percentage(self):
+        """Porcentaje de transacciones con match"""
+        if self.total_transactions == 0:
+            return 0
+        return round((self.matched_transactions / self.total_transactions) * 100, 2)
+    
+    @property
+    def needs_manual_review(self):
+        """Indica si necesita revisión manual"""
+        return self.pending_review_transactions > 0 or self.unmatched_transactions > 0
+
+
+class BankTransaction(models.Model):
+    """Transacciones individuales del CSV bancario"""
+    reconciliation = models.ForeignKey(BankReconciliation, on_delete=models.CASCADE, related_name="transactions")
+    
+    # Datos de la transacción
+    transaction_date = models.DateField()
+    description = models.CharField(max_length=500)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="ARS")
+    reference = models.CharField(max_length=100, blank=True)
+    
+    # Estado del matching
+    is_matched = models.BooleanField(default=False)
+    is_reversal = models.BooleanField(default=False, help_text="Indica si es una reversión (monto negativo)")
+    match_confidence = models.FloatField(null=True, blank=True, help_text="Confianza del match (0-100)")
+    match_type = models.CharField(max_length=20, choices=MatchType.choices, null=True, blank=True)
+    
+    # Referencias al pago matchado
+    matched_payment_id = models.PositiveIntegerField(null=True, blank=True)
+    matched_payment_type = models.CharField(max_length=50, null=True, blank=True)
+    matched_reservation_id = models.PositiveIntegerField(null=True, blank=True)
+    
+    # Diferencias encontradas
+    amount_difference = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    date_difference_days = models.IntegerField(default=0)
+    
+    # Auditoría
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['transaction_date', 'amount']
+        indexes = [
+            models.Index(fields=['reconciliation', 'is_matched']),
+            models.Index(fields=['transaction_date', 'amount']),
+            models.Index(fields=['is_reversal']),
+        ]
+    
+    def __str__(self):
+        return f"Transacción {self.amount} - {self.transaction_date}"
+
+
+class ReconciliationMatch(models.Model):
+    """Matches entre transacciones bancarias y pagos del sistema"""
+    reconciliation = models.ForeignKey(BankReconciliation, on_delete=models.CASCADE, related_name="matches")
+    bank_transaction = models.ForeignKey(BankTransaction, on_delete=models.CASCADE, related_name="matches")
+    
+    # Referencia al pago matchado
+    payment_id = models.PositiveIntegerField()
+    payment_type = models.CharField(max_length=50)  # 'payment_intent', 'bank_transfer', 'payment'
+    reservation_id = models.PositiveIntegerField()
+    
+    # Detalles del match
+    match_type = models.CharField(max_length=20, choices=MatchType.choices)
+    confidence_score = models.FloatField()
+    amount_difference = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    date_difference_days = models.IntegerField(default=0)
+    
+    # Estado del match
+    is_confirmed = models.BooleanField(default=False)
+    is_manual = models.BooleanField(default=False)
+    manual_approved_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True)
+    manual_approved_at = models.DateTimeField(null=True, blank=True)
+    manual_notes = models.TextField(blank=True)
+    
+    # Auditoría
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['bank_transaction', 'payment_id', 'payment_type']
+        indexes = [
+            models.Index(fields=['reconciliation', 'is_confirmed']),
+            models.Index(fields=['payment_id', 'payment_type']),
+        ]
+    
+    def __str__(self):
+        return f"Match {self.bank_transaction.amount} - {self.payment_type}#{self.payment_id}"
+
+
+class BankReconciliationLog(models.Model):
+    """Log de auditoría para conciliaciones bancarias"""
+    reconciliation = models.ForeignKey(BankReconciliation, on_delete=models.CASCADE, related_name="audit_logs")
+    
+    # Evento
+    event_type = models.CharField(max_length=30, choices=ReconciliationEventType.choices)
+    event_description = models.CharField(max_length=500)
+    
+    # Referencias
+    bank_transaction_id = models.PositiveIntegerField(null=True, blank=True)
+    payment_id = models.PositiveIntegerField(null=True, blank=True)
+    payment_type = models.CharField(max_length=50, null=True, blank=True)
+    reservation_id = models.PositiveIntegerField(null=True, blank=True)
+    
+    # Detalles del evento
+    details = models.JSONField(default=dict)
+    confidence_score = models.FloatField(null=True, blank=True)
+    
+    # Usuario y auditoría
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Archivo asociado
+    csv_filename = models.CharField(max_length=255, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['reconciliation', 'event_type']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"Log {self.event_type} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class BankTransferStatus(models.TextChoices):
+    """Estados de una transferencia bancaria"""
+    UPLOADED = "uploaded", "Comprobante Subido"
+    PENDING_REVIEW = "pending_review", "Pendiente de Revisión"
+    CONFIRMED = "confirmed", "Confirmada"
+    REJECTED = "rejected", "Rechazada"
+    PROCESSING = "processing", "Procesando"
+
+
+class BankTransferPayment(models.Model):
+    """
+    Modelo para manejar transferencias bancarias con comprobantes
+    Permite subir comprobantes, validar con OCR y conciliar pagos
+    """
+    reservation = models.ForeignKey(
+        Reservation, 
+        on_delete=models.CASCADE, 
+        related_name="bank_transfers",
+        help_text="Reserva asociada a la transferencia"
+    )
+    hotel = models.ForeignKey(
+        Hotel, 
+        on_delete=models.CASCADE, 
+        related_name="bank_transfers",
+        help_text="Hotel de la reserva"
+    )
+    
+    # Datos de la transferencia
+    amount = models.DecimalField(
+        max_digits=12, 
+        decimal_places=2,
+        help_text="Monto de la transferencia"
+    )
+    transfer_date = models.DateField(
+        help_text="Fecha de la transferencia bancaria"
+    )
+    cbu_iban = models.CharField(
+        max_length=50,
+        help_text="CBU o IBAN de la cuenta destino"
+    )
+    bank_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Nombre del banco (opcional)"
+    )
+    
+    # Comprobante
+    receipt_file = models.FileField(
+        upload_to='bank_transfers/receipts/%Y/%m/%d/',
+        help_text="Archivo del comprobante de transferencia"
+    )
+    receipt_filename = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Nombre original del archivo"
+    )
+    receipt_url = models.URLField(
+        blank=True,
+        help_text="URL completa del comprobante (Cloudinary o local)"
+    )
+    storage_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('local', 'Local'),
+            ('cloudinary', 'Cloudinary'),
+        ],
+        default='local',
+        help_text="Tipo de almacenamiento del archivo"
+    )
+    
+    # Estado y validación
+    status = models.CharField(
+        max_length=20,
+        choices=BankTransferStatus.choices,
+        default=BankTransferStatus.UPLOADED,
+        help_text="Estado de la transferencia"
+    )
+    
+    # Datos extraídos por OCR
+    ocr_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto extraído por OCR del comprobante"
+    )
+    ocr_cbu = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="CBU extraído por OCR del comprobante"
+    )
+    ocr_confidence = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Nivel de confianza del OCR (0-1)"
+    )
+    
+    # Validación y conciliación
+    is_amount_valid = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Si el monto coincide con el esperado"
+    )
+    is_cbu_valid = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Si el CBU coincide con el esperado"
+    )
+    validation_notes = models.TextField(
+        blank=True,
+        help_text="Notas de la validación"
+    )
+    
+    # Referencias
+    external_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Referencia externa de la transferencia"
+    )
+    payment_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Referencia del pago asociado"
+    )
+    
+    # Metadatos
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Usuario que subió el comprobante"
+    )
+    reviewed_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_bank_transfers",
+        help_text="Usuario que revisó el comprobante"
+    )
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha de revisión"
+    )
+    
+    # Notas adicionales
+    notes = models.TextField(
+        blank=True,
+        help_text="Notas adicionales sobre la transferencia"
+    )
+    
+    # Historial de cambios
+    history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Historial de cambios de la transferencia"
+    )
+
+    class Meta:
+        verbose_name = "Transferencia Bancaria"
+        verbose_name_plural = "Transferencias Bancarias"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['reservation', 'status']),
+            models.Index(fields=['hotel', 'status']),
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['transfer_date']),
+        ]
+
+    def __str__(self):
+        return f"Transferencia {self.id} - {self.reservation.id} - ${self.amount} - {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        """Override save para crear log automático"""
+        is_new = self.pk is None
+        old_status = None
+        
+        if not is_new:
+            try:
+                old_instance = BankTransferPayment.objects.get(pk=self.pk)
+                old_status = old_instance.status
+            except BankTransferPayment.DoesNotExist:
+                pass
+        
+        super().save(*args, **kwargs)
+        
+        # Log de creación o cambio de estado
+        if is_new:
+            self._log_event('created', f"Transferencia bancaria creada por ${self.amount}")
+        elif old_status and old_status != self.status:
+            self._log_event('status_changed', f"Estado cambiado de {old_status} a {self.status}")
+
+    def _log_event(self, event_type, message, user=None):
+        """Registra un evento en el historial"""
+        from django.utils import timezone
+        
+        log_entry = {
+            'timestamp': timezone.now().isoformat(),
+            'event_type': event_type,
+            'message': message,
+            'user_id': user.id if user else None,
+            'user_name': user.username if user else None,
+        }
+        
+        if not self.history:
+            self.history = []
+        
+        self.history.append(log_entry)
+        
+        # Actualizar solo el campo history sin triggerar save() nuevamente
+        BankTransferPayment.objects.filter(pk=self.pk).update(history=self.history)
+
+    def mark_as_pending_review(self, user=None):
+        """Marca la transferencia como pendiente de revisión"""
+        self.status = BankTransferStatus.PENDING_REVIEW
+        self.save(update_fields=['status', 'updated_at'])
+        self._log_event('status_changed', "Transferencia marcada como pendiente de revisión", user)
+
+    def mark_as_confirmed(self, user=None, notes=""):
+        """Marca la transferencia como confirmada"""
+        from django.utils import timezone
+        
+        self.status = BankTransferStatus.CONFIRMED
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        if notes:
+            self.notes = notes
+        self.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'notes', 'updated_at'])
+        self._log_event('confirmed', f"Transferencia confirmada{': ' + notes if notes else ''}", user)
+        
+        # Crear el pago asociado
+        self._create_payment()
+
+    def mark_as_rejected(self, user=None, notes=""):
+        """Marca la transferencia como rechazada"""
+        from django.utils import timezone
+        
+        self.status = BankTransferStatus.REJECTED
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        if notes:
+            self.notes = notes
+        self.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'notes', 'updated_at'])
+        self._log_event('rejected', f"Transferencia rechazada{': ' + notes if notes else ''}", user)
+
+    def _create_payment(self):
+        """Crea el pago asociado a la transferencia confirmada"""
+        from apps.reservations.models import Payment, ReservationStatus
+        
+        payment = Payment.objects.create(
+            reservation=self.reservation,
+            date=self.transfer_date,
+            method='bank_transfer',
+            amount=self.amount
+        )
+        
+        self.payment_reference = f"PAY-{payment.id}"
+        self.save(update_fields=['payment_reference'])
+        
+        # Actualizar estado de la reserva si está pendiente
+        if self.reservation.status == ReservationStatus.PENDING:
+            self.reservation.status = ReservationStatus.CONFIRMED
+            self.reservation.save(update_fields=['status', 'updated_at'])
+            
+            # Log del cambio de estado de la reserva
+            from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+            ReservationChangeLog.objects.create(
+                reservation=self.reservation,
+                event_type=ReservationChangeEvent.STATUS_CHANGED,
+                changed_by=self.reviewed_by,
+                message=f"Reserva confirmada automáticamente por pago de transferencia bancaria de ${self.amount}"
+            )
+        
+        # Log del pago creado
+        from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+        ReservationChangeLog.objects.create(
+            reservation=self.reservation,
+            event_type=ReservationChangeEvent.PAYMENT_ADDED,
+            changed_by=self.reviewed_by,
+            message=f"Pago por transferencia bancaria de ${self.amount} confirmado"
+        )
+
+    def validate_ocr_data(self):
+        """Valida los datos extraídos por OCR"""
+        # Validar monto
+        if self.ocr_amount is not None:
+            self.is_amount_valid = abs(float(self.amount) - float(self.ocr_amount)) <= 0.01
+        
+        # Validar CBU
+        if self.ocr_cbu:
+            self.is_cbu_valid = self.cbu_iban.upper() == self.ocr_cbu.upper()
+        
+        # NUEVA LÓGICA: Confirmar automáticamente por defecto
+        # Solo revisión manual si hay problemas serios
+        if self.ocr_amount is None and self.ocr_cbu is None:
+            # Si OCR no pudo extraer nada, confirmar de todas formas
+            self.status = BankTransferStatus.CONFIRMED
+            self.validation_notes = "Transferencia confirmada - OCR no pudo extraer datos pero comprobante subido"
+            self.is_amount_valid = True  # Asumir que es válido
+            self.is_cbu_valid = True
+            self._create_payment()
+        elif self.is_amount_valid is False or self.is_cbu_valid is False:
+            # Solo si hay datos OCR y no coinciden, revisar manualmente
+            self.status = BankTransferStatus.PENDING_REVIEW
+            self.validation_notes = "Datos OCR no coinciden - requiere revisión manual"
+        else:
+            # Confirmar automáticamente
+            self.status = BankTransferStatus.CONFIRMED
+            self.validation_notes = "Validación automática exitosa"
+            self._create_payment()
+        
+        self.save(update_fields=['is_amount_valid', 'is_cbu_valid', 'status', 'validation_notes', 'updated_at'])
+
+    @property
+    def needs_manual_review(self):
+        """Indica si la transferencia necesita revisión manual"""
+        return (
+            self.status == BankTransferStatus.PENDING_REVIEW or
+            self.is_amount_valid is False or
+            self.is_cbu_valid is False
+        )
+
+    @property
+    def is_auto_validated(self):
+        """Indica si la transferencia fue validada automáticamente"""
+        return (
+            self.status == BankTransferStatus.CONFIRMED and
+            self.is_amount_valid and
+            self.is_cbu_valid and
+            not self.reviewed_by
+        )

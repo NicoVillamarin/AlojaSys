@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, PaymentGatewayConfig, RefundVoucher, RefundVoucherStatus
+from .models import PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, PaymentGatewayConfig, RefundVoucher, RefundVoucherStatus, BankTransferPayment, BankTransferStatus
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -439,8 +439,8 @@ class PaymentGatewayConfigSerializer(serializers.ModelSerializer):
         model = PaymentGatewayConfig
         fields = [
             "id", "provider", "enterprise", "enterprise_name", "hotel", "hotel_name",
-            "public_key", "access_token", "integrator_id", "is_test", "country_code",
-            "currency_code", "webhook_secret", "is_active", "refund_window_days",
+            "public_key", "access_token", "integrator_id", "is_test", "is_production", 
+            "country_code", "currency_code", "webhook_secret", "is_active", "refund_window_days",
             "partial_refunds_allowed", "created_at", "updated_at"
         ]
         read_only_fields = ["created_at", "updated_at"]
@@ -462,5 +462,259 @@ class PaymentGatewayConfigSerializer(serializers.ModelSerializer):
             })
         
         return data
+
+
+class BankTransferPaymentSerializer(serializers.ModelSerializer):
+    """Serializer para transferencias bancarias"""
+    reservation_id = serializers.IntegerField(source='reservation.id', read_only=True)
+    hotel_name = serializers.CharField(source='hotel.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    reviewed_by_name = serializers.CharField(source='reviewed_by.username', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    receipt_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BankTransferPayment
+        fields = [
+            'id', 'reservation_id', 'hotel', 'hotel_name', 'amount', 'transfer_date',
+            'cbu_iban', 'bank_name', 'receipt_file', 'receipt_filename', 'receipt_url',
+            'status', 'status_display', 'ocr_amount', 'ocr_cbu', 'ocr_confidence',
+            'is_amount_valid', 'is_cbu_valid', 'validation_notes', 'external_reference',
+            'payment_reference', 'created_by', 'created_by_name', 'reviewed_by',
+            'reviewed_by_name', 'reviewed_at', 'notes', 'history', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'hotel_name', 'created_by_name', 'reviewed_by_name', 'status_display',
+            'receipt_url', 'ocr_amount', 'ocr_cbu', 'ocr_confidence', 'is_amount_valid',
+            'is_cbu_valid', 'validation_notes', 'payment_reference', 'reviewed_by',
+            'reviewed_at', 'history', 'created_at', 'updated_at'
+        ]
+    
+    def get_receipt_url(self, obj):
+        """Obtiene la URL del archivo de comprobante"""
+        # Priorizar URL del servicio híbrido
+        if obj.receipt_url:
+            return obj.receipt_url
+        
+        # Fallback al FileField tradicional
+        if obj.receipt_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.receipt_file.url)
+            return obj.receipt_file.url
+        return None
+
+
+class BankTransferPaymentCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear transferencias bancarias"""
+    receipt_file_base64 = serializers.CharField(write_only=True, required=False)
+    receipt_file = serializers.FileField(required=False, write_only=True)
+    
+    class Meta:
+        model = BankTransferPayment
+        fields = [
+            'id', 'reservation', 'amount', 'transfer_date', 'cbu_iban', 'bank_name',
+            'receipt_file', 'receipt_file_base64', 'receipt_filename', 'external_reference', 'notes'
+        ]
+        read_only_fields = ['id']
+    
+    def validate_amount(self, value):
+        """Valida que el monto sea positivo"""
+        if value <= 0:
+            raise serializers.ValidationError("El monto debe ser mayor a 0")
+        return value
+    
+    def validate_cbu_iban(self, value):
+        """Valida formato básico de CBU/IBAN"""
+        if not value:
+            raise serializers.ValidationError("CBU/IBAN es requerido")
+        
+        # Validación básica de CBU argentino (22 dígitos)
+        if len(value.replace('-', '').replace(' ', '')) == 22:
+            return value.replace('-', '').replace(' ', '')
+        
+        # Validación básica de IBAN (más de 15 caracteres)
+        if len(value.replace('-', '').replace(' ', '')) >= 15:
+            return value.replace('-', '').replace(' ', '')
+        
+        raise serializers.ValidationError("Formato de CBU/IBAN inválido")
+    
+    def validate(self, data):
+        """Validación general del serializer"""
+        # Si se envía base64, validar y procesar
+        if 'receipt_file_base64' in data and data['receipt_file_base64']:
+            base64_data = data['receipt_file_base64']
+            
+            if not base64_data.startswith('data:'):
+                raise serializers.ValidationError({
+                    'receipt_file_base64': 'Formato de archivo inválido'
+                })
+            
+            # Extraer tipo MIME del data URL
+            try:
+                mime_type = base64_data.split(';')[0].split(':')[1]
+                allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+                if mime_type not in allowed_types:
+                    raise serializers.ValidationError({
+                        'receipt_file_base64': 'Solo se permiten archivos JPG, PNG o PDF'
+                    })
+            except (IndexError, ValueError):
+                raise serializers.ValidationError({
+                    'receipt_file_base64': 'Formato de archivo inválido'
+                })
+            
+            # Validar tamaño (aproximado, base64 es ~33% más grande)
+            if len(base64_data) > 15 * 1024 * 1024:  # ~10MB en base64
+                raise serializers.ValidationError({
+                    'receipt_file_base64': 'El archivo no puede ser mayor a 10MB'
+                })
+            
+            # Convertir base64 a archivo
+            try:
+                from django.core.files.base import ContentFile
+                import base64
+                
+                # Extraer datos base64 del data URL
+                header, file_data = base64_data.split(',', 1)
+                file_bytes = base64.b64decode(file_data)
+                
+                # Extraer extensión del header
+                extension = mime_type.split('/')[1]
+                if extension == 'jpeg':
+                    extension = 'jpg'
+                
+                # Crear archivo temporal
+                filename = f"receipt_{data.get('receipt_filename', 'file')}.{extension}"
+                file_obj = ContentFile(file_bytes, name=filename)
+                data['receipt_file'] = file_obj
+                
+                # Remover el campo base64 de los datos
+                del data['receipt_file_base64']
+                
+            except Exception as e:
+                raise serializers.ValidationError({
+                    'receipt_file_base64': f'Error procesando archivo: {str(e)}'
+                })
+        
+        # Si se envía archivo normal, validar como antes
+        elif 'receipt_file' in data and data['receipt_file']:
+            file_obj = data['receipt_file']
+            if hasattr(file_obj, 'content_type'):
+                allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+                if file_obj.content_type not in allowed_types:
+                    raise serializers.ValidationError({
+                        'receipt_file': 'Solo se permiten archivos JPG, PNG o PDF'
+                    })
+                
+                if file_obj.size > 10 * 1024 * 1024:
+                    raise serializers.ValidationError({
+                        'receipt_file': 'El archivo no puede ser mayor a 10MB'
+                    })
+        
+        # Si no se envía ningún archivo
+        if not data.get('receipt_file') and not data.get('receipt_file_base64'):
+            raise serializers.ValidationError({
+                'receipt_file': 'El comprobante es requerido'
+            })
+        
+        return data
+    
+    def create(self, validated_data):
+        """Crea la transferencia bancaria"""
+        from .services.file_storage import HybridFileStorage
+        from .models import BankTransferStatus
+        
+        # Obtener la reserva para asignar el hotel
+        reservation = validated_data['reservation']
+        
+        # Si reservation es un ID, obtener la instancia
+        if isinstance(reservation, int):
+            from apps.reservations.models import Reservation
+            reservation = Reservation.objects.get(id=reservation)
+        
+        validated_data['hotel'] = reservation.hotel
+        
+        # Procesar archivo con servicio híbrido
+        if 'receipt_file' in validated_data:
+            file_data = validated_data['receipt_file']
+            filename = validated_data.get('receipt_filename', file_data.name if hasattr(file_data, 'name') else None)
+            
+            # Guardar archivo usando servicio híbrido
+            storage_result = HybridFileStorage.save_file(
+                file_data=file_data,
+                folder_path="bank_transfers/receipts",
+                filename=filename
+            )
+            
+            if storage_result['success']:
+                # Actualizar datos con información del almacenamiento
+                validated_data['receipt_filename'] = storage_result['filename']
+                validated_data['receipt_url'] = storage_result['file_url']
+                validated_data['storage_type'] = storage_result['storage_type']
+                
+                # Para almacenamiento local, mantener el FileField
+                if storage_result['storage_type'] == 'local':
+                    validated_data['receipt_file'] = file_data
+                else:
+                    # Para Cloudinary, limpiar el FileField ya que se guardó en la nube
+                    validated_data.pop('receipt_file', None)
+            else:
+                raise serializers.ValidationError({
+                    'receipt_file': f"Error guardando archivo: {storage_result.get('error', 'Error desconocido')}"
+                })
+        
+        # Asignar el usuario que crea la transferencia
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['created_by'] = request.user
+        
+        # NUEVA LÓGICA: Confirmar inmediatamente al crear
+        validated_data['status'] = BankTransferStatus.CONFIRMED
+        validated_data['is_amount_valid'] = True
+        validated_data['is_cbu_valid'] = True
+        validated_data['validation_notes'] = "Transferencia confirmada automáticamente al subir comprobante"
+        
+        # Crear la transferencia
+        transfer = super().create(validated_data)
+        
+        # Crear pago y confirmar reserva inmediatamente
+        transfer._create_payment()
+        
+        return transfer
+
+
+class BankTransferPaymentUpdateSerializer(serializers.ModelSerializer):
+    """Serializer para actualizar transferencias bancarias (admin)"""
+    
+    class Meta:
+        model = BankTransferPayment
+        fields = [
+            'status', 'notes', 'validation_notes', 'external_reference'
+        ]
+    
+    def validate_status(self, value):
+        """Valida el cambio de estado"""
+        instance = self.instance
+        if instance and instance.status == BankTransferStatus.CONFIRMED and value != BankTransferStatus.CONFIRMED:
+            raise serializers.ValidationError(
+                "No se puede cambiar el estado de una transferencia confirmada"
+            )
+        return value
+
+
+class BankTransferPaymentListSerializer(serializers.ModelSerializer):
+    """Serializer simplificado para listar transferencias bancarias"""
+    reservation_id = serializers.IntegerField(source='reservation.id', read_only=True)
+    hotel_name = serializers.CharField(source='hotel.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    needs_review = serializers.BooleanField(source='needs_manual_review', read_only=True)
+    
+    class Meta:
+        model = BankTransferPayment
+        fields = [
+            'id', 'reservation_id', 'hotel_name', 'amount', 'transfer_date',
+            'cbu_iban', 'status', 'status_display', 'is_amount_valid', 'is_cbu_valid',
+            'needs_review', 'created_at', 'updated_at'
+        ]
 
 
