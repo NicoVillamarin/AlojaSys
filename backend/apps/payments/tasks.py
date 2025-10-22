@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 
 from .models import Refund, RefundStatus, PaymentGatewayConfig, PaymentIntent, BankReconciliation
+from apps.reservations.models import Payment
 from .services.refund_processor_v2 import RefundProcessorV2
 from .services.bank_reconciliation import BankReconciliationService
 from apps.notifications.services import NotificationService
@@ -1112,7 +1113,7 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
         payment_type: 'payment' o 'refund'
     """
     try:
-        from .services.pdf_generator import PDFReceiptGenerator
+        from .services.pdf_generator import ModernPDFGenerator
         from .models import Refund
         from apps.reservations.models import Payment
         
@@ -1134,6 +1135,9 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                         'name': refund.reservation.hotel.name,
                         'address': getattr(refund.reservation.hotel, 'address', ''),
                         'tax_id': getattr(refund.reservation.hotel, 'tax_id', ''),
+                        'phone': getattr(refund.reservation.hotel, 'phone', ''),
+                        'email': getattr(refund.reservation.hotel, 'email', ''),
+                        'logo_path': refund.reservation.hotel.logo.path if refund.reservation.hotel.logo else None,
                     },
                     'guest_info': _get_primary_guest_info(refund.reservation.guests_data)
                 }
@@ -1153,6 +1157,9 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                         'name': payment.reservation.hotel.name,
                         'address': getattr(payment.reservation.hotel, 'address', ''),
                         'tax_id': getattr(payment.reservation.hotel, 'tax_id', ''),
+                        'phone': getattr(payment.reservation.hotel, 'phone', ''),
+                        'email': getattr(payment.reservation.hotel, 'email', ''),
+                        'logo_path': payment.reservation.hotel.logo.path if payment.reservation.hotel.logo else None,
                     },
                     'guest_info': _get_primary_guest_info(payment.reservation.guests_data)
                 }
@@ -1161,12 +1168,54 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                 return {'status': 'error', 'message': 'Payment no encontrado'}
         
         # Generar PDF
-        generator = PDFReceiptGenerator()
+        generator = ModernPDFGenerator()
         
+        # Preparar datos para el generador moderno
+        title = "RECIBO DE REEMBOLSO" if payment_type == 'refund' else "RECIBO DE PAGO"
+        section_title = "INFORMACIÓN DEL REEMBOLSO" if payment_type == 'refund' else "INFORMACIÓN DEL PAGO"
+        
+        # Construir tabla de información
+        info_table = []
         if payment_type == 'refund':
-            pdf_path = generator.generate_refund_receipt(payment_data)
+            info_table = [
+                ['Código de Reserva:', payment_data.get('reservation_code', 'N/A')],
+                ['ID de Reembolso:', str(payment_data.get('refund_id', 'N/A'))],
+                ['ID de Pago Original:', str(payment_data.get('payment_id', 'N/A'))],
+                ['Monto del Reembolso:', f"${payment_data.get('amount', 0):,.2f}"],
+                ['Método de Reembolso:', payment_data.get('method', 'N/A')],
+                ['Fecha del Reembolso:', payment_data.get('date', 'N/A')],
+            ]
+            if payment_data.get('reason'):
+                info_table.append(['Razón del Reembolso:', payment_data.get('reason')])
         else:
-            pdf_path = generator.generate_payment_receipt(payment_data)
+            info_table = [
+                ['Código de Reserva:', payment_data.get('reservation_code', 'N/A')],
+                ['ID de Pago:', str(payment_data.get('payment_id', 'N/A'))],
+                ['Monto:', f"${payment_data.get('amount', 0):,.2f}"],
+                ['Método de Pago:', payment_data.get('method', 'N/A')],
+                ['Fecha del Pago:', payment_data.get('date', 'N/A')],
+            ]
+        
+        # Información del huésped
+        guest_info = payment_data.get('guest_info', {})
+        if guest_info:
+            guest_name = guest_info.get('name', '')
+            guest_email = guest_info.get('email', '')
+            if guest_name:
+                info_table.append(['Huésped Principal:', guest_name])
+            if guest_email:
+                info_table.append(['Email del Huésped:', guest_email])
+        
+        # Datos para el generador moderno
+        modern_data = {
+            'title': title,
+            'section_title': section_title,
+            'hotel_info': payment_data.get('hotel_info', {}),
+            'info_table': info_table
+        }
+        
+        filename = f"{payment_type}_{payment_data.get('payment_id', 'unknown')}.pdf"
+        pdf_path = generator.generate(modern_data, filename)
         
         logger.info(f"PDF generado exitosamente: {pdf_path}")
 
@@ -1210,7 +1259,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
     try:
         from django.core.mail import EmailMessage
         from django.conf import settings
-        from .services.pdf_generator import PDFReceiptGenerator
+        from .services.pdf_generator import ModernPDFGenerator
         from .models import Refund
         from apps.reservations.models import Payment
         
@@ -1248,15 +1297,93 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                 return {'status': 'error', 'message': 'Email no encontrado'}
         
         # Verificar si el PDF existe, si no generarlo
-        generator = PDFReceiptGenerator()
-        pdf_path = generator.get_receipt_path(payment_id, is_refund=(payment_type == 'refund'))
-        full_pdf_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
+        generator = ModernPDFGenerator()
+        filename = f"{payment_type}_{payment_id}.pdf"
+        pdf_path = os.path.join(settings.MEDIA_ROOT, "documents", filename)
         
-        if not os.path.exists(full_pdf_path):
-            # Generar PDF si no existe
-            generate_payment_receipt_pdf.delay(payment_id, payment_type)
-            logger.info(f"PDF no encontrado, generando asíncronamente para {payment_type} {payment_id}")
-            return {'status': 'pending', 'message': 'PDF en generación, email se enviará después'}
+        if not os.path.exists(pdf_path):
+            # Generar PDF directamente aquí para evitar el bucle
+            try:
+                # Obtener datos del pago/refund
+                if payment_type == 'refund':
+                    refund = Refund.objects.get(id=payment_id)
+                    reservation = refund.reservation
+                    amount = refund.amount
+                    method = refund.method
+                    date = refund.created_at.strftime("%d/%m/%Y %H:%M:%S")
+                    reason = refund.reason
+                else:
+                    payment = Payment.objects.get(id=payment_id)
+                    reservation = payment.reservation
+                    amount = payment.amount
+                    method = payment.method
+                    date = payment.created_at.strftime("%d/%m/%Y %H:%M:%S")
+                    reason = None
+                
+                # Obtener información del hotel
+                hotel = reservation.hotel
+                hotel_info = {
+                    'name': hotel.name,
+                    'address': hotel.address,
+                    'phone': hotel.phone,
+                    'email': hotel.email,
+                    'tax_id': hotel.tax_id,
+                    'logo_path': hotel.logo.path if hotel.logo else None
+                }
+                
+                # Obtener información del huésped
+                guest_info = _get_primary_guest_info(reservation.guests_data)
+                
+                # Preparar datos para el generador moderno
+                title = "RECIBO DE REEMBOLSO" if payment_type == 'refund' else "RECIBO DE PAGO"
+                section_title = "INFORMACIÓN DEL REEMBOLSO" if payment_type == 'refund' else "INFORMACIÓN DEL PAGO"
+                
+                # Construir tabla de información
+                info_table = []
+                if payment_type == 'refund':
+                    info_table = [
+                        ['Código de Reserva:', f"RES-{reservation.id}"],
+                        ['ID de Reembolso:', str(payment_id)],
+                        ['ID de Pago Original:', str(refund.payment.id)],
+                        ['Monto del Reembolso:', f"${amount:,.2f}"],
+                        ['Método de Reembolso:', method],
+                        ['Fecha del Reembolso:', date],
+                    ]
+                    if reason:
+                        info_table.append(['Razón del Reembolso:', reason])
+                else:
+                    info_table = [
+                        ['Código de Reserva:', f"RES-{reservation.id}"],
+                        ['ID de Pago:', str(payment_id)],
+                        ['Monto:', f"${amount:,.2f}"],
+                        ['Método de Pago:', method],
+                        ['Fecha del Pago:', date],
+                    ]
+                
+                # Información del huésped
+                if guest_info:
+                    guest_name = guest_info.get('name', '')
+                    guest_email = guest_info.get('email', '')
+                    if guest_name:
+                        info_table.append(['Huésped Principal:', guest_name])
+                    if guest_email:
+                        info_table.append(['Email del Huésped:', guest_email])
+                
+                # Datos para el generador moderno
+                modern_data = {
+                    'title': title,
+                    'section_title': section_title,
+                    'hotel_info': hotel_info,
+                    'info_table': info_table
+                }
+                
+                # Generar PDF
+                pdf_path = generator.generate(modern_data, filename)
+                logger.info(f"PDF generado exitosamente: {pdf_path}")
+                
+            except Exception as e:
+                logger.error(f"Error generando PDF para {payment_type} {payment_id}: {str(e)}")
+                return {'status': 'error', 'message': f'Error generando PDF: {str(e)}'}
         
         # Preparar email
         if payment_type == 'refund':
@@ -1306,7 +1433,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         )
         
         # Adjuntar PDF
-        with open(full_pdf_path, 'rb') as pdf_file:
+        with open(pdf_path, 'rb') as pdf_file:
             email.attach(
                 filename=f"recibo_{payment_type}_{payment_id}.pdf",
                 content=pdf_file.read(),

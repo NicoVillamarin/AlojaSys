@@ -917,6 +917,189 @@ Mensaje: "Su voucher de crédito estará listo en 24 horas"
 
 ---
 
+### Sistema de Recibos Automáticos
+
+#### ¿Qué hace?
+Genera automáticamente recibos profesionales en PDF y los envía por email a los huéspedes cada vez que se procesa un pago o reembolso.
+
+#### ¿Cómo funciona?
+
+##### Generación Automática
+- **Sin intervención manual**: Los recibos se generan automáticamente
+- **Diseño profesional**: Incluye logo del hotel y información completa
+- **Envío inmediato**: El huésped recibe el recibo por email al instante
+- **Formato PDF**: Fácil de imprimir y guardar digitalmente
+
+##### Cuándo se Generan Recibos
+- ✅ **Pagos en efectivo**: Al confirmar una reserva
+- ✅ **Pagos con tarjeta**: Al procesar el pago
+- ✅ **Transferencias**: Al registrar el pago manual
+- ✅ **Reembolsos**: Al procesar cualquier devolución
+- ✅ **Vouchers**: Al generar vouchers de crédito
+
+##### Información Incluida en el Recibo
+- **Logo del hotel** (si está configurado)
+- **Datos del hotel**: Nombre, dirección, teléfono, email, RUT
+- **Fecha y hora de emisión** automática
+- **Código de reserva** único
+- **Monto del pago/reembolso**
+- **Método de pago** utilizado
+- **Datos del huésped** principal
+- **Sello fiscal interno** de AlojaSys
+
+#### Configuración para el Hotel
+
+##### Logo del Hotel
+- **Subir logo**: En la configuración del hotel
+- **Formatos soportados**: JPG, PNG, GIF
+- **Tamaño recomendado**: 200x200 píxeles
+- **Ubicación**: Aparece en el encabezado del recibo
+
+##### Información del Hotel
+- **Datos obligatorios**: Nombre, email
+- **Datos opcionales**: Dirección, teléfono, RUT/CUIT
+- **Configuración**: Se completa en "Gestión de Hoteles"
+
+##### Configuración de Email
+- **Proveedor recomendado**: Resend (configuración automática)
+- **Email de envío**: AlojaSys (global)
+- **Reply-to**: Email específico del hotel
+- **Configuración**: Se hace una sola vez por hotel
+
+#### Ejemplo de Recibo Generado
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    [LOGO HOTEL]                        │
+│                 RECIBO DE PAGO                         │
+│                                                         │
+│ Hotel Plaza Central                                     │
+│ Av. Corrientes 1234, Buenos Aires                      │
+│ Tel: +54 11 1234-5678                                  │
+│ Email: info@hotelplaza.com                             │
+│ RUT: 30-12345678-9                                     │
+│                                                         │
+│ Fecha de emisión: 22/10/2025 a las 15:30:45           │
+│ ─────────────────────────────────────────────────────── │
+│                                                         │
+│ INFORMACIÓN DEL PAGO                                    │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Código de Reserva:    RES-12345                    │ │
+│ │ ID de Pago:           67                           │ │
+│ │ Monto:                $45,000.00                   │ │
+│ │ Método de Pago:       Efectivo                     │ │
+│ │ Fecha:                22/10/2025 15:30:45         │ │
+│ │ Huésped:              Juan Pérez                   │ │
+│ │ Email:                juan.perez@email.com         │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ ─────────────────────────────────────────────────────── │
+│                                                         │
+│ Recibo generado automáticamente por AlojaSys           │
+│ (sin validez fiscal)                                   │
+│                                                         │
+│ AlojaSys                    Generado el: 22/10/2025   │
+│ Sistema de Gestión Hotelera   15:30:45                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Beneficios para el Hotel
+
+##### Automatización Completa
+- **Sin trabajo manual**: Los recibos se generan solos
+- **Consistencia**: Todos los recibos tienen el mismo formato profesional
+- **Velocidad**: El huésped recibe el recibo al instante
+- **Profesionalismo**: Imagen corporativa mejorada
+
+##### Ahorro de Tiempo
+- **No imprimir**: Los huéspedes reciben el recibo por email
+- **No archivar**: Los PDFs se guardan automáticamente
+- **No buscar**: Historial digital completo de todos los recibos
+
+##### Mejor Experiencia del Huésped
+- **Recibo inmediato**: No hay que esperar ni pedir
+- **Formato digital**: Fácil de guardar y compartir
+- **Información completa**: Todos los datos necesarios
+- **Profesional**: Diseño limpio y claro
+
+#### Configuración Técnica (Para Administradores)
+
+##### Variables de Entorno
+```bash
+# Archivo: backend/.env
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.resend.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=resend
+EMAIL_HOST_PASSWORD=TU_API_KEY_DE_RESEND
+DEFAULT_FROM_EMAIL=AlojaSys <noreply@aloja.com>
+```
+
+##### Pasos de Configuración
+1. **Crear cuenta en Resend**: Obtener API key
+2. **Configurar variables**: Agregar al archivo .env
+3. **Subir logo**: En configuración del hotel
+4. **Completar datos**: Información del hotel
+5. **Probar sistema**: Hacer un pago de prueba
+
+##### Monitoreo del Sistema
+- **Logs automáticos**: Se registran todos los envíos
+- **Alertas de error**: Si algo falla, se notifica
+- **Estadísticas**: Cantidad de recibos generados
+- **Historial**: Todos los PDFs se guardan en /media/receipts/
+
+#### Casos de Uso Reales
+
+##### Caso 1: Check-in con Pago en Efectivo
+```
+1. Huésped llega al hotel
+2. Personal registra pago en efectivo
+3. Sistema genera PDF automáticamente
+4. Huésped recibe recibo por email
+5. Recibo se guarda en sistema
+```
+
+##### Caso 2: Cancelación con Reembolso
+```
+1. Huésped cancela reserva
+2. Sistema procesa reembolso
+3. PDF de reembolso se genera
+4. Huésped recibe comprobante por email
+5. Hotel tiene registro completo
+```
+
+##### Caso 3: Pago con Tarjeta
+```
+1. Huésped paga con tarjeta online
+2. Mercado Pago confirma pago
+3. Sistema genera recibo automáticamente
+4. Email se envía al huésped
+5. Recibo queda registrado
+```
+
+#### Solución de Problemas Comunes
+
+##### El huésped no recibe el email
+- **Verificar email**: Revisar que el email esté correcto en la reserva
+- **Revisar spam**: El email puede estar en carpeta de spam
+- **Verificar configuración**: Revisar variables de email
+- **Reintentar**: El sistema reintenta automáticamente
+
+##### El PDF no se genera
+- **Verificar logs**: Revisar logs de Celery
+- **Verificar permisos**: Revisar permisos de escritura en /media/
+- **Verificar datos**: Revisar que todos los datos estén completos
+- **Reiniciar servicios**: Reiniciar Celery si es necesario
+
+##### El logo no aparece
+- **Verificar archivo**: Revisar que el logo esté subido
+- **Verificar formato**: Usar JPG, PNG o GIF
+- **Verificar tamaño**: Máximo 2MB
+- **Verificar permisos**: Revisar permisos de lectura
+
+----
+
 ## 3.5 Políticas de Cancelación
 
 ### ¿Qué hace?

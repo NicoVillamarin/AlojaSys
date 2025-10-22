@@ -41,6 +41,8 @@
 - ✅ Aplicación de vouchers en nuevas reservas
 - ✅ Gestión completa de reembolsos con múltiples métodos
 - ✅ Conciliación bancaria automática con matching inteligente
+- ✅ Generación automática de PDFs de recibos
+- ✅ Envío automático de emails con recibos adjuntos
 
 ---
 
@@ -2365,6 +2367,265 @@ describe('CancellationModal', () => {
 - ✅ **Tests unitarios completos** para renderizado e interacciones
 
 ---
+
+### Sistema de Generación de PDFs y Envío de Emails
+
+#### Arquitectura del Sistema
+El sistema de generación de PDFs y envío de emails está diseñado para funcionar de manera asíncrona y automática:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Trigger       │    │   Celery Task   │    │   PDF Generator │
+│   (Signal)      │───►│   (Async)       │───►│   (ReportLab)   │
+│                 │    │                 │    │                 │
+│ • Payment Save  │    │ • PDF Creation  │    │ • Hotel Logo    │
+│ • Refund Save   │    │ • Email Send    │    │ • Professional  │
+│ • Manual Pay    │    │ • Error Handle  │    │   Design        │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+#### Componentes Principales
+
+##### 1. PDFReceiptGenerator
+**Ubicación**: `apps/payments/services/pdf_generator.py`
+
+**Propósito**: Generar PDFs profesionales de recibos de pagos y reembolsos.
+
+**Características**:
+- ✅ **Logo del hotel** en el encabezado (si está configurado)
+- ✅ **Información completa del hotel** (nombre, dirección, teléfono, email, RUT)
+- ✅ **Fecha y hora de emisión** automática
+- ✅ **Datos del pago/reembolso** estructurados en tabla
+- ✅ **Información del huésped** principal
+- ✅ **Diseño profesional** con colores y estilos consistentes
+- ✅ **Sello fiscal interno** "Recibo generado automáticamente por AlojaSys (sin validez fiscal)"
+- ✅ **Logo de AlojaSys** en el pie de página
+
+**Métodos principales**:
+```python
+def generate_payment_receipt(payment_data: Dict[str, Any]) -> str
+def generate_refund_receipt(refund_data: Dict[str, Any]) -> str
+def _build_header(data: Dict[str, Any], is_refund: bool = False) -> list
+def _build_payment_info(data: Dict[str, Any]) -> list
+def _build_refund_info(data: Dict[str, Any]) -> list
+def _build_footer() -> list
+```
+
+##### 2. Tareas Celery Asíncronas
+**Ubicación**: `apps/payments/tasks.py`
+
+**Tareas principales**:
+
+###### generate_payment_receipt_pdf()
+```python
+@shared_task(bind=True)
+def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'payment'):
+    """
+    Genera un PDF de recibo para un pago o refund
+    - Obtiene datos del hotel (incluyendo logo)
+    - Extrae información del huésped principal
+    - Genera PDF con diseño profesional
+    - Encadena envío de email automático
+    """
+```
+
+###### send_payment_receipt_email()
+```python
+@shared_task(bind=True)
+def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payment', recipient_email: str = None):
+    """
+    Envía un email con el recibo PDF adjunto
+    - Usa email del hotel como remitente
+    - Adjunta PDF generado automáticamente
+    - Configura reply-to al email del hotel
+    - Maneja errores de envío
+    """
+```
+
+##### 3. Señales Django (Triggers)
+**Ubicación**: `apps/payments/signals.py`
+
+**Señales configuradas**:
+
+###### generate_payment_receipt
+```python
+@receiver(post_save, sender='reservations.Payment')
+def generate_payment_receipt(sender, instance, created, **kwargs):
+    """
+    Trigger: Cuando se crea un pago manual
+    Acción: Genera PDF y envía email automáticamente
+    """
+```
+
+###### generate_refund_receipt
+```python
+@receiver(post_save, sender='payments.Refund')
+def generate_refund_receipt(sender, instance, created, **kwargs):
+    """
+    Trigger: Cuando se crea un reembolso
+    Acción: Genera PDF y envía email automáticamente
+    """
+```
+
+#### Flujo de Trabajo
+
+##### 1. Creación de Pago Manual
+```
+1. Usuario confirma reserva con pago en efectivo
+2. Se crea Payment object en la base de datos
+3. Signal post_save se dispara automáticamente
+4. Celery task generate_payment_receipt_pdf se ejecuta
+5. Se extrae información del hotel (incluyendo logo)
+6. Se genera PDF con diseño profesional
+7. Se encadena tarea de envío de email
+8. Email se envía al huésped principal con PDF adjunto
+```
+
+##### 2. Procesamiento de Reembolso
+```
+1. Usuario cancela reserva con reembolso
+2. Se crea Refund object en la base de datos
+3. Signal post_save se dispara automáticamente
+4. Celery task generate_payment_receipt_pdf se ejecuta
+5. Se genera PDF de reembolso con información completa
+6. Se envía email al huésped con recibo de reembolso
+```
+
+#### Configuración de Email
+
+##### Variables de Entorno Requeridas
+```bash
+# Backend/.env
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.resend.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=resend
+EMAIL_HOST_PASSWORD=TU_API_KEY_DE_RESEND
+DEFAULT_FROM_EMAIL=AlojaSys <noreply@aloja.com>
+```
+
+##### Configuración SMTP
+- **Proveedor**: Resend (recomendado) o cualquier SMTP
+- **Autenticación**: API Key como contraseña
+- **Seguridad**: TLS habilitado
+- **Remitente**: Email global de AlojaSys
+- **Reply-To**: Email específico del hotel
+
+#### Estructura de Datos
+
+##### payment_data (para pagos)
+```python
+{
+    'payment_id': int,
+    'reservation_code': str,  # "RES-{id}"
+    'amount': float,
+    'method': str,  # "Efectivo", "Transferencia", etc.
+    'date': str,  # "DD/MM/YYYY HH:MM:SS"
+    'hotel_info': {
+        'name': str,
+        'address': str,
+        'tax_id': str,
+        'phone': str,
+        'email': str,
+        'logo_path': str  # Ruta al archivo de logo
+    },
+    'guest_info': {
+        'name': str,
+        'email': str
+    }
+}
+```
+
+##### refund_data (para reembolsos)
+```python
+{
+    'refund_id': int,
+    'payment_id': int,  # ID del pago original
+    'reservation_code': str,
+    'amount': float,
+    'method': str,
+    'date': str,
+    'reason': str,  # Motivo del reembolso
+    'hotel_info': { ... },  # Misma estructura
+    'guest_info': { ... }   # Misma estructura
+}
+```
+
+#### Almacenamiento de PDFs
+
+##### Estructura de Directorios
+```
+/media/
+└── receipts/
+    ├── payment_123.pdf
+    ├── payment_124.pdf
+    ├── refund_45.pdf
+    └── refund_46.pdf
+```
+
+##### Convención de Nombres
+- **Pagos**: `payment_{payment_id}.pdf`
+- **Reembolsos**: `refund_{refund_id}.pdf`
+
+#### Manejo de Errores
+
+##### Errores de Generación de PDF
+- **Logo no encontrado**: Continúa sin logo
+- **Datos faltantes**: Usa valores por defecto
+- **Error de ReportLab**: Log del error, continúa proceso
+
+##### Errores de Envío de Email
+- **Email no encontrado**: Log de advertencia
+- **Error SMTP**: Reintento automático
+- **PDF no generado**: No envía email
+
+#### Logs y Monitoreo
+
+##### Logs de Celery
+```bash
+# Generación exitosa
+[INFO] Generando PDF de recibo para payment ID: 123
+[INFO] PDF generado exitosamente: /app/media/receipts/payment_123.pdf
+
+# Envío de email
+[INFO] Enviando email con recibo para payment ID: 123
+[INFO] Email enviado exitosamente a: cliente@email.com
+```
+
+##### Logs de Error
+```bash
+# Error de generación
+[ERROR] Error generando PDF para payment 123: [detalle del error]
+
+# Error de envío
+[ERROR] Error enviando email para payment 123: [detalle del error]
+```
+
+#### Beneficios del Sistema
+
+##### Para el Hotel
+- ✅ **Automatización completa** del proceso de recibos
+- ✅ **Diseño profesional** con logo del hotel
+- ✅ **Información completa** del hotel en cada recibo
+- ✅ **Sin intervención manual** requerida
+- ✅ **Consistencia visual** en todos los recibos
+
+##### Para el Huésped
+- ✅ **Recibo inmediato** por email
+- ✅ **Información clara** del pago/reembolso
+- ✅ **Datos de contacto** del hotel
+- ✅ **Formato profesional** y fácil de imprimir
+- ✅ **Historial digital** de transacciones
+
+##### Para el Sistema
+- ✅ **Procesamiento asíncrono** sin bloquear la UI
+- ✅ **Manejo robusto de errores**
+- ✅ **Escalabilidad** con Celery
+- ✅ **Logs detallados** para debugging
+- ✅ **Configuración flexible** por hotel
+
+----
 
 ## 3.5 Módulo Rates
 

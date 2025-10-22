@@ -1,335 +1,233 @@
 """
-Servicio para generar PDFs de recibos de pagos y refunds
+Generador genérico de PDF elegante para AlojaSys
+Autor: Nico & Mate
 """
+
 import os
 from datetime import datetime
-from decimal import Decimal
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from django.conf import settings
-from django.core.files.storage import default_storage
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-import io
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, Frame, PageTemplate
+)
 
 
-class PDFReceiptGenerator:
-    """Generador de PDFs para recibos de pagos y refunds"""
-    
+class ModernPDFGenerator:
+    """Generador moderno, limpio y reutilizable de PDFs para AlojaSys."""
+
     def __init__(self):
         self.styles = getSampleStyleSheet()
-        self._setup_custom_styles()
-    
-    def _setup_custom_styles(self):
-        """Configura estilos personalizados para el PDF"""
-        # Estilo para el título principal
+        self._setup_styles()
+
+    def _setup_styles(self):
+        """Define estilos base."""
+        # Usar nombres únicos para evitar conflictos
         self.styles.add(ParagraphStyle(
-            name='CustomTitle',
-            parent=self.styles['Heading1'],
-            fontSize=18,
-            spaceAfter=20,
+            name="CustomTitle",
+            fontName="Helvetica-Bold",
+            fontSize=20,
             alignment=TA_CENTER,
-            textColor=colors.darkblue
+            textColor=colors.HexColor("#1E293B"),
+            spaceAfter=14
         ))
-        
-        # Estilo para subtítulos
+
         self.styles.add(ParagraphStyle(
-            name='CustomSubtitle',
-            parent=self.styles['Heading2'],
-            fontSize=14,
-            spaceAfter=12,
-            alignment=TA_LEFT,
-            textColor=colors.darkgreen
+            name="CustomSection",
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            textColor=colors.HexColor("#334155"),
+            spaceAfter=8
         ))
-        
-        # Estilo para información del recibo
+
         self.styles.add(ParagraphStyle(
-            name='ReceiptInfo',
-            parent=self.styles['Normal'],
-            fontSize=12,
-            spaceAfter=8,
-            alignment=TA_LEFT
+            name="CustomNormal",
+            fontName="Helvetica",
+            fontSize=11,
+            textColor=colors.HexColor("#475569"),
+            leading=14
         ))
-        
-        # Estilo para el sello fiscal
+
         self.styles.add(ParagraphStyle(
-            name='FiscalStamp',
-            parent=self.styles['Normal'],
-            fontSize=10,
-            spaceAfter=20,
-            alignment=TA_CENTER,
-            textColor=colors.red,
-            fontName='Helvetica-Bold'
+            name="CustomFooter",
+            fontName="Helvetica",
+            fontSize=9,
+            textColor=colors.HexColor("#6B7280"),
+            alignment=TA_CENTER
         ))
-    
-    def generate_payment_receipt(self, payment_data: Dict[str, Any]) -> str:
-        """
-        Genera un PDF de recibo para un pago
-        
-        Args:
-            payment_data: Diccionario con datos del pago
-                - payment_id: ID del pago
-                - reservation_code: Código de la reserva
-                - amount: Monto del pago
-                - method: Método de pago
-                - date: Fecha del pago
-                - hotel_info: Información del hotel
-                - guest_info: Información del huésped
-        
-        Returns:
-            str: Ruta del archivo PDF generado
-        """
-        # Crear directorio si no existe
-        receipts_dir = os.path.join(settings.MEDIA_ROOT, 'receipts')
-        os.makedirs(receipts_dir, exist_ok=True)
-        
-        # Generar nombre del archivo
-        filename = f"payment_{payment_data['payment_id']}.pdf"
-        filepath = os.path.join(receipts_dir, filename)
-        
-        # Crear el PDF
+
+    # ----------------------------------
+    # Generador principal
+    # ----------------------------------
+
+    def generate(self, data: Dict[str, Any], filename: str) -> str:
+        """Genera un PDF simple y efectivo."""
+        output_dir = os.path.join(settings.MEDIA_ROOT, "documents")
+        os.makedirs(output_dir, exist_ok=True)
+        filepath = os.path.join(output_dir, filename)
+
+        # Documento simple con márgenes normales
         doc = SimpleDocTemplate(
             filepath,
             pagesize=A4,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=18
+            leftMargin=40,
+            rightMargin=40,
+            topMargin=50,
+            bottomMargin=50
         )
-        
-        # Construir el contenido
+
         story = []
-        story.extend(self._build_header(payment_data))
-        story.extend(self._build_payment_info(payment_data))
-        story.extend(self._build_footer())
-        
-        # Generar el PDF
+        story += self._build_header(data)
+        story += self._build_body(data)
+        story += self._build_footer()
+
         doc.build(story)
-        
         return filepath
-    
-    def generate_refund_receipt(self, refund_data: Dict[str, Any]) -> str:
-        """
-        Genera un PDF de recibo para un refund
-        
-        Args:
-            refund_data: Diccionario con datos del refund
-                - refund_id: ID del refund
-                - payment_id: ID del pago original (opcional)
-                - reservation_code: Código de la reserva
-                - amount: Monto del refund
-                - method: Método de refund
-                - date: Fecha del refund
-                - reason: Razón del refund
-                - hotel_info: Información del hotel
-                - guest_info: Información del huésped
-        
-        Returns:
-            str: Ruta del archivo PDF generado
-        """
-        # Crear directorio si no existe
-        receipts_dir = os.path.join(settings.MEDIA_ROOT, 'receipts')
-        os.makedirs(receipts_dir, exist_ok=True)
-        
-        # Generar nombre del archivo
-        filename = f"refund_{refund_data['refund_id']}.pdf"
-        filepath = os.path.join(receipts_dir, filename)
-        
-        # Crear el PDF
-        doc = SimpleDocTemplate(
-            filepath,
-            pagesize=A4,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=18
-        )
-        
-        # Construir el contenido
-        story = []
-        story.extend(self._build_header(refund_data, is_refund=True))
-        story.extend(self._build_refund_info(refund_data))
-        story.extend(self._build_footer())
-        
-        # Generar el PDF
-        doc.build(story)
-        
-        return filepath
-    
-    def _build_header(self, data: Dict[str, Any], is_refund: bool = False) -> list:
-        """Construye el encabezado del PDF"""
+
+    def _build_footer(self):
+        """Construir footer simple y efectivo."""
         story = []
         
-        # Título principal
-        title = "RECIBO DE REEMBOLSO" if is_refund else "RECIBO DE PAGO"
-        story.append(Paragraph(title, self.styles['CustomTitle']))
-        
-        # Información del hotel
-        hotel_info = data.get('hotel_info', {})
-        if hotel_info:
-            hotel_name = hotel_info.get('name', 'Hotel')
-            hotel_address = hotel_info.get('address', '')
-            hotel_tax_id = hotel_info.get('tax_id', '')
-            
-            story.append(Paragraph(f"<b>{hotel_name}</b>", self.styles['CustomSubtitle']))
-            if hotel_address:
-                story.append(Paragraph(f"Dirección: {hotel_address}", self.styles['ReceiptInfo']))
-            if hotel_tax_id:
-                story.append(Paragraph(f"RUT: {hotel_tax_id}", self.styles['ReceiptInfo']))
-        
+        # Espaciador para separar del contenido
         story.append(Spacer(1, 20))
         
-        return story
-    
-    def _build_payment_info(self, data: Dict[str, Any]) -> list:
-        """Construye la información del pago"""
-        story = []
-        
-        # Información del recibo
-        story.append(Paragraph("INFORMACIÓN DEL PAGO", self.styles['CustomSubtitle']))
-        
-        # Crear tabla con información
-        info_data = [
-            ['Código de Reserva:', data.get('reservation_code', 'N/A')],
-            ['ID de Pago:', str(data.get('payment_id', 'N/A'))],
-            ['Monto:', f"${data.get('amount', 0):,.2f}"],
-            ['Método de Pago:', data.get('method', 'N/A')],
-            ['Fecha:', data.get('date', 'N/A')],
-        ]
-        
-        # Información del huésped
-        guest_info = data.get('guest_info', {})
-        if guest_info:
-            guest_name = guest_info.get('name', '')
-            guest_email = guest_info.get('email', '')
-            if guest_name:
-                info_data.append(['Huésped:', guest_name])
-            if guest_email:
-                info_data.append(['Email:', guest_email])
-        
-        # Crear tabla
-        table = Table(info_data, colWidths=[2*inch, 3*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-            ('BACKGROUND', (1, 0), (1, -1), colors.beige),
+        # Línea separadora sutil
+        line = Table([[""]], colWidths=[7.1*inch])
+        line.setStyle(TableStyle([
+            ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8)
         ]))
+        story.append(line)
         
-        story.append(table)
-        story.append(Spacer(1, 20))
-        
-        return story
-    
-    def _build_refund_info(self, data: Dict[str, Any]) -> list:
-        """Construye la información del refund"""
-        story = []
-        
-        # Información del recibo
-        story.append(Paragraph("INFORMACIÓN DEL REEMBOLSO", self.styles['CustomSubtitle']))
-        
-        # Crear tabla con información
-        info_data = [
-            ['Código de Reserva:', data.get('reservation_code', 'N/A')],
-            ['ID de Reembolso:', str(data.get('refund_id', 'N/A'))],
-            ['ID de Pago Original:', str(data.get('payment_id', 'N/A'))],
-            ['Monto:', f"${data.get('amount', 0):,.2f}"],
-            ['Método de Reembolso:', data.get('method', 'N/A')],
-            ['Fecha:', data.get('date', 'N/A')],
-        ]
-        
-        # Razón del refund
-        reason = data.get('reason', '')
-        if reason:
-            info_data.append(['Razón:', reason])
-        
-        # Información del huésped
-        guest_info = data.get('guest_info', {})
-        if guest_info:
-            guest_name = guest_info.get('name', '')
-            guest_email = guest_info.get('email', '')
-            if guest_name:
-                info_data.append(['Huésped:', guest_name])
-            if guest_email:
-                info_data.append(['Email:', guest_email])
-        
-        # Crear tabla
-        table = Table(info_data, colWidths=[2*inch, 3*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-            ('BACKGROUND', (1, 0), (1, -1), colors.beige),
-        ]))
-        
-        story.append(table)
-        story.append(Spacer(1, 20))
-        
-        return story
-    
-    def _build_footer(self) -> list:
-        """Construye el pie del PDF"""
-        story = []
-        
-        # Línea separadora
-        story.append(Spacer(1, 20))
-        story.append(Paragraph("─" * 50, self.styles['Normal']))
-        story.append(Spacer(1, 10))
-        
-        # Sello fiscal interno
-        story.append(Paragraph(
-            "Recibo generado automáticamente por AlojaSys (sin validez fiscal)",
-            self.styles['FiscalStamp']
-        ))
-        
-        # Fecha de generación
+        # Logo de AlojaSys
+        alojasys_logo_path = os.path.join(settings.STATIC_ROOT, "images", "logo_complet_black_transparent.png")
+        if not os.path.exists(alojasys_logo_path):
+            alojasys_logo_path = os.path.join(settings.BASE_DIR, "static", "images", "logo_complet_black_transparent.png")
+
+        logo = ""
+        if os.path.exists(alojasys_logo_path):
+            try:
+                reader = ImageReader(alojasys_logo_path)
+                iw, ih = reader.getSize()
+                aspect = ih / float(iw)
+                logo = Image(alojasys_logo_path, width=60, height=60 * aspect)
+            except Exception:
+                pass
+
         current_date = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        story.append(Paragraph(
-            f"Generado el: {current_date}",
-            self.styles['ReceiptInfo']
-        ))
         
+        # Footer simple con logo, fecha y sello
+        footer_data = [
+            [logo, 
+             f"Generado el {current_date}\nSistema automático · Transacción segura",
+             "Recibo generado automáticamente por AlojaSys\n(sin validez fiscal)"]
+        ]
+        
+        footer_table = Table(footer_data, colWidths=[1.8*inch, 3*inch, 2.3*inch])
+        footer_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (0, 0), "LEFT"),
+            ("ALIGN", (1, 0), (1, 0), "CENTER"),
+            ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("TEXTCOLOR", (1, 0), (1, 0), colors.HexColor("#64748B")),
+            ("TEXTCOLOR", (2, 0), (2, 0), colors.HexColor("#DC2626")),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        
+        story.append(footer_table)
         return story
-    
-    def get_receipt_path(self, payment_id: str, is_refund: bool = False) -> str:
+
+    # ----------------------------------
+    # Componentes visuales
+    # ----------------------------------
+
+    def _build_header(self, data: Dict[str, Any]):
+        hotel = data.get("hotel_info", {})
+        title_text = data.get("title", "Documento PDF")
+        generated_date = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        logo_path = hotel.get("logo_path")
+        logo_cell = ""
+        if logo_path and os.path.exists(logo_path):
+            try:
+                reader = ImageReader(logo_path)
+                iw, ih = reader.getSize()
+                aspect = ih / float(iw)
+                logo_cell = Image(logo_path, width=60, height=60 * aspect)
+            except Exception:
+                pass
+
+        title = Paragraph(title_text, self.styles["CustomTitle"])
+        date = Paragraph(f"<font size='9' color='#64748B'>Generado el {generated_date}</font>",
+                         ParagraphStyle(name="Date", alignment=TA_RIGHT, textColor="#64748B"))
+
+        header = Table(
+            [[logo_cell, title, date]],
+            colWidths=[1.2*inch, 3.8*inch, 2*inch]
+        )
+        header.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 15)
+        ]))
+
+        hotel_details = f"""
+            <b><font size='14' color='#1E293B'>{hotel.get('name', 'Hotel')}</font></b><br/>
+            <font size='10' color='#475569'>
+            {hotel.get('address', '')}<br/>
+            {hotel.get('phone', '')}<br/>
+            {hotel.get('email', '')}<br/>
+            {f"RUT: {hotel.get('tax_id')}" if hotel.get('tax_id') else ""}
+            </font>
         """
-        Obtiene la ruta del recibo PDF
-        
-        Args:
-            payment_id: ID del pago o refund
-            is_refund: Si es un refund o no
-        
-        Returns:
-            str: Ruta relativa del archivo PDF
-        """
-        prefix = "refund" if is_refund else "payment"
-        filename = f"{prefix}_{payment_id}.pdf"
-        return f"receipts/{filename}"
-    
-    def receipt_exists(self, payment_id: str, is_refund: bool = False) -> bool:
-        """
-        Verifica si el recibo PDF existe
-        
-        Args:
-            payment_id: ID del pago o refund
-            is_refund: Si es un refund o no
-        
-        Returns:
-            bool: True si el archivo existe
-        """
-        filepath = self.get_receipt_path(payment_id, is_refund)
-        full_path = os.path.join(settings.MEDIA_ROOT, filepath)
-        return os.path.exists(full_path)
+
+        # Línea sutil y elegante en lugar de cuadrados horribles
+        line = Table([[""]], colWidths=[7.1*inch])
+        line.setStyle(TableStyle([
+            ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8)
+        ]))
+
+        return [header, Spacer(1, 8), Paragraph(hotel_details, self.styles["CustomNormal"]), Spacer(1, 8), line, Spacer(1, 12)]
+
+    def _build_body(self, data: Dict[str, Any]):
+        story = []
+        story.append(Paragraph(data.get("section_title", "DETALLES"), self.styles["CustomSection"]))
+        story.append(Spacer(1, 4))
+
+        info_data = data.get("info_table", [])
+        if not info_data:
+            info_data = [["Mensaje:", "Sin información disponible."]]
+
+        table = Table(info_data, colWidths=[2.5*inch, 4.1*inch])
+        table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#1E293B")),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#CBD5E1")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E2E8F0")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ]))
+
+        story.append(table)
+        return story
+

@@ -14,7 +14,7 @@ def generate_payment_receipt(sender, instance, created, **kwargs):
     """
     Genera PDF de recibo cuando se crea un pago manual
     """
-    if created and instance.method in ['cash', 'transfer', 'pos']:
+    if created and instance.method in ['cash', 'transfer', 'pos', 'card', 'bank_transfer', 'online']:
         try:
             from .tasks import generate_payment_receipt_pdf
             # Solo generamos el PDF; el email lo enviará la tarea cuando detecte el archivo
