@@ -761,6 +761,8 @@
     "description_placeholder": "Notas internas…"
   },
   "hotels_modal": {
+    "logo": "Logo do hotel",
+    "current_logo": "Logo atual",
     "edit_hotel": "Editar hotel",
     "create_hotel": "Criar hotel",
     "save_changes": "Salvar alterações",

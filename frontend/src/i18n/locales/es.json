@@ -873,6 +873,8 @@
     "description_placeholder": "Notas internas…"
   },
   "hotels_modal": {
+    "logo": "Logo del hotel ",
+    "current_logo": "Logo actual",
     "edit_hotel": "Editar hotel",
     "create_hotel": "Crear hotel",
     "save_changes": "Guardar cambios",
@@ -937,6 +939,9 @@
     "phone_placeholder": "+54 11 1234-5678",
     "position": "Cargo",
     "position_placeholder": "Recepcionista",
+    "enterprise": "Empresa",
+    "enterprise_placeholder": "Seleccionar empresa...",
+    "enterprise_required": "La empresa es requerida",
     "assigned_hotels": "Hoteles asignados",
     "assigned_hotels_required": "Debe asignar al menos un hotel",
     "assigned_hotels_placeholder": "Seleccionar hoteles...",

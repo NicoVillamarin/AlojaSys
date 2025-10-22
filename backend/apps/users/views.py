@@ -34,7 +34,17 @@ def me_view(request):
     # Obtener información del perfil y hoteles asignados
     try:
         profile = user.profile
-        hotels = profile.hotels.all()
+        
+        # Si es superusuario, devolver todos los hoteles activos
+        if user.is_superuser:
+            from apps.core.models import Hotel
+            from apps.enterprises.models import Enterprise
+            hotels = Hotel.objects.filter(is_active=True).select_related('city', 'city__state', 'city__state__country')
+            enterprises = Enterprise.objects.filter(is_active=True)
+        else:
+            # Usuario normal: solo hoteles asignados
+            hotels = profile.hotels.filter(is_active=True).select_related('city', 'city__state', 'city__state__country')
+            enterprises = Enterprise.objects.filter(id=profile.enterprise.id, is_active=True) if profile.enterprise else Enterprise.objects.none()
         
         response_data.update({
             "profile": {
@@ -43,6 +53,11 @@ def me_view(request):
                 "position": profile.position or "",
                 "is_active": profile.is_active,
             },
+            "enterprise_ids": [enterprise.id for enterprise in enterprises],
+            "enterprise": {
+                "id": profile.enterprise.id,
+                "name": profile.enterprise.name,
+            } if profile.enterprise else None,
             "hotels": [
                 {
                     "id": hotel.id,
@@ -56,11 +71,36 @@ def me_view(request):
         })
     except UserProfile.DoesNotExist:
         # Si no tiene perfil (ej: superuser creado por shell)
-        response_data.update({
-            "profile": None,
-            "hotels": [],
-            "hotel_ids": [],
-        })
+        if user.is_superuser:
+            # Superusuario sin perfil: devolver todos los hoteles y empresas
+            from apps.core.models import Hotel
+            from apps.enterprises.models import Enterprise
+            hotels = Hotel.objects.filter(is_active=True).select_related('city', 'city__state', 'city__state__country')
+            enterprises = Enterprise.objects.filter(is_active=True)
+            response_data.update({
+                "profile": None,
+                "enterprise_ids": [enterprise.id for enterprise in enterprises],
+                "enterprise": None,  # Superusuario sin perfil no tiene empresa específica
+                "hotels": [
+                    {
+                        "id": hotel.id,
+                        "name": hotel.name,
+                        "city": hotel.city.name if hotel.city else "",
+                        "timezone": hotel.timezone,
+                    }
+                    for hotel in hotels
+                ],
+                "hotel_ids": [hotel.id for hotel in hotels],
+            })
+        else:
+            # Usuario normal sin perfil: no hoteles ni empresas
+            response_data.update({
+                "profile": None,
+                "enterprise_ids": [],
+                "enterprise": None,
+                "hotels": [],
+                "hotel_ids": [],
+            })
     
     return Response(response_data)
 

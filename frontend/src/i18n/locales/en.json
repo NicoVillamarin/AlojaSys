@@ -818,6 +818,8 @@
     "description_placeholder": "Internal notes…"
   },
   "hotels_modal": {
+    "logo": "Hotel logo",
+    "current_logo": "Current logo",
     "edit_hotel": "Edit hotel",
     "create_hotel": "Create hotel",
     "save_changes": "Save changes",

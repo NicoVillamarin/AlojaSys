@@ -1,6 +1,7 @@
 from django.db import models
 from datetime import time
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 
 
 class Hotel(models.Model):
@@ -19,6 +20,12 @@ class Hotel(models.Model):
     check_out_time = models.TimeField(default=time(11, 0))
     auto_check_in_enabled = models.BooleanField(default=False)
     auto_no_show_enabled = models.BooleanField(default=False, help_text="Habilita el marcado automático de reservas como no-show")
+    logo = models.ImageField(
+        upload_to='hotels/logos/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        help_text="Logo del hotel"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -29,6 +36,13 @@ class Hotel(models.Model):
 
     def __str__(self) -> str:
         return self.name
+    
+    @property
+    def logo_url(self):
+        """Obtiene la URL completa del logo del hotel"""
+        if self.logo:
+            return self.logo.url
+        return None
     
     def clean(self):
         if self.check_in_time == self.check_out_time:

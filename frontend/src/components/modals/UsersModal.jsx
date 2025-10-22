@@ -43,6 +43,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
     password: '',
     phone: user?.phone ?? '',
     position: user?.position ?? '',
+    enterprise: user?.enterprise ?? null,
     hotels: user?.hotels ?? [],
   }
 
@@ -65,6 +66,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           .min(8, t('users_modal.password_min')),
     phone: Yup.string(),
     position: Yup.string(),
+    enterprise: Yup.object().nullable().required(t('users_modal.enterprise_required')),
     hotels: Yup.array().min(1, t('users_modal.assigned_hotels_required')),
   })
 
@@ -89,6 +91,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           last_name: values.last_name || undefined,
           phone: values.phone || undefined,
           position: values.position || undefined,
+          enterprise: values.enterprise?.id || undefined,
           hotels: values.hotels || [],
         }
         
@@ -154,6 +157,14 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
               title={t('users_modal.position')} 
               name='position' 
               placeholder={t('users_modal.position_placeholder')} 
+            />
+            <SelectAsync
+              title={`${t('users_modal.enterprise')} *`}
+              name='enterprise'
+              resource='enterprises'
+              placeholder={t('users_modal.enterprise_placeholder')}
+              getOptionLabel={(e) => e?.name}
+              getOptionValue={(e) => e?.id}
             />
             <div className='lg:col-span-2'>
               <SelectAsync

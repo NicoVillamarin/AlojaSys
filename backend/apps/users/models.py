@@ -8,6 +8,7 @@ class UserProfile(models.Model):
     a un usuario para que pueda operar en ellos.
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    enterprise = models.ForeignKey("enterprises.Enterprise", on_delete=models.CASCADE, related_name="user_profiles", null=True, blank=True, help_text="Empresa principal del usuario")
     hotels = models.ManyToManyField("core.Hotel", related_name="user_profiles", blank=True)
     phone = models.CharField(max_length=50, blank=True)
     position = models.CharField(max_length=100, blank=True, verbose_name="Cargo")

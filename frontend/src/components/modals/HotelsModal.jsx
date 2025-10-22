@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
+import FileImage from 'src/components/inputs/FileImage'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -13,13 +14,31 @@ import { useUpdate } from 'src/hooks/useUpdate'
  */
 const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
   const { t } = useTranslation()
+  
+  // Función para convertir archivo a base64
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = error => reject(error)
+    })
+  }
   const { mutate: createHotel, isPending: creating } = useCreate({
     resource: 'hotels',
-    onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
+    onSuccess: (data) => { 
+      console.log('✅ Hotel creado exitosamente:', data)
+      onSuccess && onSuccess(data)
+      onClose && onClose() 
+    },
   })
   const { mutate: updateHotel, isPending: updating } = useUpdate({
     resource: 'hotels',
-    onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
+    onSuccess: (data) => { 
+      console.log('✅ Hotel actualizado exitosamente:', data)
+      onSuccess && onSuccess(data)
+      onClose && onClose() 
+    },
   })
 
   const initialValues = {
@@ -37,6 +56,8 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
     is_active: hotel?.is_active ?? true,
     auto_check_in_enabled: hotel?.auto_check_in_enabled ?? false,
     auto_no_show_enabled: hotel?.auto_no_show_enabled ?? false,
+    logo: null, // Archivo seleccionado
+    existing_logo_url: hotel?.logo_url ?? null, // URL del logo existente
   }
 
   const validationSchema = Yup.object().shape({
@@ -49,26 +70,88 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
       enableReinitialize
       initialValues={initialValues}
       validationSchema={validationSchema}
-      onSubmit={(values) => {
-        const payload = {
-          name: values.name || undefined,
-          enterprise: values.enterprise ? Number(values.enterprise) : undefined,
-          legal_name: values.legal_name || undefined,
-          tax_id: values.tax_id || undefined,
-          email: values.email || undefined,
-          phone: values.phone || undefined,
-          address: values.address || undefined,
-          country: values.country ? Number(values.country) : undefined,
-          state: values.state ? Number(values.state) : undefined,
-          city: values.city ? Number(values.city) : undefined,
-          check_in_time: values.check_in_time || undefined,
-          check_out_time: values.check_out_time || undefined,
-          is_active: values.is_active,
-          auto_check_in_enabled: values.auto_check_in_enabled || false,
-          auto_no_show_enabled: values.auto_no_show_enabled || false,
+      onSubmit={async (values) => {
+        console.log('📤 Enviando datos del hotel:', values)
+        
+        try {
+          // Crear payload como objeto JSON (no FormData)
+          const payload = {
+            name: values.name || undefined,
+            enterprise: values.enterprise ? Number(values.enterprise) : undefined,
+            legal_name: values.legal_name || undefined,
+            tax_id: values.tax_id || undefined,
+            email: values.email || undefined,
+            phone: values.phone || undefined,
+            address: values.address || undefined,
+            country: values.country ? Number(values.country) : undefined,
+            state: values.state ? Number(values.state) : undefined,
+            city: values.city ? Number(values.city) : undefined,
+            check_in_time: values.check_in_time || undefined,
+            check_out_time: values.check_out_time || undefined,
+            is_active: values.is_active,
+            auto_check_in_enabled: values.auto_check_in_enabled || false,
+            auto_no_show_enabled: values.auto_no_show_enabled || false,
+          }
+          
+          // Agregar logo como base64 si se seleccionó uno nuevo
+          if (values.logo) {
+            console.log('📎 Convirtiendo logo a base64:', {
+              name: values.logo.name,
+              size: values.logo.size,
+              type: values.logo.type
+            })
+            
+            // Convertir archivo a base64
+            const logoBase64 = await convertFileToBase64(values.logo)
+            payload.logo_base64 = logoBase64
+            payload.logo_filename = values.logo.name
+            
+            console.log('✅ Logo convertido a base64, tamaño:', logoBase64.length, 'caracteres')
+          } else {
+            console.log('⚠️ No se seleccionó logo')
+          }
+          
+          console.log('📋 Payload final:', payload)
+          
+          if (isEdit && hotel?.id) {
+            console.log('🔄 Actualizando hotel ID:', hotel.id)
+            updateHotel({ 
+              id: hotel.id, 
+              body: payload
+            })
+          } else {
+            console.log('➕ Creando nuevo hotel')
+            createHotel({
+              body: payload
+            })
+          }
+        } catch (error) {
+          console.error('❌ Error procesando logo:', error)
+          // En caso de error, enviar sin logo
+          const payload = {
+            name: values.name || undefined,
+            enterprise: values.enterprise ? Number(values.enterprise) : undefined,
+            legal_name: values.legal_name || undefined,
+            tax_id: values.tax_id || undefined,
+            email: values.email || undefined,
+            phone: values.phone || undefined,
+            address: values.address || undefined,
+            country: values.country ? Number(values.country) : undefined,
+            state: values.state ? Number(values.state) : undefined,
+            city: values.city ? Number(values.city) : undefined,
+            check_in_time: values.check_in_time || undefined,
+            check_out_time: values.check_out_time || undefined,
+            is_active: values.is_active,
+            auto_check_in_enabled: values.auto_check_in_enabled || false,
+            auto_no_show_enabled: values.auto_no_show_enabled || false,
+          }
+          
+          if (isEdit && hotel?.id) {
+            updateHotel({ id: hotel.id, body: payload })
+          } else {
+            createHotel({ body: payload })
+          }
         }
-        if (isEdit && hotel?.id) updateHotel({ id: hotel.id, body: payload })
-        else createHotel(payload)
       }}
     >
       {({ values, handleChange, handleSubmit, setFieldValue }) => (
@@ -177,6 +260,20 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                   <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.enabled_for_operation')}</span>
                 </label>
               </div>
+                  {/* Logo del hotel */}
+            <div className='lg:col-span-2'>
+              <FileImage
+                name='logo'
+                label={t('hotels_modal.logo') || 'Logo del hotel'}
+                compress={true}
+                maxWidth={800}
+                maxHeight={600}
+                quality={0.9}
+                maxSize={2 * 1024 * 1024} // 2MB
+                existingImageUrl={isEdit ? values.existing_logo_url : null}
+                className='mb-4'
+              />
+            </div>
             </div>
           </div>
         </ModalLayout>
