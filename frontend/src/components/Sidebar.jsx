@@ -16,6 +16,7 @@ import CardCreditIcon from "src/assets/icons/CardCreditIcon";
 import UserIcon from "src/assets/icons/UserIcon";
 import ReceptionIcon from "src/assets/icons/ReceptionIcon";
 import CalendarIcon from "src/assets/icons/CalendarIcon";
+import ReconciliationIcon from "src/assets/icons/ReconciliationIcon";
 
 const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
   <NavLink
@@ -60,7 +61,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
-    const isFinancial = location.pathname === "/refunds" || location.pathname.startsWith("/payments") || location.pathname === "/vouchers";
+    const isFinancial = location.pathname === "/refunds" || location.pathname.startsWith("/payments") || location.pathname === "/vouchers" || location.pathname === "/bank-reconciliation";
     const isHistories = location.pathname.startsWith("/reservations/") && location.pathname.includes("/history") || 
                        location.pathname === "/payments" || 
                        location.pathname === "/refunds/history";
@@ -152,6 +153,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
             >
               <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.refunds')}</Item>
               <Item to="/vouchers" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.vouchers')}</Item>
+              <Item to="/bank-reconciliation" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>{t('sidebar.bank_reconciliation')}</span>}</Item>
             </div>
           </div>
         )}

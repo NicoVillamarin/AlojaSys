@@ -2,6 +2,7 @@
 Tareas Celery para el módulo de pagos
 """
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from decimal import Decimal
@@ -381,6 +382,36 @@ def process_webhook_post_processing(self, payment_intent_id: int, webhook_data: 
         
         # Procesar eventos internos
         _process_webhook_events(payment_intent, webhook_data)
+        
+        # Generar PDF de recibo si el pago fue aprobado
+        if hasattr(payment_intent, 'status') and payment_intent.status == 'approved':
+            try:
+                # Buscar el Payment asociado al PaymentIntent
+                from apps.reservations.models import Payment
+                payment = Payment.objects.filter(
+                    reservation=payment_intent.reservation,
+                    method='online',
+                    amount=payment_intent.amount
+                ).first()
+                
+                if payment:
+                    # Generar PDF de recibo asíncronamente
+                    generate_payment_receipt_pdf.delay(payment.id, 'payment')
+                    logger.info(f"[PDF] Generando recibo PDF para Payment {payment.id}")
+                    
+                    # Enviar email con recibo si hay email del huésped
+                    if (payment_intent.reservation.guests_data and 
+                        payment_intent.reservation.guests_data.get('email')):
+                        send_payment_receipt_email.delay(
+                            payment.id, 
+                            'payment', 
+                            payment_intent.reservation.guests_data['email']
+                        )
+                        logger.info(f"[EMAIL] Enviando recibo por email para Payment {payment.id}")
+                else:
+                    logger.warning(f"[PDF] No se encontró Payment asociado para PaymentIntent {payment_intent_id}")
+            except Exception as e:
+                logger.error(f"[PDF] Error generando recibo para PaymentIntent {payment_intent_id}: {e}")
         
         logger.info(f"[OK] Post-procesamiento completado para PaymentIntent {payment_intent_id}")
         
@@ -1041,4 +1072,260 @@ def update_currency_rates():
         
     except Exception as e:
         logger.error(f"Error actualizando tipos de cambio: {str(e)}")
+        raise
+
+
+# =============================================================================
+# TAREAS PARA GENERACIÓN DE PDFs DE RECIBOS
+# =============================================================================
+
+def _get_primary_guest_info(guests_data):
+    """Obtiene la información del huésped principal de guests_data"""
+    if not guests_data:
+        return {'name': '', 'email': ''}
+    
+    # guests_data es una lista, buscar el huésped principal
+    primary_guest = next((guest for guest in guests_data if guest.get('is_primary', False)), None)
+    if primary_guest:
+        return {
+            'name': primary_guest.get('name', ''),
+            'email': primary_guest.get('email', '')
+        }
+    
+    # Si no hay huésped principal, tomar el primero
+    if guests_data:
+        return {
+            'name': guests_data[0].get('name', ''),
+            'email': guests_data[0].get('email', '')
+        }
+    
+    return {'name': '', 'email': ''}
+
+
+@shared_task(bind=True)
+def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'payment'):
+    """
+    Genera un PDF de recibo para un pago o refund
+    
+    Args:
+        payment_id: ID del pago o refund
+        payment_type: 'payment' o 'refund'
+    """
+    try:
+        from .services.pdf_generator import PDFReceiptGenerator
+        from .models import Refund
+        from apps.reservations.models import Payment
+        
+        logger.info(f"Generando PDF de recibo para {payment_type} ID: {payment_id}")
+        
+        # Obtener datos según el tipo
+        if payment_type == 'refund':
+            try:
+                refund = Refund.objects.get(id=payment_id)
+                payment_data = {
+                    'refund_id': refund.id,
+                    'payment_id': refund.payment.id if refund.payment else None,
+                    'reservation_code': f"RES-{refund.reservation.id}",
+                    'amount': float(refund.amount),
+                    'method': refund.method,
+                    'date': refund.created_at.strftime("%d/%m/%Y %H:%M:%S"),
+                    'reason': refund.reason,
+                    'hotel_info': {
+                        'name': refund.reservation.hotel.name,
+                        'address': getattr(refund.reservation.hotel, 'address', ''),
+                        'tax_id': getattr(refund.reservation.hotel, 'tax_id', ''),
+                    },
+                    'guest_info': _get_primary_guest_info(refund.reservation.guests_data)
+                }
+            except Refund.DoesNotExist:
+                logger.error(f"Refund con ID {payment_id} no encontrado")
+                return {'status': 'error', 'message': 'Refund no encontrado'}
+        else:
+            try:
+                payment = Payment.objects.get(id=payment_id)
+                payment_data = {
+                    'payment_id': payment.id,
+                    'reservation_code': f"RES-{payment.reservation.id}",
+                    'amount': float(payment.amount),
+                    'method': payment.method,
+                    'date': payment.date.strftime("%d/%m/%Y %H:%M:%S"),
+                    'hotel_info': {
+                        'name': payment.reservation.hotel.name,
+                        'address': getattr(payment.reservation.hotel, 'address', ''),
+                        'tax_id': getattr(payment.reservation.hotel, 'tax_id', ''),
+                    },
+                    'guest_info': _get_primary_guest_info(payment.reservation.guests_data)
+                }
+            except Payment.DoesNotExist:
+                logger.error(f"Payment con ID {payment_id} no encontrado")
+                return {'status': 'error', 'message': 'Payment no encontrado'}
+        
+        # Generar PDF
+        generator = PDFReceiptGenerator()
+        
+        if payment_type == 'refund':
+            pdf_path = generator.generate_refund_receipt(payment_data)
+        else:
+            pdf_path = generator.generate_payment_receipt(payment_data)
+        
+        logger.info(f"PDF generado exitosamente: {pdf_path}")
+
+        # Encadenar envío de email con el huésped principal
+        try:
+            reservation = refund.reservation if payment_type == 'refund' else payment.reservation
+            guest_info = _get_primary_guest_info(reservation.guests_data)
+            recipient = guest_info.get('email')
+            if recipient:
+                # Llamar a la tarea de email con el destinatario explícito
+                send_payment_receipt_email.delay(payment_id, payment_type, recipient)
+                logger.info(f"[EMAIL] Programado envío de recibo a {recipient} para {payment_type} {payment_id}")
+            else:
+                logger.warning(f"[EMAIL] No se encontró email del huésped principal para {payment_type} {payment_id}")
+        except Exception as e:
+            logger.error(f"[EMAIL] Error programando envío de recibo para {payment_type} {payment_id}: {e}")
+
+        return {
+            'status': 'success',
+            'message': 'PDF generado exitosamente',
+            'pdf_path': pdf_path,
+            'payment_id': payment_id,
+            'payment_type': payment_type
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generando PDF para {payment_type} {payment_id}: {str(e)}")
+        raise
+
+
+@shared_task(bind=True)
+def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payment', recipient_email: str = None):
+    """
+    Envía un email con el recibo PDF adjunto
+    
+    Args:
+        payment_id: ID del pago o refund
+        payment_type: 'payment' o 'refund'
+        recipient_email: Email del destinatario (opcional)
+    """
+    try:
+        from django.core.mail import EmailMessage
+        from django.conf import settings
+        from .services.pdf_generator import PDFReceiptGenerator
+        from .models import Refund
+        from apps.reservations.models import Payment
+        
+        logger.info(f"Enviando email con recibo para {payment_type} ID: {payment_id}")
+        
+        # Obtener datos según el tipo
+        if payment_type == 'refund':
+            try:
+                refund = Refund.objects.get(id=payment_id)
+                reservation = refund.reservation
+                amount = refund.amount
+                method = refund.method
+                reason = refund.reason
+            except Refund.DoesNotExist:
+                logger.error(f"Refund con ID {payment_id} no encontrado")
+                return {'status': 'error', 'message': 'Refund no encontrado'}
+        else:
+            try:
+                payment = Payment.objects.get(id=payment_id)
+                reservation = payment.reservation
+                amount = payment.amount
+                method = payment.method
+                reason = None
+            except Payment.DoesNotExist:
+                logger.error(f"Payment con ID {payment_id} no encontrado")
+                return {'status': 'error', 'message': 'Payment no encontrado'}
+        
+        # Obtener email del destinatario
+        if not recipient_email:
+            guest_info = _get_primary_guest_info(reservation.guests_data)
+            if guest_info.get('email'):
+                recipient_email = guest_info['email']
+            else:
+                logger.warning(f"No se encontró email para {payment_type} {payment_id}")
+                return {'status': 'error', 'message': 'Email no encontrado'}
+        
+        # Verificar si el PDF existe, si no generarlo
+        generator = PDFReceiptGenerator()
+        pdf_path = generator.get_receipt_path(payment_id, is_refund=(payment_type == 'refund'))
+        full_pdf_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
+        
+        if not os.path.exists(full_pdf_path):
+            # Generar PDF si no existe
+            generate_payment_receipt_pdf.delay(payment_id, payment_type)
+            logger.info(f"PDF no encontrado, generando asíncronamente para {payment_type} {payment_id}")
+            return {'status': 'pending', 'message': 'PDF en generación, email se enviará después'}
+        
+        # Preparar email
+        if payment_type == 'refund':
+            subject = f"Recibo de Reembolso - Reserva RES-{reservation.id}"
+            guest_info = _get_primary_guest_info(reservation.guests_data)
+            body = f"""
+            Estimado/a {guest_info.get('name', 'Huésped')},
+            
+            Se adjunta el recibo de reembolso por ${amount:,.2f} para su reserva RES-{reservation.id}.
+            
+            Método de reembolso: {method}
+            Razón: {reason or 'N/A'}
+            
+            Hotel: {reservation.hotel.name}
+            Fechas: {reservation.check_in} - {reservation.check_out}
+            
+            Gracias por su confianza.
+            
+            Equipo de {reservation.hotel.name}
+            """
+        else:
+            subject = f"Recibo de Pago - Reserva RES-{reservation.id}"
+            guest_info = _get_primary_guest_info(reservation.guests_data)
+            body = f"""
+            Estimado/a {guest_info.get('name', 'Huésped')},
+            
+            Se adjunta el recibo de pago por ${amount:,.2f} para su reserva RES-{reservation.id}.
+            
+            Método de pago: {method}
+            
+            Hotel: {reservation.hotel.name}
+            Fechas: {reservation.check_in} - {reservation.check_out}
+            
+            Gracias por su confianza.
+            
+            Equipo de {reservation.hotel.name}
+            """
+        
+        # Crear email con adjunto y Reply-To al hotel (si existe)
+        hotel_email = getattr(reservation.hotel, 'email', '') or None
+        email = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient_email],
+            reply_to=[hotel_email] if hotel_email else None,
+        )
+        
+        # Adjuntar PDF
+        with open(full_pdf_path, 'rb') as pdf_file:
+            email.attach(
+                filename=f"recibo_{payment_type}_{payment_id}.pdf",
+                content=pdf_file.read(),
+                mimetype='application/pdf'
+            )
+        
+        # Enviar email
+        email.send()
+        
+        logger.info(f"Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
+        
+        return {
+            'status': 'success',
+            'message': 'Email enviado exitosamente',
+            'recipient_email': recipient_email,
+            'payment_id': payment_id,
+            'payment_type': payment_type
+        }
+        
+    except Exception as e:
+        logger.error(f"Error enviando email para {payment_type} {payment_id}: {str(e)}")
         raise

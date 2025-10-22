@@ -84,8 +84,8 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     
     const occupiedDates = new Set()
     
-    // Estados que SÍ ocupan la habitación
-    const occupyingStatuses = ['CONFIRMED', 'CHECKED_IN', 'PENDING']
+    // Estados que SÍ ocupan la habitación (en minúsculas como vienen del backend)
+    const occupyingStatuses = ['confirmed', 'check_in', 'pending']
     
     // Agregar reserva actual si existe y está ocupando
     if (roomData.current_reservation) {
@@ -602,9 +602,13 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         const occupiedDates = getOccupiedDates(values.room_data)
         
         // Debug: mostrar fechas ocupadas en consola
-        if (values.room_data && occupiedDates.length > 0) {
-          console.log('Datos de la habitación:', values.room_data)
-          console.log('Fechas ocupadas extraídas (solo CONFIRMED, CHECKED_IN, PENDING):', occupiedDates)
+        console.log('=== DEBUG FECHAS OCUPADAS ===')
+        console.log('Datos de la habitación:', values.room_data)
+        console.log('Fechas ocupadas extraídas:', occupiedDates)
+        
+        if (values.room_data) {
+          console.log('current_reservation:', values.room_data.current_reservation)
+          console.log('future_reservations:', values.room_data.future_reservations)
           
           // Mostrar qué reservas se están considerando
           const allReservations = [
@@ -612,10 +616,11 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
             ...(values.room_data.future_reservations || [])
           ]
           const occupyingReservations = allReservations.filter(r => 
-            ['CONFIRMED', 'CHECKED_IN', 'PENDING'].includes(r.status)
+            ['confirmed', 'check_in', 'pending'].includes(r.status)
           )
           console.log('Reservas que ocupan la habitación:', occupyingReservations)
         }
+        console.log('=== FIN DEBUG ===')
 
         // Limpiar habitación si cambió el número de huéspedes y la habitación actual no tiene capacidad suficiente
         if (values.guests !== previousGuests) {

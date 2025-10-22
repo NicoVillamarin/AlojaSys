@@ -6,6 +6,8 @@ import "animate.css";
 import fetchWithAuth from "src/services/fetchWithAuth";
 import { getApiURL, getMercadoPagoPublicKey } from "src/services/utils";
 import PaymentBrick from "../payments/PaymentBrick";
+import BankTransferForm from "../payments/BankTransferForm";
+import BankTransferStatus from "../payments/BankTransferStatus";
 import CrashIcon from "src/assets/icons/CrashIcon";
 import TranfCrash from "src/assets/icons/TranfCrash";
 import PostnetIcon from "src/assets/icons/PostnetIcon";
@@ -48,6 +50,14 @@ export default function PaymentModal({
     const [paymentMethod, setPaymentMethod] = useState(""); // card, cash, transfer, pos
     // Steps: amount -> select -> form
     const [step, setStep] = useState("amount");
+    // Estado para transferencias bancarias
+    const [showTransferForm, setShowTransferForm] = useState(false);
+    const [showTransferStatus, setShowTransferStatus] = useState(false);
+    
+    // Estados para POSTNET
+    const [terminalId, setTerminalId] = useState("");
+    const [batchNumber, setBatchNumber] = useState("");
+    const [isSettled, setIsSettled] = useState(false);
     
     // Determinar si es pago de saldo pendiente o confirmación inicial
     const isBalancePayment = !!balanceInfo;
@@ -76,13 +86,23 @@ export default function PaymentModal({
                 paymentAmount = reservationData?.total_price || 0;
             }
             
+            // Preparar datos del pago
+            const paymentData = {
+                amount: paymentAmount,
+                method: paymentType,
+                date: new Date().toISOString().split('T')[0] // Fecha actual en formato YYYY-MM-DD
+            };
+
+            // Si es POSTNET, agregar campos específicos
+            if (paymentType === 'pos') {
+                paymentData.terminal_id = additionalData.terminal_id || '';
+                paymentData.batch_number = additionalData.batch_number || '';
+                paymentData.is_settled = additionalData.is_settled || false;
+            }
+            
             const response = await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/payments/`, {
                 method: "POST",
-                body: JSON.stringify({
-                    amount: paymentAmount,
-                    method: paymentType,
-                    date: new Date().toISOString().split('T')[0] // Fecha actual en formato YYYY-MM-DD
-                })
+                body: JSON.stringify(paymentData)
             });
 
             if (response?.id) {
@@ -693,42 +713,45 @@ export default function PaymentModal({
 
                                 {paymentMethod === "transfer" && (
                                     <div className="p-4 bg-gray-50 rounded-lg">
-                                        <h4 className="font-medium mb-2">Transferencia Bancaria</h4>
-                                        <p className="text-sm text-gray-600 mb-4">
-                                            {isBalancePayment 
-                                                ? "El huésped realizará una transferencia bancaria por el saldo pendiente. Sube el comprobante para confirmar el pago."
-                                                : "El huésped realizará una transferencia bancaria. Sube el comprobante para confirmar el pago."
-                                            }
-                                        </p>
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Comprobante de Transferencia
-                                                </label>
-                                                <input
-                                                    type="file"
-                                                    accept="image/*,.pdf"
-                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Número de Operación
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Ej: 1234567890"
-                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                                />
-                                            </div>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="font-medium">Transferencia Bancaria</h4>
                                             <button
-                                                onClick={() => registerManualPayment("transfer")}
-                                                className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition"
+                                                onClick={() => setShowTransferStatus(!showTransferStatus)}
+                                                className="text-sm text-purple-600 hover:text-purple-800"
                                             >
-                                                {isBalancePayment ? "Confirmar Transferencia de Saldo" : "Confirmar Transferencia"}
+                                                {showTransferStatus ? "Ocultar Estado" : "Ver Estado"}
                                             </button>
                                         </div>
-        </div>
+                                        
+                                        {showTransferStatus ? (
+                                            <BankTransferStatus
+                                                reservationId={reservationId}
+                                                onStatusChange={() => {
+                                                    // Recargar datos si es necesario
+                                                }}
+                                            />
+                                        ) : (
+                                            <BankTransferForm
+                                                reservationId={reservationId}
+                                                amount={isBalancePayment ? balanceInfo.balance_due : (payAmount || null)}
+                                                isBalancePayment={isBalancePayment}
+                                                onSuccess={(response) => {
+                                                    setShowTransferForm(false);
+                                                    setShowTransferStatus(true);
+                                                    showResult("approved", "Transferencia confirmada exitosamente. La reserva ha sido confirmada y pagada.");
+                                                }}
+                                                onError={(error) => {
+                                                    setError(error.message || "Error subiendo comprobante");
+                                                    showResult("error", error.message || "Error subiendo comprobante");
+                                                }}
+                                                onCancel={() => {
+                                                    setShowTransferForm(false);
+                                                    setPaymentMethod("");
+                                                    setStep("select");
+                                                }}
+                                            />
+                                        )}
+                                    </div>
                                 )}
 
                                 {paymentMethod === "pos" && (
@@ -743,27 +766,51 @@ export default function PaymentModal({
                                         <div className="space-y-3">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Número de Autorización
+                                                    Terminal ID
                                                 </label>
                                                 <input
                                                     type="text"
-                                                    placeholder="Ej: 123456"
+                                                    value={terminalId}
+                                                    onChange={(e) => setTerminalId(e.target.value)}
+                                                    placeholder="Ej: TERM001"
                                                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Últimos 4 dígitos de la tarjeta
+                                                    Número de Batch
                                                 </label>
                                                 <input
                                                     type="text"
-                                                    placeholder="Ej: 1234"
-                                                    maxLength="4"
+                                                    value={batchNumber}
+                                                    onChange={(e) => setBatchNumber(e.target.value)}
+                                                    placeholder="Ej: BATCH_20241201_001"
                                                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                                                 />
                                             </div>
+                                            <div className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    id="isSettled"
+                                                    checked={isSettled}
+                                                    onChange={(e) => setIsSettled(e.target.checked)}
+                                                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                                                />
+                                                <label htmlFor="isSettled" className="ml-2 block text-sm text-gray-700">
+                                                    Liquidado (pago ya confirmado por el terminal)
+                                                </label>
+                                            </div>
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                                <p className="text-sm text-yellow-800">
+                                                    <strong>Nota:</strong> Si no está liquidado, el pago quedará pendiente hasta que se confirme desde la gestión de pagos.
+                                                </p>
+                                            </div>
                                             <button
-                                                onClick={() => registerManualPayment("pos")}
+                                                onClick={() => registerManualPayment("pos", {
+                                                    terminal_id: terminalId,
+                                                    batch_number: batchNumber,
+                                                    is_settled: isSettled
+                                                })}
                                                 className="w-full bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 transition"
                                             >
                                                 {isBalancePayment ? "Confirmar Pago de Saldo PostNet" : "Confirmar Pago PostNet"}

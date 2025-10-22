@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ping, create_checkout_preference, create_brick_intent, process_card_payment, webhook, get_reservation_payments,
-    PaymentMethodViewSet, PaymentPolicyViewSet, CancellationPolicyViewSet, RefundPolicyViewSet, RefundViewSet, RefundVoucherViewSet, process_deposit_payment, rotate_payment_tokens,
+    PaymentMethodViewSet, PaymentPolicyViewSet, CancellationPolicyViewSet, RefundPolicyViewSet, RefundViewSet, RefundVoucherViewSet, process_deposit_payment, process_full_payment, rotate_payment_tokens,
     BankTransferPaymentViewSet, upload_bank_transfer_receipt,
 )
 from .views_collections import PaymentCollectionViewSet
@@ -29,6 +29,7 @@ urlpatterns = [
     path("webhook/", webhook, name="payments-webhook"),
     path("process-card/", process_card_payment, name="payments-process-card"),
     path("process-deposit/", process_deposit_payment, name="payments-process-deposit"),
+    path("process-full-payment/", process_full_payment, name="payments-process-full-payment"),
     path("reservation/<int:reservation_id>/payments/", get_reservation_payments, name="payments-reservation-payments"),
     path("rotate-tokens/", rotate_payment_tokens, name="payments-rotate-tokens"),
     path("upload-bank-transfer/", upload_bank_transfer_receipt, name="payments-upload-bank-transfer"),

@@ -41,7 +41,8 @@
     "devolution_policies": "Políticas de Devolución",
     "histories": "Históricos",
     "refunds_history": "Histórico de Reembolsos",
-    "vouchers": "Vouchers"
+    "vouchers": "Vouchers",
+    "bank_reconciliation": "Conciliación Bancaria"
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",
@@ -1221,6 +1222,25 @@
       "mercado_pago": "Mercado Pago",
       "other": "Otro"
     },
+    "method": {
+      "cash": "Efectivo",
+      "card": "Tarjeta",
+      "bank_transfer": "Transferencia Bancaria",
+      "mercado_pago": "Mercado Pago",
+      "pending": "Pendiente"
+    },
+    "type": {
+      "manual": "Manual",
+      "online": "Online",
+      "bank_transfer": "Transferencia",
+      "pending": "Pendiente"
+    },
+    "status": {
+      "approved": "Aprobado",
+      "pending": "Pendiente",
+      "rejected": "Rechazado",
+      "cancelled": "Cancelado"
+    },
     "statuses": {
       "completed": "Completado",
       "approved": "Aprobado",
@@ -1480,6 +1500,60 @@
         "admin_adjustment": "Ajuste Administrativo",
         "customer_request": "Solicitud del Cliente",
         "system_error": "Error del Sistema"
+      }
+    },
+    "reconciliation": {
+      "title": "Conciliación Bancaria",
+      "description": "Gestiona la conciliación automática de pagos bancarios",
+      "upload_csv": "Subir CSV",
+      "view_list": "Ver Lista",
+      "back": "Volver",
+      "process": "Procesar",
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "status": {
+        "pending": "Pendiente",
+        "processing": "Procesando",
+        "completed": "Completada",
+        "failed": "Fallida",
+        "manual_review": "Revisión Manual"
+      },
+      "match_type": {
+        "exact": "Exacto",
+        "fuzzy": "Aproximado",
+        "partial": "Parcial",
+        "manual": "Manual"
+      },
+      "stats": {
+        "total_reconciliations": "Total Conciliaciones",
+        "completed": "Completadas",
+        "pending": "Pendientes",
+        "average_match": "Match Promedio",
+        "total_transactions": "Total Transacciones",
+        "matched": "Matches",
+        "unmatched": "Sin Match",
+        "pending_review": "Pendientes"
+      },
+      "csv_format": {
+        "title": "Formato CSV Esperado",
+        "columns": "Columnas: fecha, descripcion, importe, moneda, referencia",
+        "separator": "Separador: coma (,)",
+        "encoding": "Encoding: UTF-8",
+        "example": "Ejemplo: 2025-10-19, \"Transferencia Juan Perez\", 23000.00, \"ARS\", \"CBU 28500109...1234\""
+      },
+      "tabs": {
+        "overview": "Resumen",
+        "transactions": "Transacciones",
+        "matches": "Matches",
+        "logs": "Logs"
+      },
+      "messages": {
+        "csv_uploaded": "CSV subido exitosamente. La conciliación se está procesando.",
+        "reconciliation_processed": "Conciliación programada para procesamiento",
+        "match_approved": "Match aprobado exitosamente",
+        "match_rejected": "Match rechazado exitosamente",
+        "no_reconciliations": "No hay conciliaciones",
+        "upload_csv_to_start": "Sube un archivo CSV para comenzar."
       }
     }
   }

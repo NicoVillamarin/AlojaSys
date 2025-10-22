@@ -23,6 +23,7 @@ const PaymentDetailModal = ({
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [activeTab, setActiveTab] = useState('payments') // 'payments' o 'attachments'
 
   useEffect(() => {
     if (!isOpen || !reservationId) return
@@ -93,6 +94,33 @@ const PaymentDetailModal = ({
       default:
         return 'default'
     }
+  }
+
+  // Función para obtener archivos adjuntos de los pagos
+  const getAttachments = () => {
+    const attachments = []
+    
+    payments.forEach(payment => {
+      // Transferencias bancarias con comprobantes
+      if (payment.type === 'bank_transfer' && payment.receipt_url) {
+        attachments.push({
+          id: `transfer_${payment.id}`,
+          type: 'receipt',
+          name: payment.receipt_filename || t('payments.attachments.receipt'),
+          url: payment.receipt_url,
+          paymentId: payment.id,
+          paymentType: t('payments.method.bank_transfer'),
+          amount: payment.amount,
+          date: payment.created_at,
+          description: `${t('payments.attachments.receipt')} - ${payment.bank_name || 'Banco'}`
+        })
+      }
+      
+      // Otros tipos de archivos que podrían existir en el futuro
+      // (vouchers, contratos, etc.)
+    })
+    
+    return attachments
   }
 
   const getPaymentMethodLabel = (payment) => {
@@ -197,8 +225,35 @@ const PaymentDetailModal = ({
           </div>
         </div>
 
-        {/* Lista de pagos */}
-        <div>
+        {/* Pestañas */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'payments'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {t('payments.detail_modal.payment_history')}
+            </button>
+            <button
+              onClick={() => setActiveTab('attachments')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'attachments'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Archivos Adjuntos ({getAttachments().length})
+            </button>
+          </nav>
+        </div>
+
+        {/* Contenido de las pestañas */}
+        {activeTab === 'payments' && (
+          <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             {t('payments.detail_modal.payment_history')}
           </h3>
@@ -304,7 +359,89 @@ const PaymentDetailModal = ({
               ))}
             </div>
           )}
-        </div>
+          </div>
+        )}
+
+        {activeTab === 'attachments' && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {t('payments.attachments.title')}
+            </h3>
+            
+            {getAttachments().length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">
+                  {t('payments.attachments.no_attachments')}
+                </h4>
+                <p className="text-gray-600 max-w-md mx-auto">
+                  {t('payments.attachments.no_attachments_description')}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {getAttachments().map((attachment) => (
+                  <div 
+                    key={attachment.id}
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">
+                            {attachment.name}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {attachment.description}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {attachment.paymentType} • ${parseFloat(attachment.amount || 0).toLocaleString()} • 
+                            {attachment.date ? format(parseISO(attachment.date), 'dd/MM/yyyy HH:mm') : '—'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          {t('payments.attachments.view')}
+                        </a>
+                        <a
+                          href={attachment.url}
+                          download={attachment.name}
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          {t('payments.attachments.download')}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </ModalLayout>
   )

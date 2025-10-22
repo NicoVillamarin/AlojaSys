@@ -42,7 +42,12 @@ const DatePickedRange = ({
 
   // Crear rangos de fechas ocupadas para que se vean como el rango dorado
   const occupiedRanges = useMemo(() => {
-    if (!occupiedDates.length) return []
+    console.log('DatePickedRange - occupiedDates recibidas:', occupiedDates)
+    
+    if (!occupiedDates.length) {
+      console.log('DatePickedRange - No hay fechas ocupadas')
+      return []
+    }
     
     // Agrupar fechas consecutivas en rangos
     const ranges = []
@@ -74,6 +79,7 @@ const DatePickedRange = ({
       ranges.push(currentRange)
     }
     
+    console.log('DatePickedRange - Rangos ocupados creados:', ranges)
     return ranges
   }, [occupiedDates])
 

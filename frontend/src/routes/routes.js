@@ -25,6 +25,7 @@ import RefundsManagement from "src/pages/RefundsManagement";
 import RefundsHistorical from "src/pages/RefundsHistorical";
 import VouchersManagement from "src/pages/VouchersManagement";
 import Notifications from "src/pages/Notifications";
+import BankReconciliation from "src/pages/financial/BankReconciliation";
 
 
 export const appRoutes = [
@@ -55,6 +56,7 @@ export const appRoutes = [
       { path: "refunds", element: React.createElement(RefundsManagement) },
       { path: "refunds/history", element: React.createElement(RefundsHistorical) },
       { path: "vouchers", element: React.createElement(VouchersManagement) },
+      { path: "bank-reconciliation", element: React.createElement(BankReconciliation) },
       { path: "notificaciones", element: React.createElement(Notifications) },
       { path: "reservations-calendar", element: React.createElement(ReservationsCalendar) },
     ],

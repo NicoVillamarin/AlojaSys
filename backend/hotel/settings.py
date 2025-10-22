@@ -189,8 +189,12 @@ if frontend_url and frontend_url.startswith("http"):
 if render_external_url and render_external_url.startswith("http"):
     CSRF_TRUSTED_ORIGINS.append(render_external_url)
 
-CELERY_BROKER_URL = config("REDIS_URL", default="redis://redis:6379/0")
-CELERY_RESULT_BACKEND = config("REDIS_URL", default="redis://redis:6379/0")
+# Configuración de Celery
+# En Docker, usar el nombre del contenedor de Redis
+# En desarrollo local, usar localhost
+REDIS_HOST = config('REDIS_HOST', default='hotel_redis')
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/0"
+CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:6379/0"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
@@ -268,3 +272,28 @@ else:
     # Configuración local
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# =============================================================================
+# CONFIGURACIÓN DE EMAIL
+# =============================================================================
+
+# Configuración de email para desarrollo (usando consola)
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+
+# Para producción, usar SMTP
+if config('EMAIL_USE_SMTP', default=False, cast=bool):
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+    EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+    EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+    EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+    EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+# Email del remitente por defecto
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@alojaSys.com')
+
+# Para desarrollo, también podemos usar archivo
+if config('EMAIL_USE_FILE', default=False, cast=bool):
+    EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+    EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')

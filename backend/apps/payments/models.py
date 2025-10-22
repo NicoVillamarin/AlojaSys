@@ -702,6 +702,25 @@ class Refund(models.Model):
         from .services.refund_audit_service import RefundAuditService
         RefundAuditService.log_status_change(self, old_status, self.status, user, "Procesamiento completado")
         RefundAuditService.log_processing_completed(self, external_reference, user)
+        
+        # Generar PDF de recibo de reembolso
+        try:
+            from .tasks import generate_payment_receipt_pdf, send_payment_receipt_email
+            generate_payment_receipt_pdf.delay(self.id, 'refund')
+            
+            # Enviar email con recibo si hay email del huésped
+            if (self.reservation.guests_data and 
+                self.reservation.guests_data.get('email')):
+                send_payment_receipt_email.delay(
+                    self.id, 
+                    'refund', 
+                    self.reservation.guests_data['email']
+                )
+        except Exception as e:
+            # No fallar el proceso si hay error generando PDF
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generando PDF de reembolso {self.id}: {e}")
 
     def mark_as_failed(self, notes=None, user=None, error_message=None):
         """Marca el reembolso como fallido"""

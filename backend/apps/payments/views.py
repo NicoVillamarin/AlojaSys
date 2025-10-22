@@ -711,6 +711,78 @@ def process_deposit_payment(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def process_full_payment(request):
+    """
+    Procesa un pago completo para una reserva (efectivo, transferencia, POS)
+    """
+    try:
+        data = request.data
+        reservation_id = data.get('reservation')
+        amount = data.get('amount')
+        method = data.get('method')
+        notes = data.get('notes', '')
+        
+        if not reservation_id or not amount or not method:
+            return Response({
+                'error': 'Faltan campos requeridos: reservation, amount, method'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validar método de pago
+        valid_methods = ['cash', 'transfer', 'pos']
+        if method not in valid_methods:
+            return Response({
+                'error': f'Método de pago inválido. Debe ser uno de: {", ".join(valid_methods)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener la reserva
+        reservation = get_object_or_404(Reservation, id=reservation_id)
+        
+        # Validar que el monto sea correcto (debe ser el total de la reserva)
+        expected_amount = reservation.total_price
+        if abs(float(amount) - float(expected_amount)) > 0.01:  # Tolerancia de 1 centavo
+            return Response({
+                'error': f'El monto debe ser ${expected_amount}, se recibió ${amount}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Crear el pago
+        with transaction.atomic():
+            payment = Payment.objects.create(
+                reservation=reservation,
+                date=timezone.now().date(),
+                method=method,
+                amount=Decimal(str(amount)),
+                notes=notes
+            )
+            
+            # Confirmar la reserva si está pendiente
+            if reservation.status == ReservationStatus.PENDING:
+                reservation.status = ReservationStatus.CONFIRMED
+                reservation.save(update_fields=['status', 'updated_at'])
+                
+                # Log del cambio
+                from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
+                ReservationChangeLog.objects.create(
+                    reservation=reservation,
+                    event_type=ReservationChangeEvent.PAYMENT_ADDED,
+                    changed_by=request.user,
+                    message=f"Pago completo de ${amount} pagado con {method}. Reserva confirmada."
+                )
+        
+        return Response({
+            'success': True,
+            'payment_id': payment.id,
+            'reservation_status': reservation.status,
+            'message': 'Pago completo procesado correctamente'
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Error procesando el pago: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class RefundPolicyViewSet(viewsets.ModelViewSet):
     """ViewSet para gestionar políticas de devolución"""
     permission_classes = [permissions.IsAuthenticated]

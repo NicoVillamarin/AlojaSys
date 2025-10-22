@@ -8,6 +8,9 @@
    - [3.2 Gestión de Habitaciones](#32-gestión-de-habitaciones)
    - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
    - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
+   - [3.4.1 Transferencias Bancarias con OCR](#341-transferencias-bancarias-con-ocr-v22)
+   - [3.4.2 Módulo de Cobros](#342-módulo-de-cobros-v22)
+   - [3.4.3 Conciliación Bancaria Automática](#343-conciliación-bancaria-automática-v23)
    - [3.5 Políticas de Cancelación](#35-políticas-de-cancelación)
    - [3.6 Políticas de Devolución](#36-políticas-de-devolución)
    - [3.7 Gestión de Tarifas](#37-gestión-de-tarifas)
@@ -32,6 +35,7 @@
 - 📆 **Visualizar reservas** en un calendario interactivo y elegante
 - 💰 **Procesar pagos** de manera segura y flexible
 - 🤖 **Procesar reembolsos** automáticamente 24/7
+- 🏦 **Conciliar bancos** automáticamente con extractos
 - 📊 **Generar reportes** y métricas del negocio
 - 👥 **Gestionar usuarios** y permisos del personal
 - 🏢 **Administrar múltiples hoteles** desde una sola plataforma
@@ -212,7 +216,550 @@ Datos de la reserva:
 ## 3.4 Sistema de Pagos
 
 ### ¿Qué hace?
-Procesa pagos de manera segura y flexible, con políticas configurables.
+Procesa pagos de manera segura y flexible, con políticas configurables y validaciones inteligentes.
+
+### ¿Cómo funciona?
+
+#### Configuración de Pasarelas de Pago
+- **Mercado Pago**: Integración completa con tarjetas de crédito/débito
+- **Configuración por Hotel**: Cada hotel puede tener su propia configuración
+- **Modo Prueba/Producción**: Configuración separada para testing y producción
+- **Validaciones Inteligentes**: El sistema previene errores comunes de configuración
+- **Rotación Segura de Tokens**: Endpoint dedicado para actualizar claves de forma segura
+- **Webhooks**: Confirmación automática de pagos
+- **Múltiples Monedas**: Soporte para diferentes monedas por país
+- **Idempotencia**: Prevención automática de pagos duplicados
+- **Trazabilidad Completa**: Rastreo de todas las operaciones de pago
+- **Simulación de Errores**: Testing seguro sin costos reales
+
+#### Validaciones de Seguridad
+- **Prevención de Errores**: No permite mezclar claves de prueba con producción
+- **Detección Automática**: Identifica si las claves son de test o producción
+- **Mensajes Claros**: Explica exactamente qué está mal y cómo corregirlo
+- **Validación en Tiempo Real**: Verifica la configuración antes de guardar
+
+#### Rotación de Tokens
+- **Endpoint Seguro**: API dedicada para rotar claves de acceso
+- **Validación Automática**: Aplica las mismas validaciones de seguridad
+- **Rollback Automático**: Si algo falla, se revierten los cambios
+- **Auditoría Completa**: Registra todas las rotaciones para seguimiento
+
+#### Métodos de Pago Disponibles
+- **Tarjetas de Crédito/Débito**: A través de Mercado Pago
+- **Efectivo**: Registro manual por el personal
+- **Transferencia Bancaria**: Registro manual
+- **POS**: Terminal punto de venta
+- **Vouchers de Crédito**: Sistema de vouchers reutilizables
+
+#### Políticas de Pago Configurables
+- **Sin Adelanto**: Pago completo al confirmar
+- **Porcentaje**: Adelanto del X% del total
+- **Monto Fijo**: Adelanto de $X fijo
+- **Fechas de Vencimiento**: Al confirmar, días antes, al check-in
+- **Saldo Pendiente**: Al check-in o al check-out
+
+### Mejoras de Seguridad Implementadas
+
+#### Validaciones Inteligentes
+- **Detección Automática**: El sistema identifica si las claves son de prueba o producción
+- **Prevención de Errores**: No permite mezclar configuraciones de test con producción
+- **Mensajes Claros**: Explica exactamente qué está mal y cómo corregirlo
+- **Validación en Tiempo Real**: Verifica la configuración antes de guardar
+
+#### Ejemplo de Validación
+```
+❌ Error detectado:
+"No se puede marcar como producción si is_test=True"
+
+✅ Solución:
+- Desmarcar "is_test" si quieres usar en producción
+- O usar claves de prueba si quieres mantener "is_test=True"
+```
+
+#### Rotación Segura de Tokens
+- **Endpoint Dedicado**: API especializada para actualizar claves de acceso
+- **Validación Automática**: Aplica las mismas validaciones de seguridad
+- **Rollback Automático**: Si algo falla, se revierten los cambios automáticamente
+- **Auditoría Completa**: Registra todas las rotaciones para seguimiento
+
+#### Proceso de Rotación
+1. **Acceso al endpoint** de rotación de tokens
+2. **Ingreso de nuevas claves** (access_token y public_key)
+3. **Validación automática** de las nuevas claves
+4. **Actualización segura** si todo está correcto
+5. **Registro de auditoría** de la operación
+
+### Beneficios
+- ✅ **Procesamiento seguro** de pagos
+- ✅ **Configuración flexible** por hotel
+- ✅ **Validaciones automáticas** que previenen errores
+- ✅ **Rotación segura** de claves de acceso
+- ✅ **Múltiples métodos** de pago
+- ✅ **Integración completa** con Mercado Pago
+- ✅ **Auditoría completa** de todas las operaciones
+- ✅ **Prevención de errores** de configuración
+- ✅ **Mensajes claros** para resolución de problemas
+- ✅ **Prevención de duplicados** automática
+- ✅ **Rastreo completo** de operaciones
+- ✅ **Testing seguro** sin costos reales
+
+### 💳 Transferencias Bancarias con OCR (v2.2)
+
+#### ¿Qué son las transferencias bancarias?
+Es un método de pago donde el cliente realiza una transferencia bancaria y sube el comprobante para confirmar el pago.
+
+#### ¿Cómo funciona?
+
+##### 1. Subida de Comprobante
+- **Cliente selecciona transferencia** como método de pago
+- **Sube comprobante** (PDF, JPG, PNG) con datos:
+  - Monto de la transferencia
+  - Fecha de la transferencia
+  - CBU/IBAN del destinatario
+  - Nombre del banco
+- **Sistema procesa archivo** automáticamente
+
+##### 2. Confirmación Automática
+- **Confirmación inmediata**: La reserva se confirma automáticamente
+- **Sin aprobación manual**: No requiere intervención del personal
+- **Validación inteligente**: El sistema valida los datos ingresados
+- **Registro completo**: Se guarda toda la información del pago
+
+##### 3. Almacenamiento Híbrido
+- **Desarrollo**: Archivos guardados localmente
+- **Producción**: Archivos subidos a Cloudinary (nube)
+- **Acceso universal**: Los archivos están disponibles desde cualquier lugar
+- **Seguridad garantizada**: Almacenamiento seguro y confiable
+
+##### 4. Procesamiento OCR (Opcional)
+- **Extracción automática**: El sistema lee datos del comprobante
+- **Validación cruzada**: Compara datos extraídos vs. datos ingresados
+- **Revisión manual**: Solo si hay discrepancias importantes
+- **Confirmación inteligente**: Aprovecha la tecnología para agilizar el proceso
+
+#### Beneficios para el Cliente
+- ✅ **Pago inmediato**: Confirmación instantánea de la reserva
+- ✅ **Sin esperas**: No necesita aprobación manual
+- ✅ **Fácil de usar**: Solo subir el comprobante
+- ✅ **Seguro**: Almacenamiento protegido de comprobantes
+
+#### Beneficios para el Hotel
+- ✅ **Procesamiento automático**: Sin intervención manual necesaria
+- ✅ **Trazabilidad completa**: Registro detallado de todas las transferencias
+- ✅ **Archivos organizados**: Comprobantes guardados y accesibles
+- ✅ **Validación inteligente**: OCR para verificar datos automáticamente
+
+### 📊 Módulo de Cobros (v2.2)
+
+#### ¿Qué es el módulo de Cobros?
+Es un historial unificado que muestra todos los pagos y cobros del hotel en un solo lugar, con herramientas avanzadas de análisis y exportación.
+
+#### ¿Qué incluye?
+
+##### 1. Historial Completo
+- **Pagos Manuales**: Efectivo, tarjeta, POS registrados por el personal
+- **Pagos Online**: Mercado Pago y otras pasarelas de pago
+- **Transferencias Bancarias**: Con comprobantes y validación
+- **Reservas Pendientes**: Reservas que aún no han sido confirmadas
+
+##### 2. Filtros Avanzados
+- **Por Fecha**: Ver pagos de un período específico
+- **Por Tipo**: Manual, Online, Transferencia, Pendiente
+- **Por Método**: Efectivo, Tarjeta, Transferencia, Mercado Pago
+- **Por Estado**: Aprobado, Pendiente, Rechazado, Cancelado
+- **Por Monto**: Rango de montos específico
+- **Por Huésped**: Buscar pagos de un huésped específico
+
+##### 3. Estadísticas y Métricas
+- **Resumen General**: Total de pagos, monto total, promedio
+- **Distribución por Tipo**: Cuántos pagos de cada tipo
+- **Distribución por Método**: Cuántos pagos de cada método
+- **Evolución Temporal**: Cómo cambian los cobros en el tiempo
+- **Tendencias**: Patrones de pago del hotel
+
+##### 4. Exportación de Datos
+- **Formato CSV**: Datos listos para Excel o sistemas contables
+- **Filtros Aplicados**: Solo exporta los datos que necesitas
+- **Descarga Directa**: Sin necesidad de procesamiento adicional
+- **Datos Completos**: Todos los campos relevantes incluidos
+
+##### 5. Archivos Adjuntos
+- **Comprobantes**: Acceso directo a comprobantes de transferencias
+- **Visualización**: Ver archivos sin descargarlos
+- **Descarga**: Descargar archivos individuales
+- **Organización**: Archivos organizados por pago
+
+#### Beneficios para la Gestión
+
+##### Para el Personal
+- ✅ **Vista Unificada**: Todos los pagos en un solo lugar
+- ✅ **Búsqueda Rápida**: Encuentra cualquier pago fácilmente
+- ✅ **Filtros Intuitivos**: Reduce la información a lo que necesitas
+- ✅ **Acceso a Archivos**: Ve comprobantes sin buscarlos
+
+##### Para la Contabilidad
+- ✅ **Exportación Fácil**: Datos listos para importar
+- ✅ **Filtros Precisos**: Solo los datos que necesitas
+- ✅ **Formato Estándar**: Compatible con cualquier sistema
+- ✅ **Auditoría Completa**: Registro detallado de todo
+
+##### Para el Análisis
+- ✅ **Métricas Visuales**: Gráficos y estadísticas claras
+- ✅ **Tendencias**: Ve cómo evoluciona el negocio
+- ✅ **Comparaciones**: Compara diferentes períodos
+- ✅ **Insights**: Descubre patrones en los pagos
+
+### 🏦 Conciliación Bancaria Automática (v2.3)
+
+#### ¿Qué es la Conciliación Bancaria?
+Es una funcionalidad que automáticamente compara los movimientos de tu cuenta bancaria con los pagos registrados en el sistema, confirmando automáticamente las transferencias que coinciden.
+
+#### ¿Cómo funciona?
+
+##### 1. Subida de Extracto Bancario
+- **Formato CSV**: Subes el extracto de tu banco en formato CSV
+- **Detección Automática**: El sistema detecta automáticamente el formato y encoding
+- **Validación**: Verifica que el archivo tenga la estructura correcta
+
+##### 2. Matching Inteligente
+- **Coincidencia Exacta**: Busca pagos con monto y fecha exactos
+- **Coincidencia Aproximada**: Encuentra pagos con pequeñas diferencias de monto o fecha
+- **Coincidencia Parcial**: Identifica pagos que podrían coincidir con tolerancias más amplias
+- **Aprobación Manual**: Para casos dudosos, permite revisión manual
+
+##### 3. Confirmación Automática
+- **Alta Confianza (≥90%)**: Se confirman automáticamente
+- **Confianza Media (70-89%)**: Requieren revisión manual
+- **Baja Confianza (<70%)**: Se marcan para revisión
+
+#### ¿Qué incluye?
+
+##### 1. Algoritmos de Matching
+- **Exact Match**: Monto exacto + fecha ±1 día
+- **Fuzzy Match**: Monto ±0.5% + fecha ±2 días
+- **Partial Match**: Monto ±1% + fecha ±3 días
+- **Manual Match**: Aprobación manual de matches dudosos
+
+##### 2. Configuración Flexible
+- **Tolerancias Ajustables**: Configuración por hotel
+- **Múltiples Monedas**: Conversión automática de tipos de cambio
+- **Umbrales de Confianza**: Configuración de auto-confirmación
+- **Notificaciones**: Alertas por email y sistema
+
+##### 3. Procesamiento Automático
+- **Job Nocturno**: Procesamiento automático todas las noches
+- **Actualización de Tipos de Cambio**: Conversión automática de monedas
+- **Notificaciones**: Alertas cuando hay problemas o resultados
+
+##### 4. Logs de Auditoría
+- **Registro Completo**: Todas las operaciones quedan registradas
+- **Trazabilidad**: Seguimiento completo de cada match
+- **Historial**: Acceso al historial de todas las conciliaciones
+
+#### Formato CSV Esperado
+```csv
+fecha,descripcion,importe,moneda,referencia
+2025-01-15,"Transferencia Juan Perez",25000.00,"ARS","CBU 28500109...1234"
+2025-01-16,"Transferencia Maria Garcia",18000.00,"ARS","CBU 28500109...5678"
+```
+
+#### Beneficios para la Gestión
+
+##### Para el Personal
+- ✅ **Ahorro de Tiempo**: No más conciliación manual
+- ✅ **Precisión Alta**: Algoritmos inteligentes de matching
+- ✅ **Interfaz Intuitiva**: Subida de CSV con drag & drop
+- ✅ **Revisión Manual**: Solo para casos que lo requieren
+
+##### Para la Contabilidad
+- ✅ **Automatización Total**: Conciliación sin intervención manual
+- ✅ **Trazabilidad Completa**: Logs detallados de todas las operaciones
+- ✅ **Exportación**: Datos listos para sistemas contables
+- ✅ **Auditoría**: Registro completo de todas las operaciones
+
+##### Para el Negocio
+- ✅ **Eficiencia**: Procesamiento automático 24/7
+- ✅ **Reducción de Errores**: Algoritmos precisos de matching
+- ✅ **Escalabilidad**: Maneja grandes volúmenes de transacciones
+- ✅ **Flexibilidad**: Configuración por hotel y moneda
+
+#### 🎯 Mejoras Implementadas (v2.3)
+
+##### Flujo de Transferencias Mejorado
+- **Problema Resuelto**: Antes, cuando un huésped subía un comprobante de transferencia, la reserva se confirmaba inmediatamente, sin verificar que el dinero realmente llegara al banco
+- **Nueva Solución**: 
+  - ✅ **Mayor Seguridad**: Las transferencias ahora quedan en "Pendiente de Confirmación"
+  - ✅ **Verificación Real**: Solo se confirman cuando el dinero aparece en el extracto bancario
+  - ✅ **Proceso Automático**: La conciliación bancaria confirma automáticamente las reservas
+
+##### Matching Inteligente Expandido
+- **Nuevo**: Ahora el sistema puede encontrar reservas pendientes directamente
+- **Criterios Mejorados**:
+  - ✅ **Monto Exacto**: Busca reservas con el mismo monto
+  - ✅ **Fechas Coincidentes**: Compara fechas de transacción con fechas de reserva
+  - ✅ **Nombres de Huéspedes**: Identifica transferencias por nombre en la descripción
+- **Tipos de Confianza**:
+  - 🟢 **Exacto (100%)**: Monto y fecha coinciden perfectamente
+  - 🟡 **Aproximado (70-99%)**: Pequeñas diferencias pero muy probable
+  - 🟠 **Parcial (50-69%)**: Posible coincidencia, requiere revisión
+
+##### Interfaz Mejorada
+- **Estados Visuales**: Los colores de los badges ahora funcionan correctamente
+  - 🟡 **Pendiente**: Amarillo para procesos en espera
+  - 🔵 **Procesando**: Azul para operaciones en curso
+  - 🟢 **Completada**: Verde para operaciones exitosas
+  - 🔴 **Fallida**: Rojo para errores
+- **Notificaciones Unificadas**: Mensajes de éxito y error consistentes en toda la aplicación
+
+### 🚀 Mejoras del Sistema de Pagos (v2.1)
+
+#### ¿Qué son las mejoras?
+Son funcionalidades avanzadas que hacen que el sistema de pagos sea más robusto, confiable y fácil de mantener.
+
+#### ¿Por qué son importantes?
+- **Evitan errores costosos**: Prevención de pagos duplicados
+- **Facilitan el debugging**: Rastreo completo de operaciones
+- **Permiten testing seguro**: Simulación de errores sin costos reales
+
+### 🔒 Sistema de Webhooks Mejorado (v2.0)
+
+#### ¿Qué es un webhook?
+Un webhook es como un "mensajero automático" que Mercado Pago envía a nuestro sistema cuando ocurre algo importante con un pago (aprobado, rechazado, etc.).
+
+#### ¿Por qué es importante?
+- **Confirmación automática**: Los pagos se confirman sin intervención manual
+- **Seguridad garantizada**: Solo Mercado Pago puede enviar notificaciones válidas
+- **Prevención de duplicados**: El sistema evita procesar la misma notificación dos veces
+- **Procesamiento rápido**: Las notificaciones se procesan en segundos
+
+#### ¿Cómo funciona?
+
+##### 1. Seguridad Avanzada
+- **Verificación de identidad**: Cada notificación viene con una "firma digital" que solo Mercado Pago puede generar
+- **Validación automática**: El sistema verifica que la notificación sea realmente de Mercado Pago
+- **Rechazo de falsificaciones**: Cualquier notificación sin firma válida es rechazada automáticamente
+
+##### 2. Prevención de Duplicados
+- **Control inteligente**: El sistema recuerda qué notificaciones ya procesó
+- **Evita reprocesamiento**: Si llega la misma notificación dos veces, solo se procesa una vez
+- **Ahorro de recursos**: No se desperdician recursos procesando lo mismo repetidamente
+
+##### 3. Procesamiento Atómico
+- **Todo o nada**: Si algo falla durante el procesamiento, se revierte todo automáticamente
+- **Consistencia garantizada**: Los datos siempre quedan en un estado válido
+- **Sin pérdida de información**: Si hay un error, no se pierden datos importantes
+
+##### 4. Post-procesamiento Inteligente
+- **Notificaciones automáticas**: El sistema notifica a usuarios y personal sobre cambios importantes
+- **Auditoría completa**: Se registra todo lo que pasa para futuras consultas
+- **Procesamiento en segundo plano**: Las tareas pesadas no bloquean la confirmación del pago
+
+#### Beneficios para el Hotel
+
+##### Seguridad
+- **Protección contra fraudes**: Solo notificaciones auténticas de Mercado Pago son procesadas
+- **Auditoría completa**: Registro detallado de todas las operaciones para cumplimiento
+- **Prevención de errores**: El sistema evita procesar la misma notificación múltiples veces
+
+##### Eficiencia
+- **Confirmación automática**: Los pagos se confirman sin intervención manual
+- **Procesamiento rápido**: Las notificaciones se procesan en segundos
+- **Notificaciones automáticas**: El personal recibe alertas inmediatas sobre pagos importantes
+
+##### Confiabilidad
+- **Manejo de errores**: Si algo falla, el sistema se recupera automáticamente
+- **Consistencia de datos**: Los datos siempre quedan en un estado válido
+- **Monitoreo continuo**: El sistema registra todo para facilitar el debugging
+
+#### Beneficios para el Personal
+
+##### Visibilidad
+- **Notificaciones inmediatas**: Reciben alertas en tiempo real sobre pagos procesados
+- **Información detallada**: Cada notificación incluye todos los detalles relevantes
+- **Historial completo**: Pueden consultar el historial de todas las operaciones
+
+##### Simplicidad
+- **Procesamiento automático**: No necesitan intervenir manualmente en la mayoría de casos
+- **Interfaz clara**: Las notificaciones son fáciles de entender y actuar
+- **Resolución rápida**: Si hay problemas, el sistema proporciona información clara para resolverlos
+
+#### Beneficios para los Huéspedes
+
+##### Experiencia Mejorada
+- **Confirmación inmediata**: Sus pagos se confirman automáticamente
+- **Notificaciones claras**: Reciben información clara sobre el estado de sus pagos
+- **Procesamiento confiable**: Pueden confiar en que sus pagos se procesarán correctamente
+
+##### Transparencia
+- **Estado actualizado**: Siempre saben el estado actual de sus pagos
+- **Información detallada**: Reciben todos los detalles relevantes sobre sus transacciones
+- **Soporte eficiente**: Si hay problemas, el personal puede resolverlos rápidamente
+
+#### Casos de Uso Reales
+
+##### Caso 1: Pago Aprobado
+```
+1. Huésped completa pago con tarjeta
+2. Mercado Pago procesa el pago exitosamente
+3. Mercado Pago envía webhook a AlojaSys
+4. AlojaSys verifica la firma del webhook
+5. AlojaSys confirma que no es duplicado
+6. AlojaSys actualiza el estado del pago
+7. AlojaSys notifica al personal y huésped
+8. La reserva se confirma automáticamente
+```
+
+##### Caso 2: Pago Rechazado
+```
+1. Huésped intenta pagar con tarjeta
+2. Mercado Pago rechaza el pago
+3. Mercado Pago envía webhook a AlojaSys
+4. AlojaSys verifica la firma del webhook
+5. AlojaSys actualiza el estado del pago
+6. AlojaSys notifica al personal sobre el rechazo
+7. El personal puede contactar al huésped para resolver
+```
+
+##### Caso 3: Notificación Duplicada
+```
+1. Mercado Pago envía webhook por pago aprobado
+2. AlojaSys procesa la notificación exitosamente
+3. Mercado Pago envía la misma notificación otra vez
+4. AlojaSys detecta que ya fue procesada
+5. AlojaSys responde "ya procesada" sin hacer nada más
+6. Se evita procesamiento duplicado y errores
+```
+
+#### Configuración Técnica
+
+##### Variables de Entorno
+```bash
+# Secreto para verificar webhooks de Mercado Pago
+MERCADO_PAGO_WEBHOOK_SECRET=tu_secreto_aqui
+
+# Token de acceso de Mercado Pago
+MERCADO_PAGO_ACCESS_TOKEN=tu_token_aqui
+
+# URL de Redis para control de duplicados
+REDIS_URL=redis://localhost:6379/0
+```
+
+##### Configuración por Hotel
+- **Webhook Secret**: Cada hotel puede tener su propio secreto
+- **Modo Producción**: Configuración separada para producción
+- **Validaciones**: El sistema valida la configuración automáticamente
+
+#### Monitoreo y Alertas
+
+##### Eventos Registrados
+- **Webhook recibido**: Cada vez que llega una notificación
+- **Firma verificada**: Cuando se valida la autenticidad
+- **Duplicado detectado**: Cuando se evita procesamiento duplicado
+- **Pago procesado**: Cuando se actualiza el estado del pago
+- **Error detectado**: Cuando algo falla en el procesamiento
+
+##### Métricas Importantes
+- **Tiempo de procesamiento**: Qué tan rápido se procesan las notificaciones
+- **Tasa de éxito**: Qué porcentaje de webhooks se procesan correctamente
+- **Tasa de duplicados**: Qué porcentaje de notificaciones son duplicadas
+- **Tasa de errores**: Qué porcentaje de webhooks fallan
+
+#### Resolución de Problemas
+
+##### Problema: Webhook no se procesa
+**Posibles causas:**
+- Firma HMAC inválida
+- Configuración incorrecta del webhook secret
+- Error en la configuración de Mercado Pago
+
+**Solución:**
+1. Verificar la configuración del webhook secret
+2. Revisar los logs del sistema para ver el error específico
+3. Contactar a Mercado Pago si el problema persiste
+
+##### Problema: Pago duplicado
+**Posibles causas:**
+- Mercado Pago envió la notificación múltiples veces
+- Error en la configuración de Redis
+
+**Solución:**
+1. El sistema ya previene esto automáticamente
+2. Verificar que Redis esté funcionando correctamente
+3. Revisar los logs para confirmar que se detectó el duplicado
+
+##### Problema: Notificación no llega
+**Posibles causas:**
+- Problema de conectividad con Mercado Pago
+- Configuración incorrecta de la URL del webhook
+- Firewall bloqueando las notificaciones
+
+**Solución:**
+1. Verificar la conectividad con Mercado Pago
+2. Revisar la configuración de la URL del webhook
+3. Verificar que el firewall permita las notificaciones
+
+#### ¿Cómo funcionan?
+
+##### 🔑 Prevención de Duplicados (Idempotencia)
+```
+Problema: Si hay un error de red, el sistema podría enviar el mismo pago dos veces
+Solución: Cada operación tiene una "huella digital" única
+Resultado: Nunca se procesa el mismo pago dos veces
+```
+
+##### 📊 Rastreo Completo (Trace ID)
+```
+Problema: Es difícil saber qué pasó con una operación específica
+Solución: Cada operación tiene un "número de seguimiento" único
+Resultado: Puedes rastrear cualquier operación desde el inicio hasta el final
+```
+
+##### 🧪 Testing Seguro
+```
+Problema: Probar errores reales cuesta dinero y puede causar problemas
+Solución: El sistema puede simular errores sin hacer operaciones reales
+Resultado: Puedes probar todos los escenarios sin riesgo
+```
+
+#### Beneficios para tu Hotel
+
+##### Para el Personal
+- **Menos errores**: El sistema previene pagos duplicados automáticamente
+- **Debugging fácil**: Si algo falla, puedes rastrear exactamente qué pasó
+- **Testing seguro**: Puedes probar el sistema sin hacer operaciones reales
+
+##### Para el Negocio
+- **Ahorro de dinero**: No hay pagos duplicados accidentales
+- **Mayor confianza**: El sistema es más confiable y predecible
+- **Menos problemas**: Menos tiempo perdido resolviendo errores
+
+##### Para el Desarrollo
+- **Mantenimiento fácil**: Los logs son claros y organizados
+- **Testing completo**: Se pueden probar todos los escenarios
+- **Escalabilidad**: El sistema puede manejar más operaciones simultáneas
+
+#### Ejemplos Prácticos
+
+##### Caso 1: Error de Red
+```
+Situación: Se pierde la conexión justo después de enviar un pago
+Sin mejoras: Podría procesarse dos veces el mismo pago
+Con mejoras: El sistema detecta que ya se procesó y no lo repite
+```
+
+##### Caso 2: Debugging de Problemas
+```
+Situación: Un huésped dice que se le cobró dos veces
+Sin mejoras: Es difícil encontrar qué pasó
+Con mejoras: Puedes buscar por "trace_id" y ver toda la historia
+```
+
+##### Caso 3: Testing de Nuevas Funcionalidades
+```
+Situación: Quieres probar qué pasa si MercadoPago falla
+Sin mejoras: Tendrías que hacer operaciones reales que fallan
+Con mejoras: Simulas el error sin hacer operaciones reales
+```
 
 ----
 

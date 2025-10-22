@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from django.db import transaction
 from django.utils import timezone
 from apps.payments.models import PaymentIntent, PaymentIntentStatus
-from apps.payments.signals import emit_payment_event
+# from apps.payments.signals import emit_payment_event  # Removed to avoid circular import
 from apps.payments.services.webhook_security import WebhookSecurityService
 
 logger = logging.getLogger(__name__)
@@ -56,17 +56,18 @@ class PaymentProcessorService:
             ])
             
             # Emitir evento interno según el nuevo estado
-            event_type = PaymentProcessorService._get_event_type(new_status)
-            if event_type:
-                emit_payment_event(
-                    event_type=event_type,
-                    payment_intent=payment_intent,
-                    old_status=old_status,
-                    new_status=new_status,
-                    mp_payment_id=mp_payment_id,
-                    notification_id=notification_id,
-                    raw_payment_data=raw_payment_data
-                )
+            # TODO: Implementar emit_payment_event cuando se resuelva el circular import
+            # event_type = PaymentProcessorService._get_event_type(new_status)
+            # if event_type:
+            #     emit_payment_event(
+            #         event_type=event_type,
+            #         payment_intent=payment_intent,
+            #         old_status=old_status,
+            #         new_status=new_status,
+            #         mp_payment_id=mp_payment_id,
+            #         notification_id=notification_id,
+            #         raw_payment_data=raw_payment_data
+            #     )
             
             # Log del cambio de estado
             logger.info(
