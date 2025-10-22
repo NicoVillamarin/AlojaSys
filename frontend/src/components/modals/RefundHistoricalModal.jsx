@@ -75,7 +75,7 @@ export default function RefundHistoricalModal({ refundId, onClose, isDetail = tr
     const base = getApiURL() || ''
     setLoading(true)
     setError(null)
-    fetchWithAuth(`${base}/api/refunds/${refundId}/history/`, { method: 'GET' })
+    fetchWithAuth(`${base}/api/payments/refunds/${refundId}/history/`, { method: 'GET' })
       .then(json => setData(json))
       .catch(err => setError(err.message || t('refund_historical_modal.error', { message: 'Error cargando histórico' })))
       .finally(() => setLoading(false))

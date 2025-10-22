@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
-import RefundHistoricalModal from 'src/components/modals/RefundHistoricalModal'
+import RefundDetailModal from 'src/components/modals/RefundDetailModal'
 import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import Button from 'src/components/Button'
@@ -134,7 +134,7 @@ export default function RefundsHistorical() {
       </div>
 
       {!!historyRefundId && (
-        <RefundHistoricalModal
+        <RefundDetailModal
           refundId={historyRefundId}
           displayName={historyRefund?.display_name}
           onClose={() => { 

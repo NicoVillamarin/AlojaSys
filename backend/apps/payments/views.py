@@ -1119,11 +1119,88 @@ class RefundViewSet(viewsets.ModelViewSet):
         
         try:
             from .services.refund_audit_service import RefundAuditService
-            timeline = RefundAuditService.get_refund_timeline(refund)
+            
+            # Obtener información básica del reembolso
+            refund_info = {
+                'id': refund.id,
+                'amount': str(refund.amount),
+                'reason': refund.get_reason_display() if refund.reason else 'No especificado',
+                'status': refund.get_status_display(),
+                'refund_method': refund.get_refund_method_display() if hasattr(refund, 'get_refund_method_display') else refund.refund_method,
+                'created_at': refund.created_at.isoformat(),
+                'processed_at': refund.processed_at.isoformat() if refund.processed_at else None,
+                'external_reference': refund.external_reference,
+                'notes': refund.notes,
+                'processing_days': refund.processing_days,
+                'reservation': {
+                    'id': refund.reservation.id,
+                    'display_name': getattr(refund.reservation, 'display_name', f'Reserva #{refund.reservation.id}'),
+                    'hotel_name': refund.reservation.hotel.name,
+                    'guest_name': getattr(refund.reservation, 'guest_name', 'N/A'),
+                    'check_in': refund.reservation.check_in.isoformat() if refund.reservation.check_in else None,
+                    'check_out': refund.reservation.check_out.isoformat() if refund.reservation.check_out else None,
+                },
+                'created_by': {
+                    'id': refund.created_by.id,
+                    'username': refund.created_by.username,
+                    'email': getattr(refund.created_by, 'email', None)
+                } if refund.created_by else None,
+                'processed_by': {
+                    'id': refund.processed_by.id,
+                    'username': refund.processed_by.username,
+                    'email': getattr(refund.processed_by, 'email', None)
+                } if refund.processed_by else None,
+            }
+            
+            # Obtener voucher generado si existe
+            voucher_info = None
+            if refund.generated_voucher:
+                voucher = refund.generated_voucher
+                voucher_info = {
+                    'id': voucher.id,
+                    'code': voucher.code,
+                    'amount': str(voucher.amount),
+                    'remaining_amount': str(voucher.remaining_amount),
+                    'status': voucher.get_status_display(),
+                    'expiry_date': voucher.expiry_date.isoformat(),
+                    'used_at': voucher.used_at.isoformat() if voucher.used_at else None,
+                    'used_in_reservation': voucher.used_in_reservation.id if voucher.used_in_reservation else None,
+                }
+            
+            # Obtener historial de cambios de estado
+            status_changes = []
+            try:
+                logs = RefundAuditService.get_refund_audit_trail(refund)
+                for log in logs:
+                    if log.event_type in ['status_changed', 'created', 'processing_started', 'processing_completed', 'processing_failed', 'cancelled']:
+                        status_changes.append({
+                            'event_type': log.event_type,
+                            'status': log.status,
+                            'timestamp': log.timestamp.isoformat(),
+                            'user': {
+                                'id': log.user.id,
+                                'username': log.user.username,
+                                'email': getattr(log.user, 'email', None)
+                            } if log.user else None,
+                            'message': log.message,
+                            'details': log.details,
+                            'external_reference': log.external_reference,
+                            'error_message': log.error_message
+                        })
+            except Exception as e:
+                # Si hay error obteniendo logs, continuar sin historial
+                pass
             
             return Response({
-                'refund_id': refund.id,
-                'timeline': timeline
+                'refund': refund_info,
+                'voucher': voucher_info,
+                'status_changes': status_changes,
+                'summary': {
+                    'total_changes': len(status_changes),
+                    'current_status': refund.get_status_display(),
+                    'days_since_created': (timezone.now() - refund.created_at).days,
+                    'is_overdue': refund.status == 'pending' and (timezone.now() - refund.created_at).days > refund.processing_days
+                }
             })
             
         except Exception as e:
