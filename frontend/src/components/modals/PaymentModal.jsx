@@ -90,7 +90,8 @@ export default function PaymentModal({
             const paymentData = {
                 amount: paymentAmount,
                 method: paymentType,
-                date: new Date().toISOString().split('T')[0] // Fecha actual en formato YYYY-MM-DD
+                date: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
+                is_deposit: !isBalancePayment // Si no es pago de saldo, es una seña
             };
 
             // Si es POSTNET, agregar campos específicos

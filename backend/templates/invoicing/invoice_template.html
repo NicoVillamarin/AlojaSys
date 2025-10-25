@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura {{ invoice.number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .hotel-logo {
+            max-width: 150px;
+            max-height: 80px;
+            margin-bottom: 10px;
+        }
+        .invoice-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0;
+        }
+        .invoice-number {
+            font-size: 18px;
+            color: #666;
+        }
+        .sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .field {
+            margin-bottom: 8px;
+        }
+        .field-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .field-value {
+            color: #333;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .items-table th,
+        .items-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .items-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        .items-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .totals {
+            margin-top: 20px;
+            text-align: right;
+        }
+        .total-row {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .total-final {
+            font-size: 18px;
+            font-weight: bold;
+            border-top: 2px solid #333;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        .cae-section {
+            background-color: #e8f5e8;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .cae-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2d5a2d;
+            margin-bottom: 10px;
+        }
+        .cae-data {
+            font-size: 16px;
+            color: #333;
+        }
+        .qr-code {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .qr-code img {
+            max-width: 150px;
+            max-height: 150px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-draft {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-sent {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <!-- Header -->
+        <div class="header">
+            {% if hotel.logo %}
+                <img src="{{ hotel.logo.url }}" alt="Logo del Hotel" class="hotel-logo">
+            {% endif %}
+            <h1 class="invoice-title">{{ invoice.get_type_display }} {{ invoice.number }}</h1>
+            <div class="invoice-number">Fecha: {{ invoice.issue_date|date:"d/m/Y" }}</div>
+        </div>
+
+        <!-- Datos del Hotel y Cliente -->
+        <div class="sections">
+            <div class="section">
+                <div class="section-title">Datos del Emisor</div>
+                <div class="field">
+                    <span class="field-label">Razón Social:</span>
+                    <span class="field-value">{{ hotel.name }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Domicilio:</span>
+                    <span class="field-value">{{ hotel.address|default:"No especificado" }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Ciudad:</span>
+                    <span class="field-value">{{ hotel.city|default:"No especificado" }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Provincia:</span>
+                    <span class="field-value">{{ hotel.state|default:"No especificado" }}</span>
+                </div>
+                {% if afip_config %}
+                <div class="field">
+                    <span class="field-label">CUIT:</span>
+                    <span class="field-value">{{ afip_config.cuit }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Condición ante IVA:</span>
+                    <span class="field-value">{{ afip_config.tax_condition }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Punto de Venta:</span>
+                    <span class="field-value">{{ afip_config.point_of_sale }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="section">
+                <div class="section-title">Datos del Comprador</div>
+                <div class="field">
+                    <span class="field-label">Nombre/Razón Social:</span>
+                    <span class="field-value">{{ invoice.customer_name }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Tipo de Documento:</span>
+                    <span class="field-value">{{ invoice.customer_document_type }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Número de Documento:</span>
+                    <span class="field-value">{{ invoice.customer_document_number }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Domicilio:</span>
+                    <span class="field-value">{{ invoice.customer_address|default:"No especificado" }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Ciudad:</span>
+                    <span class="field-value">{{ invoice.customer_city|default:"No especificado" }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Código Postal:</span>
+                    <span class="field-value">{{ invoice.customer_postal_code|default:"No especificado" }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">País:</span>
+                    <span class="field-value">{{ invoice.customer_country|default:"Argentina" }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Datos de la Factura -->
+        <div class="section">
+            <div class="section-title">Datos de la Factura</div>
+            <div class="field">
+                <span class="field-label">Número:</span>
+                <span class="field-value">{{ invoice.number }}</span>
+            </div>
+            <div class="field">
+                <span class="field-label">Fecha de Emisión:</span>
+                <span class="field-value">{{ invoice.issue_date|date:"d/m/Y" }}</span>
+            </div>
+            <div class="field">
+                <span class="field-label">Moneda:</span>
+                <span class="field-value">{{ invoice.currency }}</span>
+            </div>
+            <div class="field">
+                <span class="field-label">Estado:</span>
+                <span class="field-value">
+                    <span class="status-badge status-{{ invoice.status }}">
+                        {{ invoice.get_status_display }}
+                    </span>
+                </span>
+            </div>
+            {% if invoice.reservation %}
+            <div class="field">
+                <span class="field-label">Reserva:</span>
+                <span class="field-value">{{ invoice.reservation.code }}</span>
+            </div>
+            <div class="field">
+                <span class="field-label">Check-in:</span>
+                <span class="field-value">{{ invoice.reservation.check_in|date:"d/m/Y" }}</span>
+            </div>
+            <div class="field">
+                <span class="field-label">Check-out:</span>
+                <span class="field-value">{{ invoice.reservation.check_out|date:"d/m/Y" }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Detalle de Items -->
+        <div class="section">
+            <div class="section-title">Detalle de Servicios</div>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Descripción</th>
+                        <th>Cantidad</th>
+                        <th>Precio Unit.</th>
+                        <th>Total</th>
+                        <th>IVA %</th>
+                        <th>IVA $</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.description }}</td>
+                        <td>{{ item.quantity|floatformat:2 }}</td>
+                        <td>${{ item.unit_price|floatformat:2 }}</td>
+                        <td>${{ item.total_price|floatformat:2 }}</td>
+                        <td>{{ item.vat_rate|floatformat:2 }}%</td>
+                        <td>${{ item.vat_amount|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totales -->
+        <div class="totals">
+            <div class="total-row">
+                <span class="field-label">Subtotal:</span>
+                <span class="field-value">${{ invoice.net_amount|floatformat:2 }}</span>
+            </div>
+            <div class="total-row">
+                <span class="field-label">IVA:</span>
+                <span class="field-value">${{ invoice.vat_amount|floatformat:2 }}</span>
+            </div>
+            <div class="total-row total-final">
+                <span class="field-label">TOTAL:</span>
+                <span class="field-value">${{ invoice.total|floatformat:2 }}</span>
+            </div>
+        </div>
+
+        <!-- CAE y Datos AFIP -->
+        {% if invoice.cae %}
+        <div class="cae-section">
+            <div class="cae-title">Autorización AFIP</div>
+            <div class="cae-data">
+                <div class="field">
+                    <span class="field-label">CAE:</span>
+                    <span class="field-value">{{ invoice.cae }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Fecha de Vencimiento del CAE:</span>
+                    <span class="field-value">{{ invoice.cae_expiration|date:"d/m/Y" }}</span>
+                </div>
+                <div class="field">
+                    <span class="field-label">Fecha de Autorización:</span>
+                    <span class="field-value">{{ invoice.issue_date|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Código QR -->
+        {% if invoice.cae %}
+        <div class="qr-code">
+            <p><strong>Código QR para verificación AFIP</strong></p>
+            <!-- El código QR se generará dinámicamente -->
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Este documento es una factura electrónica emitida por el sistema AlojaSys.</p>
+            <p>Fecha de generación: {% now "d/m/Y H:i:s" %}</p>
+            <p>Para consultas, contactar al hotel.</p>
+        </div>
+    </div>
+</body>
+</html>

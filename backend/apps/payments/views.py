@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 from apps.reservations.models import Reservation, ReservationStatus, Payment
 from .models import PaymentGatewayConfig, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, RefundLog, RefundVoucher, RefundVoucherStatus, BankTransferPayment, BankTransferStatus
-from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer, RefundVoucherSerializer, RefundVoucherCreateSerializer, RefundVoucherUseSerializer, PaymentGatewayConfigSerializer, BankTransferPaymentSerializer, BankTransferPaymentCreateSerializer, BankTransferPaymentUpdateSerializer, BankTransferPaymentListSerializer
+from .serializers import PaymentMethodSerializer, PaymentPolicySerializer, CancellationPolicySerializer, CancellationPolicyCreateSerializer, RefundPolicySerializer, RefundPolicyCreateSerializer, RefundSerializer, RefundCreateSerializer, RefundStatusUpdateSerializer, RefundVoucherSerializer, RefundVoucherCreateSerializer, RefundVoucherUseSerializer, PaymentGatewayConfigSerializer, BankTransferPaymentSerializer, BankTransferPaymentCreateSerializer, BankTransferPaymentUpdateSerializer, BankTransferPaymentListSerializer, CreateDepositSerializer, DepositResponseSerializer, GenerateInvoiceFromPaymentSerializer
 from apps.core.models import Hotel
 
 
@@ -31,10 +31,18 @@ class PaymentIntentSerializer(serializers.ModelSerializer):
         ]
 
 class PaymentSerializer(serializers.ModelSerializer):
+    reservation_id = serializers.IntegerField(source='reservation.id', read_only=True)
+    reservation_display_name = serializers.CharField(source='reservation.display_name', read_only=True)
+    guest_name = serializers.CharField(source='reservation.guest_name', read_only=True)
+    hotel_name = serializers.CharField(source='reservation.hotel.name', read_only=True)
+    receipt_pdf_url = serializers.URLField(read_only=True, allow_null=True)
+    
     class Meta:
         model = Payment
         fields = [
-            'id', 'date', 'method', 'amount', 'created_at'
+            'id', 'date', 'method', 'amount', 'status', 'is_deposit', 
+            'created_at', 'reservation_id', 'reservation_display_name', 
+            'guest_name', 'hotel_name', 'receipt_pdf_url', 'notes'
         ]
 
 
@@ -612,11 +620,19 @@ def process_card_payment(request):
     if status_detail == "approved":
         # Crear registro de pago en la tabla Payment
         from apps.reservations.models import Payment
+        # Considerar seña si el monto es menor al total de la reserva
+        is_deposit_flag = False
+        try:
+            is_deposit_flag = float(amount) + 0.01 < float(reservation.total_price)
+        except Exception:
+            is_deposit_flag = False
+
         Payment.objects.create(
             reservation=reservation,
             date=timezone.now().date(),
             method="card",
-            amount=amount
+            amount=amount,
+            is_deposit=is_deposit_flag
         )
         
         # Confirmar reserva si está pendiente
@@ -677,11 +693,13 @@ def process_deposit_payment(request):
         
         # Crear el pago
         with transaction.atomic():
+            # Marcar como seña
             payment = Payment.objects.create(
                 reservation=reservation,
                 date=timezone.now().date(),
                 method=method,
-                amount=Decimal(str(amount))
+                amount=Decimal(str(amount)),
+                is_deposit=True
             )
             
             # Si el depósito se cobra al confirmar, confirmar la reserva
@@ -748,6 +766,7 @@ def process_full_payment(request):
         
         # Crear el pago
         with transaction.atomic():
+            # Pago total (no es seña)
             payment = Payment.objects.create(
                 reservation=reservation,
                 date=timezone.now().date(),
@@ -1812,3 +1831,381 @@ def upload_bank_transfer_receipt(request):
         return Response({
             'error': 'Error interno del servidor'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ===== VISTAS PARA SEÑAS (PAGOS PARCIALES) =====
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_deposit(request):
+    """
+    Crear una seña/depósito para una reserva
+    
+    POST /api/payments/create-deposit/
+    {
+        "reservation_id": 123,
+        "amount": 1000.00,
+        "method": "cash",
+        "send_to_afip": false,
+        "notes": "Seña del 50%"
+    }
+    """
+    try:
+        serializer = CreateDepositSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'error': 'Datos inválidos',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener datos validados
+        reservation_id = serializer.validated_data['reservation_id']
+        amount = serializer.validated_data['amount']
+        method = serializer.validated_data['method']
+        send_to_afip = serializer.validated_data['send_to_afip']
+        notes = serializer.validated_data.get('notes', '')
+        
+        # Obtener reserva
+        reservation = get_object_or_404(Reservation, id=reservation_id)
+        
+        # Obtener política de pago del hotel
+        policy = PaymentPolicy.resolve_for_hotel(reservation.hotel)
+        if not policy:
+            return Response({
+                'error': 'El hotel no tiene política de pago configurada'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calcular depósito según política
+        from .services.payment_calculator import calculate_deposit
+        deposit_info = calculate_deposit(policy, reservation.total_price)
+        
+        if not deposit_info['required']:
+            return Response({
+                'error': 'La política de pago no requiere depósito'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validar que el monto de la seña no exceda el depósito requerido
+        if amount > deposit_info['amount']:
+            return Response({
+                'error': f'El monto de la seña no puede exceder ${deposit_info["amount"]} (según política)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        with transaction.atomic():
+            # Crear pago como seña
+            payment = Payment.objects.create(
+                reservation=reservation,
+                date=timezone.now().date(),
+                method=method,
+                amount=amount,
+                is_deposit=True,
+                metadata={
+                    'deposit_info': deposit_info,
+                    'policy_id': policy.id,
+                    'notes': notes
+                },
+                notes=notes
+            )
+            
+            # Generar recibo PDF
+            from .tasks import generate_payment_receipt_pdf
+            generate_payment_receipt_pdf.delay(payment.id, 'payment')
+            
+            # Si se debe enviar a AFIP, generar factura
+            receipt_pdf_url = None
+            if send_to_afip:
+                try:
+                    # Verificar configuración AFIP
+                    afip_config = reservation.hotel.afip_config
+                    if not afip_config:
+                        return Response({
+                            'error': 'El hotel no tiene configuración AFIP para facturación'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Generar factura para la seña
+                    from apps.invoicing.views import GenerateInvoiceFromPaymentView
+                    invoice_view = GenerateInvoiceFromPaymentView()
+                    
+                    # Simular request para generar factura
+                    invoice_data = {
+                        'customer_name': reservation.guest_name or 'Cliente',
+                        'customer_document_type': 'DNI',
+                        'customer_document_number': '00000000',
+                        'send_to_afip': True
+                    }
+                    
+                    # Crear factura usando el servicio existente
+                    from apps.invoicing.services.invoice_generator import InvoiceGeneratorService
+                    invoice_service = InvoiceGeneratorService()
+                    invoice_result = invoice_service.create_invoice_from_payment(
+                        payment, 
+                        invoice_data,
+                        send_to_afip=True
+                    )
+                    
+                    if invoice_result['success']:
+                        receipt_pdf_url = invoice_result.get('pdf_url')
+                    else:
+                        logger.warning(f"Error generando factura para seña {payment.id}: {invoice_result.get('error')}")
+                        
+                except Exception as e:
+                    logger.error(f"Error generando factura para seña {payment.id}: {str(e)}")
+                    # No fallar la creación del pago si hay error en la factura
+            
+            # Preparar respuesta
+            response_data = DepositResponseSerializer(payment).data
+            response_data['receipt_pdf_url'] = receipt_pdf_url
+            response_data['deposit_info'] = deposit_info
+            
+            return Response({
+                'message': 'Seña creada exitosamente',
+                'payment': response_data
+            }, status=status.HTTP_201_CREATED)
+            
+    except Exception as e:
+        logger.error(f"Error creando seña: {str(e)}", exc_info=True)
+        return Response({
+            'error': 'Error interno del servidor',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_invoice_from_payment_extended(request, payment_id):
+    """
+    Generar factura desde pago con soporte para múltiples pagos (señas + pago final)
+    
+    POST /api/payments/generate-invoice-from-payment/{payment_id}/
+    {
+        "send_to_afip": true,
+        "reference_payments": [123, 124, 125],
+        "customer_name": "Juan Pérez",
+        "customer_document_type": "DNI",
+        "customer_document_number": "12345678"
+    }
+    """
+    try:
+        # Obtener pago principal
+        payment = get_object_or_404(Payment, id=payment_id)
+        
+        serializer = GenerateInvoiceFromPaymentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'error': 'Datos inválidos',
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener pagos de referencia si se proporcionan
+        reference_payments = serializer.validated_data.get('reference_payments', [payment_id])
+        if payment_id not in reference_payments:
+            reference_payments.append(payment_id)
+        
+        # Obtener todos los pagos
+        payments = Payment.objects.filter(id__in=reference_payments)
+        if not payments.exists():
+            return Response({
+                'error': 'No se encontraron pagos válidos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verificar que todos los pagos pertenezcan a la misma reserva
+        reservation_ids = set(p.id for p in payments for p in [p.reservation])
+        if len(reservation_ids) > 1:
+            return Response({
+                'error': 'Todos los pagos deben pertenecer a la misma reserva'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        reservation = payment.reservation
+        
+        # Verificar configuración AFIP
+        afip_config = reservation.hotel.afip_config
+        if not afip_config:
+            return Response({
+                'error': 'El hotel no tiene configuración AFIP'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        with transaction.atomic():
+            # Calcular total de todos los pagos
+            total_amount = sum(p.amount for p in payments)
+            
+            # Generar número de factura
+            next_number = afip_config.get_next_invoice_number()
+            formatted_number = afip_config.format_invoice_number(next_number)
+            
+            # Obtener datos del cliente
+            customer_data = {
+                'customer_name': serializer.validated_data.get('customer_name', reservation.guest_name or 'Cliente'),
+                'customer_document_type': serializer.validated_data.get('customer_document_type', 'DNI'),
+                'customer_document_number': serializer.validated_data.get('customer_document_number', '00000000'),
+                'customer_address': serializer.validated_data.get('customer_address', ''),
+                'customer_city': serializer.validated_data.get('customer_city', ''),
+                'customer_postal_code': serializer.validated_data.get('customer_postal_code', ''),
+                'customer_country': serializer.validated_data.get('customer_country', 'Argentina'),
+            }
+            
+            # Crear factura
+            from apps.invoicing.models import Invoice
+            invoice_data = {
+                'reservation': reservation,
+                'payment': payment,  # Pago principal para compatibilidad
+                'payments_data': reference_payments,  # Lista de IDs de pagos
+                'hotel': reservation.hotel,
+                'type': 'B',  # Factura B por defecto
+                'number': formatted_number,
+                'issue_date': serializer.validated_data.get('issue_date', timezone.now().date()),
+                'total': total_amount,
+                'net_amount': total_amount * Decimal('0.83'),  # Aproximado sin IVA
+                'vat_amount': total_amount * Decimal('0.17'),  # Aproximado con IVA
+                'currency': 'ARS',
+                'status': 'draft',
+                'created_by': request.user,
+                **customer_data
+            }
+            
+            invoice = Invoice.objects.create(**invoice_data)
+            
+            # Crear items de la factura
+            from apps.invoicing.models import InvoiceItem
+            item_data = {
+                'invoice': invoice,
+                'description': f'Hospedaje - {reservation.room.name} (Incluye señas y pago final)',
+                'quantity': (reservation.check_out - reservation.check_in).days,
+                'unit_price': reservation.room.base_price,
+                'vat_rate': Decimal('21.00'),
+                'afip_code': '1'  # Servicios
+            }
+            InvoiceItem.objects.create(**item_data)
+            
+            # Actualizar número en configuración
+            afip_config.update_invoice_number(next_number)
+            
+            # Si se debe enviar a AFIP
+            if serializer.validated_data.get('send_to_afip', False):
+                try:
+                    from apps.invoicing.services.afip_service import AfipService
+                    afip_service = AfipService(afip_config)
+                    result = afip_service.send_invoice(invoice)
+                    
+                    if result['success']:
+                        invoice.mark_as_approved(result['cae'], result['cae_expiration'])
+                    else:
+                        invoice.mark_as_error(result['error'])
+                        
+                except Exception as e:
+                    logger.error(f"Error enviando factura {invoice.number} a AFIP: {str(e)}")
+                    invoice.mark_as_error(str(e))
+            
+            # Generar PDF de la factura
+            from apps.invoicing.tasks import generate_invoice_pdf
+            generate_invoice_pdf.delay(invoice.id)
+            
+            return Response({
+                'message': 'Factura generada exitosamente',
+                'invoice': {
+                    'id': invoice.id,
+                    'number': invoice.number,
+                    'total': float(invoice.total),
+                    'status': invoice.status,
+                    'cae': invoice.cae,
+                    'payments_included': reference_payments
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+    except Exception as e:
+        logger.error(f"Error generando factura desde pagos: {str(e)}", exc_info=True)
+        return Response({
+            'error': 'Error interno del servidor',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet para gestionar pagos (solo lectura para comprobantes)"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        qs = Payment.objects.all().select_related("reservation", "reservation__hotel")
+        
+        # Filtro por hotel
+        hotel_id = self.request.query_params.get("hotel")
+        if hotel_id:
+            qs = qs.filter(reservation__hotel_id=hotel_id)
+        
+        # Filtro por método de pago
+        payment_method = self.request.query_params.get("payment_method")
+        if payment_method:
+            qs = qs.filter(method=payment_method)
+        
+        # Filtro por estado
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        
+        # Filtro por tipo de pago (señas)
+        is_deposit = self.request.query_params.get("is_deposit")
+        if is_deposit is not None:
+            qs = qs.filter(is_deposit=is_deposit.lower() == 'true')
+        
+        # Filtro por búsqueda general
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(reservation__guest_name__icontains=search) |
+                Q(reservation__hotel__name__icontains=search) |
+                Q(method__icontains=search) |
+                Q(status__icontains=search)
+            )
+        
+        # Filtro por rango de fechas
+        date_from = self.request.query_params.get("date_from")
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        
+        date_to = self.request.query_params.get("date_to")
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        
+        return qs.order_by("-created_at")
+    
+    def get_serializer_class(self):
+        return PaymentSerializer
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_receipt_from_payment(request, payment_id: int):
+    """
+    Genera (o regenera) el PDF de recibo para un pago parcial existente.
+
+    Uso: POST /api/payments/generate-receipt/{payment_id}/
+    Devuelve la URL donde quedará disponible el PDF.
+    """
+    try:
+        payment = get_object_or_404(Payment, id=payment_id)
+
+        # Programar/generar el PDF
+        try:
+            from .tasks import generate_payment_receipt_pdf
+            generate_payment_receipt_pdf.delay(payment.id, 'payment')
+        except Exception:
+            logger.exception("Error encolando tarea de recibo de pago")
+
+        # Construir URL del archivo destino
+        from django.conf import settings
+        filename = f"payment_{payment.id}.pdf"
+        relative_path = f"documents/{filename}"
+        base_url = getattr(settings, 'MEDIA_URL', '/media/')
+        absolute_url = request.build_absolute_uri(os.path.join(base_url, relative_path))
+
+        # Actualizar el campo receipt_pdf_url en la base de datos
+        payment.receipt_pdf_url = absolute_url
+        payment.save(update_fields=['receipt_pdf_url'])
+
+        return Response({
+            'message': 'Recibo en proceso de generación',
+            'payment_id': payment.id,
+            'receipt_pdf_url': absolute_url
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Error generando recibo para pago {payment_id}: {e}", exc_info=True)
+        return Response({'error': 'Error interno del servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

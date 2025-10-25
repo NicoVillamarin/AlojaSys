@@ -8,6 +8,21 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     postgresql-client \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    fonts-dejavu \
+    libharfbuzz0b \
+    libfribidi0 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libxcb1 \
+    libxau6 \
+    libxdmcp6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements

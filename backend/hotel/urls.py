@@ -40,6 +40,7 @@ urlpatterns = [
     path("api/payments/", include("apps.payments.urls")),
     path("api/calendar/", include("apps.calendar.urls")),
     path("api/", include("apps.notifications.urls")),
+    path("api/invoicing/", include("apps.invoicing.urls")),
 ]
 
 # Servir archivos media en desarrollo

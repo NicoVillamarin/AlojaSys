@@ -20,6 +20,8 @@
    - [3.11 Gestión de Empresas](#311-gestión-de-empresas)
    - [3.12 Sistema de Notificaciones](#312-sistema-de-notificaciones)
    - [3.13 Procesamiento Automático de Reembolsos](#313-procesamiento-automático-de-reembolsos)
+   - [3.14 Facturación Electrónica Argentina](#314-facturación-electrónica-argentina)
+   - [3.15 Comprobantes de Señas y Pagos Parciales](#315-comprobantes-de-señas-y-pagos-parciales)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
 5. [Casos de Uso Reales](#casos-de-uso-reales)
 6. [Beneficios del Sistema](#beneficios-del-sistema)
@@ -34,6 +36,8 @@
 - 📅 **Administrar las reservas** desde la consulta hasta el check-out
 - 📆 **Visualizar reservas** en un calendario interactivo y elegante
 - 💰 **Procesar pagos** de manera segura y flexible
+- 💳 **Manejar señas** (pagos parciales) con facturación automática
+- 🧾 **Generar comprobantes** de señas automáticamente
 - 🤖 **Procesar reembolsos** automáticamente 24/7
 - 🏦 **Conciliar bancos** automáticamente con extractos
 - 📊 **Generar reportes** y métricas del negocio
@@ -257,6 +261,81 @@ Procesa pagos de manera segura y flexible, con políticas configurables y valida
 - **Monto Fijo**: Adelanto de $X fijo
 - **Fechas de Vencimiento**: Al confirmar, días antes, al check-in
 - **Saldo Pendiente**: Al check-in o al check-out
+
+### 💰 Señas y Pagos Parciales (v2.4)
+
+#### ¿Qué son las señas?
+Las señas son pagos parciales que el huésped realiza antes del check-in para asegurar su reserva. El sistema calcula automáticamente el monto según la política configurada.
+
+#### ¿Cómo funciona?
+
+##### 1. Configuración de Políticas
+- **Porcentaje**: "Seña del 50% del total"
+- **Monto Fijo**: "Seña de $2000 fijo"
+- **Sin Seña**: "Pago completo al confirmar"
+- **Fechas de Vencimiento**: Al confirmar, días antes del check-in
+
+##### 2. Cálculo Automático
+- **El sistema calcula** el monto de seña según la política
+- **Valida** que el monto no exceda el permitido
+- **Muestra** información clara al usuario sobre la seña requerida
+
+##### 3. Dos Modos de Facturación
+
+###### Modo "Solo Recibos"
+- **Seña**: Genera recibo PDF (no envía a AFIP)
+- **Pago Final**: Genera recibo PDF (no envía a AFIP)
+- **Factura Final**: Genera factura AFIP con CAE incluyendo todos los pagos
+
+###### Modo "Facturación en Seña"
+- **Seña**: Genera factura AFIP con CAE para el monto de la seña
+- **Pago Final**: Genera recibo PDF
+- **Nota de Crédito**: Genera nota de crédito o factura complementaria
+
+##### 4. Proceso Completo
+1. **Cliente hace reserva** → Sistema calcula seña requerida
+2. **Cliente paga seña** → Se genera recibo/factura según configuración
+3. **Cliente paga saldo** → Se genera recibo/factura según configuración
+4. **Sistema genera factura final** → Incluye todos los pagos realizados
+
+#### Características Principales
+- **Cálculo Automático**: Usa la política de pago para calcular montos
+- **Validaciones Inteligentes**: Previene errores de montos y estados
+- **Múltiples Pagos por Factura**: Vincula señas + pago final en una factura
+- **Integración AFIP**: Soporte completo para facturación electrónica argentina
+- **PDFs Automáticos**: Genera recibos y facturas automáticamente
+- **Emails Automáticos**: Envía comprobantes por email al huésped
+
+#### Ejemplo Práctico
+```
+Reserva: $10,000 por 3 noches
+Política: Seña del 50% al confirmar
+
+1. Cliente confirma → Paga $5,000 (seña)
+   - Sistema genera: Recibo PDF + Email
+   - Si modo fiscal: Factura AFIP con CAE
+
+2. Cliente llega al hotel → Paga $5,000 (saldo)
+   - Sistema genera: Recibo PDF + Email
+
+3. Sistema genera factura final
+   - Incluye: Seña $5,000 + Saldo $5,000 = $10,000
+   - Envía a AFIP y obtiene CAE
+   - Genera PDF fiscal con código QR
+```
+
+#### Beneficios para el Hotel
+- **Mayor Seguridad**: Reservas aseguradas con señas
+- **Mejor Flujo de Caja**: Ingresos anticipados
+- **Menos No-Shows**: Clientes comprometidos con el pago
+- **Facturación Flexible**: Adaptable a necesidades contables
+- **Automatización Completa**: Menos trabajo manual
+
+#### Beneficios para el Huésped
+- **Reserva Asegurada**: Su lugar está garantizado
+- **Pago Flexible**: Puede pagar en cuotas
+- **Comprobantes Claros**: Recibe todos los documentos
+- **Transparencia Total**: Ve exactamente qué está pagando
 
 ### Mejoras de Seguridad Implementadas
 
@@ -4380,6 +4459,1055 @@ Política de Reembolso NO_SHOW:
 - **Grupos de usuarios**: Diferentes notificaciones por rol
 - **Escalación automática**: Notificar a supervisores si no se atiende
 
+## 3.13 Facturación Electrónica Argentina
+
+### ¿Qué hace?
+
+El módulo de **Facturación Electrónica Argentina** permite generar y gestionar facturas electrónicas que cumplen con las normativas de AFIP (Administración Federal de Ingresos Públicos) de Argentina. Es como tener un contador digital que se encarga automáticamente de toda la documentación fiscal.
+
+### ¿Cómo funciona?
+
+#### Configuración Inicial
+1. **Configuración AFIP**: Se configura el CUIT del hotel, punto de venta y certificados digitales
+2. **Tipos de Factura**: El sistema soporta todos los tipos de comprobantes argentinos:
+   - **Factura A**: Para responsables inscriptos
+   - **Factura B**: Para consumidores finales
+   - **Factura C**: Para exentos de IVA
+   - **Factura E**: Para exportaciones
+   - **Nota de Crédito**: Para devoluciones
+   - **Nota de Débito**: Para ajustes
+
+#### Proceso Automático
+1. **Detección de Pago**: Cuando se procesa un pago, el sistema detecta automáticamente si necesita factura
+2. **Generación Automática**: Se crea la factura con todos los datos del huésped y la reserva
+3. **Envío a AFIP**: La factura se envía automáticamente a AFIP para obtener el CAE (Código de Autorización Electrónica)
+4. **Generación de PDF**: Se crea un PDF profesional de la factura
+5. **Notificación**: Se notifica al huésped con la factura adjunta
+
+#### Ejemplo Práctico
+**Escenario**: Un huésped se hospeda en el hotel y paga con tarjeta de crédito.
+
+1. **Pago Procesado**: El sistema detecta que el pago fue exitoso
+2. **Datos del Cliente**: El sistema obtiene automáticamente:
+   - Nombre y apellido del huésped
+   - CUIT/DNI del cliente
+   - Dirección de facturación
+   - Detalles de la reserva (noches, habitación, servicios)
+
+3. **Creación de Factura**: Se genera automáticamente:
+   - Número de factura secuencial (ej: 0001-00001234)
+   - Fecha de emisión
+   - Detalle de servicios (alojamiento, desayuno, etc.)
+   - Cálculo de IVA
+   - Total a pagar
+
+4. **Envío a AFIP**: La factura se envía a AFIP y se obtiene el CAE
+5. **PDF Fiscal Generado**: Se crea un PDF profesional que incluye:
+   - Logo del hotel y datos fiscales
+   - Información completa del cliente
+   - Detalle de servicios con IVA
+   - CAE y fecha de vencimiento
+   - Código QR para verificación AFIP
+6. **Email al Cliente**: Se envía automáticamente la factura por email
+
+### Características Principales
+
+#### 🧾 **Tipos de Comprobantes**
+- **Factura A**: Para empresas responsables inscriptas
+- **Factura B**: Para consumidores finales
+- **Factura C**: Para exentos de IVA
+- **Factura E**: Para exportaciones
+- **Nota de Crédito**: Para devoluciones y cancelaciones
+- **Nota de Débito**: Para ajustes y recargos
+
+#### 🔧 **Funcionalidades Automáticas**
+- ✅ **Generación automática** desde reservas
+- ✅ **Envío automático a AFIP** con autenticación segura
+- ✅ **Obtención de CAE** automática y validación
+- ✅ **Generación de PDFs** profesionales con logo del hotel
+- ✅ **Email automático** al cliente con factura adjunta
+- ✅ **Código QR** para verificación AFIP en cada factura
+- ✅ **Numeración secuencial** automática (formato: 0001-00001234)
+- ✅ **Cálculo de IVA** automático según normativas
+- ✅ **Reintentos automáticos** en caso de error
+- ✅ **Validación de datos** antes del envío
+- ✅ **Cache de autenticación** para mayor eficiencia
+- ✅ **Notas de crédito automáticas** al procesar reembolsos
+- ✅ **Vinculación de documentos** (facturas con sus notas de crédito)
+- ✅ **Manejo de errores** inteligente y notificaciones
+
+#### 📊 **Gestión y Control**
+- **Dashboard de Facturas**: Vista general de todas las facturas
+- **Estados de Factura**: Borrador, Enviada, Aprobada, Error
+- **Búsqueda Avanzada**: Por fecha, cliente, número, estado
+- **Reportes**: Facturas emitidas, ingresos, errores
+- **Conciliación**: Con pagos y reservas
+
+#### 🔄 **Automatización Inteligente**
+
+##### **Generación Automática de Facturas**
+El sistema genera facturas automáticamente cuando:
+- ✅ Un pago es **aprobado** exitosamente
+- ✅ Se completa una **reserva** con pago
+- ✅ Se procesa un **check-in** con pago pendiente
+
+**Proceso Automático**:
+1. **Detección**: El sistema detecta el pago aprobado
+2. **Validación**: Verifica que no exista factura previa
+3. **Configuración**: Obtiene la configuración AFIP del hotel
+4. **Generación**: Crea la factura con datos del pago y reserva
+5. **Envío**: Envía automáticamente a AFIP (opcional)
+6. **PDF**: Genera el PDF fiscal con CAE
+7. **Email**: Envía la factura al cliente
+
+##### **Generación Automática de Notas de Crédito**
+El sistema genera notas de crédito automáticamente cuando:
+- ✅ Se procesa un **reembolso** aprobado
+- ✅ Se cancela una **reserva** con factura existente
+- ✅ Se requiere un **ajuste** de factura
+
+**Proceso Automático**:
+1. **Detección**: El sistema detecta el reembolso aprobado
+2. **Vinculación**: Busca la factura original del pago
+3. **Validación**: Verifica que la factura esté aprobada
+4. **Generación**: Crea la nota de crédito vinculada
+5. **Envío**: Envía automáticamente a AFIP (opcional)
+6. **PDF**: Genera el PDF fiscal con CAE
+7. **Email**: Envía la nota de crédito al cliente
+
+#### 🌐 **APIs y Endpoints Disponibles**
+
+##### **Endpoints Principales**
+- **`POST /api/invoices/generate-from-payment/{id}/`**
+  - Genera factura automáticamente desde un pago
+  - Incluye datos del cliente y items personalizados
+  - Opción de envío automático a AFIP
+
+- **`GET /api/invoices/by-reservation/{id}/`**
+  - Lista todas las facturas de una reserva
+  - Filtros por tipo y estado
+  - Incluye notas de crédito relacionadas
+
+- **`POST /api/invoices/{id}/create-credit-note/`**
+  - Crea nota de crédito desde factura existente
+  - Vinculación automática con factura original
+  - Validación de totales y datos
+
+##### **Endpoints de Gestión**
+- **`GET /api/invoices/{id}/pdf/`** - Obtener PDF de factura
+- **`GET /api/invoices/{id}/download-pdf/`** - Descargar PDF
+- **`POST /api/invoices/{id}/send-to-afip/`** - Enviar a AFIP
+- **`POST /api/invoices/{id}/retry/`** - Reintentar envío
+- **`GET /api/invoices/{id}/summary/`** - Resumen de factura
+
+##### **Endpoints de Estado**
+- **`GET /api/afip/status/`** - Estado general de AFIP
+- **`GET /api/afip-configs/{id}/test-connection/`** - Probar conexión
+
+#### 🔗 **Integración con Otros Módulos**
+
+##### **Módulo de Pagos**
+- **Trigger**: Pago aprobado → Factura generada
+- **Datos**: Monto, cliente, método de pago
+- **Estado**: Sincronización automática
+
+##### **Módulo de Reservas**
+- **Trigger**: Check-in → Factura generada
+- **Datos**: Habitación, fechas, servicios
+- **Estado**: Vinculación automática
+
+##### **Módulo de Reembolsos**
+- **Trigger**: Reembolso aprobado → Nota de crédito
+- **Datos**: Monto, motivo, factura original
+- **Estado**: Vinculación automática
+
+#### 📱 **Interfaz de Usuario**
+
+##### **Panel de Facturas**
+- **Vista General**: Lista de todas las facturas
+- **Filtros**: Por hotel, fecha, tipo, estado
+- **Acciones**: Generar, enviar, descargar, cancelar
+- **Estados**: Visualización clara del estado de cada factura
+
+##### **Panel de Notas de Crédito**
+- **Vista General**: Lista de notas de crédito
+- **Vinculación**: Factura original visible
+- **Filtros**: Por factura original, fecha, estado
+- **Acciones**: Generar, enviar, descargar
+
+##### **Dashboard de AFIP**
+- **Estado de Conexión**: Disponibilidad de AFIP
+- **Configuración**: Gestión de certificados
+- **Estadísticas**: Facturas enviadas, aprobadas, errores
+- **Alertas**: CAE próximos a vencer, errores críticos
+
+### Beneficios para el Hotel
+
+#### 🏨 **Cumplimiento Fiscal**
+- **Automático**: No hay que recordar generar facturas
+- **Completo**: Cumple con todas las normativas AFIP
+- **Auditable**: Historial completo de todas las facturas
+- **Seguro**: Certificados digitales para máxima seguridad
+
+#### 💰 **Eficiencia Operativa**
+- **Tiempo Ahorrado**: No más facturación manual
+- **Menos Errores**: Cálculos automáticos precisos
+- **Mejor Organización**: Todo centralizado en el sistema
+- **Cliente Satisfecho**: Recibe factura inmediatamente
+
+#### 📈 **Control del Negocio**
+- **Reportes Detallados**: Ingresos por período, tipo de cliente
+- **Análisis de Ventas**: Qué servicios se facturan más
+- **Control de Errores**: Facturas que fallaron y por qué
+- **Conciliación**: Coincidencia entre pagos y facturas
+
+### Casos de Uso Reales
+
+#### Caso 1: Hotel Boutique (20 habitaciones)
+**Problema**: Facturación manual consume mucho tiempo del personal
+**Solución**: 
+- Configuración AFIP en 30 minutos
+- Facturación automática desde el primer día
+- Ahorro de 2 horas diarias en facturación
+- Clientes reciben factura por email automáticamente
+
+#### Caso 2: Hotel de Negocios (100 habitaciones)
+**Problema**: Muchas facturas A para empresas, gestión compleja
+**Solución**:
+- Detección automática de tipo de cliente
+- Generación automática de Factura A o B según corresponda
+- Integración con datos de empresas
+- Reportes detallados por tipo de cliente
+
+#### Caso 3: Hotel Resort (200 habitaciones)
+**Problema**: Servicios adicionales (spa, restaurante) requieren facturación separada
+**Solución**:
+- Facturación por servicio o consolidada
+- Múltiples puntos de venta
+- Gestión de exenciones (turismo)
+- Reportes por área del hotel
+
+### Servicios AFIP Integrados
+
+#### 🔐 **Autenticación Automática**
+El sistema maneja automáticamente la autenticación con AFIP:
+- **Certificados Digitales**: Se usan para firmar las solicitudes
+- **Tokens de Acceso**: Se generan automáticamente y duran 12 horas
+- **Cache Inteligente**: Evita autenticaciones innecesarias
+- **Renovación Automática**: Los tokens se renuevan antes de vencer
+
+#### 📤 **Envío de Facturas**
+Proceso completamente automatizado:
+- **Validación Previa**: Verifica todos los datos antes del envío
+- **Construcción XML**: Genera el formato requerido por AFIP
+- **Envío Seguro**: Usa HTTPS y certificados digitales
+- **Procesamiento de Respuesta**: Extrae CAE y datos de AFIP
+- **Actualización Automática**: Guarda los resultados en la base de datos
+
+#### 📄 **Generación de PDFs Fiscales**
+El sistema genera PDFs profesionales que cumplen con todas las normativas argentinas:
+
+**Elementos del PDF:**
+- **Logo del Hotel**: Imagen corporativa en la parte superior
+- **Datos Fiscales Completos**: 
+  - Razón social del hotel
+  - CUIT y domicilio fiscal
+  - Condición ante IVA
+  - Punto de venta
+- **Datos del Cliente**:
+  - Nombre completo o razón social
+  - Tipo y número de documento
+  - Domicilio completo
+- **Información de la Factura**:
+  - Número de comprobante (formato: 0001-00001234)
+  - Fecha de emisión
+  - Tipo de comprobante (A, B, C, E, NC, ND)
+  - Moneda y totales
+- **Detalle de Servicios**:
+  - Tabla profesional con servicios
+  - Cantidades y precios unitarios
+  - Cálculo de IVA desglosado
+  - Totales por línea
+- **Autorización AFIP**:
+  - CAE (Código de Autorización Electrónica)
+  - Fecha de vencimiento del CAE
+  - Fecha y hora de autorización
+- **Código QR**:
+  - Link directo a AFIP para verificación
+  - Contiene todos los datos fiscales
+  - Escaneable desde cualquier dispositivo
+- **Pie de Página**:
+  - Información del sistema
+  - Fecha de generación del PDF
+  - Datos de contacto del hotel
+
+**Características Técnicas:**
+- **Formato Profesional**: Diseño limpio y fácil de leer
+- **Cumplimiento Normativo**: Sigue todas las reglas de AFIP
+- **Alta Calidad**: Generado con ReportLab para máxima calidad
+- **Tamaño Optimizado**: PDFs ligeros para envío por email
+- **Escalable**: Funciona con cualquier cantidad de items
+
+#### 🧪 **Modo de Pruebas**
+Para testing y homologación:
+- **Ambiente Separado**: No afecta la producción
+- **Datos de Prueba**: Incluye clientes y montos de ejemplo
+- **Validación de Configuración**: Verifica que todo esté correcto
+- **Parámetros Recomendados**: Sugiere valores para testing
+
+### Configuración Paso a Paso
+
+#### 1. **Configuración AFIP**
+```
+1. Ir a Configuración → Facturación
+2. Completar datos del hotel:
+   - CUIT del hotel (11 dígitos)
+   - Punto de venta (1-9999)
+   - Condición de IVA
+   - Ambiente (Test o Producción)
+3. Subir certificados digitales:
+   - Certificado (.crt)
+   - Clave privada (.key)
+4. Probar conexión con AFIP
+5. Verificar que la autenticación funcione
+```
+
+#### 2. **Configuración de Facturación**
+```
+1. Activar facturación automática
+2. Configurar tipos de comprobante por defecto:
+   - Factura A: Para empresas
+   - Factura B: Para consumidores finales
+3. Configurar plantillas de email
+4. Configurar numeración inicial
+5. Establecer reintentos automáticos
+```
+
+#### 3. **Primera Factura**
+```
+1. Procesar un pago de prueba
+2. El sistema genera automáticamente la factura
+3. Se autentica con AFIP automáticamente
+4. Se envía la factura y se obtiene CAE
+5. Se genera PDF y se envía por email
+6. Verificar que todo funciona correctamente
+```
+
+#### 4. **Verificación del Sistema**
+```
+1. Revisar logs de facturación
+2. Verificar que los CAEs se obtengan correctamente
+3. Comprobar que los PDFs se generen
+4. Confirmar que los emails se envíen
+5. Validar la numeración secuencial
+```
+
+### Monitoreo y Mantenimiento
+
+#### **Dashboard de Facturación**
+- **Facturas del Día**: Cuántas se generaron hoy
+- **Estado de AFIP**: Conexión funcionando correctamente
+- **Errores Recientes**: Facturas que fallaron y por qué
+- **Próximos Vencimientos**: CAEs que vencen pronto
+
+#### **Alertas Automáticas**
+- **Conexión AFIP**: Si se pierde la conexión
+- **Errores de Facturación**: Si una factura falla
+- **Vencimiento de CAE**: Si un CAE está por vencer
+- **Certificados**: Si los certificados están por vencer
+
+#### **Reportes Disponibles**
+- **Facturas Emitidas**: Por período, tipo, cliente
+- **Ingresos Facturados**: Total facturado por mes
+- **Errores de Facturación**: Qué falló y cuándo
+- **Conciliación**: Coincidencia entre pagos y facturas
+
+### Integración con Otros Módulos
+
+#### **Con Reservas**
+- **Datos del Huésped**: Se obtienen automáticamente
+- **Servicios Contratados**: Alojamiento, desayuno, spa, etc.
+- **Fechas**: Check-in, check-out, noches
+- **Habitación**: Tipo, número, tarifa
+
+#### **Con Pagos**
+- **Monto Pagado**: Se usa para calcular totales
+- **Método de Pago**: Para identificar tipo de cliente
+- **Fecha de Pago**: Para fecha de emisión
+- **Estado del Pago**: Para validar si facturar
+
+#### **Con Dashboard**
+- **Métricas de Facturación**: Ingresos facturados
+- **Tendencias**: Facturas por mes, tipo de cliente
+- **Alertas**: Errores, vencimientos, conexiones
+
+### Beneficios del Sistema
+
+#### **Para el Hotel**
+- ✅ **Cumplimiento Fiscal**: Automático y completo
+- ✅ **Ahorro de Tiempo**: No más facturación manual
+- ✅ **Menos Errores**: Cálculos automáticos
+- ✅ **Mejor Organización**: Todo centralizado
+- ✅ **Cliente Satisfecho**: Factura inmediata
+- ✅ **Reportes Detallados**: Análisis del negocio
+
+#### **Para el Personal**
+- ✅ **Menos Trabajo Manual**: Automatización completa
+- ✅ **Menos Errores**: Validaciones automáticas
+- ✅ **Mejor Control**: Dashboard y alertas
+- ✅ **Más Tiempo**: Para atención al cliente
+
+#### **Para el Cliente**
+- ✅ **Factura Inmediata**: Recibe por email automáticamente
+- ✅ **Formato Profesional**: PDF con logo del hotel
+- ✅ **Datos Correctos**: Información precisa de la reserva
+- ✅ **Fácil Acceso**: Historial de facturas en su perfil
+
+### Resolución de Problemas Comunes
+
+#### **Problemas de Conexión AFIP**
+- **Error de Autenticación**: Verificar certificados digitales
+- **Token Expirado**: El sistema renueva automáticamente
+- **Conexión Perdida**: Revisar conectividad a internet
+- **Certificados Inválidos**: Verificar fechas de vencimiento
+
+#### **Problemas de Facturación**
+- **CAE No Obtenido**: Revisar datos del cliente y montos
+- **XML Inválido**: Verificar formato de datos
+- **Factura Rechazada**: Comprobar CUIT y punto de venta
+- **Error de Numeración**: Verificar secuencia de números
+
+#### **Problemas de PDF**
+- **PDF No Generado**: Verificar plantilla y datos
+- **Formato Incorrecto**: Revisar configuración de logo
+- **Email No Enviado**: Comprobar configuración SMTP
+- **Archivo Corrupto**: Regenerar PDF desde la factura
+
+### 🧪 Testing y Homologación
+
+#### **¿Qué es la Homologación?**
+
+La **homologación** es el proceso de validación con AFIP antes de usar el sistema en producción. Es como un "examen" que AFIP hace para asegurarse de que tu sistema funciona correctamente antes de que emitas facturas reales.
+
+#### **¿Por qué es Importante?**
+
+- **Cumplimiento Legal**: AFIP requiere homologación para facturación electrónica
+- **Validación Completa**: Asegura que todo funciona correctamente
+- **Confianza Total**: Sabes que el sistema está listo para producción
+- **Evita Problemas**: Detecta errores antes de que afecten a clientes reales
+
+#### **Proceso de Homologación**
+
+##### **1. Configuración de Pruebas**
+```
+1. Ir a Configuración → Facturación → Homologación
+2. Usar datos de prueba de AFIP:
+   - CUIT: 20123456789 (homologación)
+   - Punto de Venta: 1
+   - Ambiente: Test
+3. Cargar certificados de prueba
+4. Configurar tipos de factura a probar
+```
+
+##### **2. Pruebas Automáticas**
+El sistema ejecuta **35+ tests automáticos** que verifican:
+
+- **Conexión con AFIP**: ¿Se puede conectar correctamente?
+- **Autenticación**: ¿Se obtienen tokens válidos?
+- **Emisión de Facturas**: ¿Se pueden crear facturas A, B, C?
+- **Notas de Crédito**: ¿Se pueden generar correctamente?
+- **PDFs Fiscales**: ¿Se generan con formato correcto?
+- **Validaciones**: ¿Se verifican todos los datos?
+
+##### **3. Tipos de Factura Probados**
+- **Factura A**: Para empresas (Responsables Inscriptos)
+- **Factura B**: Para consumidores finales
+- **Factura C**: Para exentos (turismo internacional)
+- **Nota de Crédito**: Para devoluciones
+- **Nota de Débito**: Para ajustes
+
+##### **4. Tipos de Cliente Probados**
+- **DNI**: Documento Nacional de Identidad
+- **CUIT**: Código Único de Identificación Tributaria
+- **CUIL**: Código Único de Identificación Laboral
+- **Pasaporte**: Para turistas extranjeros
+
+#### **Resultados de las Pruebas**
+
+##### **✅ Pruebas Exitosas**
+- **Conexión AFIP**: Funcionando correctamente
+- **Autenticación**: Tokens válidos obtenidos
+- **Emisión**: Facturas creadas exitosamente
+- **PDFs**: Generados con formato fiscal correcto
+- **Validaciones**: Todos los datos verificados
+
+##### **❌ Pruebas Fallidas**
+- **Conexión AFIP**: Revisar configuración de red
+- **Certificados**: Verificar fechas de vencimiento
+- **Datos**: Comprobar información del cliente
+- **Montos**: Validar cálculos de IVA
+
+#### **Configuración de Ambientes**
+
+##### **Ambiente de Pruebas (Test)**
+- **Propósito**: Desarrollo y pruebas locales
+- **Datos**: Simulados con mocks
+- **AFIP**: No se conecta realmente
+- **Uso**: Para desarrolladores y testing
+
+##### **Ambiente de Homologación**
+- **Propósito**: Validación con AFIP real
+- **Datos**: Datos de prueba oficiales de AFIP
+- **AFIP**: Conexión real con servidores de prueba
+- **Uso**: Validación antes de producción
+
+##### **Ambiente de Producción**
+- **Propósito**: Uso real con clientes
+- **Datos**: Datos reales del hotel
+- **AFIP**: Conexión real con servidores de producción
+- **Uso**: Facturación real de clientes
+
+#### **Monitoreo de Pruebas**
+
+##### **Dashboard de Testing**
+- **Estado de Pruebas**: Cuáles pasaron y cuáles fallaron
+- **Tiempo de Ejecución**: Qué tan rápido se ejecutan
+- **Cobertura**: Qué funcionalidades están probadas
+- **Última Ejecución**: Cuándo se probó por última vez
+
+##### **Alertas de Pruebas**
+- **Pruebas Fallidas**: Si alguna prueba falla
+- **Conexión AFIP**: Si se pierde la conexión
+- **Certificados**: Si están por vencer
+- **Datos Inválidos**: Si hay información incorrecta
+
+#### **Beneficios del Testing**
+
+##### **Para el Hotel** 🏨
+- **Confianza Total**: Sabes que el sistema funciona
+- **Cumplimiento Legal**: Cumples con normativas de AFIP
+- **Menos Errores**: Problemas detectados antes de producción
+- **Mejor Servicio**: Clientes reciben facturas correctas
+
+##### **Para el Personal** 👥
+- **Tranquilidad**: No hay sorpresas en producción
+- **Eficiencia**: Sistema probado y confiable
+- **Soporte**: Problemas resueltos rápidamente
+- **Capacitación**: Sabes exactamente cómo funciona
+
+##### **Para los Clientes** 👤
+- **Facturas Correctas**: Siempre reciben documentos válidos
+- **Sin Retrasos**: Procesamiento automático y rápido
+- **Cumplimiento**: Documentos que cumplen con la ley
+- **Confianza**: Saben que el hotel es profesional
+
+#### **Comandos de Pruebas**
+
+##### **Ejecutar Todas las Pruebas**
+```bash
+# Desde el panel de administración
+Configuración → Facturación → Ejecutar Pruebas Completas
+```
+
+##### **Pruebas Específicas**
+```bash
+# Solo pruebas de conexión
+Configuración → Facturación → Probar Conexión AFIP
+
+# Solo pruebas de facturación
+Configuración → Facturación → Probar Emisión de Facturas
+
+# Solo pruebas de PDFs
+Configuración → Facturación → Probar Generación de PDFs
+```
+
+##### **Ver Resultados**
+```bash
+# Ver reporte de pruebas
+Configuración → Facturación → Ver Reporte de Pruebas
+```
+
+---
+
+## 3.14 Facturación Electrónica Argentina
+
+### ¿Qué hace?
+Permite emitir facturas electrónicas oficiales de Argentina con integración completa a AFIP, cumpliendo con todas las normativas fiscales del país.
+
+### ¿Cómo funciona?
+
+#### **Configuración Inicial**
+1. **Certificado Digital AFIP**: Se obtiene desde WSASS (homologación) o AFIP (producción)
+2. **Configuración del Hotel**: CUIT, punto de venta, condición de IVA
+3. **Autorización de Servicios**: Se autoriza el servicio `wsfe` (Facturación Electrónica)
+4. **Pruebas de Conexión**: Se verifica que todo funcione correctamente
+
+#### **Flujo de Facturación**
+```
+Reserva → Pago → Generación de Factura → Envío a AFIP → Obtención de CAE → PDF Fiscal
+```
+
+#### **Facturación con Señas (Pagos Parciales)**
+El sistema soporta dos modos de facturación para manejar señas:
+
+##### **Modo "Solo Recibos"**
+```
+Seña → Recibo PDF (sin AFIP)
+Pago Final → Recibo PDF (sin AFIP)
+Factura Final → Factura AFIP con CAE (incluye todos los pagos)
+```
+
+##### **Modo "Facturación en Seña"**
+```
+Seña → Factura AFIP con CAE (monto de la seña)
+Pago Final → Recibo PDF (sin AFIP)
+Nota de Crédito → Nota de crédito AFIP (ajuste final)
+```
+
+#### **Tipos de Comprobantes Soportados**
+- **Factura A**: Para Responsables Inscriptos
+- **Factura B**: Para Consumidores Finales  
+- **Factura C**: Para Exentos
+- **Factura E**: Para Exportación
+- **Nota de Crédito**: Para devoluciones
+- **Nota de Débito**: Para cargos adicionales
+
+### **Configuraciones Requeridas**
+
+#### **1. Certificado Digital AFIP**
+- **Homologación**: Obtener desde WSASS (https://wsass-homo.afip.gob.ar)
+- **Producción**: Obtener desde AFIP oficial
+- **Formato**: Certificado .crt y clave privada .key
+- **Autorización**: Debe estar autorizado para el servicio `wsfe`
+
+#### **2. Datos del Hotel**
+- **CUIT**: 11 dígitos del hotel
+- **Punto de Venta**: Número asignado por AFIP (1-9999)
+- **Condición de IVA**: Responsable Inscripto, Consumidor Final, etc.
+- **Razón Social**: Nombre oficial del hotel
+- **Domicilio**: Dirección fiscal completa
+
+#### **3. Configuración Técnica**
+- **Ambiente**: Testing (homologación) o Producción
+- **Certificados**: Rutas a los archivos .crt y .key
+- **Numeración**: Control automático de números de factura
+- **Reintentos**: Configuración de reintentos en caso de error
+
+### **Características Principales**
+
+#### **Integración AFIP Completa**
+- ✅ **Autenticación WSAA**: Token de acceso automático
+- ✅ **Emisión WSFEv1**: Envío de facturas a AFIP
+- ✅ **Obtención de CAE**: Código de Autorización Electrónica
+- ✅ **Validaciones**: Cumplimiento de normativas argentinas
+- ✅ **Reintentos**: Manejo automático de errores temporales
+
+#### **Generación de PDFs Fiscales**
+- ✅ **Diseño Oficial**: Formato según normativas AFIP
+- ✅ **Datos Completos**: Emisor, comprador, items, totales
+- ✅ **CAE Incluido**: Código de autorización visible
+- ✅ **Código QR**: Para verificación en AFIP
+- ✅ **Logo del Hotel**: Personalización profesional
+
+#### **Gestión de Estados**
+- ✅ **Borrador**: Factura creada, no enviada
+- ✅ **Enviada**: Enviada a AFIP, esperando respuesta
+- ✅ **Aprobada**: CAE obtenido, factura válida
+- ✅ **Error**: Problema en el envío, requiere revisión
+
+#### **Automatización**
+- ✅ **Generación Automática**: Al procesar pagos
+- ✅ **Reintentos Inteligentes**: En caso de errores temporales
+- ✅ **Cache de Tokens**: Reutilización de tokens AFIP
+- ✅ **Validaciones**: Antes de enviar a AFIP
+
+### **Configuración Paso a Paso**
+
+#### **Paso 1: Obtener Certificado Digital**
+1. Ir a WSASS (https://wsass-homo.afip.gob.ar)
+2. Crear nuevo certificado con CSR generado por el sistema
+3. Descargar certificado .crt
+4. Autorizar servicio `wsfe` (Facturación Electrónica)
+
+#### **Paso 2: Configurar en AlojaSys**
+1. Ir a **Configuración → Facturación AFIP**
+2. Completar datos del hotel:
+   - CUIT del hotel
+   - Punto de venta AFIP
+   - Condición de IVA
+3. Subir certificados:
+   - Archivo .crt (certificado)
+   - Archivo .key (clave privada)
+4. Seleccionar ambiente (Testing/Producción)
+
+#### **Paso 3: Probar Conexión**
+1. Hacer clic en **"Probar Conexión"**
+2. Verificar que se obtenga token AFIP válido
+3. Probar emisión de factura de prueba
+4. Verificar que se genere PDF correctamente
+
+### **Funcionalidades Implementadas**
+
+#### **Gestión de Facturas**
+- ✅ **Creación desde Reservas**: Generar factura directamente desde una reserva
+- ✅ **Validación de Datos**: Verificación automática de datos del cliente
+- ✅ **Numeración Automática**: Control secuencial de números de factura
+- ✅ **Estados de Factura**: Borrador, Enviada, Aprobada, Rechazada, Cancelada
+- ✅ **Historial Completo**: Seguimiento de todos los cambios de estado
+
+#### **Integración con AFIP**
+- ✅ **Autenticación Automática**: Token AFIP con cache inteligente
+- ✅ **Manejo de Errores**: Gestión de errores "TA ya válido" de AFIP
+- ✅ **Reintentos Automáticos**: En caso de errores temporales
+- ✅ **Validaciones Pre-AFIP**: Verificación antes del envío
+- ✅ **Obtención de CAE**: Código de Autorización Electrónica automático
+
+#### **Generación de PDFs**
+- ✅ **Template Oficial**: Diseño según normativas AFIP
+- ✅ **Conversión HTML→PDF**: Usando WeasyPrint con fallback a ReportLab
+- ✅ **Datos Dinámicos**: Información del hotel, cliente e items
+- ✅ **Estilos Oficiales**: CSS compatible con normativas AFIP
+- ✅ **Regeneración**: Forzar regeneración de PDFs actualizados
+
+#### **Interfaz de Usuario**
+- ✅ **Lista de Facturas**: Vista completa con filtros y búsqueda
+- ✅ **Estado de Facturación**: Badge visual en reservas
+- ✅ **Botón de Facturación**: En gestión de reservas
+- ✅ **Visualización de PDF**: Modal con visor integrado
+- ✅ **Acciones por Estado**: Enviar, Re-enviar, Cancelar según estado
+
+#### **Automatización**
+- ✅ **Generación Automática**: Al aprobar pagos completos
+- ✅ **Envío a AFIP**: Proceso automático con manejo de errores
+- ✅ **Notificaciones**: Alertas de estado de facturas
+- ✅ **Cache de Tokens**: Reutilización eficiente de tokens AFIP
+
+### **Flujos de Trabajo**
+
+#### **Flujo Normal de Facturación**
+1. **Reserva con Pago Completo** → Sistema detecta pago aprobado
+2. **Generación Automática** → Se crea factura en estado "Borrador"
+3. **Envío a AFIP** → Se envía automáticamente a AFIP
+4. **Obtención de CAE** → AFIP devuelve código de autorización
+5. **Generación de PDF** → Se crea PDF fiscal con CAE
+6. **Notificación** → Se notifica al usuario del éxito
+
+#### **Flujo Manual de Facturación**
+1. **Seleccionar Reserva** → En gestión de reservas
+2. **Hacer Clic en "Factura"** → Botón de facturación
+3. **Completar Datos** → Información del cliente
+4. **Generar Factura** → Se crea en estado "Borrador"
+5. **Enviar a AFIP** → Proceso manual desde lista de facturas
+6. **Verificar Estado** → Confirmar aprobación por AFIP
+
+#### **Gestión de Errores**
+1. **Error de Conexión** → Reintento automático
+2. **Error de AFIP** → Manejo específico por tipo de error
+3. **Token Expirado** → Renovación automática
+4. **Factura Rechazada** → Notificación y opción de corrección
+
+### **Estados de Factura**
+
+#### **Draft (Borrador)**
+- **Descripción**: Factura creada, no enviada a AFIP
+- **Acciones**: Enviar a AFIP, Cancelar, Editar
+- **Color**: Gris
+
+#### **Sent (Enviada)**
+- **Descripción**: Enviada a AFIP, esperando respuesta
+- **Acciones**: Re-enviar si hay error
+- **Color**: Azul
+
+#### **Approved (Aprobada)**
+- **Descripción**: CAE obtenido, factura válida
+- **Acciones**: Ver PDF, Crear Nota de Crédito
+- **Color**: Verde
+
+#### **Rejected (Rechazada)**
+- **Descripción**: Rechazada por AFIP
+- **Acciones**: Revisar y corregir, Re-enviar
+- **Color**: Rojo
+
+#### **Cancelled (Cancelada)**
+- **Descripción**: Cancelada manualmente
+- **Acciones**: Ninguna
+- **Color**: Gris
+
+### **Configuraciones Avanzadas**
+
+#### **Certificados AFIP**
+- **Desarrollo**: Certificados de prueba desde WSASS
+- **Producción**: Certificados reales desde AFIP
+- **Renovación**: Proceso automático de renovación
+- **Seguridad**: Almacenamiento seguro de claves privadas
+
+#### **Templates PDF**
+- **HTML Base**: Template oficial AFIP SDK
+- **Personalización**: Logo y datos del hotel
+- **Responsive**: Optimizado para impresión A4
+- **Fallback**: ReportLab si WeasyPrint falla
+
+#### **Manejo de Errores**
+- **"TA ya válido"**: Reutilización de token existente
+- **Timeout**: Reintentos automáticos
+- **XML malformado**: Limpieza y reparación
+- **Certificado expirado**: Renovación automática
+
+### **Beneficios para el Hotel**
+
+#### **Cumplimiento Fiscal**
+- ✅ **Normativas Argentinas**: Cumplimiento total con AFIP
+- ✅ **Auditoría**: Trazabilidad completa de facturas
+- ✅ **Validación**: Verificación automática de datos
+- ✅ **Backup**: Respaldo automático de todas las facturas
+
+#### **Automatización**
+- ✅ **Menos Errores**: Validaciones automáticas
+- ✅ **Ahorro de Tiempo**: Proceso automático
+- ✅ **Disponibilidad 24/7**: Funciona en cualquier momento
+- ✅ **Escalabilidad**: Maneja cualquier volumen de facturas
+
+#### **Experiencia del Usuario**
+- ✅ **Interfaz Intuitiva**: Fácil de usar
+- ✅ **Estados Claros**: Visualización del progreso
+- ✅ **Notificaciones**: Alertas en tiempo real
+- ✅ **PDFs Profesionales**: Documentos de calidad
+
+### **Casos de Uso Reales**
+
+#### **Hotel con 50 Habitaciones**
+- **Volumen**: ~100 facturas/mes
+- **Automatización**: 95% automático
+- **Tiempo Ahorrado**: 8 horas/mes
+- **Errores Reducidos**: 90% menos errores manuales
+
+#### **Hotel con 200 Habitaciones**
+- **Volumen**: ~500 facturas/mes
+- **Automatización**: 98% automático
+- **Tiempo Ahorrado**: 40 horas/mes
+- **Cumplimiento**: 100% normativas AFIP
+
+### **Próximas Funcionalidades**
+
+#### **En Desarrollo**
+- 🔄 **Notas de Crédito**: Para devoluciones
+- 🔄 **Notas de Débito**: Para cargos adicionales
+- 🔄 **Facturas por Lotes**: Procesamiento masivo
+- 🔄 **Reportes Fiscales**: Libro IVA y otros
+
+#### **Planificadas**
+- 📋 **Integración Contable**: Con sistemas contables
+- 📋 **Backup Automático**: Respaldo en la nube
+- 📋 **Múltiples Puntos de Venta**: Para hoteles grandes
+- 📋 **Facturas Internacionales**: Para turismo extranjero
+2. Verificar que aparezca "Conexión exitosa"
+3. Si hay errores, revisar certificados y configuración
+
+#### **Paso 4: Configurar Facturación Automática**
+1. Activar **"Generación automática de facturas"**
+2. Seleccionar tipos de comprobante por defecto
+3. Configurar datos del cliente por defecto
+
+### **Tipos de Cliente Soportados**
+
+#### **Responsable Inscripto**
+- **Documento**: CUIT
+- **Factura**: Tipo A
+- **IVA**: Desglosado
+
+#### **Consumidor Final**
+- **Documento**: DNI, CUIL, etc.
+- **Factura**: Tipo B
+- **IVA**: Incluido
+
+#### **Exento**
+- **Documento**: Cualquier tipo
+- **Factura**: Tipo C
+- **IVA**: No aplica
+
+### **Flujos de Trabajo**
+
+#### **Facturación Automática**
+1. **Cliente hace reserva** y paga
+2. **Sistema detecta pago** procesado
+3. **Genera factura automáticamente** con datos del cliente
+4. **Envía a AFIP** y obtiene CAE
+5. **Genera PDF fiscal** con CAE y QR
+6. **Envía por email** al cliente
+
+#### **Facturación Manual**
+1. **Usuario selecciona reserva** para facturar
+2. **Completa datos del cliente** si es necesario
+3. **Selecciona tipo de comprobante**
+4. **Confirma generación** de factura
+5. **Sistema procesa** igual que automático
+
+#### **Notas de Crédito**
+1. **Seleccionar factura original** a anular
+2. **Especificar motivo** de la anulación
+3. **Generar nota de crédito** automáticamente
+4. **Enviar a AFIP** para autorización
+
+### **Monitoreo y Alertas**
+
+#### **Estados de Facturas**
+- **Dashboard**: Vista general de facturas por estado
+- **Filtros**: Por fecha, tipo, estado, cliente
+- **Búsqueda**: Por número, CAE, cliente
+
+#### **Alertas Automáticas**
+- **Facturas con error**: Requieren revisión
+- **Certificados por vencer**: Renovar a tiempo
+- **Conexión AFIP**: Problemas de conectividad
+- **Límites de numeración**: Próximo a agotar
+
+#### **Reportes**
+- **Facturas emitidas**: Por período
+- **Montos facturados**: Totales por tipo
+- **Errores**: Análisis de problemas
+- **Cumplimiento**: Estadísticas de AFIP
+
+### **Beneficios para el Hotel**
+
+#### **Cumplimiento Legal** ⚖️
+- ✅ **Normativas AFIP**: Cumplimiento total
+- ✅ **Auditorías**: Documentación completa
+- ✅ **Inspecciones**: Sin problemas fiscales
+- ✅ **Multas**: Evita sanciones por incumplimiento
+
+#### **Eficiencia Operativa** ⚡
+- ✅ **Automatización**: Sin intervención manual
+- ✅ **Velocidad**: Facturas en segundos
+- ✅ **Precisión**: Sin errores humanos
+- ✅ **Trazabilidad**: Historial completo
+
+#### **Experiencia del Cliente** 👤
+- ✅ **Facturas Inmediatas**: Al momento del pago
+- ✅ **Formato Profesional**: PDFs con logo del hotel
+- ✅ **Verificación Fácil**: Código QR para validar
+- ✅ **Email Automático**: Recibe factura por correo
+
+#### **Gestión Financiera** 💰
+- ✅ **Control Total**: Todas las facturas en un lugar
+- ✅ **Reportes Detallados**: Análisis de ventas
+- ✅ **Conciliación**: Fácil con contabilidad
+- ✅ **Backup**: Respaldo automático de documentos
+
+### **Requisitos Técnicos**
+
+#### **Certificados Digitales**
+- **Formato**: PEM (.crt y .key)
+- **Algoritmo**: RSA 2048 bits mínimo
+- **Firma**: SHA256
+- **Vigencia**: Renovar antes del vencimiento
+
+#### **Conectividad**
+- **Internet**: Conexión estable requerida
+- **Puertos**: 443 (HTTPS) abierto
+- **DNS**: Resolución de dominios AFIP
+- **Firewall**: Permitir tráfico a AFIP
+
+#### **Datos Requeridos**
+- **Hotel**: CUIT, razón social, domicilio
+- **Cliente**: Nombre, documento, domicilio
+- **Servicios**: Descripción, precios, IVA
+- **Numeración**: Secuencial por punto de venta
+
+### **Solución de Problemas**
+
+#### **Errores Comunes**
+- **"Certificado no encontrado"**: Verificar rutas de archivos
+- **"Conexión fallida"**: Revisar conectividad a AFIP
+- **"TA válido existente"**: Esperar vencimiento del token
+- **"Datos inválidos"**: Verificar información del cliente
+
+#### **Soporte Técnico**
+- **Logs del sistema**: Para diagnóstico detallado
+- **Pruebas de conexión**: Verificar configuración
+- **Documentación AFIP**: Consultar manuales oficiales
+- **Contacto AFIP**: soporte-ws-testing@arca.gob.ar
+
+### **Costos y Consideraciones**
+
+#### **Costos AFIP**
+- **Homologación**: Gratuito para testing
+- **Producción**: Según tarifas AFIP vigentes
+- **Certificados**: Renovación anual
+- **Servicios**: Sin costo adicional por factura
+
+#### **Consideraciones de Seguridad**
+- **Certificados**: Almacenamiento seguro
+- **Claves**: No compartir con terceros
+- **Accesos**: Solo personal autorizado
+- **Backup**: Respaldo de configuraciones
+
+### **Beneficios de las Señas para el Negocio**
+
+#### **Para el Hotel**
+- **💰 Mejor Flujo de Caja**: Ingresos anticipados antes del check-in
+- **🔒 Reservas Aseguradas**: Menos cancelaciones de último momento
+- **📊 Menos No-Shows**: Clientes comprometidos con el pago
+- **⚡ Automatización**: Menos trabajo manual en facturación
+- **📋 Flexibilidad Contable**: Adaptable a necesidades fiscales
+- **🎯 Mayor Ocupación**: Reservas más estables y confiables
+
+#### **Para el Huésped**
+- **🏨 Reserva Garantizada**: Su lugar está asegurado
+- **💳 Pago Flexible**: Puede pagar en cuotas cómodas
+- **📄 Comprobantes Claros**: Recibe todos los documentos
+- **🔍 Transparencia Total**: Ve exactamente qué está pagando
+- **📧 Notificaciones**: Recibe emails con todos los comprobantes
+- **💾 Historial Completo**: Acceso a todos sus pagos
+
+#### **Para la Contabilidad**
+- **📊 Trazabilidad Completa**: Seguimiento de todos los pagos
+- **🏛️ Cumplimiento Fiscal**: Facturación según normativas argentinas
+- **📈 Reportes Detallados**: Análisis de ingresos por señas
+- **🔄 Conciliación Fácil**: Vinculación automática de pagos
+- **📋 Auditoría**: Registro completo de todas las operaciones
+
+---
+
+## Flujos de Trabajo del Día a Día
+
+# Ver logs detallados
+Configuración → Facturación → Ver Logs de Pruebas
+```
+
+#### **Resolución de Problemas en Pruebas**
+
+##### **Problemas de Conexión**
+- **Verificar Internet**: Conexión estable
+- **Revisar Firewall**: Puertos de AFIP abiertos
+- **Comprobar DNS**: Resolución de nombres correcta
+- **Contactar Soporte**: Si persiste el problema
+
+##### **Problemas de Certificados**
+- **Verificar Fechas**: No estén vencidos
+- **Comprobar Formato**: Archivos válidos
+- **Revisar Permisos**: Acceso a archivos
+- **Regenerar**: Si es necesario
+
+##### **Problemas de Datos**
+- **Validar CUIT**: Formato correcto
+- **Revisar Montos**: Cálculos de IVA
+- **Comprobar Cliente**: Datos completos
+- **Verificar Configuración**: Parámetros correctos
+
+### Soporte Técnico
+
+#### **Logs del Sistema**
+- **Logs de AFIP**: Registro de todas las operaciones
+- **Logs de Facturación**: Detalles de cada factura procesada
+- **Logs de Errores**: Información para resolución de problemas
+- **Logs de Autenticación**: Estado de conexión con AFIP
+
+#### **Monitoreo en Tiempo Real**
+- **Estado de AFIP**: Conexión activa o inactiva
+- **Facturas Pendientes**: Cuántas están en proceso
+- **Errores Recientes**: Últimos problemas detectados
+- **Rendimiento**: Tiempo de procesamiento promedio
+
 ---
 
 ## Beneficios del Sistema
@@ -4395,6 +5523,216 @@ Política de Reembolso NO_SHOW:
 - **Maximizar** los ingresos del hotel
 
 Con su arquitectura modular y flexible, AlojaSys se adapta a cualquier tipo de hotel, desde pequeños establecimientos boutique hasta grandes cadenas hoteleras, proporcionando una base sólida para el crecimiento y la innovación en el sector hotelero.
+
+---
+
+## 3.15 Comprobantes de Señas y Pagos Parciales
+
+### ¿Qué hace?
+
+El módulo de **Comprobantes de Señas** permite generar, gestionar y almacenar comprobantes de pago para señas y pagos parciales. Es como tener un sistema de recibos digitales que se integra perfectamente con el flujo de reservas y facturación.
+
+### ¿Cómo funciona?
+
+#### Generación Automática de Comprobantes
+1. **Detección Inteligente**: El sistema identifica automáticamente cuando un pago es una seña (pago parcial)
+2. **Generación de PDF**: Se crea un comprobante profesional en formato PDF
+3. **Almacenamiento Seguro**: El comprobante se guarda con una URL permanente
+4. **Acceso Inmediato**: Se puede ver y descargar el comprobante desde cualquier lugar
+
+#### Gestión de Señas
+- **Identificación Automática**: Detecta señas incluso en pagos históricos
+- **Políticas Configurables**: Se integra con las políticas de pago del hotel
+- **Validaciones Inteligentes**: Verifica montos y tipos de pago automáticamente
+- **Historial Completo**: Mantiene registro de todas las señas realizadas
+
+### Características Principales
+
+#### 🧾 **Generación de Comprobantes**
+- **PDFs Profesionales**: Diseño consistente con el branding del hotel
+- **Datos Completos**: Información del pago, reserva y huésped
+- **URLs Persistentes**: Acceso permanente a los comprobantes
+- **Generación Rápida**: Proceso asíncrono que no bloquea la interfaz
+
+#### 💳 **Gestión de Señas**
+- **Detección Automática**: Identifica pagos parciales vs. pagos completos
+- **Heurística Inteligente**: Detecta señas incluso sin configuración explícita
+- **Integración con Políticas**: Se adapta a las reglas de pago del hotel
+- **Validaciones Automáticas**: Verifica montos y tipos de pago
+
+#### 📋 **Interfaz de Usuario**
+- **Badges Visuales**: Indicadores claros del estado de pago en las reservas
+- **Tooltips Informativos**: Detalles completos al pasar el mouse
+- **Lista de Comprobantes**: Gestión centralizada de todos los comprobantes
+- **Búsqueda y Filtros**: Encuentra comprobantes por huésped, hotel, fecha, etc.
+
+### Flujos de Trabajo
+
+#### 1. **Flujo de Pago de Seña**
+1. **Usuario crea reserva** → Sistema detecta política de seña
+2. **Modal de pago** → Opciones: "Seña" o "Pagar Total"
+3. **Selecciona "Seña"** → Monto calculado según política
+4. **Procesa pago** → Se marca como pago parcial
+5. **Reserva confirmada** → Estado cambia a "confirmed"
+6. **Botón "Comprobante"** → Disponible en gestión de reservas
+
+#### 2. **Flujo de Generación de Comprobante**
+1. **Clic en "Comprobante"** → Verifica pagos de seña
+2. **Identifica último pago parcial** → Usa detección inteligente
+3. **Genera PDF** → Proceso asíncrono en segundo plano
+4. **Actualiza URL** → Guarda enlace permanente en base de datos
+5. **Abre PDF** → Nueva pestaña del navegador
+6. **Lista actualizada** → Aparece en "Comprobantes de Señas"
+
+#### 3. **Flujo de Gestión de Comprobantes**
+1. **Acceso a "Facturación"** → Tab "Comprobantes de Señas"
+2. **Filtrado automático** → Solo pagos de señas
+3. **Lista de comprobantes** → Con datos de reserva y huésped
+4. **Acciones disponibles** → Ver y descargar PDFs
+5. **Búsqueda y filtros** → Por huésped, hotel, método, fecha
+
+### Ejemplos Prácticos
+
+#### **Ejemplo 1: Reserva con Seña**
+**Escenario**: Un huésped reserva una habitación por 3 noches ($300) y paga una seña de $100.
+
+1. **Reserva Creada**: Sistema detecta política de seña (30% del total)
+2. **Modal de Pago**: Usuario selecciona "Pagar Seña" ($100)
+3. **Pago Procesado**: Se marca como `is_deposit: true`
+4. **Reserva Confirmada**: Estado cambia a "confirmed"
+5. **Badge "Con Seña"**: Aparece en la lista de reservas
+6. **Botón "Comprobante"**: Disponible para generar recibo
+7. **PDF Generado**: Comprobante profesional con todos los datos
+8. **Lista Actualizada**: Aparece en "Comprobantes de Señas"
+
+#### **Ejemplo 2: Gestión de Comprobantes**
+**Escenario**: El personal del hotel necesita revisar todos los comprobantes de señas del mes.
+
+1. **Acceso a Facturación**: Ir a "Facturación" → "Comprobantes de Señas"
+2. **Lista Filtrada**: Solo comprobantes de señas (pagos parciales)
+3. **Información Completa**: Huésped, hotel, monto, fecha, método
+4. **Acciones Disponibles**: Ver PDF, descargar, buscar
+5. **Filtros Avanzados**: Por fecha, huésped, hotel, método de pago
+6. **Búsqueda Rápida**: Encuentra comprobantes específicos
+
+### Beneficios para el Hotel
+
+#### **Para el Personal**
+- ✅ **Gestión Centralizada**: Todos los comprobantes en un solo lugar
+- ✅ **Acceso Rápido**: Encuentra comprobantes en segundos
+- ✅ **Automatización**: Generación automática sin trabajo manual
+- ✅ **Organización**: Filtros y búsqueda para mantener orden
+
+#### **Para la Contabilidad**
+- ✅ **Documentación Completa**: Comprobantes profesionales y legales
+- ✅ **Trazabilidad**: Historial completo de todas las señas
+- ✅ **Integración**: Se conecta con el sistema de facturación
+- ✅ **Cumplimiento**: Documentación adecuada para auditorías
+
+#### **Para los Huéspedes**
+- ✅ **Comprobantes Claros**: Recibos profesionales y legibles
+- ✅ **Acceso Inmediato**: Pueden ver sus comprobantes al instante
+- ✅ **Historial**: Mantienen registro de sus pagos
+- ✅ **Confianza**: Documentación oficial de sus transacciones
+
+### Casos de Uso Reales
+
+#### **Caso 1: Hotel Boutique**
+**Problema**: El hotel necesita generar comprobantes para señas de $50-200
+**Solución**: Sistema genera automáticamente comprobantes profesionales
+**Resultado**: Ahorro de 30 minutos diarios en gestión manual
+
+#### **Caso 2: Hotel de Lujo**
+**Problema**: Huéspedes requieren comprobantes para reembolsos corporativos
+**Solución**: Comprobantes profesionales con todos los datos necesarios
+**Resultado**: 100% de satisfacción en documentación de pagos
+
+#### **Caso 3: Cadena Hotelera**
+**Problema**: Necesidad de centralizar comprobantes de múltiples hoteles
+**Solución**: Sistema unificado con filtros por hotel
+**Resultado**: Gestión eficiente de 500+ comprobantes mensuales
+
+### Configuración y Uso
+
+#### **Configuración Automática**
+- **Sin configuración adicional**: El sistema funciona automáticamente
+- **Detección inteligente**: Identifica señas sin configuración explícita
+- **Integración nativa**: Se conecta con políticas de pago existentes
+
+#### **Uso Diario**
+1. **Generar Comprobante**: Clic en "Comprobante" en gestión de reservas
+2. **Ver Comprobantes**: Ir a "Facturación" → "Comprobantes de Señas"
+3. **Buscar Comprobante**: Usar filtros por huésped, fecha, hotel
+4. **Descargar PDF**: Clic en "Ver" para abrir o descargar
+
+### Integración con Otros Módulos
+
+#### **Sistema de Pagos**
+- **Detección automática**: Identifica pagos parciales
+- **Marcado inteligente**: Marca señas con `is_deposit: true`
+- **Heurística de fallback**: Detecta señas en pagos históricos
+
+#### **Sistema de Facturación**
+- **Comprobantes vs. Facturas**: Diferencia entre recibos y facturas
+- **Integración AFIP**: Se conecta con facturación electrónica
+- **Flujo unificado**: Comprobantes para señas, facturas para pagos completos
+
+#### **Sistema de Reservas**
+- **Estados visuales**: Badges "Con Seña" en listas de reservas
+- **Tooltips informativos**: Detalles de pagos al pasar el mouse
+- **Acciones contextuales**: Botón "Comprobante" disponible cuando corresponde
+
+### Métricas y Reportes
+
+#### **Métricas Clave**
+- **Comprobantes generados**: Cantidad por día/semana/mes
+- **Tiempo de generación**: Velocidad promedio de creación
+- **Uso de almacenamiento**: Espacio ocupado por PDFs
+- **Errores de generación**: Fallos en la creación de comprobantes
+
+#### **Reportes Disponibles**
+- **Comprobantes por período**: Lista filtrada por fechas
+- **Comprobantes por hotel**: Distribución por establecimiento
+- **Comprobantes por método**: Análisis por tipo de pago
+- **Comprobantes por huésped**: Historial individual
+
+### Resolución de Problemas
+
+#### **Problemas Comunes**
+
+**Problema**: "No aparece el botón Comprobante"
+- **Causa**: No hay pagos de seña en la reserva
+- **Solución**: Verificar que el pago sea parcial (seña)
+
+**Problema**: "Comprobante no se genera"
+- **Causa**: Error en el proceso de generación
+- **Solución**: Reintentar o contactar soporte técnico
+
+**Problema**: "No aparece en la lista de comprobantes"
+- **Causa**: El pago no está marcado como seña
+- **Solución**: El sistema detectará automáticamente en la próxima actualización
+
+#### **Soporte Técnico**
+- **Logs detallados**: Registro de todas las operaciones
+- **Monitoreo automático**: Detección de errores en tiempo real
+- **Recuperación automática**: Reintentos automáticos en caso de fallos
+
+### Ventajas Competitivas
+
+#### **Automatización Completa**
+- **Sin trabajo manual**: Generación automática de comprobantes
+- **Detección inteligente**: Identifica señas sin configuración
+- **Integración nativa**: Se conecta con todos los módulos
+
+#### **Experiencia de Usuario**
+- **Interfaz intuitiva**: Fácil de usar para todo el personal
+- **Acceso rápido**: Encuentra comprobantes en segundos
+- **Información completa**: Todos los datos necesarios en un lugar
+
+#### **Escalabilidad**
+- **Múltiples hoteles**: Funciona con cualquier cantidad de establecimientos
+- **Alto volumen**: Maneja miles de comprobantes sin problemas
+- **Performance optimizada**: Respuesta rápida incluso con grandes volúmenes
 
 ---
 

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import PaymentMethod, PaymentPolicy, CancellationPolicy, RefundPolicy, Refund, RefundStatus, RefundReason, PaymentGatewayConfig, RefundVoucher, RefundVoucherStatus, BankTransferPayment, BankTransferStatus
+from apps.reservations.models import Payment
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -716,5 +717,98 @@ class BankTransferPaymentListSerializer(serializers.ModelSerializer):
             'cbu_iban', 'status', 'status_display', 'is_amount_valid', 'is_cbu_valid',
             'needs_review', 'created_at', 'updated_at'
         ]
+
+
+# ===== SERIALIZERS PARA SEÑAS (PAGOS PARCIALES) =====
+
+class CreateDepositSerializer(serializers.Serializer):
+    """Serializer para crear una seña/depósito"""
+    reservation_id = serializers.IntegerField(help_text="ID de la reserva")
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Monto de la seña")
+    method = serializers.CharField(max_length=30, default='cash', help_text="Método de pago")
+    send_to_afip = serializers.BooleanField(default=False, help_text="Si debe enviar a AFIP inmediatamente")
+    notes = serializers.CharField(max_length=500, required=False, allow_blank=True, help_text="Notas adicionales")
+    
+    def validate_reservation_id(self, value):
+        """Validar que la reserva exista y esté en estado válido"""
+        from apps.reservations.models import Reservation
+        try:
+            reservation = Reservation.objects.get(id=value)
+        except Reservation.DoesNotExist:
+            raise serializers.ValidationError("La reserva no existe")
+        
+        # Validar que la reserva esté en estado válido para recibir señas
+        valid_statuses = ['pending', 'confirmed']
+        if reservation.status not in valid_statuses:
+            raise serializers.ValidationError(
+                f"La reserva debe estar en estado {', '.join(valid_statuses)} para recibir señas"
+            )
+        
+        return value
+    
+    def validate_amount(self, value):
+        """Validar que el monto sea positivo"""
+        if value <= 0:
+            raise serializers.ValidationError("El monto debe ser mayor a 0")
+        return value
+
+
+class DepositResponseSerializer(serializers.ModelSerializer):
+    """Serializer para respuesta de creación de seña"""
+    reservation_id = serializers.IntegerField(source='reservation.id', read_only=True)
+    hotel_name = serializers.CharField(source='reservation.hotel.name', read_only=True)
+    receipt_pdf_url = serializers.URLField(read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'reservation_id', 'hotel_name', 'amount', 'method', 
+            'is_deposit', 'status', 'receipt_pdf_url', 'created_at'
+        ]
+
+
+class GenerateInvoiceFromPaymentSerializer(serializers.Serializer):
+    """Serializer extendido para generar factura desde pago con soporte para múltiples pagos"""
+    customer_name = serializers.CharField(max_length=255, required=False)
+    customer_document_type = serializers.ChoiceField(
+        choices=[('DNI', 'DNI'), ('CUIT', 'CUIT'), ('CUIL', 'CUIL'), ('PASAPORTE', 'PASAPORTE')],
+        required=False
+    )
+    customer_document_number = serializers.CharField(max_length=20, required=False)
+    customer_address = serializers.CharField(max_length=500, required=False)
+    customer_city = serializers.CharField(max_length=100, required=False)
+    customer_postal_code = serializers.CharField(max_length=20, required=False)
+    customer_country = serializers.CharField(max_length=100, required=False, default='Argentina')
+    issue_date = serializers.DateField(required=False)
+    send_to_afip = serializers.BooleanField(default=False)
+    reference_payments = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Lista de IDs de pagos a incluir en la factura (señas + pago final)"
+    )
+    
+    def validate_customer_document_number(self, value):
+        """Validar número de documento"""
+        if value and not value.isdigit():
+            raise serializers.ValidationError("El número de documento debe contener solo dígitos")
+        return value
+    
+    def validate_reference_payments(self, value):
+        """Validar que los pagos de referencia existan y pertenezcan a la misma reserva"""
+        if not value:
+            return value
+            
+        from apps.reservations.models import Payment
+        payments = Payment.objects.filter(id__in=value)
+        
+        if len(payments) != len(value):
+            raise serializers.ValidationError("Algunos pagos de referencia no existen")
+        
+        # Verificar que todos los pagos pertenezcan a la misma reserva
+        reservation_ids = set(payment.reservation_id for payment in payments)
+        if len(reservation_ids) > 1:
+            raise serializers.ValidationError("Todos los pagos deben pertenecer a la misma reserva")
+        
+        return value
 
 

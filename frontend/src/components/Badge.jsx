@@ -40,6 +40,20 @@ const Badge = ({
       icon: ExclamationTriangleIcon,
       iconColor: 'text-red-600'
     },
+    'payment-partial': {
+      bg: 'bg-orange-50',
+      text: 'text-orange-800',
+      border: 'border-orange-200',
+      icon: ClockIcon,
+      iconColor: 'text-orange-600'
+    },
+    'payment-deposit': {
+      bg: 'bg-blue-50',
+      text: 'text-blue-800',
+      border: 'border-blue-200',
+      icon: CheckIcon,
+      iconColor: 'text-blue-600'
+    },
     
     // Estados de reserva
     'reservation-pending': {
@@ -140,6 +154,87 @@ const Badge = ({
       text: 'text-gray-800',
       border: 'border-gray-200',
       icon: WarningIcon,
+      iconColor: 'text-gray-600'
+    },
+    
+    // Estados de facturación
+    'invoice-draft': {
+      bg: 'bg-gray-50',
+      text: 'text-gray-800',
+      border: 'border-gray-200',
+      icon: ClockIcon,
+      iconColor: 'text-gray-600'
+    },
+    'invoice-sent': {
+      bg: 'bg-blue-50',
+      text: 'text-blue-800',
+      border: 'border-blue-200',
+      icon: ClockIcon,
+      iconColor: 'text-blue-600'
+    },
+    'invoice-approved': {
+      bg: 'bg-green-50',
+      text: 'text-green-800',
+      border: 'border-green-200',
+      icon: CheckCircleIcon,
+      iconColor: 'text-green-600'
+    },
+    'invoice-rejected': {
+      bg: 'bg-red-50',
+      text: 'text-red-800',
+      border: 'border-red-200',
+      icon: ExclamationTriangleIcon,
+      iconColor: 'text-red-600'
+    },
+    'invoice-cancelled': {
+      bg: 'bg-yellow-50',
+      text: 'text-yellow-800',
+      border: 'border-yellow-200',
+      icon: CancelIcon,
+      iconColor: 'text-yellow-600'
+    },
+    'invoice-expired': {
+      bg: 'bg-purple-50',
+      text: 'text-purple-800',
+      border: 'border-purple-200',
+      icon: WarningIcon,
+      iconColor: 'text-purple-600'
+    },
+    'invoice-default': {
+      bg: 'bg-gray-50',
+      text: 'text-gray-800',
+      border: 'border-gray-200',
+      icon: null,
+      iconColor: 'text-gray-600'
+    },
+    
+    // Estados AFIP
+    'afip-test': {
+      bg: 'bg-blue-50',
+      text: 'text-blue-800',
+      border: 'border-blue-200',
+      icon: ClockIcon,
+      iconColor: 'text-blue-600'
+    },
+    'afip-production': {
+      bg: 'bg-green-50',
+      text: 'text-green-800',
+      border: 'border-green-200',
+      icon: CheckCircleIcon,
+      iconColor: 'text-green-600'
+    },
+    'afip-active': {
+      bg: 'bg-green-50',
+      text: 'text-green-800',
+      border: 'border-green-200',
+      icon: CheckCircleIcon,
+      iconColor: 'text-green-600'
+    },
+    'afip-inactive': {
+      bg: 'bg-gray-50',
+      text: 'text-gray-800',
+      border: 'border-gray-200',
+      icon: XIcon,
       iconColor: 'text-gray-600'
     },
     

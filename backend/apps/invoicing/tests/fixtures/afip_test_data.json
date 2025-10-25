@@ -1,0 +1,184 @@
+{
+  "test_configs": [
+    {
+      "name": "Homologación AFIP - Factura B",
+      "cuit": "20123456789",
+      "point_of_sale": 1,
+      "environment": "test",
+      "certificate_path": "/path/to/homologation/cert.crt",
+      "private_key_path": "/path/to/homologation/key.key",
+      "description": "Configuración de prueba para Factura B (Consumidor Final)"
+    },
+    {
+      "name": "Homologación AFIP - Factura A",
+      "cuit": "20123456789",
+      "point_of_sale": 2,
+      "environment": "test",
+      "certificate_path": "/path/to/homologation/cert.crt",
+      "private_key_path": "/path/to/homologation/key.key",
+      "description": "Configuración de prueba para Factura A (Responsable Inscripto)"
+    }
+  ],
+  "test_invoices": [
+    {
+      "type": "B",
+      "customer_name": "Cliente de Prueba",
+      "customer_document_type": "DNI",
+      "customer_document_number": "12345678",
+      "customer_address": "Av. Test 123",
+      "customer_city": "Buenos Aires",
+      "customer_postal_code": "1000",
+      "customer_country": "Argentina",
+      "total": 1000.00,
+      "net_amount": 826.45,
+      "vat_amount": 173.55,
+      "items": [
+        {
+          "description": "Hospedaje - Habitación Test",
+          "quantity": 1,
+          "unit_price": 1000.00,
+          "vat_rate": 21.00,
+          "afip_code": "1"
+        }
+      ]
+    },
+    {
+      "type": "A",
+      "customer_name": "Empresa de Prueba S.A.",
+      "customer_document_type": "CUIT",
+      "customer_document_number": "20123456789",
+      "customer_address": "Av. Empresa 456",
+      "customer_city": "Buenos Aires",
+      "customer_postal_code": "1000",
+      "customer_country": "Argentina",
+      "total": 2000.00,
+      "net_amount": 1652.89,
+      "vat_amount": 347.11,
+      "items": [
+        {
+          "description": "Servicio de Hospedaje - Suite",
+          "quantity": 2,
+          "unit_price": 1000.00,
+          "vat_rate": 21.00,
+          "afip_code": "1"
+        }
+      ]
+    },
+    {
+      "type": "C",
+      "customer_name": "Cliente Exento",
+      "customer_document_type": "DNI",
+      "customer_document_number": "87654321",
+      "customer_address": "Av. Exento 789",
+      "customer_city": "Buenos Aires",
+      "customer_postal_code": "1000",
+      "customer_country": "Argentina",
+      "total": 1000.00,
+      "net_amount": 1000.00,
+      "vat_amount": 0.00,
+      "items": [
+        {
+          "description": "Servicio Exento - Habitación",
+          "quantity": 1,
+          "unit_price": 1000.00,
+          "vat_rate": 0.00,
+          "afip_code": "1"
+        }
+      ]
+    }
+  ],
+  "test_credit_notes": [
+    {
+      "type": "NC",
+      "customer_name": "Cliente de Prueba",
+      "customer_document_type": "DNI",
+      "customer_document_number": "12345678",
+      "total": 500.00,
+      "net_amount": 413.22,
+      "vat_amount": 86.78,
+      "reason": "Cancelación de reserva",
+      "items": [
+        {
+          "description": "Reembolso - Factura 0001-00000001",
+          "quantity": 1,
+          "unit_price": 500.00,
+          "vat_rate": 21.00,
+          "afip_code": "1"
+        }
+      ]
+    }
+  ],
+  "expected_responses": {
+    "wsaa_login_success": {
+      "token": "test_token_homologation_123456789",
+      "sign": "test_sign_homologation_abcdefghij",
+      "generation_time": "2025-01-01T00:00:00-03:00",
+      "expiration_time": "2025-01-01T12:00:00-03:00"
+    },
+    "wsfev1_invoice_success": {
+      "cae": "12345678901234",
+      "cae_expiration": 20250115,
+      "invoice_number": 1,
+      "result": "A",
+      "observations": []
+    },
+    "wsfev1_invoice_error": {
+      "cae": "",
+      "cae_expiration": 0,
+      "invoice_number": 0,
+      "result": "R",
+      "observations": [
+        {
+          "code": 1001,
+          "message": "Error de validación en homologación"
+        }
+      ]
+    }
+  },
+  "test_scenarios": [
+    {
+      "name": "Factura B exitosa",
+      "description": "Emisión exitosa de Factura B para consumidor final",
+      "invoice_type": "B",
+      "expected_result": "success",
+      "expected_cae": true
+    },
+    {
+      "name": "Factura A exitosa",
+      "description": "Emisión exitosa de Factura A para responsable inscripto",
+      "invoice_type": "A",
+      "expected_result": "success",
+      "expected_cae": true
+    },
+    {
+      "name": "Factura C exitosa",
+      "description": "Emisión exitosa de Factura C exenta",
+      "invoice_type": "C",
+      "expected_result": "success",
+      "expected_cae": true
+    },
+    {
+      "name": "Nota de Crédito exitosa",
+      "description": "Emisión exitosa de Nota de Crédito",
+      "invoice_type": "NC",
+      "expected_result": "success",
+      "expected_cae": true
+    },
+    {
+      "name": "Error de validación",
+      "description": "Error de validación de datos",
+      "invoice_type": "B",
+      "expected_result": "error",
+      "expected_cae": false,
+      "error_code": 1001
+    },
+    {
+      "name": "Error de CUIT",
+      "description": "Error de CUIT inválido",
+      "invoice_type": "B",
+      "expected_result": "error",
+      "expected_cae": false,
+      "error_code": 1002
+    }
+  ]
+}

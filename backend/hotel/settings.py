@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "apps.payments",
     "apps.calendar",
     "apps.notifications",
+    "apps.invoicing",
 ]
 
 MIDDLEWARE = [
@@ -71,7 +72,7 @@ ROOT_URLCONF = 'hotel.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -237,6 +238,23 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reservations.tasks.auto_cancel_pending_deposits",
         "schedule": crontab(hour=8, minute=15),  # Diario a las 8:15 AM (antes de otras tareas)
     },
+    # Tareas de facturación
+    "retry_failed_invoices_hourly": {
+        "task": "apps.invoicing.tasks.retry_failed_invoices_task",
+        "schedule": crontab(minute=15),  # Cada hora a los 15 minutos
+    },
+    "cleanup_expired_invoices_daily": {
+        "task": "apps.invoicing.tasks.cleanup_expired_invoices_task",
+        "schedule": crontab(hour=2, minute=0),  # Diario a las 2:00 AM
+    },
+    "validate_afip_connection_hourly": {
+        "task": "apps.invoicing.tasks.validate_afip_connection_task",
+        "schedule": crontab(minute=45),  # Cada hora a los 45 minutos
+    },
+    "generate_daily_invoice_report": {
+        "task": "apps.invoicing.tasks.generate_daily_invoice_report_task",
+        "schedule": crontab(hour=23, minute=0),  # Diario a las 11:00 PM
+    },
 }
 
 CHANNEL_COMMISSION_RATES = {
@@ -297,3 +315,24 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@alojaSys.com'
 if config('EMAIL_USE_FILE', default=False, cast=bool):
     EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
     EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')
+
+# =============================================================================
+# CONFIGURACIÓN DE FACTURACIÓN ELECTRÓNICA
+# =============================================================================
+
+# Configuración de facturación
+AUTO_GENERATE_INVOICE_PDF = config('AUTO_GENERATE_INVOICE_PDF', default=True, cast=bool)
+INVOICE_PDF_STORAGE_PATH = os.path.join(MEDIA_ROOT, 'invoices', 'pdf')
+
+# Configuración AFIP
+AFIP_TEST_MODE = config('AFIP_TEST_MODE', default=True, cast=bool)
+AFIP_CERTIFICATE_PATH = config('AFIP_CERTIFICATE_PATH', default='')
+AFIP_PRIVATE_KEY_PATH = config('AFIP_PRIVATE_KEY_PATH', default='')
+
+# Configuración de reintentos
+INVOICE_MAX_RETRIES = config('INVOICE_MAX_RETRIES', default=3, cast=int)
+INVOICE_RETRY_DELAY = config('INVOICE_RETRY_DELAY', default=300, cast=int)  # 5 minutos
+
+# Configuración de PDFs
+INVOICE_PDF_TEMPLATE = 'invoicing/invoice_template.html'
+INVOICE_PDF_LOGO_PATH = os.path.join(STATIC_ROOT, 'img', 'logo.png')

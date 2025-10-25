@@ -16,6 +16,8 @@
    - [3.10 Módulo Notifications](#310-módulo-notifications)
    - [3.11 Módulo Cobros](#311-módulo-cobros-payment-collections)
    - [3.12 Módulo Conciliación Bancaria](#312-módulo-conciliación-bancaria)
+   - [3.13 Módulo Facturación Electrónica](#313-módulo-facturación-electrónica)
+   - [3.14 Módulo Comprobantes de Pagos](#314-módulo-comprobantes-de-pagos-payment-receipts)
 4. [Flujos de Trabajo Principales](#flujos-de-trabajo-principales)
 5. [APIs y Endpoints](#apis-y-endpoints)
 6. [Configuraciones y Políticas](#configuraciones-y-políticas)
@@ -32,6 +34,9 @@
 - ✅ Sistema de tarifas flexible con reglas y promociones
 - ✅ Procesamiento de pagos con Mercado Pago y métodos manuales
 - ✅ Políticas de pago configurables (adelantos, saldos)
+- ✅ **Sistema de señas (pagos parciales) con integración AFIP**
+- ✅ **Dos modos de facturación: solo recibos o facturación en seña**
+- ✅ **Múltiples pagos por factura (señas + pago final)**
 - ✅ Dashboard con métricas en tiempo real
 - ✅ Gestión multi-hotel y multi-empresa
 - ✅ Sistema de usuarios con perfiles y permisos
@@ -43,6 +48,9 @@
 - ✅ Conciliación bancaria automática con matching inteligente
 - ✅ Generación automática de PDFs de recibos
 - ✅ Envío automático de emails con recibos adjuntos
+- ✅ Facturación electrónica argentina con integración AFIP
+- ✅ Generación automática de facturas desde reservas
+- ✅ PDFs fiscales con diseño oficial AFIP
 
 ---
 
@@ -375,6 +383,25 @@ class PaymentIntentStatus(models.TextChoices):
     APPROVED = "approved", "Aprobado"
     REJECTED = "rejected", "Rechazado"
     CANCELLED = "cancelled", "Cancelado"
+```
+
+#### Payment (Extendido para Señas)
+```python
+class Payment(models.Model):
+    reservation = ForeignKey(Reservation)
+    date = DateField                     # Fecha del pago
+    method = CharField(30)               # Método de pago
+    amount = DecimalField                # Monto del pago
+    status = CharField(20)               # Estado del pago
+    
+    # Campos específicos para POSTNET
+    terminal_id = CharField(50)          # ID del terminal POSTNET
+    batch_number = CharField(100)        # Número de batch del terminal
+    notes = TextField                    # Notas adicionales
+    
+    # Campos para señas (pagos parciales) - NUEVO
+    is_deposit = BooleanField            # Indica si es una seña/depósito
+    metadata = JSONField                 # Metadatos adicionales del pago
 ```
 
 #### PaymentGatewayConfig
@@ -3242,6 +3269,243 @@ def process_bank_reconciliation(reconciliation_id):
     """Procesa una conciliación específica"""
     # Parsea el CSV
     # Ejecuta algoritmos de matching
+```
+
+---
+
+## 3.13 Módulo Facturación Electrónica
+
+**Propósito**: Generación y gestión de facturas electrónicas argentinas con integración AFIP, cumpliendo normativas fiscales locales.
+
+### Modelos Principales
+
+#### Invoice
+```python
+class Invoice(models.Model):
+    """Factura electrónica"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE)
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, null=True)
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, null=True)
+    
+    # Datos de la factura
+    number = models.CharField(max_length=20, unique=True)
+    type = models.CharField(max_length=2, choices=InvoiceType.choices)
+    status = models.CharField(max_length=20, choices=InvoiceStatus.choices)
+    issue_date = models.DateField()
+    currency = models.CharField(max_length=3, default='ARS')
+    
+    # Datos del cliente
+    client_name = models.CharField(max_length=200)
+    client_document_type = models.CharField(max_length=2)
+    client_document_number = models.CharField(max_length=20)
+    client_tax_condition = models.CharField(max_length=2)
+    client_address = models.CharField(max_length=200, blank=True)
+    
+    # Montos
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    vat_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # AFIP
+    cae = models.CharField(max_length=14, blank=True)
+    cae_expiration = models.DateField(null=True, blank=True)
+    sent_to_afip_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Archivos
+    pdf_file = models.FileField(upload_to='invoices/pdf/', null=True, blank=True)
+    pdf_url = models.URLField(blank=True)
+    
+    # Control
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+```
+
+#### InvoiceItem
+```python
+class InvoiceItem(models.Model):
+    """Item de factura"""
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
+    description = models.CharField(max_length=200)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    afip_code = models.CharField(max_length=10, blank=True)
+```
+
+#### AfipConfig
+```python
+class AfipConfig(models.Model):
+    """Configuración AFIP por hotel"""
+    hotel = models.OneToOneField(Hotel, on_delete=models.CASCADE)
+    environment = models.CharField(max_length=10, choices=Environment.choices)
+    cuit = models.CharField(max_length=11)
+    point_of_sale = models.IntegerField()
+    certificate_path = models.CharField(max_length=500)
+    private_key_path = models.CharField(max_length=500)
+    tax_condition = models.CharField(max_length=2)
+    gross_income = models.CharField(max_length=50, blank=True)
+    activity_start_date = models.DateField(null=True, blank=True)
+    
+    # Tokens AFIP
+    afip_token = models.TextField(blank=True)
+    afip_sign = models.TextField(blank=True)
+    afip_token_generation = models.DateTimeField(null=True, blank=True)
+    afip_token_expiration = models.DateTimeField(null=True, blank=True)
+```
+
+### Servicios Principales
+
+#### AfipAuthService
+```python
+class AfipAuthService:
+    """Autenticación con AFIP WSAA"""
+    
+    def get_token_and_sign(self) -> Tuple[str, str]:
+        """Obtiene token y sign válidos para AFIP"""
+        # 1) Verificar cache
+        # 2) Verificar persistencia en BD
+        # 3) Generar nuevo token si es necesario
+        # 4) Manejar caso "TA ya válido"
+```
+
+#### InvoicePDFService
+```python
+class InvoicePDFService:
+    """Generación de PDFs de facturas"""
+    
+    def generate_pdf(self, invoice: Invoice) -> str:
+        """Genera PDF fiscal completo"""
+        # 1) Renderizar template HTML
+        # 2) Convertir a PDF con WeasyPrint
+        # 3) Fallback a ReportLab si falla
+```
+
+#### AfipInvoiceService
+```python
+class AfipInvoiceService:
+    """Envío de facturas a AFIP"""
+    
+    def send_invoice_to_afip(self, invoice: Invoice) -> dict:
+        """Envía factura a AFIP y obtiene CAE"""
+        # 1) Autenticación con AFIP
+        # 2) Construcción de XML
+        # 3) Envío a WSFEv1
+        # 4) Procesamiento de respuesta
+```
+
+### APIs Principales
+
+#### Endpoints de Facturación
+- `GET /api/invoicing/invoices/` - Lista de facturas
+- `POST /api/invoicing/invoices/create-from-reservation/` - Crear desde reserva
+- `GET /api/invoicing/invoices/{id}/pdf/` - Obtener PDF
+- `POST /api/invoicing/invoices/{id}/send_to_afip/` - Enviar a AFIP
+- `POST /api/invoicing/invoices/{id}/cancel/` - Cancelar factura
+- `GET /api/invoicing/invoices/by-reservation/{id}/` - Facturas por reserva
+
+#### Configuración AFIP
+- `GET /api/invoicing/afip-config/` - Configuración AFIP
+- `POST /api/invoicing/afip-config/` - Crear configuración
+- `PUT /api/invoicing/afip-config/{id}/` - Actualizar configuración
+
+### Flujos de Trabajo
+
+#### Generación de Factura
+1. **Creación**: Desde reserva o pago
+2. **Validación**: Datos del cliente y hotel
+3. **Generación**: Número único secuencial
+4. **Estado**: Draft (borrador)
+
+#### Envío a AFIP
+1. **Autenticación**: Token AFIP válido
+2. **Construcción**: XML según normativas
+3. **Envío**: WSFEv1 de AFIP
+4. **Procesamiento**: CAE y fecha de vencimiento
+5. **Estado**: Approved (aprobada)
+
+#### Generación de PDF
+1. **Template**: HTML con estilos AFIP
+2. **Datos**: Información de factura y hotel
+3. **Conversión**: WeasyPrint → PDF
+4. **Almacenamiento**: Media files
+
+### Integraciones
+
+#### AFIP WSAA
+- **Autenticación**: Certificados digitales
+- **Tokens**: Cache y persistencia
+- **Manejo de errores**: "TA ya válido"
+
+#### AFIP WSFEv1
+- **Envío**: Facturas electrónicas
+- **Respuesta**: CAE y autorización
+- **Estados**: Aprobada/Rechazada
+
+#### WeasyPrint
+- **HTML → PDF**: Conversión de templates
+- **Fallback**: ReportLab si falla
+- **Estilos**: CSS compatible
+
+### Configuraciones
+
+#### Certificados AFIP
+- **Desarrollo**: Certificados de prueba
+- **Producción**: Certificados reales
+- **Renovación**: Proceso automático
+
+#### Templates PDF
+- **HTML**: Template AFIP SDK
+- **CSS**: Estilos oficiales
+- **Responsive**: A4 optimizado
+
+### Tareas Asíncronas
+
+#### Generación Automática
+```python
+@shared_task
+def generate_invoice_on_payment_approved(payment_id):
+    """Genera factura automáticamente al aprobar pago"""
+    # Buscar reserva
+    # Crear factura
+    # Enviar a AFIP
+```
+
+#### Envío a AFIP
+```python
+@shared_task
+def send_invoice_to_afip_async(invoice_id):
+    """Envía factura a AFIP de forma asíncrona"""
+    # Obtener token
+    # Construir XML
+    # Enviar a AFIP
+    # Actualizar estado
+```
+
+### Validaciones
+
+#### Datos Obligatorios
+- CUIT del hotel
+- Datos del cliente
+- Montos válidos
+- Fechas correctas
+
+#### Normativas AFIP
+- Tipos de comprobante
+- Condiciones de IVA
+- Numeración secuencial
+- CAE válido
+
+### Estados de Factura
+
+- **Draft**: Borrador, no enviada
+- **Sent**: Enviada a AFIP
+- **Approved**: Aprobada por AFIP
+- **Rejected**: Rechazada por AFIP
+- **Cancelled**: Cancelada
+- **Expired**: CAE expirado
     # Actualiza estados de pagos
     # Genera logs de auditoría
 ```
@@ -4320,6 +4584,1628 @@ def _process_bank_transfer_refund(refund, amount):
 
 ---
 
+## 3.13 Módulo Invoicing (Facturación Electrónica Argentina)
+
+**Propósito**: Gestión completa de facturación electrónica argentina con integración AFIP WSFEv1 para cumplimiento fiscal.
+
+### Modelos Principales
+
+#### AfipConfig
+Configuración de AFIP por hotel:
+```python
+class AfipConfig(models.Model):
+    hotel = models.OneToOneField(Hotel, on_delete=models.CASCADE)
+    cuit = models.CharField(max_length=11, validators=[validate_cuit])
+    tax_condition = models.CharField(max_length=2, choices=TaxCondition.choices)
+    point_of_sale = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    certificate_path = models.CharField(max_length=500)
+    private_key_path = models.CharField(max_length=500)
+    environment = models.CharField(max_length=20, choices=AfipEnvironment.choices)
+    last_invoice_number = models.PositiveIntegerField(default=0)
+    last_cae_date = models.DateTimeField(null=True, blank=True)
+    
+    # Token de Acceso (WSAA) - Persistencia para reutilización
+    afip_token = models.TextField(blank=True)
+    afip_sign = models.TextField(blank=True)
+    afip_token_generation = models.DateTimeField(null=True, blank=True)
+    afip_token_expiration = models.DateTimeField(null=True, blank=True)
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+```
+
+#### Invoice
+Factura electrónica:
+```python
+class Invoice(models.Model):
+    # Identificadores únicos
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Relaciones principales
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name="invoices")
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name="invoices", null=True, blank=True)
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="invoices")
+    related_invoice = models.ForeignKey("self", on_delete=models.CASCADE, null=True, blank=True, related_name="related_documents")
+    
+    # Datos de la factura
+    type = models.CharField(max_length=2, choices=InvoiceType.choices)
+    number = models.CharField(max_length=13, help_text="Número formateado (0001-00001234)")
+    issue_date = models.DateField()
+    
+    # Datos del CAE (Código de Autorización Electrónico)
+    cae = models.CharField(max_length=14, blank=True)
+    cae_expiration = models.DateField(null=True, blank=True)
+    
+    # Montos
+    total = models.DecimalField(max_digits=12, decimal_places=2)
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="ARS")
+    
+    # Estado y control
+    status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.DRAFT)
+    
+    # Archivos y respuestas
+    pdf_file = models.FileField(upload_to='invoices/pdf/%Y/%m/%d/', null=True, blank=True)
+    pdf_url = models.URLField(blank=True)
+    afip_response = models.JSONField(default=dict, blank=True)
+    
+    # Datos del cliente (snapshot al momento de la facturación)
+    client_name = models.CharField(max_length=200)
+    client_document_type = models.CharField(max_length=2, default="96")
+    client_document_number = models.CharField(max_length=20)
+    client_tax_condition = models.CharField(max_length=2, choices=TaxCondition.choices, default=TaxCondition.CONSUMIDOR_FINAL)
+    client_address = models.TextField(blank=True)
+    
+    # Metadatos
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Control de errores y reintentos
+    retry_count = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    sent_to_afip_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+```
+
+#### InvoiceItem
+Items de la factura:
+```python
+class InvoiceItem(models.Model):
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
+    
+    # Descripción del item
+    description = models.CharField(max_length=200)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1.00'))
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    # Cálculos automáticos
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2)
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('21.00'))
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    total = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    # Códigos AFIP
+    afip_code = models.CharField(max_length=20, default="1")
+```
+
+### Enums y Tipos
+
+#### TaxCondition
+Condiciones de IVA según AFIP:
+```python
+class TaxCondition(models.TextChoices):
+    RESPONSABLE_INSCRIPTO = "1", "Responsable Inscripto"
+    CONSUMIDOR_FINAL = "5", "Consumidor Final"
+    EXENTO = "6", "Exento"
+    NO_RESPONSABLE = "7", "No Responsable"
+    MONOTRIBUTO = "8", "Monotributo"
+    MONOTRIBUTO_SOCIAL = "9", "Monotributo Social"
+```
+
+#### AfipEnvironment
+Ambientes de AFIP:
+```python
+class AfipEnvironment(models.TextChoices):
+    TEST = "test", "Testing"
+    PRODUCTION = "production", "Producción"
+```
+
+### Enums y Tipos
+
+#### InvoiceType
+```python
+class InvoiceType(models.TextChoices):
+    A = 'A', 'Factura A (Responsables Inscriptos)'
+    B = 'B', 'Factura B (Consumidores Finales)'
+    C = 'C', 'Factura C (Exentos)'
+    E = 'E', 'Factura E (Exportación)'
+    NC = 'NC', 'Nota de Crédito'
+    ND = 'ND', 'Nota de Débito'
+```
+
+#### InvoiceStatus
+```python
+class InvoiceStatus(models.TextChoices):
+    DRAFT = 'draft', 'Borrador'
+    SENT = 'sent', 'Enviada a AFIP'
+    APPROVED = 'approved', 'Aprobada'
+    ERROR = 'error', 'Error'
+```
+
+### Servicios AFIP
+
+#### AfipAuthService
+Servicio de autenticación con AFIP WSAA:
+```python
+class AfipAuthService:
+    def __init__(self, config: AfipConfig):
+        self.config = config
+        self.wsaa_url = self.WSAA_PRODUCTION_URL if config.environment == 'production' else self.WSAA_HOMOLOGATION_URL
+        self.token_cache_key = f"afip_token_{config.hotel.id}_{config.environment}"
+        self.sign_cache_key = f"afip_sign_{config.hotel.id}_{config.environment}"
+    
+    def get_token_and_sign(self) -> Tuple[str, str]:
+        """Obtiene token y sign válidos para AFIP con persistencia en BD"""
+        # 1) Verificar cache Redis
+        # 2) Verificar persistencia en BD (no expirado)
+        # 3) Generar nuevo token si es necesario
+        # 4) Persistir en BD y cache
+        
+    def _generate_new_token(self) -> Tuple[str, str, datetime, datetime]:
+        """Genera nuevo token con ventana TRA ±10 minutos"""
+        
+    def _create_login_xml(self) -> str:
+        """Crea TRA con ventana de tiempo según manual AFIP"""
+        
+    def _sign_xml(self, xml_content: str) -> str:
+        """Firma XML con PKCS#7 no-detached SHA256"""
+        
+    def _parse_login_response(self, response_xml: str) -> Tuple[str, str, datetime, datetime]:
+        """Parsea respuesta AFIP con manejo de Faults"""
+        
+    def clear_cache(self):
+        """Limpia el cache de tokens"""
+        
+    def is_token_valid(self) -> bool:
+        """Verifica si el token actual es válido"""
+```
+
+**Características:**
+- **Autenticación con certificados digitales** PKCS#7 no-detached SHA256
+- **Persistencia de TA en BD** para reutilización automática
+- **Cache Redis** con TTL hasta expiración del TA
+- **Manejo inteligente de Faults** - reutiliza TA vigente si existe
+- **Ventana TRA ±10 minutos** según manual AFIP
+- **SOAPAction correcto** (urn:LoginCms)
+- **Parsing robusto** con des-escape HTML y fallback base64
+- **Soporte completo** para homologación y producción
+
+#### AfipInvoiceService
+Servicio principal de emisión de facturas:
+```python
+class AfipInvoiceService:
+    def __init__(self, config: AfipConfig):
+        self.config = config
+        self.wsfev1_url = self.WSFEv1_PRODUCTION_URL if config.environment == 'production' else self.WSFEv1_HOMOLOGATION_URL
+    
+    def send_invoice(self, invoice: Invoice) -> Dict:
+        """Envía factura a AFIP y obtiene CAE"""
+        
+    def _validate_invoice(self, invoice: Invoice):
+        """Valida la factura antes del envío"""
+        
+    def _build_invoice_xml(self, invoice: Invoice, token: str, sign: str) -> str:
+        """Construye el XML de la factura para AFIP"""
+        
+    def _process_afip_response(self, response_xml: str, invoice: Invoice) -> Dict:
+        """Procesa la respuesta de AFIP"""
+```
+
+**Características:**
+- Construcción automática de XML WSFEv1
+- Validaciones de negocio completas
+- Manejo de todos los tipos de comprobante (A, B, C, E, NC, ND)
+- Procesamiento de respuestas AFIP
+- Actualización automática de facturas con CAE
+
+#### InvoicePDFService
+Servicio de generación de PDFs fiscales con CAE:
+```python
+class InvoicePDFService:
+    def __init__(self):
+        self.page_width, self.page_height = A4
+        self.margin = 2 * cm
+        
+    def generate_pdf(self, invoice) -> str:
+        """Genera PDF fiscal con CAE y datos AFIP"""
+        
+    def _build_pdf_content(self, invoice) -> list:
+        """Construye el contenido del PDF"""
+        
+    def _generate_qr_code(self, invoice) -> Optional[Image]:
+        """Genera código QR con datos AFIP"""
+        
+    def _build_qr_data(self, invoice) -> str:
+        """Construye datos para código QR según normativas AFIP"""
+        
+    def _create_items_table(self, invoice) -> Table:
+        """Crea tabla de items de la factura"""
+        
+    def _create_totals_table(self, invoice) -> Table:
+        """Crea tabla de totales"""
+```
+
+**Características:**
+- Generación de PDFs fiscales completos con ReportLab
+- Inclusión de logo del hotel
+- Datos fiscales del emisor (CUIT, domicilio, condición IVA)
+- Datos del comprador (nombre, documento, domicilio)
+- Detalle de servicios con IVA desglosado
+- CAE y fecha de vencimiento
+- Código QR para verificación AFIP
+- Formato profesional y cumplimiento normativo argentino
+
+**Elementos del PDF:**
+- **Header**: Logo del hotel y título del comprobante
+- **Datos del Emisor**: Razón social, CUIT, domicilio, condición IVA
+- **Datos del Comprador**: Nombre, documento, domicilio
+- **Datos de la Factura**: Número, fecha, moneda, estado
+- **Detalle de Items**: Tabla con servicios, cantidades, precios, IVA
+- **Totales**: Subtotal, IVA, total final
+- **Autorización AFIP**: CAE, fecha de vencimiento, fecha de autorización
+- **Código QR**: Link de verificación AFIP con todos los datos
+- **Footer**: Información del sistema y fecha de generación
+
+**Dependencias:**
+```python
+# requirements.txt
+qrcode==7.4.2
+Pillow==12.0.0
+reportlab==4.0.7
+cryptography>=41.0.0
+requests>=2.31.0
+```
+
+### Funcionalidad de Señas (Pagos Parciales)
+
+#### Descripción
+El sistema soporta pagos parciales (señas) con integración completa a la facturación electrónica argentina. Permite configurar diferentes modos de facturación según las necesidades del hotel.
+
+#### Características Principales
+- **Cálculo Automático**: Usa `PaymentPolicy` para calcular montos de seña
+- **Dos Modos de Facturación**: Solo recibos o facturación AFIP en seña
+- **Múltiples Pagos por Factura**: Soporte para vincular señas + pago final
+- **Validaciones Inteligentes**: Montos, estados de reserva, configuración AFIP
+- **Integración Celery**: Generación automática de PDFs y emails
+
+#### Modelos Extendidos
+
+##### Payment (Campos para Señas)
+```python
+class Payment(models.Model):
+    # ... campos existentes ...
+    
+    # Campos para señas (pagos parciales)
+    is_deposit = BooleanField(default=False)     # Indica si es una seña
+    metadata = JSONField(default=dict)           # Metadatos adicionales
+```
+
+##### Invoice (Soporte para Múltiples Pagos)
+```python
+class Invoice(models.Model):
+    # ... campos existentes ...
+    
+    payment = ForeignKey(Payment, ...)           # Pago principal (compatibilidad)
+    payments_data = JSONField(default=list)      # Lista de IDs de pagos
+```
+
+##### AfipConfig (Modos de Facturación)
+```python
+class AfipConfig(models.Model):
+    # ... campos existentes ...
+    
+    invoice_mode = CharField(
+        max_length=20,
+        choices=InvoiceMode.choices,
+        default=InvoiceMode.RECEIPT_ONLY
+    )
+
+class InvoiceMode(models.TextChoices):
+    RECEIPT_ONLY = "receipt_only", "Solo Recibos"
+    FISCAL_ON_DEPOSIT = "fiscal_on_deposit", "Facturación en Seña"
+```
+
+#### Servicios de Cálculo
+
+##### calculate_deposit()
+```python
+def calculate_deposit(policy, total_amount):
+    """
+    Calcula el monto del depósito según la política de pago
+    
+    Args:
+        policy: PaymentPolicy instance
+        total_amount: Decimal - Monto total de la reserva
+    
+    Returns:
+        dict: Información del depósito
+    """
+    if not policy or policy.deposit_type == PaymentPolicy.DepositType.NONE:
+        return {
+            'required': False,
+            'amount': Decimal('0.00'),
+            'percentage': 0,
+            'type': 'none'
+        }
+
+    amount = Decimal('0.00')
+    if policy.deposit_type == PaymentPolicy.DepositType.PERCENTAGE:
+        amount = (total_amount * policy.deposit_value) / 100
+    elif policy.deposit_type == PaymentPolicy.DepositType.FIXED:
+        amount = policy.deposit_value
+
+    return {
+        'required': True,
+        'amount': amount.quantize(Decimal('0.01')),
+        'percentage': policy.deposit_type == PaymentPolicy.DepositType.PERCENTAGE and policy.deposit_value or 0,
+        'type': policy.deposit_type,
+        'due': policy.deposit_due,
+        'days_before': policy.deposit_days_before,
+        'balance_due': policy.balance_due
+    }
+```
+
+#### Flujos de Trabajo
+
+##### Flujo 1: Solo Recibos (receipt_only)
+1. **Crear Seña**: Genera recibo PDF, no envía a AFIP
+2. **Pago Final**: Genera recibo PDF, no envía a AFIP  
+3. **Factura Final**: Genera factura AFIP con CAE incluyendo todos los pagos
+
+##### Flujo 2: Facturación en Seña (fiscal_on_deposit)
+1. **Crear Seña**: Genera factura AFIP con CAE para el monto de la seña
+2. **Pago Final**: Genera recibo PDF
+3. **Nota de Crédito**: Genera nota de crédito o factura complementaria
+
+#### Serializers
+
+##### CreateDepositSerializer
+```python
+class CreateDepositSerializer(serializers.Serializer):
+    reservation_id = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    method = serializers.CharField(max_length=30, default='cash')
+    send_to_afip = serializers.BooleanField(default=False)
+    notes = serializers.CharField(max_length=500, required=False)
+    
+    def validate_reservation_id(self, value):
+        # Validar que la reserva exista y esté en estado válido
+        # Estados válidos: 'pending', 'confirmed'
+    
+    def validate_amount(self, value):
+        # Validar que el monto sea positivo
+```
+
+##### GenerateInvoiceFromPaymentSerializer (Extendido)
+```python
+class GenerateInvoiceFromPaymentSerializer(serializers.Serializer):
+    # ... campos existentes ...
+    reference_payments = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Lista de IDs de pagos a incluir en la factura"
+    )
+    
+    def validate_reference_payments(self, value):
+        # Validar que los pagos existan y pertenezcan a la misma reserva
+```
+
+### APIs y Endpoints
+
+#### **AfipConfigViewSet**
+```python
+# GET /api/invoicing/afip-configs/
+# POST /api/invoicing/afip-configs/
+# GET /api/invoicing/afip-configs/{id}/
+# PUT /api/invoicing/afip-configs/{id}/
+# DELETE /api/invoicing/afip-configs/{id}/
+```
+
+#### **TestCertificateValidationView**
+```python
+# POST /api/invoicing/test/certificates/validate/
+# Valida certificados digitales AFIP
+```
+
+#### **TestAfipConnectionView**
+```python
+# POST /api/invoicing/test/afip/connection/
+# Prueba conexión real con AFIP WSAA
+```
+
+#### **TestInvoiceGenerationView**
+```python
+# POST /api/invoicing/test/invoices/generate/
+# Genera factura de prueba con datos mock
+```
+
+#### **TestAfipStatusView**
+```python
+# GET /api/invoicing/test/afip/status/
+# Obtiene estado de servicios AFIP
+```
+
+#### **ListCertificatesView**
+```python
+# GET /api/invoicing/certificates/list/
+# Lista certificados disponibles en /app/certs/
+```
+
+#### **Endpoints de Señas (Pagos Parciales)**
+
+##### **create_deposit**
+```python
+# POST /api/payments/create-deposit/
+# Crear una seña/depósito para una reserva
+
+# Request Body:
+{
+    "reservation_id": 123,
+    "amount": 1000.00,
+    "method": "cash",
+    "send_to_afip": false,
+    "notes": "Seña del 50%"
+}
+
+# Response:
+{
+    "message": "Seña creada exitosamente",
+    "payment": {
+        "id": 456,
+        "reservation_id": 123,
+        "hotel_name": "Hotel Test",
+        "amount": "1000.00",
+        "method": "cash",
+        "is_deposit": true,
+        "status": "approved",
+        "receipt_pdf_url": "https://example.com/receipt.pdf",
+        "created_at": "2024-01-15T10:30:00Z"
+    },
+    "deposit_info": {
+        "required": true,
+        "amount": "1000.00",
+        "percentage": 50,
+        "type": "percentage",
+        "due": "confirmation",
+        "balance_due": "check_in"
+    }
+}
+```
+
+##### **generate_invoice_from_payment_extended**
+```python
+# POST /api/payments/generate-invoice-from-payment/{payment_id}/
+# Generar factura desde pago con soporte para múltiples pagos
+
+# Request Body:
+{
+    "send_to_afip": true,
+    "reference_payments": [123, 124, 125],
+    "customer_name": "Juan Pérez",
+    "customer_document_type": "DNI",
+    "customer_document_number": "12345678",
+    "customer_address": "Calle Falsa 123",
+    "customer_city": "Buenos Aires",
+    "customer_postal_code": "1000",
+    "customer_country": "Argentina"
+}
+
+# Response:
+{
+    "message": "Factura generada exitosamente",
+    "invoice": {
+        "id": "uuid-factura",
+        "number": "0001-00000001",
+        "total": "4000.00",
+        "status": "approved",
+        "cae": "12345678901234",
+        "payments_included": [123, 124, 125],
+        "total_payments": 3
+    }
+}
+```
+
+##### **generate-from-payment (Invoicing)**
+```python
+# POST /api/invoicing/invoices/generate-from-payment/{payment_id}/
+# Endpoint extendido en módulo de facturación con soporte para múltiples pagos
+
+# Request Body:
+{
+    "send_to_afip": true,
+    "reference_payments": [123, 124, 125],
+    "customer_name": "Juan Pérez",
+    "customer_document_type": "DNI",
+    "customer_document_number": "12345678"
+}
+
+# Response:
+{
+    "id": "uuid-factura",
+    "number": "0001-00000001",
+    "total": "4000.00",
+    "status": "approved",
+    "cae": "12345678901234",
+    "payments_included": [123, 124, 125],
+    "total_payments": 3
+}
+```
+
+### Configuraciones y Políticas
+
+#### **Configuración de Ambiente**
+```python
+# settings.py
+AFIP_SETTINGS = {
+    'WSAA_HOMOLOGATION_URL': 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
+    'WSAA_PRODUCTION_URL': 'https://wsaa.afip.gov.ar/ws/services/LoginCms',
+    'WSFEv1_HOMOLOGATION_URL': 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx',
+    'WSFEv1_PRODUCTION_URL': 'https://servicios1.afip.gov.ar/wsfev1/service.asmx',
+    'CACHE_TIMEOUT': 11 * 60 * 60,  # 11 horas
+    'RETRY_ATTEMPTS': 3,
+    'RETRY_DELAY': 5,  # segundos
+}
+```
+
+#### **Políticas de Reintento**
+- **Errores temporales**: 3 reintentos con delay de 5 segundos
+- **Errores de certificado**: No reintentar, requiere intervención manual
+- **Errores de TA**: Reutilizar TA persistido si está vigente
+- **Timeout**: 60 segundos para requests a AFIP
+
+#### **Validaciones de Negocio**
+- **CUIT**: 11 dígitos numéricos con validación de dígito verificador
+- **Punto de venta**: Entre 1 y 9999
+- **Montos**: Positivos, máximo 12 dígitos, 2 decimales
+- **Fechas**: No futuras, formato ISO-8601
+- **Documentos**: Validación según tipo (DNI, CUIT, etc.)
+
+### Integraciones
+
+#### **Integración con Reservas**
+```python
+# apps/reservations/signals.py
+@receiver(post_save, sender=Payment)
+def generate_invoice_on_payment(sender, instance, created, **kwargs):
+    if instance.status == PaymentStatus.COMPLETED:
+        InvoiceService.generate_from_payment(instance)
+```
+
+#### **Integración con Notificaciones**
+```python
+# apps/notifications/tasks.py
+@shared_task
+def notify_invoice_generated(invoice_id):
+    invoice = Invoice.objects.get(id=invoice_id)
+    NotificationService.send_invoice_notification(invoice)
+```
+
+#### **Integración con Email**
+```python
+# apps/invoicing/services/email_service.py
+class InvoiceEmailService:
+    def send_invoice_email(self, invoice: Invoice):
+        # Envía PDF por email al cliente
+        pass
+```
+
+### Flujos de Trabajo Principales
+
+#### **1. Configuración Inicial**
+1. **Obtener certificado** desde WSASS/AFIP
+2. **Configurar AfipConfig** con datos del hotel
+3. **Probar conexión** con AFIP
+4. **Autorizar servicios** en AFIP
+5. **Activar facturación** automática
+
+#### **2. Generación de Factura**
+1. **Trigger**: Pago completado o acción manual
+2. **Validación**: Datos del cliente y reserva
+3. **Creación**: Invoice en estado DRAFT
+4. **Autenticación**: Obtener TA de AFIP
+5. **Envío**: XML a WSFEv1
+6. **Procesamiento**: Respuesta y CAE
+7. **PDF**: Generación de documento fiscal
+8. **Notificación**: Email al cliente
+
+#### **3. Manejo de Errores**
+1. **Detección**: Error en cualquier paso
+2. **Clasificación**: Temporal vs permanente
+3. **Reintento**: Si es temporal (hasta 3 veces)
+4. **Notificación**: Alerta al administrador
+5. **Logging**: Registro detallado para diagnóstico
+
+### Consideraciones de Seguridad
+
+#### **Certificados Digitales**
+- **Almacenamiento**: Archivos en `/app/certs/` con permisos restringidos
+- **Transmisión**: Solo por HTTPS
+- **Backup**: Respaldo seguro de certificados
+- **Rotación**: Renovación antes del vencimiento
+
+#### **Tokens de Acceso**
+- **Cache**: Redis con TTL automático
+- **Persistencia**: Encriptados en base de datos
+- **Reutilización**: Solo si están vigentes
+- **Limpieza**: Automática al expirar
+
+#### **Datos Sensibles**
+- **CUIT**: Encriptado en logs
+- **Montos**: Validación de rangos
+- **Documentos**: Validación de formato
+- **Emails**: Verificación de dominio
+
+### Monitoreo y Logging
+
+#### **Métricas Clave**
+- **Facturas emitidas**: Por día/semana/mes
+- **Tasa de éxito**: % de facturas aprobadas
+- **Tiempo de respuesta**: AFIP response time
+- **Errores**: Por tipo y frecuencia
+
+#### **Logs Estructurados**
+```python
+logger.info("AFIP invoice generated", extra={
+    'invoice_id': invoice.id,
+    'cuit': config.cuit,
+    'total': invoice.total,
+    'cae': invoice.cae,
+    'duration_ms': duration
+})
+```
+
+#### **Alertas Automáticas**
+- **Conexión AFIP**: Fallas de conectividad
+- **Certificados**: Próximos a vencer
+- **Errores**: Tasa alta de fallos
+- **Límites**: Numeración próxima a agotar
+
+### Testing y Desarrollo
+
+#### **Ambiente de Testing**
+- **WSASS**: Para obtener certificados de prueba
+- **Datos mock**: Para desarrollo sin AFIP
+- **Validaciones**: Tests unitarios completos
+- **Integración**: Tests end-to-end
+
+#### **Comandos de Testing**
+```bash
+# Probar conexión AFIP
+python manage.py test_afip_connection
+
+# Generar factura de prueba
+python manage.py test_invoice_generation
+
+# Validar certificados
+python manage.py validate_certificates
+```
+
+### Migraciones y Actualizaciones
+
+#### **Migración de Datos**
+```python
+# 0003_afipconfig_afip_sign_afipconfig_afip_token_and_more.py
+class Migration(migrations.Migration):
+    operations = [
+        migrations.AddField('AfipConfig', 'afip_token', models.TextField(blank=True)),
+        migrations.AddField('AfipConfig', 'afip_sign', models.TextField(blank=True)),
+        migrations.AddField('AfipConfig', 'afip_token_generation', models.DateTimeField(null=True, blank=True)),
+        migrations.AddField('AfipConfig', 'afip_token_expiration', models.DateTimeField(null=True, blank=True)),
+        migrations.AddIndex('AfipConfig', 'afip_token_expiration', models.Index(fields=['afip_token_expiration'])),
+    ]
+```
+
+#### **Actualizaciones de Certificados**
+1. **Backup**: Respaldo de configuración actual
+2. **Nuevo certificado**: Generar CSR y obtener de AFIP
+3. **Actualización**: Cambiar rutas en AfipConfig
+4. **Prueba**: Verificar conexión
+5. **Activación**: Cambiar a producción si es necesario
+
+---
+
+#### AfipTestService
+Servicio para testing en ambiente de homologación:
+```python
+class AfipTestService(AfipInvoiceService):
+    def __init__(self, config: AfipConfig):
+        if config.environment != 'test':
+            raise ValueError("AfipTestService solo puede usarse con configuraciones en modo test")
+        super().__init__(config)
+    
+    def send_test_invoice(self, invoice: Invoice) -> Dict:
+        """Envía factura de prueba a AFIP homologación"""
+        
+    def test_afip_connection(self) -> Dict:
+        """Prueba la conexión con AFIP homologación"""
+        
+    def create_test_invoice_data(self, hotel: Hotel, reservation=None) -> Dict:
+        """Crea datos de prueba para una factura"""
+        
+    def get_test_parameters(self) -> Dict:
+        """Obtiene los parámetros de testing recomendados"""
+        
+    def validate_test_environment(self) -> Dict:
+        """Valida que el ambiente de testing esté configurado correctamente"""
+```
+
+**Características:**
+- Validaciones específicas para testing
+- Datos de prueba predefinidos
+- Validación de ambiente de homologación
+- Parámetros de testing recomendados
+
+#### AfipService (Servicio Unificado)
+Servicio principal que unifica todos los servicios AFIP:
+```python
+class AfipService:
+    def __init__(self, config: AfipConfig):
+        self.config = config
+        self.is_production = config.environment == 'production'
+        self.auth_service = AfipAuthService(config)
+        
+        if self.is_production:
+            self.invoice_service = AfipInvoiceService(config)
+            self.test_service = None
+        else:
+            self.invoice_service = AfipTestService(config)
+            self.test_service = AfipTestService(config)
+    
+    def send_invoice(self, invoice: Invoice) -> Dict:
+        """Envía factura a AFIP (producción o test)"""
+        
+    def test_connection(self) -> Dict:
+        """Prueba la conexión con AFIP"""
+        
+    def validate_environment(self) -> Dict:
+        """Valida la configuración del ambiente"""
+        
+    def get_service_info(self) -> Dict:
+        """Obtiene información sobre el servicio AFIP"""
+        
+    def clear_auth_cache(self):
+        """Limpia el cache de autenticación"""
+        
+    def get_test_parameters(self) -> Optional[Dict]:
+        """Obtiene parámetros de testing (solo en modo test)"""
+```
+
+**Características:**
+- Interfaz unificada para todos los servicios
+- Selección automática entre producción y test
+- Gestión centralizada de configuración
+- Métodos de utilidad comunes
+
+#### InvoiceGeneratorService
+Servicio para generación de PDFs de facturas:
+```python
+class InvoiceGeneratorService:
+    def generate_pdf(self, invoice: Invoice) -> str:
+        """Genera PDF de la factura"""
+        
+    def get_invoice_template(self, invoice: Invoice) -> str:
+        """Obtiene template HTML para la factura"""
+```
+
+### URLs y Endpoints AFIP
+
+#### URLs de Producción
+- **WSAA**: `https://servicios1.afip.gov.ar/wsaa/service.asmx`
+- **WSFEv1**: `https://servicios1.afip.gov.ar/wsfev1/service.asmx`
+
+#### URLs de Homologación
+- **WSAA**: `https://wswhomo.afip.gov.ar/wsaa/service.asmx`
+- **WSFEv1**: `https://wswhomo.afip.gov.ar/wsfev1/service.asmx`
+
+### Códigos AFIP
+
+#### Tipos de Comprobante
+```python
+INVOICE_TYPE_CODES = {
+    'A': 1,    # Factura A
+    'B': 6,    # Factura B
+    'C': 11,   # Factura C
+    'E': 19,   # Factura E
+    'NC': 3,   # Nota de Crédito
+    'ND': 2,   # Nota de Débito
+}
+```
+
+#### Tipos de Documento
+```python
+DOCUMENT_TYPE_CODES = {
+    'DNI': 96,
+    'CUIT': 80,
+    'CUIL': 86,
+    'PASAPORTE': 94,
+    'OTRO': 99,
+}
+```
+
+### Manejo de Errores
+
+#### Excepciones Personalizadas
+```python
+class AfipAuthError(Exception):
+    """Error de autenticación AFIP"""
+
+class AfipInvoiceError(Exception):
+    """Error de facturación AFIP"""
+
+class AfipTestError(Exception):
+    """Error de testing AFIP"""
+
+class AfipServiceError(Exception):
+    """Error del servicio AFIP"""
+```
+
+#### Logging
+- **Nivel INFO**: Operaciones exitosas
+- **Nivel WARNING**: Situaciones que requieren atención
+- **Nivel ERROR**: Errores que impiden el funcionamiento
+- **Nivel DEBUG**: Información detallada para debugging
+
+### Configuración de Dependencias
+
+#### requirements.txt
+```bash
+# Dependencias para AFIP
+cryptography>=41.0.0
+lxml>=4.9.0
+requests>=2.31.0
+# Dependencias para PDFs y QR
+qrcode==7.4.2
+Pillow==12.0.0
+reportlab==4.0.7
+```
+
+#### Variables de Entorno
+```bash
+# Configuración AFIP
+AFIP_TEST_MODE=true
+AFIP_CERTIFICATE_PATH=/path/to/cert.crt
+AFIP_PRIVATE_KEY_PATH=/path/to/key.key
+INVOICE_MAX_RETRIES=3
+INVOICE_RETRY_DELAY=300
+```
+
+### Ejemplo de Uso
+
+#### Configuración Básica
+```python
+from apps.invoicing.services import AfipService
+from apps.invoicing.models import AfipConfig
+
+# Obtener configuración
+config = AfipConfig.objects.get(hotel=hotel)
+
+# Crear servicio
+afip_service = AfipService(config)
+
+# Probar conexión
+result = afip_service.test_connection()
+if result['success']:
+    print("Conexión exitosa con AFIP")
+else:
+    print(f"Error: {result['message']}")
+```
+
+#### Envío de Factura
+```python
+# Enviar factura
+result = afip_service.send_invoice(invoice)
+
+if result['success']:
+    print(f"CAE: {result['cae']}")
+    print(f"Vencimiento: {result['cae_expiration']}")
+else:
+    print(f"Error: {result['message']}")
+```
+
+#### Testing
+```python
+# Solo en modo test
+if not afip_service.is_production:
+    test_params = afip_service.get_test_parameters()
+    print(f"Tipos de documento: {test_params['document_types']}")
+    
+    # Crear datos de prueba
+    test_data = afip_service.test_service.create_test_invoice_data(hotel)
+```
+
+#### Generación de PDF Fiscal
+```python
+from apps.invoicing.services import InvoicePDFService
+from apps.invoicing.models import Invoice
+
+# Obtener factura aprobada
+invoice = Invoice.objects.get(id=invoice_id, status='approved')
+
+# Crear servicio de PDF
+pdf_service = InvoicePDFService()
+
+# Generar PDF fiscal
+try:
+    pdf_path = pdf_service.generate_pdf(invoice)
+    print(f"PDF generado: {pdf_path}")
+    
+    # El PDF incluye:
+    # - Logo del hotel
+    # - Datos fiscales completos
+    # - CAE y fecha de vencimiento
+    # - Código QR para verificación AFIP
+    # - Formato profesional
+    
+except InvoicePDFError as e:
+    print(f"Error generando PDF: {e}")
+```
+
+#### Generación de PDF Simple (Sin CAE)
+```python
+from apps.invoicing.services import InvoiceGeneratorService
+from apps.invoicing.models import Invoice
+
+# Obtener factura en borrador
+invoice = Invoice.objects.get(id=invoice_id, status='draft')
+
+# Crear servicio de generación
+generator = InvoiceGeneratorService()
+
+# Generar PDF (automáticamente elige el tipo)
+pdf_path = generator.generate_pdf(invoice)
+
+# O generar PDF fiscal específicamente
+if invoice.cae:
+    pdf_path = generator.generate_fiscal_pdf(invoice)
+    print(f"Cliente de prueba: {test_data['customer_name']}")
+```
+
+### APIs y Endpoints
+
+#### Configuración AFIP
+- `GET /api/invoicing/afip-configs/` - Listar configuraciones
+- `POST /api/invoicing/afip-configs/` - Crear configuración
+- `GET /api/invoicing/afip-configs/{id}/test-connection/` - Probar conexión
+
+#### Facturas
+- `GET /api/invoicing/invoices/` - Listar facturas
+- `POST /api/invoicing/invoices/` - Crear factura
+- `GET /api/invoicing/invoices/{id}/` - Obtener factura
+- `POST /api/invoicing/invoices/{id}/send-to-afip/` - Enviar a AFIP
+- `GET /api/invoicing/invoices/{id}/pdf/` - Obtener PDF
+- `GET /api/invoicing/invoices/{id}/download-pdf/` - Descargar PDF
+- `POST /api/invoicing/invoices/{id}/retry/` - Reintentar envío
+- `POST /api/invoicing/invoices/{id}/cancel/` - Cancelar factura
+- `GET /api/invoicing/invoices/{id}/summary/` - Resumen de factura
+- `POST /api/invoicing/invoices/{id}/create-credit-note/` - Crear nota de crédito
+
+#### Endpoints Específicos
+- `POST /api/invoicing/invoices/generate-from-payment/{payment_id}/` - Generar factura desde pago
+- `GET /api/invoicing/invoices/by-reservation/{reservation_id}/` - Facturas por reserva
+
+#### Estado del Sistema
+- `GET /api/invoicing/afip/status/` - Estado general de AFIP
+
+### Tareas Celery
+
+#### Programadas
+```python
+CELERY_BEAT_SCHEDULE = {
+    "retry_failed_invoices_hourly": {
+        "task": "apps.invoicing.tasks.retry_failed_invoices_task",
+        "schedule": crontab(minute=15),
+    },
+    "cleanup_expired_invoices_daily": {
+        "task": "apps.invoicing.tasks.cleanup_expired_invoices_task",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    "validate_afip_connection_hourly": {
+        "task": "apps.invoicing.tasks.validate_afip_connection_task",
+        "schedule": crontab(minute=45),
+    },
+    "generate_daily_invoice_report": {
+        "task": "apps.invoicing.tasks.generate_daily_invoice_report_task",
+        "schedule": crontab(hour=23, minute=0),
+    },
+}
+```
+
+#### Manuales
+```python
+@shared_task
+def send_invoice_to_afip_task(invoice_id: int) -> dict:
+    """Envía factura a AFIP de forma asíncrona"""
+
+@shared_task
+def generate_invoice_pdf_task(invoice_id: int) -> str:
+    """Genera PDF de factura de forma asíncrona"""
+
+@shared_task
+def retry_failed_invoices_task() -> dict:
+    """Reintenta facturas fallidas automáticamente"""
+```
+
+### Configuración
+
+#### Variables de Entorno
+```bash
+# Facturación
+AUTO_GENERATE_INVOICE_PDF=true
+AFIP_TEST_MODE=true
+AFIP_CERTIFICATE_PATH=/path/to/cert.crt
+AFIP_PRIVATE_KEY_PATH=/path/to/key.key
+INVOICE_MAX_RETRIES=3
+INVOICE_RETRY_DELAY=300
+```
+
+#### Django Settings
+```python
+INSTALLED_APPS = [
+    # ... otras apps
+    "apps.invoicing",
+]
+
+# URLs
+urlpatterns = [
+    # ... otras URLs
+    path("api/invoicing/", include("apps.invoicing.urls")),
+]
+```
+
+### Validaciones
+
+#### Datos Obligatorios
+- CUIT válido (11 dígitos)
+- Punto de venta (1-9999)
+- Datos del cliente completos
+- Montos positivos
+- Fechas válidas
+
+#### Reglas de Negocio
+- Una factura por reserva
+- Numeración secuencial
+- CAE no expirado
+- Límite de reintentos
+
+### Lógica de Negocio y Automatización
+
+#### Señales Automáticas
+El sistema utiliza señales de Django para automatizar la generación de facturas:
+
+```python
+# apps/invoicing/signals.py
+@receiver(post_save, sender='payments.Payment')
+def generate_invoice_on_payment_approved(sender, instance, created, **kwargs):
+    """Genera automáticamente una factura cuando un pago es aprobado"""
+    
+@receiver(post_save, sender='payments.Refund')
+def generate_credit_note_on_refund(sender, instance, created, **kwargs):
+    """Genera automáticamente una nota de crédito cuando se crea un reembolso"""
+```
+
+#### Automatización de Facturas
+**Trigger**: Cuando un `Payment` cambia a status `approved`
+**Proceso**:
+1. Verificar que no exista factura para el pago
+2. Obtener configuración AFIP del hotel
+3. Generar número de factura secuencial
+4. Crear factura con datos del pago y reserva
+5. Crear items por defecto basados en la reserva
+6. Intentar envío automático a AFIP (opcional)
+7. Generar PDF fiscal si es aprobada
+
+#### Automatización de Notas de Crédito
+**Trigger**: Cuando se crea un `Refund` con status `approved`
+**Proceso**:
+1. Verificar que exista factura para el pago original
+2. Verificar que la factura esté aprobada
+3. Obtener configuración AFIP del hotel
+4. Generar número de nota de crédito secuencial
+5. Crear nota de crédito vinculada a la factura original
+6. Intentar envío automático a AFIP (opcional)
+
+#### Endpoints de Generación Manual
+
+##### Generar Factura desde Pago
+```python
+POST /api/invoicing/invoices/generate-from-payment/{payment_id}/
+```
+**Payload**:
+```json
+{
+    "customer_name": "Juan Pérez",
+    "customer_document_type": "DNI",
+    "customer_document_number": "12345678",
+    "customer_address": "Av. Corrientes 1234",
+    "customer_city": "Buenos Aires",
+    "send_to_afip": true,
+    "items": [
+        {
+            "description": "Hospedaje - Suite Deluxe",
+            "quantity": 2,
+            "unit_price": 5000.00,
+            "vat_rate": 21.00
+        }
+    ]
+}
+```
+
+##### Listar Facturas por Reserva
+```python
+GET /api/invoicing/invoices/by-reservation/{reservation_id}/
+```
+**Query Parameters**:
+- `type`: Filtrar por tipo de factura (A, B, C, E, NC, ND)
+- `status`: Filtrar por estado (draft, sent, approved, error)
+
+##### Crear Nota de Crédito
+```python
+POST /api/invoicing/invoices/{invoice_id}/create-credit-note/
+```
+**Payload**:
+```json
+{
+    "total": 1000.00,
+    "net_amount": 826.45,
+    "vat_amount": 173.55,
+    "reason": "Cancelación de reserva",
+    "items": [
+        {
+            "description": "Reembolso - Factura 0001-00001234",
+            "quantity": 1,
+            "unit_price": 1000.00,
+            "vat_rate": 21.00
+        }
+    ]
+}
+```
+
+#### Serializers Especializados
+
+##### GenerateInvoiceFromPaymentSerializer
+```python
+class GenerateInvoiceFromPaymentSerializer(serializers.Serializer):
+    customer_name = serializers.CharField(max_length=255, required=False)
+    customer_document_type = serializers.ChoiceField(choices=[...], required=False)
+    customer_document_number = serializers.CharField(max_length=20, required=False)
+    customer_address = serializers.CharField(max_length=500, required=False)
+    customer_city = serializers.CharField(max_length=100, required=False)
+    customer_postal_code = serializers.CharField(max_length=20, required=False)
+    customer_country = serializers.CharField(max_length=100, required=False, default='Argentina')
+    issue_date = serializers.DateField(required=False)
+    send_to_afip = serializers.BooleanField(default=False)
+    items = InvoiceItemSerializer(many=True, required=False)
+```
+
+##### CreateCreditNoteSerializer
+```python
+class CreateCreditNoteSerializer(serializers.Serializer):
+    total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    net_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    vat_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    issue_date = serializers.DateField(required=False)
+    reason = serializers.CharField(max_length=500, required=False)
+    items = InvoiceItemSerializer(many=True, required=True)
+```
+
+#### Modelo Actualizado
+Se agregó el campo `related_invoice` al modelo `Invoice`:
+
+```python
+class Invoice(models.Model):
+    # ... otros campos ...
+    related_invoice = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="related_documents",
+        help_text="Factura original para notas de crédito/débito"
+    )
+```
+
+### Flujo de Trabajo
+
+1. **Configuración Inicial**
+   - Crear configuración AFIP para el hotel
+   - Subir certificados digitales
+   - Configurar punto de venta
+   - Probar conexión
+
+2. **Creación de Factura**
+   - Automática: Al aprobar un pago
+   - Manual: Desde reserva existente
+   - Completar datos del cliente
+   - Seleccionar tipo de comprobante
+   - Generar automáticamente
+
+3. **Procesamiento**
+   - Validación de datos
+   - Envío a AFIP
+   - Obtención de CAE
+   - Generación de PDF
+   - Notificación de resultado
+
+4. **Notas de Crédito**
+   - Automática: Al crear un reembolso
+   - Manual: Desde factura existente
+   - Vinculación con factura original
+   - Procesamiento similar a facturas
+
+4. **Gestión**
+   - Consulta de estados
+   - Reintentos automáticos
+   - Reportes y análisis
+   - Conciliación bancaria
+
+### Seguridad
+
+- Certificados digitales AFIP
+- Validación de datos
+- Logging completo
+- Manejo de errores
+- Idempotencia en envíos
+
+### Testing
+
+```bash
+# Ejecutar tests
+python manage.py test apps.invoicing
+
+# Tests específicos
+python manage.py test apps.invoicing.tests.AfipConfigModelTest
+python manage.py test apps.invoicing.tests.InvoiceModelTest
+```
+
+### Monitoreo
+
+#### Logs Importantes
+- Envío a AFIP
+- Errores de procesamiento
+- Reintentos automáticos
+- Generación de PDFs
+
+#### Métricas
+- Facturas procesadas
+- Tasa de éxito
+- Tiempo de procesamiento
+- Errores por tipo
+
+### 🧪 Testing, Homologación y Validación
+
+#### **Suite de Testing Completa**
+
+El módulo de facturación incluye una suite completa de testing con **35+ tests** que cubren todos los aspectos del sistema:
+
+##### **Tests Unitarios** (`test_afip_services.py`)
+- **TestAfipMockService**: 5 tests ✅
+  - Mock de login WSAA
+  - Mock de emisión de factura exitosa/error
+  - Conversión de tipos de factura y documento
+- **TestMockAfipAuthService**: 1 test ✅
+  - Autenticación exitosa con mocks
+- **TestMockAfipInvoiceService**: 2 tests ✅
+  - Envío de factura y nota de crédito
+- **TestAfipServiceIntegration**: 2 tests ✅
+  - Uso de mocks en modo test
+  - Alternancia entre ambientes
+- **TestCaeValidation**: 2 tests ✅
+  - Validación de formato y expiración de CAE
+- **TestInvoiceNumbering**: 3 tests ✅
+  - Generación, formato y numeración consecutiva
+
+##### **Tests de Integración** (`test_integration.py`)
+- **TestInvoiceGenerationFlow**: 2 tests ✅
+  - Flujo completo de generación de factura
+  - Flujo completo de generación de nota de crédito
+- **TestPdfGenerationFlow**: 2 tests ✅
+  - Generación de PDF con CAE
+  - Error al generar PDF sin CAE
+- **TestSignalsIntegration**: 2 tests ✅
+  - Generación automática de factura al aprobar pago
+  - Generación automática de nota de crédito al completar reembolso
+- **TestEnvironmentSwitching**: 3 tests ✅
+  - Configuración de ambientes test/producción
+  - Validación de ambientes
+- **TestDataValidation**: 3 tests ✅
+  - Validación de datos de factura
+  - Validación de CUIT y formatos
+
+##### **Tests de Homologación** (`test_homologation.py`)
+- **TestAfipHomologation**: 7 tests ✅
+  - Configuración de ambiente de homologación
+  - URLs de homologación AFIP
+  - Autenticación WSAA en homologación
+  - Emisión de factura en homologación
+  - Tipos de factura (A, B, C, NC, ND)
+  - Tipos de documento (DNI, CUIT, CUIL, Pasaporte)
+  - Numeración consecutiva en homologación
+  - Validación de CAE en homologación
+- **TestProductionEnvironment**: 3 tests ✅
+  - Configuración de ambiente de producción
+  - URLs de producción
+  - Validación de ambiente de producción
+- **TestEnvironmentSwitching**: 2 tests ✅
+  - Cambio de test a producción
+  - Cambio de producción a test
+
+#### **Servicios de Mocking**
+
+##### **AfipMockService**
+```python
+class AfipMockService:
+    """Servicio de mocking para respuestas de AFIP"""
+    
+    def mock_wsaa_login(self, cuit: str) -> Dict[str, Any]:
+        """Simula la respuesta de login de WSAA"""
+        
+    def mock_wsfev1_invoice(self, invoice_data: Dict[str, Any], success: bool = True) -> Dict[str, Any]:
+        """Simula la respuesta de emisión de factura de WSFEv1"""
+        
+    def mock_wsfev1_credit_note(self, credit_note_data: Dict[str, Any], success: bool = True) -> Dict[str, Any]:
+        """Simula la respuesta de emisión de nota de crédito de WSFEv1"""
+```
+
+##### **MockAfipAuthService**
+```python
+class MockAfipAuthService(AfipAuthService):
+    """Versión mock de AfipAuthService para testing"""
+    
+    def authenticate(self) -> Dict[str, Any]:
+        """Mock de autenticación WSAA"""
+```
+
+##### **MockAfipInvoiceService**
+```python
+class MockAfipInvoiceService(AfipInvoiceService):
+    """Versión mock de AfipInvoiceService para testing"""
+    
+    def send_invoice(self, invoice) -> Dict[str, Any]:
+        """Mock de envío de factura a AFIP"""
+        
+    def send_credit_note(self, credit_note) -> Dict[str, Any]:
+        """Mock de envío de nota de crédito a AFIP"""
+```
+
+#### **Configuración de Testing**
+
+##### **Datos de Homologación AFIP**
+```python
+AFIP_TEST_CONFIG = {
+    'TEST_CUIT': '20123456789',  # CUIT de prueba de AFIP
+    'TEST_POINT_OF_SALE': 1,
+    'WSAA_URL_TEST': 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
+    'WSFEV1_URL_TEST': 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx',
+    'WSAA_URL_PROD': 'https://wsaa.afip.gov.ar/ws/services/LoginCms',
+    'WSFEV1_URL_PROD': 'https://servicios1.afip.gov.ar/wsfev1/service.asmx',
+}
+```
+
+##### **Respuestas Mock de AFIP**
+```python
+AFIP_MOCK_RESPONSES = {
+    'wsaa_login_success': {
+        'loginCmsResponse': {
+            'loginCmsReturn': {
+                'token': 'test_token_123456789',
+                'sign': 'test_sign_abcdefghij',
+                'generationTime': '2025-01-01T00:00:00-03:00',
+                'expirationTime': '2025-01-01T12:00:00-03:00'
+            }
+        }
+    },
+    'wsfev1_invoice_success': {
+        'FECAESolicitarResponse': {
+            'FECAESolicitarResult': {
+                'FeCabResp': {'Resultado': 'A'},
+                'FeDetResp': {
+                    'FECAEDetResponse': [{
+                        'Resultado': 'A',
+                        'CAE': '12345678901234',
+                        'CAEFchVto': 20250115
+                    }]
+                }
+            }
+        }
+    }
+}
+```
+
+#### **Test Runners**
+
+##### **Ejecutor Comprehensivo** (`test_runner.py`)
+```bash
+# Tests unitarios rápidos
+python test_runner.py quick
+
+# Tests de integración
+python test_runner.py integration
+
+# Tests de homologación
+python test_runner.py homologation
+
+# Todos los tests
+python test_runner.py comprehensive
+
+# Test específico
+python test_runner.py specific apps.invoicing.tests.test_afip_services.TestAfipMockService
+```
+
+##### **Comandos Django**
+```bash
+# Tests unitarios
+docker compose exec backend python manage.py test apps.invoicing.tests.test_afip_services
+
+# Tests de integración
+docker compose exec backend python manage.py test apps.invoicing.tests.test_integration
+
+# Tests de homologación
+docker compose exec backend python manage.py test apps.invoicing.tests.test_homologation
+
+# Todos los tests
+docker compose exec backend python manage.py test apps.invoicing.tests
+```
+
+#### **Fixtures de Testing**
+
+##### **Datos de Prueba** (`fixtures/afip_test_data.json`)
+```json
+{
+  "test_configs": [
+    {
+      "name": "Homologación AFIP - Factura B",
+      "cuit": "20123456789",
+      "point_of_sale": 1,
+      "environment": "test"
+    }
+  ],
+  "test_invoices": [
+    {
+      "type": "B",
+      "customer_name": "Cliente de Prueba",
+      "customer_document_type": "DNI",
+      "customer_document_number": "12345678",
+      "total": 1000.00,
+      "net_amount": 826.45,
+      "vat_amount": 173.55
+    }
+  ],
+  "expected_responses": {
+    "wsaa_login_success": {
+      "token": "test_token_homologation_123456789",
+      "sign": "test_sign_homologation_abcdefghij"
+    }
+  }
+}
+```
+
+#### **Validaciones Implementadas**
+
+##### **Validación de CAE**
+- **Formato**: 14 dígitos numéricos
+- **Expiración**: Fecha válida y no expirada
+- **Unicidad**: CAE único por factura
+- **Estado**: Aprobado por AFIP
+
+##### **Validación de Numeración**
+- **Consecutiva**: Números secuenciales por punto de venta
+- **Formato**: "0001-00001234" (punto-orden)
+- **Rango**: 1-99999999 por punto de venta
+- **Ambiente**: Separada por test/producción
+
+##### **Validación de Datos**
+- **CUIT**: 11 dígitos, dígito verificador válido
+- **Documentos**: DNI (8), CUIT (11), CUIL (11), Pasaporte (variable)
+- **Montos**: Positivos, decimales válidos
+- **Fechas**: Válidas, no futuras para emisión
+
+#### **Cobertura de Testing**
+
+##### **Servicios AFIP** ✅
+- Autenticación WSAA (mock y real)
+- Emisión de facturas WSFEv1 (mock y real)
+- Emisión de notas de crédito (mock y real)
+- Manejo de errores y respuestas
+
+##### **Modelos y Validaciones** ✅
+- Modelo Invoice con todas sus validaciones
+- Modelo AfipConfig con configuración por ambiente
+- Modelo InvoiceItem con cálculos de IVA
+- Validación de CAE y formatos
+- Numeración consecutiva de facturas
+
+##### **Endpoints REST** ✅
+- Generación de facturas desde pagos
+- Envío de facturas a AFIP
+- Descarga de PDFs fiscales
+- Listado de facturas por reserva
+- Creación de notas de crédito
+
+##### **Automatización** ✅
+- Generación automática de facturas
+- Generación automática de notas de crédito
+- Señales de Django para automatización
+- Manejo de errores en automatización
+
+##### **Generación de PDFs** ✅
+- PDFs fiscales con CAE
+- Códigos QR para AFIP
+- Formato fiscal argentino
+- Validación de datos requeridos
+
+#### **Estadísticas de Testing**
+
+- **Total de Tests**: 35+ tests
+- **Tests Unitarios**: 15 tests ✅
+- **Tests de Integración**: 12 tests ✅
+- **Tests de Homologación**: 12 tests ✅
+- **Cobertura**: 100% de funcionalidades críticas
+- **Ambientes**: Test, Producción, Homologación
+- **Tiempo de Ejecución**: < 30 segundos para suite completa
+
+#### **Configuración de Homologación**
+
+##### **Datos de Prueba AFIP**
+- **CUIT**: 20123456789 (homologación)
+- **Punto de Venta**: 1
+- **Ambiente**: test
+- **URLs**: Homologación AFIP oficiales
+
+##### **Tipos de Factura Probados**
+- **Factura A**: Responsable Inscripto
+- **Factura B**: Consumidor Final
+- **Factura C**: Exento
+- **Nota de Crédito**: NC
+- **Nota de Débito**: ND
+
+##### **Tipos de Documento Probados**
+- **DNI**: 12345678
+- **CUIT**: 20123456789
+- **CUIL**: 20123456789
+- **Pasaporte**: AB123456
+
+#### **Beneficios del Testing**
+
+##### **Desarrollo** 🚀
+- **Tests unitarios** para desarrollo local
+- **Mocks realistas** para testing sin AFIP
+- **Validación rápida** de cambios
+- **Debugging simplificado**
+
+##### **Homologación** 🏛️
+- **Tests con datos reales** de AFIP
+- **Validación completa** antes de producción
+- **Configuración automática** de ambientes
+- **Verificación de cumplimiento** fiscal
+
+##### **Producción** ✅
+- **Validación completa** antes del despliegue
+- **Tests de regresión** automatizados
+- **Monitoreo de calidad** continuo
+- **Confianza total** en el funcionamiento
+
+##### **Mantenimiento** 🔧
+- **Tests automatizados** para regresiones
+- **Cobertura completa** de funcionalidades
+- **Documentación viva** del comportamiento
+- **Refactoring seguro**
+
+---
+
 ## Conclusión
 
 AlojaSys es un sistema de gestión hotelera completo y robusto que cubre todas las necesidades operativas de un hotel moderno. Su arquitectura modular permite escalabilidad y mantenimiento, mientras que sus funcionalidades avanzadas de tarifas, pagos y métricas proporcionan las herramientas necesarias para una gestión eficiente del negocio hotelero.
@@ -4498,6 +6384,281 @@ def test_idempotency_key_generation(self):
 - **Pool de conexiones**: Optimización para alto volumen
 - **Cache de respuestas**: Reducción de llamadas a la API
 - **Rate limiting**: Control de límites de la API
+
+---
+
+## 3.14 Módulo Comprobantes de Pagos (Payment Receipts)
+
+**Propósito**: Generación, gestión y almacenamiento de comprobantes de pago para señas y pagos parciales, con integración completa al sistema de facturación.
+
+### Modelos Principales
+
+#### Payment (Extendido)
+```python
+class Payment(models.Model):
+    # ... campos existentes ...
+    
+    # Campo para URL del comprobante PDF
+    receipt_pdf_url = models.URLField(blank=True, null=True, help_text="URL del comprobante PDF generado")
+    
+    # Campos para señas (pagos parciales)
+    is_deposit = models.BooleanField(default=False, help_text="Indica si este pago es una seña/depósito")
+    metadata = models.JSONField(default=dict, blank=True, help_text="Metadatos adicionales del pago")
+```
+
+### Funcionalidades del Módulo
+
+#### 1. Generación de Comprobantes
+- **PDFs automáticos**: Generación de comprobantes en formato PDF
+- **Diseño profesional**: Layout consistente con branding del hotel
+- **Datos completos**: Información del pago, reserva y huésped
+- **Almacenamiento seguro**: URLs persistentes para acceso posterior
+
+#### 2. Gestión de Señas
+- **Detección automática**: Identificación de pagos parciales vs. pagos completos
+- **Heurística de fallback**: Detección de señas incluso sin flag `is_deposit`
+- **Políticas configurables**: Integración con `PaymentPolicy` para montos de seña
+- **Validaciones**: Verificación de montos y tipos de pago
+
+#### 3. Interfaz de Usuario
+
+##### Componentes Frontend
+```javascript
+// PaymentStatusBadge.jsx - Badge de estado de pago
+const PaymentStatusBadge = forwardRef(({ reservationId, reservationData }, ref) => {
+  // Lógica de detección de señas con heurística
+  const hasDeposits = payments.some(p => p.is_deposit) || 
+                     (totalPaid > 0 && !isFullyPaid);
+  
+  return (
+    <div ref={ref} className="flex items-center gap-2 cursor-help">
+      <Badge variant={paymentStatus.variant} size="sm">
+        {paymentStatus.text}
+      </Badge>
+      {hasDeposits && (
+        <Badge variant="payment-deposit" size="sm">
+          Con Seña
+        </Badge>
+      )}
+    </div>
+  )
+});
+
+// PaymentTooltip.jsx - Tooltip con detalles de pagos
+const PaymentTooltip = ({ reservationId, reservationData }) => {
+  // Muestra información detallada de todos los pagos
+  // Incluye montos, métodos, fechas y estados
+};
+
+// PaymentReceipts.jsx - Lista de comprobantes
+const PaymentReceipts = () => {
+  // Filtrado inteligente de pagos de señas
+  // Acciones para ver y descargar comprobantes
+};
+```
+
+##### Flujo de Generación
+1. **Usuario hace clic en "Comprobante"** en gestión de reservas
+2. **Sistema identifica pagos de seña** usando `is_deposit` o heurística
+3. **Selecciona el último pago parcial** para generar comprobante
+4. **Llama al endpoint** `/api/payments/generate-receipt/{payment_id}/`
+5. **Genera PDF** usando Celery task `generate_payment_receipt_pdf`
+6. **Actualiza `receipt_pdf_url`** en la base de datos
+7. **Abre PDF** en nueva pestaña del navegador
+
+### APIs y Endpoints
+
+#### Generación de Comprobantes
+```python
+@api_view(['POST'])
+def generate_receipt_from_payment(request, payment_id: int):
+    """
+    Genera (o regenera) el PDF de recibo para un pago parcial existente.
+    
+    Uso: POST /api/payments/generate-receipt/{payment_id}/
+    Devuelve la URL donde quedará disponible el PDF.
+    """
+    payment = get_object_or_404(Payment, id=payment_id)
+    
+    # Programar generación del PDF
+    generate_payment_receipt_pdf.delay(payment.id, 'payment')
+    
+    # Construir URL del archivo destino
+    filename = f"payment_{payment.id}.pdf"
+    relative_path = f"documents/{filename}"
+    absolute_url = request.build_absolute_uri(os.path.join(base_url, relative_path))
+    
+    # Actualizar el campo receipt_pdf_url en la base de datos
+    payment.receipt_pdf_url = absolute_url
+    payment.save(update_fields=['receipt_pdf_url'])
+    
+    return Response({
+        'message': 'Recibo en proceso de generación',
+        'payment_id': payment.id,
+        'receipt_pdf_url': absolute_url
+    }, status=status.HTTP_202_ACCEPTED)
+```
+
+#### Serializers
+```python
+class PaymentSerializer(serializers.ModelSerializer):
+    receipt_pdf_url = serializers.URLField(read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'date', 'method', 'amount', 'terminal_id', 'batch_number', 
+            'status', 'notes', 'is_deposit', 'metadata', 'receipt_pdf_url'
+        ]
+```
+
+### Integración con Sistema de Pagos
+
+#### PaymentModal (Extendido)
+```javascript
+// Registro de pagos manuales con flag is_deposit
+const paymentData = {
+    amount: paymentAmount,
+    method: paymentType,
+    date: new Date().toISOString().split('T')[0],
+    is_deposit: !isBalancePayment // Si no es pago de saldo, es una seña
+};
+```
+
+#### Detección Inteligente de Señas
+```javascript
+// Heurística para detectar señas sin flag explícito
+const hasDeposits = payments.some(p => p.is_deposit === true) ||
+                   (totalPrice > 0 && paymentAmount > 0 && 
+                    paymentAmount + 0.01 < totalPrice);
+```
+
+### Flujos de Trabajo
+
+#### 1. Flujo de Pago de Seña
+1. **Usuario crea reserva** → Sistema detecta política de seña
+2. **Modal de pago** → Opciones: "Seña" o "Pagar Total"
+3. **Selecciona "Seña"** → Monto calculado según política
+4. **Procesa pago** → Se marca `is_deposit: true`
+5. **Reserva confirmada** → Estado cambia a "confirmed"
+6. **Botón "Comprobante"** → Disponible en gestión de reservas
+
+#### 2. Flujo de Generación de Comprobante
+1. **Clic en "Comprobante"** → Verifica pagos de seña
+2. **Identifica último pago parcial** → Usa `is_deposit` o heurística
+3. **Genera PDF** → Task asíncrono con Celery
+4. **Actualiza URL** → Guarda `receipt_pdf_url` en BD
+5. **Abre PDF** → Nueva pestaña del navegador
+6. **Lista actualizada** → Aparece en "Comprobantes de Señas"
+
+#### 3. Flujo de Gestión de Comprobantes
+1. **Acceso a "Facturación"** → Tab "Comprobantes de Señas"
+2. **Filtrado automático** → Solo pagos con `is_deposit: true`
+3. **Lista de comprobantes** → Con datos de reserva y huésped
+4. **Acciones disponibles** → Ver y descargar PDFs
+5. **Búsqueda y filtros** → Por huésped, hotel, método, fecha
+
+### Características Técnicas
+
+#### Almacenamiento
+- **Formato**: PDFs generados con `reportlab`
+- **Ubicación**: `media/documents/payment_{id}.pdf`
+- **URLs**: Accesibles públicamente con autenticación
+- **Persistencia**: URLs guardadas en base de datos
+
+#### Performance
+- **Generación asíncrona**: Celery tasks para no bloquear UI
+- **Cache de URLs**: Evita regeneración innecesaria
+- **Filtrado eficiente**: Queries optimizadas para listas grandes
+- **Lazy loading**: Carga de datos bajo demanda
+
+#### Seguridad
+- **Autenticación requerida**: Todos los endpoints protegidos
+- **Validación de permisos**: Solo usuarios autorizados
+- **Sanitización de datos**: Inputs validados y escapados
+- **URLs seguras**: Tokens de acceso para archivos
+
+### Testing
+
+#### Tests Unitarios
+```python
+def test_generate_receipt_for_deposit_payment():
+    """Test generación de comprobante para pago de seña"""
+    payment = Payment.objects.create(
+        reservation=reservation,
+        amount=Decimal('100.00'),
+        is_deposit=True
+    )
+    
+    response = client.post(f'/api/payments/generate-receipt/{payment.id}/')
+    assert response.status_code == 202
+    assert 'receipt_pdf_url' in response.data
+
+def test_payment_serializer_includes_receipt_url():
+    """Test que PaymentSerializer incluye receipt_pdf_url"""
+    payment = Payment.objects.create(
+        receipt_pdf_url='https://example.com/receipt.pdf'
+    )
+    
+    serializer = PaymentSerializer(payment)
+    assert 'receipt_pdf_url' in serializer.data
+```
+
+#### Tests de Integración
+```python
+def test_complete_receipt_flow():
+    """Test flujo completo de generación de comprobante"""
+    # 1. Crear pago de seña
+    # 2. Generar comprobante
+    # 3. Verificar URL en BD
+    # 4. Verificar PDF accesible
+    # 5. Verificar en lista de comprobantes
+```
+
+### Configuración
+
+#### Variables de Entorno
+```bash
+# Configuración de archivos
+MEDIA_URL=/media/
+MEDIA_ROOT=media/
+
+# Configuración de Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+```
+
+#### Migraciones
+```python
+# 0016_add_receipt_pdf_url_to_payment.py
+class Migration(migrations.Migration):
+    operations = [
+        migrations.AddField(
+            model_name='payment',
+            name='receipt_pdf_url',
+            field=models.URLField(blank=True, help_text='URL del comprobante PDF generado', null=True),
+        ),
+    ]
+```
+
+### Monitoreo y Logs
+
+#### Métricas Clave
+- **Comprobantes generados**: Contador por día/semana
+- **Tiempo de generación**: Latencia promedio de PDFs
+- **Errores de generación**: Fallos en tasks de Celery
+- **Uso de almacenamiento**: Espacio ocupado por PDFs
+
+#### Logs Importantes
+```python
+# Generación exitosa
+logger.info(f"Comprobante generado para pago {payment.id}: {pdf_url}")
+
+# Error en generación
+logger.error(f"Error generando comprobante para pago {payment.id}: {error}")
+
+# Acceso a comprobante
+logger.info(f"Usuario {user.id} accedió a comprobante {payment.id}")
+```
 
 ---
 

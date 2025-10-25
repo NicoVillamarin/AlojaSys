@@ -66,7 +66,7 @@ export default function RoomsGestion() {
     resource: 'status',
     action: 'summary',
     params: { hotel: hotelForSummary },
-    enabled: shouldUseSummary,
+    enabled: Boolean(shouldUseSummary),
   });
 
   const kpi = useMemo(() => {

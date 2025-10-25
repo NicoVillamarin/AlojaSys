@@ -17,9 +17,21 @@ import PaymentModal from 'src/components/modals/PaymentModal'
 import CancellationModal from 'src/components/modals/CancellationModal'
 import Badge from 'src/components/Badge'
 import { useAuthStore } from 'src/stores/useAuthStore'
-import Swal from 'sweetalert2'
 import AutoNoShowButton from 'src/components/AutoNoShowButton'
 import AlertSwal from 'src/components/AlertSwal'
+import EditIcon from 'src/assets/icons/EditIcon'
+import ConfirmIcon from 'src/assets/icons/ConfirmIcon'
+import CheckinIcon from 'src/assets/icons/CheckinIcon'
+import CheckoutIcon from 'src/assets/icons/CheckoutIcon'
+import CancelIcon from 'src/assets/icons/CancelIcon'
+import InvoiceIcon from 'src/assets/icons/InvoiceIcon'
+import EarlyCheckoutIcon from 'src/assets/icons/EarlyCheckoutIcon'
+import CheckCircleIcon from 'src/assets/icons/CheckCircleIcon'
+import CheckIcon from 'src/assets/icons/CheckIcon'
+import InvoiceStatus from 'src/components/reservations/InvoiceStatus'
+import PaymentTooltip from 'src/components/reservations/PaymentTooltip'
+import PaymentStatusBadge from 'src/components/reservations/PaymentStatusBadge'
+import Tooltip from 'src/components/Tooltip'
 
 
 
@@ -37,6 +49,10 @@ export default function ReservationsGestions() {
   const [cancelReservation, setCancelReservation] = useState(null)
   const [showEarlyCheckOutAlert, setShowEarlyCheckOutAlert] = useState(false)
   const [earlyCheckOutReservation, setEarlyCheckOutReservation] = useState(null)
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false)
+  const [successData, setSuccessData] = useState(null)
+  const [showInfoAlert, setShowInfoAlert] = useState(false)
+  const [infoData, setInfoData] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
@@ -107,6 +123,34 @@ export default function ReservationsGestions() {
   const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
   const canEarlyCheckOut = (r) => r.status === 'check_in' // Early check-out para reservas en check-in
   
+  // Función para determinar si se puede generar factura
+  const canGenerateInvoice = (r) => {
+    // Solo se puede generar factura si:
+    // 1. La reserva está confirmada o en check-in/check-out
+    // 2. Tiene precio total > 0
+    // 3. No tiene facturas existentes (esto se verifica en el componente InvoiceStatus)
+    return (r.status === 'confirmed' || r.status === 'check_in' || r.status === 'check_out') && 
+           r.total_price > 0
+  }
+
+  // Función para determinar el tipo de documento a generar
+  const getDocumentType = (r) => {
+    const balance = r.balance_due || 0;
+    const totalPaid = r.total_paid || 0;
+    const totalPrice = r.total_price || 0;
+    const isFullyPaid = balance <= 0.01;
+    const hasPartialPayments = totalPaid > 0 && !isFullyPaid;
+    
+    if (isFullyPaid) {
+      return 'invoice'; // Factura completa
+    } else if (hasPartialPayments) {
+      return 'receipt'; // Comprobante de seña/pago parcial
+    } else {
+      return 'none'; // Sin pagos
+    }
+  }
+
+  
   // Función para obtener el mensaje de cancelación según el estado
   const getCancelMessage = (r) => {
     if (r.status === 'pending') {
@@ -125,6 +169,18 @@ export default function ReservationsGestions() {
       return t('dashboard.reservations_management.tooltips.cancel_with_policy')
     }
     return ''
+  }
+
+  // Función helper para mostrar mensajes de éxito
+  const showSuccessMessage = (title, description) => {
+    setSuccessData({ title, description })
+    setShowSuccessAlert(true)
+  }
+
+  // Función helper para mostrar mensajes de información
+  const showInfoMessage = (title, description, tone = 'info', onConfirm = null) => {
+    setInfoData({ title, description, tone, onConfirm })
+    setShowInfoAlert(true)
   }
 
   const onCheckIn = async (r) => {
@@ -154,8 +210,12 @@ export default function ReservationsGestions() {
         setPendingAction('check_in');
         setBalancePayOpen(true);
       } else if (response.ok) {
-        // Check-in exitoso, refrescar datos
+        // Check-in exitoso, refrescar datos y mostrar mensaje
         refetch();
+        showSuccessMessage(
+          'Check-in Exitoso',
+          `La reserva #${r.id} de ${r.guest_name} ha sido registrada como check-in exitosamente.`
+        );
       } else {
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
@@ -193,8 +253,12 @@ export default function ReservationsGestions() {
         setPendingAction('check_out');
         setBalancePayOpen(true);
       } else if (response.ok) {
-        // Check-out exitoso, refrescar datos
+        // Check-out exitoso, refrescar datos y mostrar mensaje
         refetch();
+        showSuccessMessage(
+          'Check-out Exitoso',
+          `La reserva #${r.id} de ${r.guest_name} ha sido registrada como check-out exitosamente.`
+        );
       } else {
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
@@ -228,6 +292,139 @@ export default function ReservationsGestions() {
     setShowEarlyCheckOutAlert(true)
   }
 
+  const onGenerateInvoice = async (r) => {
+    console.log('Generando factura para reserva:', r.id)
+    
+    // Verificar si ya existe una factura para esta reserva
+    try {
+      const existingInvoices = await fetchWithAuth(`${getApiURL()}/api/invoicing/invoices/by-reservation/${r.id}/`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      console.log('Facturas existentes para reserva', r.id, ':', existingInvoices);
+      
+      // Verificar si hay facturas en la respuesta
+      const invoices = existingInvoices || [];
+      if (invoices && invoices.length > 0) {
+        showInfoMessage(
+          'Factura ya existe',
+          `Ya existe una factura para esta reserva: ${invoices[0].number}`,
+          'warning'
+        );
+        return;
+      }
+    } catch (error) {
+      console.log('No se pudo verificar facturas existentes:', error);
+      // Si hay error en la verificación, continuar con la creación
+    }
+    
+    try {
+      const response = await fetchWithAuth(`${getApiURL()}/api/invoicing/invoices/create-from-reservation/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reservation_id: r.id,
+          invoice_type: 'B', // Factura B por defecto
+          client_name: r.guest_name || 'Cliente',
+          client_document_type: '96', // Código AFIP para DNI
+          client_document_number: '00000000',
+          client_tax_condition: '5', // Consumidor Final
+          issue_date: new Date().toISOString().split('T')[0]
+        })
+      });
+      
+      if (response) {
+        console.log('Factura generada exitosamente:', response);
+        showInfoMessage(
+          'Factura Generada',
+          `La factura ${response.number} ha sido creada exitosamente`,
+          'success'
+        );
+        refetch();
+      }
+    } catch (error) {
+      console.error('Error generando factura:', error);
+      showInfoMessage(
+        'Error',
+        `Error generando factura: ${error.message || error.detail || 'Error desconocido'}`,
+        'danger'
+      );
+    }
+  }
+
+  const onGenerateReceipt = async (r) => {
+    console.log('Generando comprobante para reserva:', r.id)
+    
+    try {
+      // Obtener los pagos de la reserva para generar comprobante
+      const payments = await fetchWithAuth(`${getApiURL()}/api/reservations/${r.id}/payments/`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!payments || payments.length === 0) {
+        showInfoMessage(
+          'Sin Pagos',
+          'No hay pagos para generar comprobante',
+          'warning'
+        );
+        return;
+      }
+
+      // Tomar el último pago parcial (seña). Fallback heurístico si falta is_deposit
+      const totalPrice = parseFloat(r.total_price || 0)
+      const candidateDeposits = payments.filter(p => p.is_deposit === true)
+      const heuristicDeposits = payments.filter(p => parseFloat(p.amount || 0) + 0.01 < totalPrice)
+      const deposits = (candidateDeposits.length ? candidateDeposits : heuristicDeposits)
+        .sort((a,b) => new Date(b.date) - new Date(a.date))
+      const lastDeposit = deposits[0]
+      if (!lastDeposit) {
+        showInfoMessage(
+          'Sin Señas',
+          'No hay pagos de seña para generar comprobante',
+          'warning'
+        );
+        return;
+      }
+
+      // Solicitar generación/actualización del recibo de ese pago
+      const resp = await fetchWithAuth(`${getApiURL()}/api/payments/generate-receipt/${lastDeposit.id}/`, {
+        method: 'POST'
+      });
+
+      if (resp?.receipt_pdf_url) {
+        showInfoMessage(
+          'Comprobante en Proceso',
+          'Estamos generando el PDF. Se abrirá cuando esté listo.',
+          'success',
+          () => window.open(resp.receipt_pdf_url, '_blank')
+        );
+      } else {
+        showInfoMessage(
+          'Comprobante solicitado',
+          'Se solicitó la generación del comprobante. Vuelve a intentar en unos segundos.',
+          'info'
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error generando comprobante:', error);
+      showInfoMessage(
+        'Error',
+        `Error generando comprobante: ${error.message || 'Error desconocido'}`,
+        'danger'
+      );
+    }
+  }
+
+
   const handleEarlyCheckOutConfirm = async () => {
     if (!earlyCheckOutReservation) return
     
@@ -257,8 +454,12 @@ export default function ReservationsGestions() {
         setPendingAction('check_out');
         setBalancePayOpen(true);
       } else if (response.ok) {
-        // Early check-out exitoso, refrescar datos
+        // Early check-out exitoso, refrescar datos y mostrar mensaje
         refetch();
+        showSuccessMessage(
+          'Check-out Temprano Exitoso',
+          `La reserva #${r.id} de ${r.guest_name} ha sido registrada como check-out temprano exitosamente.`
+        );
       } else {
         throw new Error(data.detail || `HTTP ${response.status}`);
       }
@@ -326,6 +527,13 @@ export default function ReservationsGestions() {
                 method: 'POST'
               });
               console.log(`${action} realizado automáticamente después del pago`);
+              
+              // Mostrar mensaje de éxito después de la acción automática
+              const actionText = pendingAction === 'check_in' ? 'Check-in' : 'Check-out';
+              showSuccessMessage(
+                `${actionText} Exitoso`,
+                `El pago ha sido procesado y la reserva #${balancePayReservationId} ha sido registrada como ${actionText.toLowerCase()} exitosamente.`
+              );
             } catch (error) {
               console.error(`Error en ${pendingAction} automático:`, error);
             }
@@ -468,39 +676,18 @@ export default function ReservationsGestions() {
           { key: 'guests', header: t('dashboard.reservations_management.table_headers.guests_count'), sortable: true, right: true },
           { key: 'total_price', header: t('dashboard.reservations_management.table_headers.total'), sortable: true, right: true, render: (r) => `$ ${convertToDecimal(r.total_price)}` },
           { 
-            key: 'balance_due', 
-            header: 'Saldo Pendiente', 
-            sortable: true, 
-            right: true, 
-            render: (r) => {
-              const balance = r.balance_due || 0;
-              const totalPaid = r.total_paid || 0;
-              const totalPrice = r.total_price || 0;
-              
-              if (balance > 0.01) {
-                return (
-                  <div className="text-right">
-                    <div className="text-red-600 font-semibold">
-                      ${convertToDecimal(balance)}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Pagado: ${convertToDecimal(totalPaid)}
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <div className="text-right">
-                    <div className="text-green-600 font-semibold">
-                      Pagado
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      ${convertToDecimal(totalPaid)}
-                    </div>
-                  </div>
-                );
-              }
-            }
+            key: 'payment_status', 
+            header: 'Estado de Pagos', 
+            sortable: false, 
+            render: (r) => (
+              <Tooltip
+                content={<PaymentTooltip reservationId={r.id} reservationData={r} />}
+                position="bottom"
+                maxWidth="320px"
+              >
+                <PaymentStatusBadge reservationId={r.id} reservationData={r} />
+              </Tooltip>
+            )
           },
           { 
             key: 'status', 
@@ -513,98 +700,122 @@ export default function ReservationsGestions() {
             ) 
           },
           {
-            key: 'payment_status',
-            header: t('dashboard.reservations_management.table_headers.payment_status'),
-            sortable: true,
-            render: (r) => {
-              const paymentVariant = r.status === 'pending' ? 'payment-pending' : 'payment-paid'
-              const paymentText = r.status === 'pending' 
-                ? t('payments.payment_status.pending') 
-                : t('payments.payment_status.paid')
-              
-              return (
-                <Badge variant={paymentVariant} size="sm">
-                  {paymentText}
-                </Badge>
-              )
-            }
+            key: 'invoice_status',
+            header: 'Estado Facturación',
+            sortable: false,
+            render: (r) => (
+              <InvoiceStatus reservationId={r.id} />
+            )
           },
           {
             key: 'actions', header: t('dashboard.reservations_management.table_headers.actions'), sortable: false, right: true,
             render: (r) => (
-              <div className="flex justify-end items-center gap-2">
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canEdit(r)
-                      ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
-                      : 'opacity-40 cursor-not-allowed bg-blue-50 text-blue-700 border-blue-300'}
-                  `}
-                  disabled={!canEdit(r) || acting}
-                  onClick={() => onEdit(r)}
-                  title={t('dashboard.reservations_management.tooltips.edit')}
-                >
-                  {t('dashboard.reservations_management.actions.edit')}
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canConfirm(r)
-                      ? 'bg-aloja-navy text-white border-aloja-navy hover:bg-aloja-navy2'
-                      : 'opacity-40 cursor-not-allowed bg-aloja-navy text-white border-aloja-navy'}
-                  `}
-                  disabled={!canConfirm(r) || acting}
-                  onClick={() => onConfirm(r)}
-                  title={t('dashboard.reservations_management.tooltips.confirm')}
-                >
-                  {t('dashboard.reservations_management.actions.confirm')}
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canCheckIn(r)
-                      ? 'bg-aloja-gold text-aloja-navy border-aloja-gold hover:brightness-95'
-                      : 'opacity-40 cursor-not-allowed bg-aloja-gold text-aloja-navy border-aloja-gold'}
-                  `}
-                  disabled={!canCheckIn(r) || acting}
-                  onClick={() => onCheckIn(r)}
-                  title={t('dashboard.reservations_management.tooltips.check_in')}
-                >
-                  {t('dashboard.reservations_management.actions.check_in')}
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canCheckOut(r)
-                      ? 'bg-white text-aloja-navy border-aloja-navy hover:bg-aloja-navy/5'
-                      : 'opacity-40 cursor-not-allowed bg-white text-aloja-navy border-aloja-navy'}
-                  `}
-                  disabled={!canCheckOut(r) || acting}
-                  onClick={() => onCheckOut(r)}
-                  title={t('dashboard.reservations_management.tooltips.check_out')}
-                >
-                  {t('dashboard.reservations_management.actions.check_out')}
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canEarlyCheckOut(r)
-                      ? 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'
-                      : 'opacity-40 cursor-not-allowed bg-orange-50 text-orange-700 border-orange-300'}
-                  `}
-                  disabled={!canEarlyCheckOut(r) || acting}
-                  onClick={() => onEarlyCheckOut(r)}
-                  title={t('dashboard.reservations_management.tooltips.early_check_out')}
-                >
-                  {t('dashboard.reservations_management.actions.early_check_out')}
-                </button>
-                <button
-                  className={`px-2 py-1 rounded text-xs border transition-colors
-                    ${canCancel(r)
-                      ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100'
-                      : 'opacity-40 cursor-not-allowed bg-red-50 text-red-700 border-red-300'}
-                  `}
-                  disabled={!canCancel(r) || acting}
-                  onClick={() => onCancel(r)}
-                  title={getCancelTooltip(r)}
-                >
-                  {getCancelMessage(r)}
-                </button>
+              <div className="flex justify-end items-center gap-1">
+                {/* Botón Editar */}
+                {canEdit(r) && (
+                  <button
+                    onClick={() => onEdit(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                    title={t('dashboard.reservations_management.tooltips.edit')}
+                  >
+                    <EditIcon size="14" />
+                    {t('dashboard.reservations_management.actions.edit')}
+                  </button>
+                )}
+                {/* Botón Confirmar */}
+                {canConfirm(r) && (
+                  <button
+                    onClick={() => onConfirm(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-green-50 text-green-700 border-green-300 hover:bg-green-100 transition-colors flex items-center gap-1"
+                    title={t('dashboard.reservations_management.tooltips.confirm')}
+                  >
+                    <CheckIcon size="14" />
+                    {t('dashboard.reservations_management.actions.confirm')}
+                  </button>
+                )}
+                {/* Botón Check-in */}
+                {canCheckIn(r) && (
+                  <button
+                    onClick={() => onCheckIn(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100 transition-colors flex items-center gap-1"
+                    title={t('dashboard.reservations_management.tooltips.check_in')}
+                  >
+                    <CheckinIcon size="14" />
+                    {t('dashboard.reservations_management.actions.check_in')}
+                  </button>
+                )}
+                {/* Botón Check-out */}
+                {canCheckOut(r) && (
+                  <button
+                    onClick={() => onCheckOut(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                    title={t('dashboard.reservations_management.tooltips.check_out')}
+                  >
+                    <CheckoutIcon size="14" />
+                    {t('dashboard.reservations_management.actions.check_out')}
+                  </button>
+                )}
+                {/* Botón Early Check-out */}
+                {canEarlyCheckOut(r) && (
+                  <button
+                    onClick={() => onEarlyCheckOut(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100 transition-colors flex items-center gap-1"
+                    title={t('dashboard.reservations_management.tooltips.early_check_out')}
+                  >
+                    <EarlyCheckoutIcon size="14" />
+                    {t('dashboard.reservations_management.actions.early_check_out')}
+                  </button>
+                )}
+
+                {/* Botón Generar Factura/Comprobante */}
+                {canGenerateInvoice(r) && (() => {
+                  const docType = getDocumentType(r);
+                  if (docType === 'invoice') {
+                    return (
+                      <button
+                        onClick={() => onGenerateInvoice(r)}
+                        disabled={acting}
+                        className="px-2 py-1 rounded text-xs border bg-green-50 text-green-700 border-green-300 hover:bg-green-100 transition-colors flex items-center gap-1"
+                        title="Generar Factura Electrónica"
+                      >
+                        <InvoiceIcon size="14" />
+                        Factura
+                      </button>
+                    );
+                  } else if (docType === 'receipt') {
+                    return (
+                      <button
+                        onClick={() => onGenerateReceipt(r)}
+                        disabled={acting}
+                        className="px-2 py-1 rounded text-xs border bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100 transition-colors flex items-center gap-1"
+                        title="Generar Comprobante de Pago"
+                      >
+                        <InvoiceIcon size="14" />
+                        Comprobante
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+
+
+                {/* Botón Cancelar */}
+                {canCancel(r) && (
+                  <button
+                    onClick={() => onCancel(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-red-50 text-red-700 border-red-300 hover:bg-red-100 transition-colors flex items-center gap-1"
+                    title={getCancelTooltip(r)}
+                  >
+                    <CancelIcon size="14" />
+                    {getCancelMessage(r)}
+                  </button>
+                )}
               </div>
             )
           }
@@ -636,6 +847,47 @@ export default function ReservationsGestions() {
         confirmText={t('common.yes')}
         cancelText={t('common.cancel')}
         tone="warning"
+      />
+
+      {/* Modal de mensaje de éxito */}
+      <AlertSwal
+        isOpen={showSuccessAlert}
+        onClose={() => {
+          setShowSuccessAlert(false)
+          setSuccessData(null)
+        }}
+        onConfirm={() => {
+          setShowSuccessAlert(false)
+          setSuccessData(null)
+        }}
+        confirmLoading={false}
+        title={successData?.title || ''}
+        description={successData?.description || ''}
+        confirmText="Aceptar"
+        cancelText=""
+        tone="success"
+      />
+
+      {/* Modal de mensaje de información */}
+      <AlertSwal
+        isOpen={showInfoAlert}
+        onClose={() => {
+          setShowInfoAlert(false)
+          setInfoData(null)
+        }}
+        onConfirm={() => {
+          if (infoData?.onConfirm) {
+            infoData.onConfirm()
+          }
+          setShowInfoAlert(false)
+          setInfoData(null)
+        }}
+        confirmLoading={false}
+        title={infoData?.title || ''}
+        description={infoData?.description || ''}
+        confirmText={infoData?.onConfirm ? 'Ver' : 'Aceptar'}
+        cancelText=""
+        tone={infoData?.tone || 'info'}
       />
     </div>
   )

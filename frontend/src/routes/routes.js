@@ -26,6 +26,8 @@ import RefundsHistorical from "src/pages/RefundsHistorical";
 import VouchersManagement from "src/pages/VouchersManagement";
 import Notifications from "src/pages/Notifications";
 import BankReconciliation from "src/pages/financial/BankReconciliation";
+import InvoicingManagement from "src/pages/invoicing/InvoicingManagement";
+import AfipConfig from "src/pages/invoicing/AfipConfig";
 
 
 export const appRoutes = [
@@ -59,6 +61,8 @@ export const appRoutes = [
       { path: "bank-reconciliation", element: React.createElement(BankReconciliation) },
       { path: "notificaciones", element: React.createElement(Notifications) },
       { path: "reservations-calendar", element: React.createElement(ReservationsCalendar) },
+      { path: "invoicing", element: React.createElement(InvoicingManagement) },
+      { path: "settings/fiscal", element: React.createElement(AfipConfig) },
     ],
   },
 ];

@@ -242,6 +242,13 @@ class Payment(models.Model):
     status = models.CharField(max_length=20, default='approved', help_text="Estado del pago: approved, pending_settlement, failed")
     notes = models.TextField(blank=True, help_text="Notas adicionales del pago")
     
+    # Campos para señas (pagos parciales)
+    is_deposit = models.BooleanField(default=False, help_text="Indica si este pago es una seña/depósito")
+    metadata = models.JSONField(default=dict, blank=True, help_text="Metadatos adicionales del pago")
+    
+    # Campo para URL del comprobante PDF
+    receipt_pdf_url = models.URLField(blank=True, null=True, help_text="URL del comprobante PDF generado")
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
 class ReservationStatusChange(models.Model):

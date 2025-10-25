@@ -61,7 +61,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
-    const isFinancial = location.pathname === "/refunds" || location.pathname.startsWith("/payments") || location.pathname === "/vouchers" || location.pathname === "/bank-reconciliation";
+    const isFinancial = location.pathname === "/refunds" || location.pathname.startsWith("/payments") || location.pathname === "/vouchers" || location.pathname === "/bank-reconciliation" || location.pathname.startsWith("/invoicing");
     const isHistories = location.pathname.startsWith("/reservations/") && location.pathname.includes("/history") || 
                        location.pathname === "/payments" || 
                        location.pathname === "/refunds/history";
@@ -153,6 +153,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
             >
               <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.refunds')}</Item>
               <Item to="/vouchers" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.vouchers')}</Item>
+              <Item to="/invoicing" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>Facturación</span>}</Item>
               <Item to="/bank-reconciliation" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>{t('sidebar.bank_reconciliation')}</span>}</Item>
             </div>
           </div>
@@ -184,6 +185,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
               <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
               <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
+              <Item to="/settings/fiscal" onMobileClose={onMobileClose} isMobile={isMobile}>Configuración Fiscal</Item>
               <div className="mt-1 ml-2">
                 <button
                   type="button"

@@ -131,9 +131,11 @@ class ReservationChargeSerializer(serializers.ModelSerializer):
         fields = ['id', 'date', 'description', 'amount']
 
 class PaymentSerializer(serializers.ModelSerializer):
+    receipt_pdf_url = serializers.URLField(read_only=True, allow_null=True)
+    
     class Meta:
         model = Payment
-        fields = ['id', 'date', 'method', 'amount', 'terminal_id', 'batch_number', 'status', 'notes']
+        fields = ['id', 'date', 'method', 'amount', 'terminal_id', 'batch_number', 'status', 'notes', 'is_deposit', 'metadata', 'receipt_pdf_url']
 
 class ChannelCommissionSerializer(serializers.ModelSerializer):
     class Meta:
