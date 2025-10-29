@@ -42,7 +42,10 @@
     "histories": "Históricos",
     "refunds_history": "Histórico de Reembolsos",
     "vouchers": "Vouchers",
-    "bank_reconciliation": "Conciliación Bancaria"
+    "bank_reconciliation": "Conciliación Bancaria",
+    "invoicing": "Facturación",
+    "invoicing_electronic": "Factura Electrónica",
+    "invoicing_receipts": "Comprobante de Pago"
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",

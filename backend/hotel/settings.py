@@ -169,6 +169,41 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20
 }
 
+# LOGGING para depurar AFIP WSAA/WSFE
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'apps.invoicing.services.afip_auth_service': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps.invoicing.services.afip_invoice_service': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps.invoicing.services.afip_service': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    }
+}
+
 # CORS/CSRF settings
 frontend_url = config('FRONTEND_URL', default=None)
 CORS_ALLOWED_ORIGINS = [
@@ -199,6 +234,18 @@ CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:6379/0"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# Cache compartido (Redis) para tokens/locks de AFIP y otros
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f"redis://{REDIS_HOST}:6379/1",
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'TIMEOUT': 0,  # sin expiración global; manejamos TTL manualmente
+    }
+}
 
 
 CELERY_BEAT_SCHEDULE = {
@@ -326,6 +373,7 @@ INVOICE_PDF_STORAGE_PATH = os.path.join(MEDIA_ROOT, 'invoices', 'pdf')
 
 # Configuración AFIP
 AFIP_TEST_MODE = config('AFIP_TEST_MODE', default=True, cast=bool)
+AFIP_USE_MOCK = config('AFIP_USE_MOCK', default=False, cast=bool)
 AFIP_CERTIFICATE_PATH = config('AFIP_CERTIFICATE_PATH', default='')
 AFIP_PRIVATE_KEY_PATH = config('AFIP_PRIVATE_KEY_PATH', default='')
 

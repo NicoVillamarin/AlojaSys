@@ -85,7 +85,20 @@ class AfipAuthService:
         except Exception as e:
             logger.warning(f"No se pudo reutilizar TA desde BD: {e}")
         
+        # 3) Evitar tormenta de logins: lock distribuido
+        lock_key = f"afip_wsaa_lock_{self.config.hotel.id}_{self.config.environment}"
+        got_lock = cache.add(lock_key, True, timeout=120)  # 2 minutos
         try:
+            if not got_lock:
+                logger.info("Otro proceso está obteniendo TA; esperando reutilización...")
+                # Esperar a que otro proceso persista el TA
+                token_sign = self._wait_for_existing_ta(timeout_seconds=90, interval_seconds=5)
+                if token_sign is not None:
+                    token, sign = token_sign
+                    return token, sign
+                # Si no apareció, intentar igualmente generar nosotros
+                logger.info("TA no apareció; intentando generar uno nuevo nosotros")
+
             # Generar nuevo token
             token, sign, gen_dt, exp_dt = self._generate_new_token()
             
@@ -121,6 +134,33 @@ class AfipAuthService:
         except Exception as e:
             logger.error(f"Error generando token AFIP para hotel {self.config.hotel.id}: {str(e)}")
             raise AfipAuthError(f"Error en autenticación AFIP: {str(e)}")
+        finally:
+            if got_lock:
+                cache.delete(lock_key)
+
+    def _wait_for_existing_ta(self, timeout_seconds: int = 60, interval_seconds: int = 5) -> Optional[Tuple[str, str]]:
+        """
+        Espera a que aparezca un TA en cache/BD durante un tiempo, útil cuando WSAA
+        responde alreadyAuthenticated pero otra instancia está persistiendo el TA.
+        """
+        from time import sleep
+        from django.utils import timezone as dj_tz
+        deadline = dj_tz.now() + timedelta(seconds=timeout_seconds)
+        while dj_tz.now() < deadline:
+            # Intentar leer desde cache
+            cached_token = cache.get(self.token_cache_key)
+            cached_sign = cache.get(self.sign_cache_key)
+            if cached_token and cached_sign:
+                logger.info("TA encontrado en cache durante espera")
+                return cached_token, cached_sign
+            # Intentar desde BD
+            if getattr(self.config, 'afip_token', None) and getattr(self.config, 'afip_sign', None):
+                exp = getattr(self.config, 'afip_token_expiration', None)
+                if not exp or exp > dj_tz.now():
+                    logger.info("TA encontrado en BD durante espera")
+                    return self.config.afip_token, self.config.afip_sign
+            sleep(interval_seconds)
+        return None
     
     def _generate_new_token(self) -> Tuple[str, str, Optional[datetime], Optional[datetime]]:
         """
@@ -195,6 +235,12 @@ class AfipAuthService:
             # Construir CMS (PKCS#7) firmado del XML (TRA)
             signed_cms_b64 = self._sign_xml(login_xml)
             
+            # Log del TRA y CMS
+            logger.info(f"TRA (Login XML) generado: {len(login_xml)} chars")
+            logger.debug(f"TRA content:\n{login_xml}")
+            logger.info(f"CMS firmado (Base64): {len(signed_cms_b64)} chars")
+            logger.debug(f"CMS preview (primeros 100 chars): {signed_cms_b64[:100]}")
+            
             # Headers para el request (según manual: SOAPAction: urn:LoginCms)
             headers = {
                 'Content-Type': 'text/xml; charset=utf-8',
@@ -215,28 +261,49 @@ class AfipAuthService:
             # Limpiar cualquier BOM o caracteres extraños del SOAP
             soap_body = soap_body.encode('utf-8').decode('utf-8')
             
+            logger.info(f"Enviando SOAP request a {self.wsaa_url}")
+            logger.debug(f"SOAP Body completo:\n{soap_body[:800]}")
+            
             # Enviar request con timeout más largo
-            response = requests.post(
+            # Timeouts y reintentos controlados
+            session = requests.Session()
+            adapter = requests.adapters.HTTPAdapter(max_retries=2)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+            response = session.post(
                 self.wsaa_url,
                 data=soap_body,
                 headers=headers,
-                timeout=60
+                timeout=(10, 20)  # (connect, read)
             )
             # WSAA puede devolver 500 con SOAP Fault; no cortar aquí
-            # Decodificar contenido de forma robusta y limpiar BOM/espacios
+            # Decodificar contenido de forma robusta y limpiar BOM/espacios/control
+            content_bytes = response.content or b""
+            # Intento 1: UTF-8 estricto
             try:
-                content_bytes = response.content or b""
-                try:
-                    text = content_bytes.decode('utf-8', errors='replace')
-                except Exception:
-                    text = content_bytes.decode('latin-1', errors='replace')
-                # limpiar BOM y espacios raros
-                text_clean = text.lstrip("\ufeff\n\r\t ")
+                text = content_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                # Intento 2: Latin-1 estricto
+                text = content_bytes.decode('latin-1')
+            
+            # Remover caracteres de control y BOM al inicio, y recortar hasta el primer '<'
+            try:
+                import re
+                # Eliminar BOM si existe
+                if text and text[0] == '\ufeff':
+                    text = text[1:]
+                # Remover caracteres de control no permitidos por XML
+                text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+                # Recortar cualquier basura previa al primer tag XML
+                first_lt = text.find('<')
+                text_clean = text[first_lt:] if first_lt != -1 else text
             except Exception:
-                text_clean = response.text
+                text_clean = text
 
             logger.info(f"WSAA respondió HTTP {response.status_code}")
             logger.info(f"Respuesta AFIP recibida: {len(text_clean)} caracteres")
+            logger.debug(f"Request SOAP a WSAA:\n{soap_body[:500]}")
+            logger.debug(f"Response SOAP de WSAA (preview):\n{text_clean[:500]}")
             
             # Log más detallado para debugging
             if response.status_code != 200:
@@ -244,48 +311,37 @@ class AfipAuthService:
                 logger.error(f"Headers de respuesta: {dict(response.headers)}")
                 logger.error(f"Contenido completo: {text_clean}")
                 
-                # Manejar caso especial: TA ya válido
+                # Manejar caso especial: TA ya válido (WSAA Fault: coe.alreadyAuthenticated)
                 if response.status_code == 500 and ("TA valido" in text_clean or "alreadyAuthenticated" in text_clean):
-                    logger.info("AFIP indica que ya hay un TA válido")
-                    
-                    # Estrategia: Simular un TA válido temporal para evitar el bloqueo
-                    # Esto permite que el sistema funcione mientras AFIP mantiene su TA
-                    import time
-                    from django.utils import timezone as dj_tz
-                    
-                    # Generar un TA simulado que expire en 1 hora
-                    simulated_token = f"SIMULATED_TOKEN_{int(time.time())}"
-                    simulated_sign = f"SIMULATED_SIGN_{int(time.time())}"
-                    simulated_gen = dj_tz.now()
-                    simulated_exp = dj_tz.now() + timedelta(hours=1)
-                    
-                    logger.warning("USANDO TA SIMULADO - AFIP tiene TA válido bloqueado")
-                    logger.warning("⚠️  IMPORTANTE: Las facturas se generarán pero NO serán validadas por AFIP")
-                    logger.warning("⚠️  Esto es temporal hasta que AFIP libere su TA (12-24 horas)")
-                    
-                    # Persistir el TA simulado
-                    self.config.afip_token = simulated_token
-                    self.config.afip_sign = simulated_sign
-                    self.config.afip_token_generation = simulated_gen
-                    self.config.afip_token_expiration = simulated_exp
-                    self.config.save(update_fields=['afip_token', 'afip_sign', 'afip_token_generation', 'afip_token_expiration'])
-                    
-                    # Cachear también
-                    cache_timeout = int((simulated_exp - dj_tz.now()).total_seconds())
-                    cache.set(self.token_cache_key, simulated_token, cache_timeout)
-                    cache.set(self.sign_cache_key, simulated_sign, cache_timeout)
-                    
-                    # Devolver un XML simulado para que el parser funcione
-                    simulated_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
-<loginTicketResponse>
-    <token>{simulated_token}</token>
-    <sign>{simulated_sign}</sign>
-    <generationTime>{simulated_gen.isoformat()}</generationTime>
-    <expirationTime>{simulated_exp.isoformat()}</expirationTime>
-</loginTicketResponse>'''
-                    return simulated_xml
+                    logger.warning("AFIP indica que hay un TA vigente para este CEE/servicio")
+                    # Si tenemos TA persistido y no vencido, reutilizarlo
+                    try:
+                        from django.utils import timezone as dj_tz
+                        if getattr(self.config, 'afip_token', None) and getattr(self.config, 'afip_sign', None):
+                            exp = getattr(self.config, 'afip_token_expiration', None)
+                            if not exp or exp > dj_tz.now():
+                                logger.info("Reutilizando TA persistido localmente (WSAA rechazó nueva emisión)")
+                                token = self.config.afip_token
+                                sign = self.config.afip_sign
+                                gen = getattr(self.config, 'afip_token_generation', dj_tz.now())
+                                exp_dt = exp or (dj_tz.now() + timedelta(hours=6))
+                                simulated_xml = f'''<?xml version="1.0" encoding="UTF-8"?>\n<loginTicketResponse>\n    <token>{token}</token>\n    <sign>{sign}</sign>\n    <generationTime>{gen.isoformat()}</generationTime>\n    <expirationTime>{exp_dt.isoformat()}</expirationTime>\n</loginTicketResponse>'''
+                                return simulated_xml
+                        # Esperar brevemente a que otro proceso persista el TA y reintentar reutilización
+                        logger.info("Esperando aparición de TA local tras alreadyAuthenticated...")
+                        token_sign = self._wait_for_existing_ta(timeout_seconds=60, interval_seconds=5)
+                        if token_sign is not None:
+                            token, sign = token_sign
+                            gen = getattr(self.config, 'afip_token_generation', dj_tz.now())
+                            exp_dt = getattr(self.config, 'afip_token_expiration', dj_tz.now() + timedelta(hours=6))
+                            simulated_xml = f'''<?xml version="1.0" encoding="UTF-8"?>\n<loginTicketResponse>\n    <token>{token}</token>\n    <sign>{sign}</sign>\n    <generationTime>{gen.isoformat()}</generationTime>\n    <expirationTime>{exp_dt.isoformat()}</expirationTime>\n</loginTicketResponse>'''
+                            return simulated_xml
+                    except Exception:
+                        pass
+                    # Sin TA local disponible: no podemos obtenerlo del Fault; esperar expiración o unificar storage
+                    raise AfipAuthError("WSAA indicó TA válido, pero no hay TA local disponible para reutilizar")
                 
-                raise AfipAuthError(f"AFIP respondió con error HTTP {response.status_code}")
+                raise AfipAuthError(f"AFIP respondió con error HTTP {response.status_code}: {text_clean[:300]}")
             
             # Verificar que la respuesta contiene XML válido
             if not text_clean.strip():
@@ -370,20 +426,25 @@ class AfipAuthService:
             
             # Intentar parsear con diferentes estrategias
             root = None
+            import re
             try:
-                root = ET.fromstring(xml_clean)
-            except ET.ParseError:
-                # Intentar limpiar caracteres problemáticos
-                import re
-                # Remover caracteres de control y BOM
+                # Intentar parsear limpiando caracteres de control primero
                 xml_clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', xml_clean)
                 xml_clean = xml_clean.lstrip('\ufeff')
+                # Buscar primer < para recortar basura previa
+                first_lt = xml_clean.find('<')
+                if first_lt > 0:
+                    xml_clean = xml_clean[first_lt:]
                 root = ET.fromstring(xml_clean)
             except ET.ParseError as e:
                 # Log del XML problemático para debugging
                 logger.error(f"XML problemático (primeros 500 chars): {xml_clean[:500]}")
                 logger.error(f"XML problemático (últimos 500 chars): {xml_clean[-500:]}")
-                raise ET.ParseError(f"Error parseando XML de AFIP: {str(e)}")
+                # Intentar una última vez sin limpieza (por si la limpieza rompió algo)
+                try:
+                    root = ET.fromstring(response_xml.strip())
+                except:
+                    raise ET.ParseError(f"Error parseando XML de AFIP: {str(e)}")
             
             # Buscar loginCmsReturn y extraer el contenido base64
             ns = {'wsaa': self.WSAA_SOAP_NS}
@@ -418,11 +479,14 @@ class AfipAuthService:
             decoded_xml_bytes = None
             try:
                 import base64
-                decoded_xml_bytes = base64.b64decode(raw_content)
+                trial = base64.b64decode(raw_content, validate=False)
+                # Aceptar como base64 solo si se parece a XML
+                if trial and (b'<' in trial or b'<loginTicketResponse' in trial):
+                    decoded_xml_bytes = trial
             except Exception:
                 decoded_xml_bytes = None
 
-            if decoded_xml_bytes:
+            if decoded_xml_bytes is not None:
                 to_parse = decoded_xml_bytes
             else:
                 # Intentar des-escapar HTML y parsear
@@ -433,30 +497,64 @@ class AfipAuthService:
                 except Exception:
                     raise AfipAuthError("No se pudo decodificar contenido de loginCmsReturn")
 
-            # Parsear el contenido XML del ticket
-            token_root = ET.fromstring(to_parse)
-            
-            # Extraer token y sign
-            token_element = token_root.find('.//token')
-            sign_element = token_root.find('.//sign')
-            
-            if token_element is None or sign_element is None:
+            # Parsear el contenido XML del ticket con estrategia robusta
+            def _parse_ticket(xml_bytes_or_str):
+                try:
+                    root_local = ET.fromstring(xml_bytes_or_str)
+                    tk = root_local.find('.//token')
+                    sg = root_local.find('.//sign')
+                    return (tk.text if tk is not None else None, sg.text if sg is not None else None, root_local)
+                except Exception:
+                    return (None, None, None)
+
+            token, sign, ticket_root = _parse_ticket(to_parse)
+
+            # Fallback: si viene escapado como string y el parse anterior falló, des-escapar manualmente y buscar por regex
+            if not token or not sign:
+                try:
+                    import html, re
+                    if isinstance(to_parse, (bytes, bytearray)):
+                        unesc = to_parse.decode('utf-8', errors='ignore')
+                    else:
+                        unesc = str(to_parse)
+                    unesc = html.unescape(unesc)
+                    # Limpiar BOM/control y recortar hasta primer '<'
+                    unesc = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', unesc).lstrip('\ufeff')
+                    first_lt = unesc.find('<')
+                    if first_lt > 0:
+                        unesc = unesc[first_lt:]
+                    # Segundo intento con parser
+                    token2, sign2, ticket_root2 = _parse_ticket(unesc)
+                    token = token or token2
+                    sign = sign or sign2
+                    if ticket_root is None:
+                        ticket_root = ticket_root2
+                    # Último recurso: regex directa en texto
+                    if not token:
+                        m = re.search(r'<token>([^<]+)</token>', unesc)
+                        token = m.group(1) if m else None
+                    if not sign:
+                        m = re.search(r'<sign>([^<]+)</sign>', unesc)
+                        sign = m.group(1) if m else None
+                except Exception:
+                    pass
+
+            if not token or not sign:
                 raise AfipAuthError("Token o sign no encontrados en respuesta de AFIP")
-            
-            token = token_element.text
-            sign = sign_element.text
 
             # Extraer tiempos de generación y expiración si están presentes
             gen_dt = None
             exp_dt = None
             try:
                 from django.utils.dateparse import parse_datetime
-                gen_el = token_root.find('.//generationTime')
-                exp_el = token_root.find('.//expirationTime')
+                if ticket_root is None:
+                    ticket_root = ET.fromstring(to_parse if isinstance(to_parse, (bytes, bytearray)) else to_parse.encode('utf-8'))
+                gen_el = ticket_root.find('.//generationTime')
+                exp_el = ticket_root.find('.//expirationTime')
                 if gen_el is None or exp_el is None:
                     # algunos esquemas los traen en header
-                    gen_el = token_root.find('.//header/generationTime') if gen_el is None else gen_el
-                    exp_el = token_root.find('.//header/expirationTime') if exp_el is None else exp_el
+                    gen_el = ticket_root.find('.//header/generationTime') if gen_el is None else gen_el
+                    exp_el = ticket_root.find('.//header/expirationTime') if exp_el is None else exp_el
                 if gen_el is not None and gen_el.text:
                     gen_dt = parse_datetime(gen_el.text)
                 if exp_el is not None and exp_el.text:

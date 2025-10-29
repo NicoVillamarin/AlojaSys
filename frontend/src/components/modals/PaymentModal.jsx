@@ -86,12 +86,24 @@ export default function PaymentModal({
                 paymentAmount = reservationData?.total_price || 0;
             }
             
+            // Determinar si es un depósito/seña:
+            // - Si es pago de balance, NO es seña
+            // - Si payAmount está definido y es menor al total, ES seña
+            // - Si payAmount es null o igual al total, NO es seña (es pago completo)
+            const totalPrice = reservationData?.total_price || 0;
+            let isDeposit = false;
+            
+            if (!isBalancePayment && payAmount !== null) {
+                // Es una seña si el monto es menor al total
+                isDeposit = payAmount < totalPrice;
+            }
+            
             // Preparar datos del pago
             const paymentData = {
                 amount: paymentAmount,
                 method: paymentType,
                 date: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
-                is_deposit: !isBalancePayment // Si no es pago de saldo, es una seña
+                is_deposit: isDeposit
             };
 
             // Si es POSTNET, agregar campos específicos

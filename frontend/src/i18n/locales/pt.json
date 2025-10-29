@@ -40,7 +40,10 @@
     "devolution_policies": "Políticas de Devolução",
     "histories": "Históricos",
     "refunds_history": "Histórico de Reembolsos",
-    "vouchers": "Vouchers"
+    "bank_reconciliation": "Conciliamento Bancário",
+    "invoicing": "Faturamento",
+    "invoicing_electronic": "Faturamento Eletrônico",
+    "invoicing_receipts": "Comprovante de Pagamento"
   },
   "vouchers_modal": {
     "create_voucher": "Criar Voucher",

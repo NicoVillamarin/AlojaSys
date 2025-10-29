@@ -17,6 +17,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
     hotel_names = serializers.SerializerMethodField()
     enterprise_name = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
+    avatar_image_url = serializers.SerializerMethodField()
+    
+    # Campos para recibir avatar como base64
+    avatar_image_base64 = serializers.CharField(write_only=True, required=False)
+    avatar_image_filename = serializers.CharField(write_only=True, required=False)
     
     class Meta:
         model = UserProfile
@@ -30,6 +35,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'full_name',
             'phone',
             'position',
+            'avatar_image',
+            'avatar_image_url',
+            'avatar_image_base64',
+            'avatar_image_filename',
             'enterprise',
             'enterprise_name',
             'hotels',
@@ -38,7 +47,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'full_name', 'hotel_names', 'enterprise_name']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'full_name', 'hotel_names', 'enterprise_name', 'avatar_image_url']
     
     def get_hotel_names(self, obj):
         """Retorna lista de nombres de hoteles asignados"""
@@ -52,6 +61,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
         """Retorna el nombre completo del usuario"""
         full = obj.user.get_full_name()
         return full if full else obj.user.username
+    
+    def get_avatar_image_url(self, obj):
+        """Obtiene la URL completa del avatar"""
+        if obj.avatar_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar_image.url)
+            return obj.avatar_image.url
+        return None
     
     def validate(self, data):
         """Validación personalizada para username y email únicos"""
@@ -93,6 +111,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         hotels_data = validated_data.pop('hotels', [])
         enterprise_data = validated_data.pop('enterprise', None)
         
+        # Extraer campos de avatar para procesar
+        avatar_image_base64 = validated_data.pop('avatar_image_base64', None)
+        avatar_image_filename = validated_data.pop('avatar_image_filename', None)
+        
         # IMPORTANTE: Si no hay contraseña, no se puede crear el usuario
         if not password:
             raise serializers.ValidationError({'password': 'La contraseña es requerida para crear un usuario.'})
@@ -116,8 +138,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             enterprise_id=enterprise_data,
             phone=validated_data.get('phone', ''),
             position=validated_data.get('position', ''),
+            avatar_image=validated_data.get('avatar_image', None),
             is_active=validated_data.get('is_active', True)
         )
+        
+        # Procesar avatar desde base64 si se proporcionó
+        if avatar_image_base64 and avatar_image_filename:
+            self._save_avatar_from_base64(profile, avatar_image_base64, avatar_image_filename)
         
         # Asignar hoteles
         if hotels_data:
@@ -132,6 +159,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         hotels_data = validated_data.pop('hotels', None)
         enterprise_data = validated_data.pop('enterprise', None)
         
+        # Extraer campos de avatar para procesar
+        avatar_image_base64 = validated_data.pop('avatar_image_base64', None)
+        avatar_image_filename = validated_data.pop('avatar_image_filename', None)
+        
         # Actualizar campos del User
         user = instance.user
         user.username = user_data.get('username', user.username)
@@ -144,11 +175,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
         
         user.save()
         
-        # Actualizar solo campos del perfil (phone, position, is_active, enterprise)
+        # Actualizar solo campos del perfil (phone, position, avatar_image, is_active, enterprise)
         if 'phone' in validated_data:
             instance.phone = validated_data['phone']
         if 'position' in validated_data:
             instance.position = validated_data['position']
+        if 'avatar_image' in validated_data:
+            instance.avatar_image = validated_data['avatar_image']
         if 'is_active' in validated_data:
             instance.is_active = validated_data['is_active']
         if enterprise_data is not None:
@@ -156,9 +189,37 @@ class UserProfileSerializer(serializers.ModelSerializer):
         
         instance.save()
         
+        # Procesar avatar desde base64 si se proporcionó
+        if avatar_image_base64 and avatar_image_filename:
+            self._save_avatar_from_base64(instance, avatar_image_base64, avatar_image_filename)
+        
         # Actualizar hoteles si se proporcionaron
         if hotels_data is not None:
             instance.hotels.set(hotels_data)
         
         return instance
+    
+    def _save_avatar_from_base64(self, profile, avatar_image_base64, avatar_image_filename):
+        """Guarda el avatar desde base64"""
+        try:
+            import base64
+            from django.core.files.base import ContentFile
+            
+            # Decodificar base64
+            if ',' in avatar_image_base64:
+                header, data = avatar_image_base64.split(',', 1)
+            else:
+                data = avatar_image_base64
+            
+            file_data = base64.b64decode(data)
+            
+            # Crear archivo
+            file_obj = ContentFile(file_data, name=avatar_image_filename)
+            
+            # Guardar en el campo avatar_image
+            profile.avatar_image.save(avatar_image_filename, file_obj, save=True)
+            
+        except Exception as e:
+            print(f"Error guardando avatar desde base64: {e}")
+            # No lanzar excepción para no romper el guardado del perfil
 

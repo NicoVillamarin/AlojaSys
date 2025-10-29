@@ -18,7 +18,7 @@ from .serializers import (
     AfipConfigSerializer, InvoiceSerializer, InvoiceItemSerializer,
     CreateInvoiceFromReservationSerializer, SendInvoiceToAfipSerializer,
     RetryFailedInvoiceSerializer, CancelInvoiceSerializer,
-    InvoiceSummarySerializer, AfipStatusSerializer,
+    InvoiceSummarySerializer, AfipStatusSerializer, InjectTASerializer,
     GenerateInvoiceFromPaymentSerializer, CreateCreditNoteSerializer
 )
 from .services import AfipService
@@ -80,6 +80,33 @@ class AfipConfigViewSet(viewsets.ModelViewSet):
                 'has_sign': False
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=True, methods=['post'])
+    def inject_ta(self, request, pk=None):
+        """Inyecta manualmente un TA (token/sign) válido en la configuración"""
+        config = self.get_object()
+        serializer = InjectTASerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            data = serializer.validated_data
+            config.afip_token = data['token']
+            config.afip_sign = data['sign']
+            # Tiempos opcionales
+            gen = data.get('generation_time')
+            exp = data.get('expiration_time')
+            from django.utils import timezone as dj_tz
+            if not gen:
+                gen = dj_tz.now()
+            if not exp:
+                # si no viene, por defecto 6 horas
+                exp = gen + timezone.timedelta(hours=6)
+            config.afip_token_generation = gen
+            config.afip_token_expiration = exp
+            config.save(update_fields=['afip_token', 'afip_sign', 'afip_token_generation', 'afip_token_expiration'])
+            return Response({'success': True, 'message': 'TA inyectado correctamente'})
+        except Exception as e:
+            logger.error(f"Error inyectando TA: {e}")
+            return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     """ViewSet para facturas"""
@@ -124,9 +151,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                     'error': 'El hotel no tiene configuración AFIP'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Si viene force_send y la factura no está en draft, pasar a draft para cumplir validación del servicio
+            # Asegurar estado 'draft' antes del envío cuando corresponde
             # (AfipInvoiceService._validate_invoice exige estado 'draft')
-            if serializer.validated_data.get('force_send') and invoice.status != 'draft':
+            force_send = serializer.validated_data.get('force_send')
+            if force_send and invoice.status != 'draft':
+                invoice.status = 'draft'
+                invoice.save(update_fields=['status', 'updated_at'])
+            # Si está en 'error' pero puede reintentarse, pasar a 'draft' automáticamente
+            elif invoice.status == 'error' and invoice.can_be_resent():
                 invoice.status = 'draft'
                 invoice.save(update_fields=['status', 'updated_at'])
             
@@ -650,6 +682,17 @@ class CreateInvoiceFromReservationView(APIView):
                     formatted_number = afip_config.format_invoice_number(next_number)
                     attempts += 1
                 
+                # Si faltan datos del cliente, completar desde la reserva (huésped principal)
+                primary_guest = {}
+                try:
+                    primary_guest = reservation.get_primary_guest() or {}
+                except Exception:
+                    primary_guest = {}
+                client_name = serializer.validated_data.get('client_name') or primary_guest.get('name', 'Cliente')
+                client_document_type = serializer.validated_data.get('client_document_type') or primary_guest.get('document_type', 'DNI')
+                client_document_number = serializer.validated_data.get('client_document_number') or primary_guest.get('document_number', '00000000')
+                client_tax_condition = serializer.validated_data.get('client_tax_condition') or primary_guest.get('tax_condition', '5')
+
                 # Crear factura
                 invoice_data = {
                     'reservation': reservation,
@@ -661,10 +704,10 @@ class CreateInvoiceFromReservationView(APIView):
                     'net_amount': reservation.total_price * Decimal('0.83'),  # Aproximado sin IVA
                     'vat_amount': reservation.total_price * Decimal('0.17'),  # Aproximado con IVA
                     'currency': 'ARS',
-                    'client_name': serializer.validated_data['client_name'],
-                    'client_document_type': serializer.validated_data['client_document_type'],
-                    'client_document_number': serializer.validated_data['client_document_number'],
-                    'client_tax_condition': serializer.validated_data['client_tax_condition'],
+                    'client_name': client_name,
+                    'client_document_type': client_document_type,
+                    'client_document_number': client_document_number,
+                    'client_tax_condition': client_tax_condition,
                     'client_address': serializer.validated_data.get('client_address', ''),
                     'created_by': request.user
                 }

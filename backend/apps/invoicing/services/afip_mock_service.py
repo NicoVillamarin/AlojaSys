@@ -57,8 +57,11 @@ class AfipMockService:
         logger.info(f"Mocking WSFEv1 invoice emission - Success: {success}")
         
         if success:
-            # Generar CAE de prueba
-            cae = f"12345678901234{datetime.now().strftime('%H%M%S')}"
+            # Generar CAE de prueba (exactamente 14 dígitos)
+            now = datetime.now()
+            base = now.strftime('%y%m%d%H%M%S')  # 12 dígitos
+            last2 = f"{(now.microsecond // 10000) % 100:02d}"  # 2 dígitos
+            cae = f"{base}{last2}"
             cae_expiration = (datetime.now() + timedelta(days=10)).strftime('%Y%m%d')
             
             return {
@@ -83,7 +86,7 @@ class AfipMockService:
                                     'CbteFch': int(datetime.now().strftime('%Y%m%d')),
                                     'Resultado': 'A',  # Aprobado
                                     'CAE': cae,
-                                    'CAEFchVto': int(cae_expiration),
+                                    'CAEFchVto': cae_expiration,
                                     'Obs': []
                                 }
                             ]
@@ -179,7 +182,7 @@ class MockAfipAuthService(AfipAuthService):
         logger.info("Mocking AFIP authentication")
         
         # Simular respuesta de WSAA
-        mock_response = self.mock_service.mock_wsaa_login(self.afip_config.cuit)
+        mock_response = self.mock_service.mock_wsaa_login(self.config.cuit)
         
         # Extraer datos de la respuesta mock
         login_return = mock_response['loginCmsResponse']['loginCmsReturn']
@@ -213,16 +216,22 @@ class MockAfipInvoiceService(AfipInvoiceService):
         logger.info(f"Mocking invoice send for invoice {invoice.id}")
         
         # Preparar datos de la factura
+        number_str = getattr(invoice, 'number', '0001-00000001')
+        try:
+            invoice_number = int(str(number_str).split('-')[1])
+        except Exception:
+            invoice_number = 1
+
         invoice_data = {
-            'cuit': self.afip_config.cuit,
-            'point_of_sale': self.afip_config.point_of_sale,
-            'type': invoice.type,
-            'invoice_number': int(invoice.number.split('-')[1]),
-            'customer_document_type': invoice.customer_document_type,
-            'customer_document_number': invoice.customer_document_number,
-            'total': float(invoice.total),
-            'net_amount': float(invoice.net_amount),
-            'vat_amount': float(invoice.vat_amount),
+            'cuit': self.config.cuit,
+            'point_of_sale': self.config.point_of_sale,
+            'type': getattr(invoice, 'type', 'B'),
+            'invoice_number': invoice_number,
+            'customer_document_type': getattr(invoice, 'client_document_type', getattr(invoice, 'customer_document_type', 'DNI')),
+            'customer_document_number': getattr(invoice, 'client_document_number', getattr(invoice, 'customer_document_number', '12345678')),
+            'total': float(getattr(invoice, 'total', 0) or 0),
+            'net_amount': float(getattr(invoice, 'net_amount', 0) or 0),
+            'vat_amount': float(getattr(invoice, 'vat_amount', 0) or 0),
         }
         
         # Simular respuesta de WSFEv1
@@ -236,7 +245,7 @@ class MockAfipInvoiceService(AfipInvoiceService):
             return {
                 'success': True,
                 'cae': fe_det['CAE'],
-                'cae_expiration': fe_det['CAEFchVto'],
+                'cae_expiration': str(fe_det['CAEFchVto']),
                 'invoice_number': fe_det['CbteDesde'],
                 'afip_response': mock_response
             }
@@ -255,16 +264,22 @@ class MockAfipInvoiceService(AfipInvoiceService):
         logger.info(f"Mocking credit note send for credit note {credit_note.id}")
         
         # Preparar datos de la nota de crédito
+        number_str = getattr(credit_note, 'number', '0001-00000001')
+        try:
+            invoice_number = int(str(number_str).split('-')[1])
+        except Exception:
+            invoice_number = 1
+
         credit_note_data = {
-            'cuit': self.afip_config.cuit,
-            'point_of_sale': self.afip_config.point_of_sale,
-            'type': credit_note.type,
-            'invoice_number': int(credit_note.number.split('-')[1]),
-            'customer_document_type': credit_note.customer_document_type,
-            'customer_document_number': credit_note.customer_document_number,
-            'total': float(credit_note.total),
-            'net_amount': float(credit_note.net_amount),
-            'vat_amount': float(credit_note.vat_amount),
+            'cuit': self.config.cuit,
+            'point_of_sale': self.config.point_of_sale,
+            'type': getattr(credit_note, 'type', 'NC'),
+            'invoice_number': invoice_number,
+            'customer_document_type': getattr(credit_note, 'client_document_type', getattr(credit_note, 'customer_document_type', 'DNI')),
+            'customer_document_number': getattr(credit_note, 'client_document_number', getattr(credit_note, 'customer_document_number', '12345678')),
+            'total': float(getattr(credit_note, 'total', 0) or 0),
+            'net_amount': float(getattr(credit_note, 'net_amount', 0) or 0),
+            'vat_amount': float(getattr(credit_note, 'vat_amount', 0) or 0),
         }
         
         # Simular respuesta de WSFEv1

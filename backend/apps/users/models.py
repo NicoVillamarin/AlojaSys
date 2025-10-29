@@ -12,6 +12,12 @@ class UserProfile(models.Model):
     hotels = models.ManyToManyField("core.Hotel", related_name="user_profiles", blank=True)
     phone = models.CharField(max_length=50, blank=True)
     position = models.CharField(max_length=100, blank=True, verbose_name="Cargo")
+    avatar_image = models.ImageField(
+        upload_to='users/avatars/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        help_text="Foto de perfil del usuario"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

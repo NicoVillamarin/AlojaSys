@@ -54,7 +54,6 @@ const Badge = ({
       icon: CheckIcon,
       iconColor: 'text-blue-600'
     },
-    
     // Estados de reserva
     'reservation-pending': {
       bg: 'bg-yellow-50',
@@ -159,11 +158,11 @@ const Badge = ({
     
     // Estados de facturación
     'invoice-draft': {
-      bg: 'bg-gray-50',
-      text: 'text-gray-800',
-      border: 'border-gray-200',
+      bg: 'bg-orange-50',
+      text: 'text-orange-800',
+      border: 'border-orange-200',
       icon: ClockIcon,
-      iconColor: 'text-gray-600'
+      iconColor: 'text-orange-600'
     },
     'invoice-sent': {
       bg: 'bg-blue-50',
@@ -257,7 +256,7 @@ const Badge = ({
       bg: 'bg-red-50',
       text: 'text-red-800',
       border: 'border-red-200',
-      icon: ExclamationTriangleIcon,
+      icon: XIcon,
       iconColor: 'text-red-600'
     },
     'info': {

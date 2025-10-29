@@ -39,6 +39,13 @@ export default function ReservationsGestions() {
   const { t, i18n } = useTranslation()
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
+  // Modal Facturación (selección de condición IVA)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [invoiceReservation, setInvoiceReservation] = useState(null)
+  const [selectedTaxCondition, setSelectedTaxCondition] = useState('5') // 5 = Consumidor Final
+  const [selectedDocType, setSelectedDocType] = useState('80') // 80 = CUIT, 96 = DNI, 99 = CF
+  const [selectedDocNumber, setSelectedDocNumber] = useState('')
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [payReservationId, setPayReservationId] = useState(null)
   const [balancePayOpen, setBalancePayOpen] = useState(false)
@@ -321,47 +328,19 @@ export default function ReservationsGestions() {
       // Si hay error en la verificación, continuar con la creación
     }
     
-    try {
-      const response = await fetchWithAuth(`${getApiURL()}/api/invoicing/invoices/create-from-reservation/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reservation_id: r.id,
-          invoice_type: 'B', // Factura B por defecto
-          client_name: r.guest_name || 'Cliente',
-          client_document_type: '96', // Código AFIP para DNI
-          client_document_number: '00000000',
-          client_tax_condition: '5', // Consumidor Final
-          issue_date: new Date().toISOString().split('T')[0]
-        })
-      });
-      
-      if (response) {
-        console.log('Factura generada exitosamente:', response);
-        showInfoMessage(
-          'Factura Generada',
-          `La factura ${response.number} ha sido creada exitosamente`,
-          'success'
-        );
-        refetch();
-      }
-    } catch (error) {
-      console.error('Error generando factura:', error);
-      showInfoMessage(
-        'Error',
-        `Error generando factura: ${error.message || error.detail || 'Error desconocido'}`,
-        'danger'
-      );
-    }
+    // Abrir modal para capturar condición IVA / documento
+    setInvoiceReservation(r)
+    setSelectedTaxCondition('5')
+    setSelectedDocType('80')
+    setSelectedDocNumber('')
+    setShowInvoiceModal(true)
   }
 
   const onGenerateReceipt = async (r) => {
-    console.log('Generando comprobante para reserva:', r.id)
+    console.log('Abriendo comprobante para reserva:', r.id)
     
     try {
-      // Obtener los pagos de la reserva para generar comprobante
+      // Obtener los pagos de la reserva
       const payments = await fetchWithAuth(`${getApiURL()}/api/reservations/${r.id}/payments/`, {
         method: 'GET',
         headers: {
@@ -372,7 +351,7 @@ export default function ReservationsGestions() {
       if (!payments || payments.length === 0) {
         showInfoMessage(
           'Sin Pagos',
-          'No hay pagos para generar comprobante',
+          'No hay pagos para mostrar comprobante',
           'warning'
         );
         return;
@@ -388,37 +367,47 @@ export default function ReservationsGestions() {
       if (!lastDeposit) {
         showInfoMessage(
           'Sin Señas',
-          'No hay pagos de seña para generar comprobante',
+          'No hay pagos de seña para mostrar comprobante',
           'warning'
         );
         return;
       }
 
-      // Solicitar generación/actualización del recibo de ese pago
-      const resp = await fetchWithAuth(`${getApiURL()}/api/payments/generate-receipt/${lastDeposit.id}/`, {
-        method: 'POST'
-      });
-
-      if (resp?.receipt_pdf_url) {
-        showInfoMessage(
-          'Comprobante en Proceso',
-          'Estamos generando el PDF. Se abrirá cuando esté listo.',
-          'success',
-          () => window.open(resp.receipt_pdf_url, '_blank')
-        );
+      // Verificar si ya existe un comprobante generado
+      if (lastDeposit.receipt_pdf_url) {
+        // Abrir el PDF directamente
+        window.open(lastDeposit.receipt_pdf_url, '_blank');
       } else {
+        // Si no existe, solicitarlo y abrir después
         showInfoMessage(
-          'Comprobante solicitado',
-          'Se solicitó la generación del comprobante. Vuelve a intentar en unos segundos.',
+          'Generando Comprobante',
+          'El comprobante se está generando. Se abrirá en unos momentos.',
           'info'
         );
+        
+        const resp = await fetchWithAuth(`${getApiURL()}/api/payments/generate-receipt/${lastDeposit.id}/`, {
+          method: 'POST'
+        });
+
+        if (resp?.receipt_pdf_url) {
+          // Esperar un momento y abrir el PDF
+          setTimeout(() => {
+            window.open(resp.receipt_pdf_url, '_blank');
+          }, 2000);
+        } else {
+          showInfoMessage(
+            'Comprobante en Proceso',
+            'El comprobante se está generando. Intenta abrirlo nuevamente en unos segundos.',
+            'info'
+          );
+        }
       }
       
     } catch (error) {
-      console.error('Error generando comprobante:', error);
+      console.error('Error abriendo comprobante:', error);
       showInfoMessage(
         'Error',
-        `Error generando comprobante: ${error.message || 'Error desconocido'}`,
+        `Error abriendo comprobante: ${error.message || 'Error desconocido'}`,
         'danger'
       );
     }
@@ -889,6 +878,111 @@ export default function ReservationsGestions() {
         cancelText=""
         tone={infoData?.tone || 'info'}
       />
+
+      {/* Mini-modal: Selección Condición IVA para Factura */}
+      {showInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-4">
+            <div className="mb-3">
+              <h3 className="text-lg font-semibold text-aloja-navy">Datos fiscales del receptor</h3>
+              <p className="text-xs text-aloja-gray-800/70 mt-1">Seleccioná la condición frente al IVA del huésped. Para Consumidor Final no es necesario documento.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aloja-gray-800/60">Condición frente al IVA</label>
+                <select
+                  className="mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
+                  value={selectedTaxCondition}
+                  onChange={(e) => setSelectedTaxCondition(e.target.value)}
+                >
+                  <option value="5">Consumidor Final</option>
+                  <option value="1">Responsable Inscripto</option>
+                  <option value="8">Monotributista</option>
+                  <option value="6">Exento</option>
+                </select>
+              </div>
+
+              {(selectedTaxCondition !== '5') && (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="text-xs text-aloja-gray-800/60">Tipo Doc.</label>
+                    <select
+                      className="mt-1 border border-gray-200 rounded-lg px-2 py-2 text-sm w-full"
+                      value={selectedDocType}
+                      onChange={(e) => setSelectedDocType(e.target.value)}
+                    >
+                      <option value="80">CUIT</option>
+                      <option value="96">DNI</option>
+                      <option value="99">Consumidor Final</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-aloja-gray-800/60">Nº Documento</label>
+                    <input
+                      className="mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
+                      placeholder={selectedDocType === '80' ? 'CUIT (11 dígitos)' : 'Documento'}
+                      value={selectedDocNumber}
+                      onChange={(e) => setSelectedDocNumber(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 rounded-md border text-sm"
+                onClick={() => {
+                  setShowInvoiceModal(false)
+                  setInvoiceReservation(null)
+                }}
+                disabled={isCreatingInvoice}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-3 py-2 rounded-md border bg-green-600 text-white text-sm disabled:opacity-60"
+                disabled={isCreatingInvoice || (!invoiceReservation) || (selectedTaxCondition !== '5' && !selectedDocNumber)}
+                onClick={async () => {
+                  if (!invoiceReservation) return
+                  try {
+                    setIsCreatingInvoice(true)
+                    const isCF = selectedTaxCondition === '5'
+                    const body = {
+                      reservation_id: invoiceReservation.id,
+                      invoice_type: 'B',
+                      client_name: invoiceReservation.guest_name || 'Cliente',
+                      client_tax_condition: selectedTaxCondition,
+                      client_document_type: isCF ? '99' : (selectedDocType || '80'),
+                      client_document_number: isCF ? '0' : (selectedDocNumber || '0'),
+                      issue_date: new Date().toISOString().split('T')[0]
+                    }
+                    const response = await fetchWithAuth(`${getApiURL()}/api/invoicing/invoices/create-from-reservation/`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body)
+                    })
+                    if (response) {
+                      showInfoMessage('Factura Generada', `La factura ${response.number} ha sido creada exitosamente`, 'success')
+                      refetch()
+                    }
+                    setShowInvoiceModal(false)
+                    setInvoiceReservation(null)
+                  } catch (error) {
+                    console.error('Error generando factura:', error)
+                    showInfoMessage('Error', `Error generando factura: ${error?.message || 'Error desconocido'}`, 'danger')
+                  } finally {
+                    setIsCreatingInvoice(false)
+                  }
+                }}
+              >
+                {isCreatingInvoice ? 'Generando…' : 'Generar factura'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

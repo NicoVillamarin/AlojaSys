@@ -10,6 +10,7 @@ class NotificationType(models.TextChoices):
     NO_SHOW = "no_show", "No Show"
     REFUND_AUTO = "refund_auto", "Reembolso Automático"
     REFUND_FAILED = "refund_failed", "Reembolso Fallido"
+    RECEIPT_GENERATED = "receipt_generated", "Comprobante Generado"
 
 
 class Notification(models.Model):

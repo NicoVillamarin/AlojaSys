@@ -312,146 +312,154 @@ export default function InvoicesList() {
   ]
 
   return (
-    <div className="space-y-5">
-      {/* Estadísticas */}
-      {statsData && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-aloja-navy">{statsData.summary?.total_invoices || 0}</div>
-            <div className="text-sm text-gray-600">Total Facturas</div>
+    <div className="flex flex-col h-full max-h-full overflow-hidden">
+      {/* Contenedor fijo para estadísticas y filtros */}
+      <div className="flex-shrink-0 space-y-5 pb-5">
+        {/* Estadísticas */}
+        {statsData && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-aloja-navy">{statsData.summary?.total_invoices || 0}</div>
+              <div className="text-sm text-gray-600">Total Facturas</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">${statsData.summary?.total_amount?.toLocaleString() || 0}</div>
+              <div className="text-sm text-gray-600">Monto Total</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{statsData.summary?.approved_count || 0}</div>
+              <div className="text-sm text-gray-600">Aprobadas</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{statsData.summary?.rejected_count || 0}</div>
+              <div className="text-sm text-gray-600">Rechazadas</div>
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">${statsData.summary?.total_amount?.toLocaleString() || 0}</div>
-            <div className="text-sm text-gray-600">Monto Total</div>
+        )}
+
+        <Filter>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col">
+              <label className="text-xs text-aloja-gray-800/60">Búsqueda</label>
+              <input
+                className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm w-64 transition-all"
+                placeholder="Buscar por número, cliente, CAE..."
+                value={filters.search}
+                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              />
+            </div>
+
+            <Formik
+              enableReinitialize
+              initialValues={{ hotel: filters.hotel }}
+              onSubmit={() => { }}
+            >
+              {() => (
+                <div className="w-56">
+                  <SelectAsync
+                    title="Hotel"
+                    name='hotel'
+                    resource='hotels'
+                    placeholder="Todos los hoteles"
+                    getOptionLabel={(h) => h?.name}
+                    getOptionValue={(h) => h?.id}
+                    extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
+                    onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
+                  />
+                </div>
+              )}
+            </Formik>
+
+            <div className="w-40">
+              <label className="text-xs text-aloja-gray-800/60">Tipo</label>
+              <select
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
+                value={filters.type}
+                onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value }))}
+              >
+                <option value="">Todos</option>
+                <option value="A">Factura A</option>
+                <option value="B">Factura B</option>
+                <option value="C">Factura C</option>
+                <option value="NC">Nota de Crédito</option>
+                <option value="ND">Nota de Débito</option>
+              </select>
+            </div>
+
+            <div className="w-40">
+              <label className="text-xs text-aloja-gray-800/60">Estado</label>
+              <select
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
+                value={filters.status}
+                onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+              >
+                <option value="">Todos</option>
+                <option value="draft">Borrador</option>
+                <option value="sent">Enviada</option>
+                <option value="approved">Aprobada</option>
+                <option value="error">Error</option>
+                <option value="rejected">Rechazada</option>
+                <option value="cancelled">Cancelada</option>
+                <option value="expired">Expirada</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs text-aloja-gray-800/60">Desde</label>
+              <input type="date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
+              />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-aloja-gray-800/60">Hasta</label>
+              <input type="date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                value={filters.dateTo}
+                onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs text-aloja-gray-800/60">CAE</label>
+              <input
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-32"
+                placeholder="12345678901234"
+                value={filters.cae}
+                onChange={(e) => setFilters((f) => ({ ...f, cae: e.target.value }))}
+              />
+            </div>
+
+            <div className="ml-auto">
+              <button className="px-3 py-2 rounded-md border text-sm" onClick={() => setFilters({ 
+                search: '', hotel: '', type: '', status: '', 
+                dateFrom: '', dateTo: '', cae: '' 
+              })}>
+                Limpiar Filtros
+              </button>
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{statsData.summary?.approved_count || 0}</div>
-            <div className="text-sm text-gray-600">Aprobadas</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">{statsData.summary?.rejected_count || 0}</div>
-            <div className="text-sm text-gray-600">Rechazadas</div>
-          </div>
+        </Filter>
+      </div>
+
+      {/* Contenedor con scroll para la tabla */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <TableGeneric
+            isLoading={isPending}
+            data={displayResults}
+            getRowId={(r) => r.id}
+            columns={columns}
+          />
         </div>
-      )}
 
-      <Filter>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">Búsqueda</label>
-            <input
-              className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm w-64 transition-all"
-              placeholder="Buscar por número, cliente, CAE..."
-              value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            />
-          </div>
-
-          <Formik
-            enableReinitialize
-            initialValues={{ hotel: filters.hotel }}
-            onSubmit={() => { }}
-          >
-            {() => (
-              <div className="w-56">
-                <SelectAsync
-                  title="Hotel"
-                  name='hotel'
-                  resource='hotels'
-                  placeholder="Todos los hoteles"
-                  getOptionLabel={(h) => h?.name}
-                  getOptionValue={(h) => h?.id}
-                  extraParams={!isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}}
-                  onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
-                />
-              </div>
-            )}
-          </Formik>
-
-          <div className="w-40">
-            <label className="text-xs text-aloja-gray-800/60">Tipo</label>
-            <select
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
-              value={filters.type}
-              onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value }))}
-            >
-              <option value="">Todos</option>
-              <option value="A">Factura A</option>
-              <option value="B">Factura B</option>
-              <option value="C">Factura C</option>
-              <option value="NC">Nota de Crédito</option>
-              <option value="ND">Nota de Débito</option>
-            </select>
-          </div>
-
-          <div className="w-40">
-            <label className="text-xs text-aloja-gray-800/60">Estado</label>
-            <select
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
-              value={filters.status}
-              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-            >
-              <option value="">Todos</option>
-              <option value="draft">Borrador</option>
-              <option value="sent">Enviada</option>
-              <option value="approved">Aprobada</option>
-              <option value="error">Error</option>
-              <option value="rejected">Rechazada</option>
-              <option value="cancelled">Cancelada</option>
-              <option value="expired">Expirada</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">Desde</label>
-            <input type="date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">Hasta</label>
-            <input type="date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-              value={filters.dateTo}
-              onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs text-aloja-gray-800/60">CAE</label>
-            <input
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-32"
-              placeholder="12345678901234"
-              value={filters.cae}
-              onChange={(e) => setFilters((f) => ({ ...f, cae: e.target.value }))}
-            />
-          </div>
-
-          <div className="ml-auto">
-            <button className="px-3 py-2 rounded-md border text-sm" onClick={() => setFilters({ 
-              search: '', hotel: '', type: '', status: '', 
-              dateFrom: '', dateTo: '', cae: '' 
-            })}>
-              Limpiar Filtros
+        {hasNextPage && (
+          <div className="flex-shrink-0 pt-4 border-t">
+            <button className="px-3 py-2 rounded-md border text-sm" onClick={() => fetchNextPage()}>
+              Cargar más
             </button>
           </div>
-        </div>
-      </Filter>
-
-      <TableGeneric
-        isLoading={isPending}
-        data={displayResults}
-        getRowId={(r) => r.id}
-        columns={columns}
-      />
-
-      {hasNextPage && (
-        <div>
-          <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
-            Cargar más
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modales */}
       <InvoiceModal

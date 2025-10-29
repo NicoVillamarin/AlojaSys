@@ -1,22 +1,37 @@
-import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import Badge from 'src/components/Badge'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import InvoicePDFViewer from 'src/components/invoicing/InvoicePDFViewer'
-import Button from 'src/components/Button'
+import Tooltip from 'src/components/Tooltip'
+import InvoiceTooltip from './InvoiceTooltip'
+import DownloadIcon from 'src/assets/icons/DownloadIcon'
+import fetchWithAuth from 'src/services/fetchWithAuth'
+import { getApiURL } from 'src/services/utils'
 
 export default function InvoiceStatus({ reservationId, paymentId }) {
   const [showPDFViewer, setShowPDFViewer] = useState(false)
   const [pdfUrl, setPdfUrl] = useState('')
+  const [invoices, setInvoices] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Buscar facturas relacionadas con esta reserva o pago
-  const { results: invoices, isPending: isLoading } = useList({
-    resource: 'invoicing/invoices',
-    params: { 
-      reservation: reservationId,
-      payment: paymentId 
+  // Cargar facturas por reserva usando el endpoint dedicado
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!reservationId) { setInvoices([]); return }
+      setIsLoading(true)
+      try {
+        const data = await fetchWithAuth(`${getApiURL()}/api/invoicing/invoices/by-reservation/${reservationId}/`, { method: 'GET' })
+        if (!cancelled) setInvoices(Array.isArray(data) ? data : [])
+      } catch (e) {
+        if (!cancelled) setInvoices([])
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
     }
-  })
+    load()
+    return () => { cancelled = true }
+  }, [reservationId])
 
   const { mutate: getPDF, isPending: loadingPDF } = useDispatchAction({
     resource: 'invoicing/invoices',
@@ -58,11 +73,17 @@ export default function InvoiceStatus({ reservationId, paymentId }) {
 
   if (!invoices || invoices.length === 0) {
     return (
-      <div className="flex items-center gap-2">
-        <Badge variant="invoice-draft" size="sm">
-          Sin facturar
-        </Badge>
-      </div>
+      <Tooltip
+        content={<InvoiceTooltip invoice={null} />}
+        position="bottom"
+        maxWidth="320px"
+      >
+        <div className="inline-block">
+          <Badge variant="invoice-draft" size="sm">
+            Sin facturar
+          </Badge>
+        </div>
+      </Tooltip>
     )
   }
 
@@ -76,6 +97,7 @@ export default function InvoiceStatus({ reservationId, paymentId }) {
       'rejected': 'invoice-rejected',
       'cancelled': 'invoice-cancelled',
       'expired': 'invoice-expired',
+      'error': 'error',
     }
     return variantMap[status] || 'invoice-default'
   }
@@ -88,30 +110,40 @@ export default function InvoiceStatus({ reservationId, paymentId }) {
       'rejected': 'Rechazada',
       'cancelled': 'Cancelada',
       'expired': 'Expirada',
+      'error': 'Error',
     }
     return statusMap[status] || status
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Badge variant={getStatusVariant(invoice.status)} size="sm">
-        {getStatusLabel(invoice.status)}
-      </Badge>
-      
-      {invoice.status === 'approved' && (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => handleViewPDF(invoice)}
-          disabled={loadingPDF}
+    <>
+      <div className="flex items-center gap-1.5">
+        <Tooltip
+          content={<InvoiceTooltip invoice={invoice} />}
+          position="bottom"
+          maxWidth={invoice.last_error ? "450px" : "320px"}
         >
-          {loadingPDF ? 'Cargando...' : 'Ver PDF'}
-        </Button>
-      )}
-      
-      <span className="text-xs text-gray-500">
-        #{invoice.number}
-      </span>
+          <div className="inline-block">
+            <Badge variant={getStatusVariant(invoice.status)} size="sm">
+              {getStatusLabel(invoice.status)}
+            </Badge>
+          </div>
+        </Tooltip>
+        
+        {invoice.status === 'approved' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleViewPDF(invoice)
+            }}
+            disabled={loadingPDF}
+            className="p-1 rounded hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Descargar PDF"
+          >
+            <DownloadIcon size="14" />
+          </button>
+        )}
+      </div>
 
       <InvoicePDFViewer
         isOpen={showPDFViewer}
@@ -124,6 +156,6 @@ export default function InvoiceStatus({ reservationId, paymentId }) {
         }}
         pdfUrl={pdfUrl}
       />
-    </div>
+    </>
   )
 }

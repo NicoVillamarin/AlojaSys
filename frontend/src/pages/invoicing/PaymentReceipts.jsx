@@ -127,7 +127,13 @@ export default function PaymentReceipts() {
   const onViewReceipt = async (payment) => {
     try {
       if (payment.receipt_pdf_url) {
-        window.open(payment.receipt_pdf_url, '_blank')
+        // Construir URL completa si es relativa
+        let pdfUrl = payment.receipt_pdf_url
+        if (pdfUrl.startsWith('/media/')) {
+          pdfUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${pdfUrl}`
+        }
+        
+        window.open(pdfUrl, '_blank')
       } else {
         Swal.fire({
           title: 'Comprobante no disponible',
@@ -150,8 +156,14 @@ export default function PaymentReceipts() {
   const onDownloadReceipt = async (payment) => {
     try {
       if (payment.receipt_pdf_url) {
+        // Construir URL completa si es relativa
+        let pdfUrl = payment.receipt_pdf_url
+        if (pdfUrl.startsWith('/media/')) {
+          pdfUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${pdfUrl}`
+        }
+        
         const link = document.createElement('a')
-        link.href = payment.receipt_pdf_url
+        link.href = pdfUrl
         link.download = `comprobante-pago-${payment.id}.pdf`
         document.body.appendChild(link)
         link.click()
@@ -177,7 +189,6 @@ export default function PaymentReceipts() {
 
   return (
     <div className="space-y-5">
-
       <Filter>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
@@ -290,14 +301,23 @@ export default function PaymentReceipts() {
         data={displayResults}
         getRowId={(p) => p.id}
         columns={[
+          {
+            key: 'receipt_number',
+            header: 'N° Comprobante',
+            sortable: true,
+            render: (p) => (
+              <div>
+                  {p.receipt_number || `#${p.id}`}
+              </div>
+            )
+          },
           { 
             key: 'reservation', 
             header: 'Reserva', 
             sortable: true,
             render: (p) => (
               <div>
-                <div className="font-medium">{p.reservation_display_name || `#${p.reservation_id}`}</div>
-                <div className="text-xs text-gray-500">{p.guest_name}</div>
+                <div>{p.reservation_display_name || `#${p.reservation_id}`}</div>
               </div>
             )
           },

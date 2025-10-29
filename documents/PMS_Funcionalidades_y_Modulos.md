@@ -4755,6 +4755,68 @@ Para testing y homologación:
 - **Validación de Configuración**: Verifica que todo esté correcto
 - **Parámetros Recomendados**: Sugiere valores para testing
 
+#### Modo Mock de AFIP (Desarrollo)
+Este modo permite validar el flujo completo de facturación (CAE simulado, PDF, notificaciones) sin conectarse a AFIP.
+
+- Qué hace: simula WSAA y WSFEv1, devuelve CAE y fecha de vencimiento válidos (CAE de 14 dígitos, `CAEFchVto` en formato `YYYYMMDD`).
+- Cuándo usarlo: desarrollo local o cuando homologación de AFIP no publica opcionales requeridos (p.ej., RG 5616) y bloquea pruebas.
+- Cómo activarlo:
+  1) En `.env` (raíz del proyecto o `backend/.env`, según despliegue):
+  ```bash
+  AFIP_USE_MOCK=true
+  AFIP_TEST_MODE=true
+  ```
+  2) En la configuración del hotel (`AfipConfig`): `environment = test`.
+  3) Reiniciar el backend.
+- Señales en logs: “AfipService inicializado … modo test (mock)” y “Enviando factura … a AFIP (mock)”.
+- Limitaciones: no valida contra AFIP real; usar homologación/producción para validaciones fiscales definitivas.
+
+#### Diagnóstico RG 5616 – Condición IVA del receptor (Homologación AFIP)
+A partir de RG 5616, AFIP exige informar la condición IVA del receptor mediante un opcional específico en WSFEv1.
+
+- Síntoma: Rechazo 10246 “Campo Condición Frente al IVA del receptor es obligatorio…”.
+- Causa habitual: en homologación, el CUIT/Punto de Venta no publica todavía el opcional requerido; por eso, aunque el XML incluya `<Opcionales>`, AFIP lo ignora y rechaza.
+- Cómo verificar: llamar a `FEParamGetTiposOpcional` y listar Id:Desc habilitados. Si no aparece un Id con descripción alusiva a “Condición IVA del receptor”, no se puede enviar esa data (2101 es FCE CBU, no corresponde).
+- Estado del sistema:
+  - XML generado en orden WSDL (importes e Iva, luego `Opcionales`).
+  - En test real, el sistema busca dinámicamente el Id correcto del opcional por descripción; si no existe, se registra en logs y se omite.
+  - En desarrollo, activar “modo mock” para poder completar el flujo sin bloqueo.
+- Qué pedir a AFIP: habilitar el opcional de “Condición frente al IVA del receptor” para el CUIT y Punto de Venta de homologación. Adjuntar el log de `FEParamGetTiposOpcional` y el rechazo 10246.
+
+#### Variables de entorno relevantes (AFIP)
+- `AFIP_USE_MOCK` (bool): usa servicios mock en modo test (no producción). Default: `false`.
+- `AFIP_TEST_MODE` (bool): activa parámetros de test. Default: `true`.
+Ubicación: `.env` raíz (si Docker/Compose lo monta) o `backend/.env` (leído por Django `decouple`). Reiniciar el backend tras cambios.
+
+#### Cambios técnicos implementados (para desarrolladores)
+- `AfipService`: enruta a `MockAfipAuthService` y `MockAfipInvoiceService` cuando `AFIP_USE_MOCK=true` y `environment!=production`.
+- Mock:
+  - CAE simulado de 14 dígitos; `CAEFchVto` como string `YYYYMMDD`.
+  - Lectura robusta de campos desde `Invoice` con `getattr` y defaults.
+- WSFEv1 real:
+  - Orden de elementos en `FECAEDetRequest` alineado al WSDL (ImpTotConc → ImpNeto → ImpOpEx → ImpIVA → ImpTrib → ImpTotal, luego Iva/Tributos/Opcionales).
+  - `Concepto`=2 por defecto (servicios) y fechas de servicio/pago incluidas.
+  - Diagnóstico en logs: parámetros críticos, previews masked del XML y respuesta, lista de `TiposOpcional`.
+  - Búsqueda dinámica del Id del opcional de Cond. IVA del receptor; si no está publicado, se loguea y se omite.
+
+---
+
+### Guía Rápida (Cliente) – Probar Facturación con Modo Mock
+
+1) Configurar variables en `.env` y reiniciar:
+```bash
+AFIP_USE_MOCK=true
+AFIP_TEST_MODE=true
+```
+2) Asegurarse que el hotel tenga `AfipConfig.environment = test`.
+3) Generar factura desde una reserva y “Enviar a AFIP”.
+4) Verás estado “Aprobada” con CAE simulado y PDF disponible.
+5) Para volver a entorno real de homologación/producción: poner `AFIP_USE_MOCK=false` (y `environment=production` cuando corresponda).
+
+Notas:
+- El modo mock no contacta AFIP: sirve para validar fin a fin (números, PDF, emails, notificaciones).
+- Si homologación rechaza con 10246, es por publicación pendiente del opcional RG 5616 en AFIP; continuar pruebas con mock y tramitar habilitación con AFIP.
+
 ### Configuración Paso a Paso
 
 #### 1. **Configuración AFIP**
@@ -5526,25 +5588,35 @@ Con su arquitectura modular y flexible, AlojaSys se adapta a cualquier tipo de h
 
 ---
 
-## 3.15 Comprobantes de Señas y Pagos Parciales
+## 3.15 Comprobantes de Señas y Devoluciones
 
 ### ¿Qué hace?
 
-El módulo de **Comprobantes de Señas** permite generar, gestionar y almacenar comprobantes de pago para señas y pagos parciales. Es como tener un sistema de recibos digitales que se integra perfectamente con el flujo de reservas y facturación.
+El módulo de **Comprobantes de Señas y Devoluciones** permite generar, gestionar y almacenar comprobantes de pago para señas, pagos parciales y devoluciones. Es como tener un sistema de recibos digitales que se integra perfectamente con el flujo de reservas y facturación.
 
 ### ¿Cómo funciona?
 
 #### Generación Automática de Comprobantes
 1. **Detección Inteligente**: El sistema identifica automáticamente cuando un pago es una seña (pago parcial)
-2. **Generación de PDF**: Se crea un comprobante profesional en formato PDF
-3. **Almacenamiento Seguro**: El comprobante se guarda con una URL permanente
-4. **Acceso Inmediato**: Se puede ver y descargar el comprobante desde cualquier lugar
+2. **Identificadores Únicos**: Cada comprobante tiene un número formateado único (ej: S-0001-000012 para señas, D-0001-000004 para devoluciones)
+3. **Generación Automática**: El PDF se genera automáticamente cuando:
+   - Se crea una seña (seña = pago parcial)
+   - Se confirma un reembolso (reembolso completado)
+4. **Notificaciones**: Sistema de notificaciones integrado avisa cuando se genera un comprobante
+5. **Almacenamiento Seguro**: El comprobante se guarda con una URL permanente
+6. **Acceso Inmediato**: Se puede ver y descargar el comprobante desde cualquier lugar
 
 #### Gestión de Señas
 - **Identificación Automática**: Detecta señas incluso en pagos históricos
 - **Políticas Configurables**: Se integra con las políticas de pago del hotel
 - **Validaciones Inteligentes**: Verifica montos y tipos de pago automáticamente
 - **Historial Completo**: Mantiene registro de todas las señas realizadas
+
+#### Gestión de Devoluciones
+- **Comprobantes de Reembolso**: Genera automáticamente PDFs para devoluciones
+- **Estados de Seguimiento**: Pendiente, procesando, completado, fallido, cancelado
+- **Métodos de Devolución**: Efectivo, transferencia, tarjeta, voucher, método original
+- **Integración Completa**: Se conecta con el sistema de reembolsos existente
 
 ### Características Principales
 
@@ -5563,7 +5635,8 @@ El módulo de **Comprobantes de Señas** permite generar, gestionar y almacenar 
 #### 📋 **Interfaz de Usuario**
 - **Badges Visuales**: Indicadores claros del estado de pago en las reservas
 - **Tooltips Informativos**: Detalles completos al pasar el mouse
-- **Lista de Comprobantes**: Gestión centralizada de todos los comprobantes
+- **Tabs Organizados**: Factura Electrónica, Comprobantes de Señas, Comprobantes de Devoluciones
+- **Gestión Centralizada**: Todos los comprobantes en una sola interfaz
 - **Búsqueda y Filtros**: Encuentra comprobantes por huésped, hotel, fecha, etc.
 
 ### Flujos de Trabajo
@@ -5573,23 +5646,34 @@ El módulo de **Comprobantes de Señas** permite generar, gestionar y almacenar 
 2. **Modal de pago** → Opciones: "Seña" o "Pagar Total"
 3. **Selecciona "Seña"** → Monto calculado según política
 4. **Procesa pago** → Se marca como pago parcial
-5. **Reserva confirmada** → Estado cambia a "confirmed"
-6. **Botón "Comprobante"** → Disponible en gestión de reservas
+5. **Genera automáticamente número de comprobante** → Formato S-0001-000012
+6. **Genera PDF automáticamente** → Sin intervención del usuario
+7. **Crea notificación** → Avisa al usuario que el comprobante está disponible
+8. **Reserva confirmada** → Estado cambia a "confirmed"
+9. **Botón "Comprobante"** → Abre directamente el PDF generado automáticamente
 
-#### 2. **Flujo de Generación de Comprobante**
-1. **Clic en "Comprobante"** → Verifica pagos de seña
-2. **Identifica último pago parcial** → Usa detección inteligente
-3. **Genera PDF** → Proceso asíncrono en segundo plano
-4. **Actualiza URL** → Guarda enlace permanente en base de datos
-5. **Abre PDF** → Nueva pestaña del navegador
-6. **Lista actualizada** → Aparece en "Comprobantes de Señas"
+#### 2. **Flujo de Confirmación de Reembolso y Generación de Comprobante**
+1. **Usuario gestiona reembolso** → Accede a "Gestión de Reembolsos"
+2. **Marca reembolso como completado** → Cambia estado a "completed"
+3. **Genera automáticamente número de comprobante** → Formato D-0001-000004
+4. **Genera PDF automáticamente** → Sin intervención del usuario
+5. **Crea notificación** → Avisa al usuario que el comprobante de devolución está disponible
+6. **Actualiza URL** → Guarda enlace permanente en base de datos
+7. **Botón "Generar Comprobante" desaparece** → Se convierte automáticamente en íconos de vista/descarga
+8. **Lista actualizada** → Aparece en "Comprobantes de Devoluciones"
 
 #### 3. **Flujo de Gestión de Comprobantes**
-1. **Acceso a "Facturación"** → Tab "Comprobantes de Señas"
-2. **Filtrado automático** → Solo pagos de señas
-3. **Lista de comprobantes** → Con datos de reserva y huésped
-4. **Acciones disponibles** → Ver y descargar PDFs
-5. **Búsqueda y filtros** → Por huésped, hotel, método, fecha
+1. **Acceso a "Facturación"** → "Comprobantes" (con tabs)
+2. **Tab "Comprobantes de Señas"**:
+   - Filtrado automático → Solo pagos de señas
+   - Lista de comprobantes → Con datos de reserva y huésped
+   - Acciones disponibles → Ver y descargar PDFs
+   - Búsqueda y filtros → Por huésped, hotel, método, fecha
+3. **Tab "Comprobantes de Devoluciones"**:
+   - Filtrado automático → Solo reembolsos con comprobantes generados
+   - Lista de comprobantes → Con datos de reserva, monto y método de devolución
+   - Acciones disponibles → Generar, ver y descargar PDFs
+   - Búsqueda y filtros → Por reserva, hotel, método, estado, fecha
 
 ### Ejemplos Prácticos
 
@@ -5599,11 +5683,13 @@ El módulo de **Comprobantes de Señas** permite generar, gestionar y almacenar 
 1. **Reserva Creada**: Sistema detecta política de seña (30% del total)
 2. **Modal de Pago**: Usuario selecciona "Pagar Seña" ($100)
 3. **Pago Procesado**: Se marca como `is_deposit: true`
-4. **Reserva Confirmada**: Estado cambia a "confirmed"
-5. **Badge "Con Seña"**: Aparece en la lista de reservas
-6. **Botón "Comprobante"**: Disponible para generar recibo
-7. **PDF Generado**: Comprobante profesional con todos los datos
-8. **Lista Actualizada**: Aparece en "Comprobantes de Señas"
+4. **Número de Comprobante Generado**: S-0001-000012 (automático)
+5. **PDF Generado Automáticamente**: Sin intervención del usuario
+6. **Notificación Creada**: Avisa que el comprobante está disponible
+7. **Reserva Confirmada**: Estado cambia a "confirmed"
+8. **Badge "Con Seña"**: Aparece en la lista de reservas
+9. **Botón "Comprobante"**: Abre directamente el PDF generado (S-0001-000012)
+10. **Lista Actualizada**: Aparece en "Comprobantes de Señas"
 
 #### **Ejemplo 2: Gestión de Comprobantes**
 **Escenario**: El personal del hotel necesita revisar todos los comprobantes de señas del mes.
@@ -5620,7 +5706,9 @@ El módulo de **Comprobantes de Señas** permite generar, gestionar y almacenar 
 #### **Para el Personal**
 - ✅ **Gestión Centralizada**: Todos los comprobantes en un solo lugar
 - ✅ **Acceso Rápido**: Encuentra comprobantes en segundos
-- ✅ **Automatización**: Generación automática sin trabajo manual
+- ✅ **Automatización Completa**: Generación automática sin trabajo manual para señas y reembolsos
+- ✅ **Identificadores Claros**: Números de comprobante formateados (S-, P-, D-) para fácil identificación
+- ✅ **Notificaciones Inteligentes**: El sistema avisa cuando se generan comprobantes automáticamente
 - ✅ **Organización**: Filtros y búsqueda para mantener orden
 
 #### **Para la Contabilidad**

@@ -1,12 +1,15 @@
 import { Formik } from 'formik'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import ModalLayout from 'src/layouts/ModalLayout'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import * as Yup from 'yup'
+import FileImage from '../inputs/FileImage'
+import { useMe } from 'src/hooks/useMe'
 
 /**
  * UsersModal: crear/editar usuario con asignación de hoteles
@@ -19,6 +22,9 @@ import * as Yup from 'yup'
  */
 const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { data: me } = useMe()
+  
   const { mutate: createUser, isPending: creating } = useCreate({
     resource: 'users',
     onSuccess: (data) => {
@@ -30,6 +36,10 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
   const { mutate: updateUser, isPending: updating } = useUpdate({
     resource: 'users',
     onSuccess: (data) => {
+      // Si estamos editando el usuario actual, invalidar la query "me"
+      if (user?.id && me?.user_id && user.id === me.user_id) {
+        queryClient.invalidateQueries({ queryKey: ['me'] })
+      }
       onSuccess && onSuccess(data)
       onClose && onClose()
     },
@@ -45,6 +55,18 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
     position: user?.position ?? '',
     enterprise: user?.enterprise ?? null,
     hotels: user?.hotels ?? [],
+    avatar_image: null, // Archivo seleccionado
+    existing_avatar_url: user?.avatar_image_url ?? null, // URL del avatar existente
+  }
+
+  // Función para convertir archivo a base64
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = error => reject(error)
+    })
   }
 
   const validationSchema = Yup.object().shape({
@@ -66,7 +88,6 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           .min(8, t('users_modal.password_min')),
     phone: Yup.string(),
     position: Yup.string(),
-    enterprise: Yup.object().nullable().required(t('users_modal.enterprise_required')),
     hotels: Yup.array().min(1, t('users_modal.assigned_hotels_required')),
   })
 
@@ -83,7 +104,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
       enableReinitialize
       initialValues={initialValues}
       validationSchema={validationSchema}
-      onSubmit={(values) => {
+      onSubmit={async (values) => {
         const payload = {
           username: values.username || undefined,
           email: values.email || undefined,
@@ -100,6 +121,26 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           payload.password = values.password
         }
 
+        // Agregar avatar como base64 si se seleccionó uno nuevo
+        if (values.avatar_image) {
+          console.log('📎 Convirtiendo avatar a base64:', {
+            name: values.avatar_image.name,
+            size: values.avatar_image.size,
+            type: values.avatar_image.type
+          })
+          
+          // Convertir archivo a base64
+          const avatarBase64 = await convertFileToBase64(values.avatar_image)
+          payload.avatar_image_base64 = avatarBase64
+          payload.avatar_image_filename = values.avatar_image.name
+          
+          console.log('✅ Avatar convertido a base64, tamaño:', avatarBase64.length, 'caracteres')
+        } else {
+          console.log('⚠️ No se seleccionó avatar')
+        }
+        
+        console.log('📋 Payload final:', payload)
+        
         if (isEdit && user?.id) {
           updateUser({ id: user.id, body: payload })
         } else {
@@ -180,8 +221,22 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
                 <p className='mt-1 text-xs text-red-600'>{errors.hotels}</p>
               )}
             </div>
+            <div className='lg:col-span-2'>
+              <FileImage
+                name='avatar_image'
+                label={t('users_modal.avatar_image')}
+                placeholder={t('users_modal.avatar_image_placeholder')}
+                existingImageUrl={isEdit ? values.existing_avatar_url : null}
+                compress={true}
+                maxWidth={800}
+                maxHeight={800}
+                quality={0.9}
+                maxSize={2 * 1024 * 1024} // 2MB
+                className='mb-4'
+              />
+            </div>
           </div>
-          
+
           {isEdit && (
             <div className='mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200'>
               <p className='text-xs text-blue-800'>

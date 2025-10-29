@@ -22,7 +22,7 @@ export default function MainLayout() {
   } = useSidebar();
 
   return (
-    <div className="min-h-screen w-full bg-aloja-gray-50 relative">
+    <div className="h-screen w-full bg-aloja-gray-50 relative overflow-hidden">
       {/* Overlay invisible para cerrar tocando fuera del sidebar en móvil */}
       {isMobile && isMobileOpen && (
         <div 
@@ -121,7 +121,7 @@ export default function MainLayout() {
 
       {/* Contenido principal */}
       <div 
-        className={`flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex flex-col h-screen transition-all duration-300 ${
           isMobile && isMobileOpen ? 'blur-[2px]' : ''
         }`}
         style={{ 
@@ -133,7 +133,7 @@ export default function MainLayout() {
           onToggleMobile={toggleMobile}
           isMobile={isMobile}
         />
-        <main className="flex-1 py-6 px-8">
+        <main className="flex-1 overflow-y-auto py-6 px-8">
           <Outlet />
         </main>
       </div>

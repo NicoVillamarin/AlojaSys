@@ -28,8 +28,8 @@ export default function Users() {
       resource: "users", 
       params: { 
         search: filters.search, 
-        hotel: filters.hotel, 
-        is_active: filters.is_active 
+        hotel: filters.hotel,
+        is_active: filters.is_active
       } 
     });
 
@@ -175,6 +175,7 @@ export default function Users() {
                   getOptionLabel={(h) => h?.name}
                   getOptionValue={(h) => h?.id}
                   onValueChange={(opt, val) => setFilters((f) => ({ ...f, hotel: String(val || '') }))}
+                  autoSelectSingle={false}
                 />
               </Formik>
             </div>

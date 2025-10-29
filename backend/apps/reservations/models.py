@@ -249,7 +249,84 @@ class Payment(models.Model):
     # Campo para URL del comprobante PDF
     receipt_pdf_url = models.URLField(blank=True, null=True, help_text="URL del comprobante PDF generado")
     
+    # Número de comprobante serio (ej: S-0001-000012 o P-0001-000085)
+    receipt_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Número de comprobante serio (ej: S-0001-000012 para seña, P-0001-000085 para pago)"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    def save(self, *args, **kwargs):
+        # Generar número de comprobante si no existe
+        if not self.receipt_number:
+            try:
+                from apps.payments.models import ReceiptNumberSequence
+                
+                # Determinar el tipo de comprobante según si es seña o pago total
+                if self.is_deposit:
+                    receipt_type = ReceiptNumberSequence.ReceiptType.DEPOSIT  # "S"
+                else:
+                    receipt_type = ReceiptNumberSequence.ReceiptType.PAYMENT  # "P"
+                
+                self.receipt_number = ReceiptNumberSequence.generate_receipt_number(
+                    hotel=self.reservation.hotel,
+                    receipt_type=receipt_type
+                )
+            except Exception as e:
+                # Si hay error, no fallar la creación del pago
+                pass
+        
+        # Marcar si es un nuevo pago
+        is_new = self.pk is None
+        
+        super().save(*args, **kwargs)
+        
+        # Si es una seña nueva, generar automáticamente el PDF del comprobante
+        if is_new and self.is_deposit and not self.receipt_pdf_url:
+            try:
+                from apps.payments.tasks import generate_payment_receipt_pdf
+                # Generar el PDF de forma asíncrona
+                generate_payment_receipt_pdf.delay(self.id, 'payment')
+                
+                # Enviar notificación sobre el comprobante generado
+                try:
+                    from apps.notifications.services import NotificationService
+                    from django.contrib.auth import get_user_model
+                    
+                    # Obtener el usuario que creó el pago si existe
+                    user_id = getattr(self, 'created_by_id', None)
+                    if not user_id:
+                        # Intentar obtener el usuario de la reserva
+                        try:
+                            user_id = getattr(self.reservation, 'created_by_id', None)
+                        except Exception:
+                            pass
+                    
+                    NotificationService.create_receipt_generated_notification(
+                        receipt_type='deposit',
+                        receipt_number=self.receipt_number or f'S-{self.id}',
+                        reservation_code=f"RES-{self.reservation.id}",
+                        hotel_name=self.reservation.hotel.name,
+                        amount=str(self.amount),
+                        hotel_id=self.reservation.hotel.id,
+                        reservation_id=self.reservation.id,
+                        user_id=user_id
+                    )
+                except Exception as notif_error:
+                    # No fallar si hay error en notificación
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error creando notificación para comprobante {self.id}: {notif_error}")
+                    
+            except Exception as e:
+                # Si hay error generando el PDF, no fallar la creación del pago
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error generando PDF automáticamente para pago {self.id}: {e}")
 
 class ReservationStatusChange(models.Model):
     reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='status_changes')

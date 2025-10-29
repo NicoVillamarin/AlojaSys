@@ -1,9 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getStatusMeta } from 'src/utils/statusList';
 import { format, parseISO, isToday, isSameDay } from 'date-fns';
 
 const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hotels = [] }) => {
   const [hoveredRoom, setHoveredRoom] = useState(null);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const hoverTimeoutRef = useRef(null);
+
+  // Limpiar timeout al desmontar
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Manejar hover con delay para evitar parpadeo
+  const handleMouseEnter = (room) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    setHoveredRoom(room);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setShowTooltip(true);
+    }, 150); // Pequeño delay para estabilizar
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    // Pequeño delay antes de ocultar para evitar parpadeo si el mouse pasa por encima del tooltip
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredRoom(null);
+      setShowTooltip(false);
+    }, 100);
+  };
 
   // Función para determinar el estado efectivo basado en reservas
   const getEffectiveStatus = (room) => {
@@ -135,8 +168,8 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
                   border-0
                   backdrop-blur-sm
                 `}
-                onMouseEnter={() => setHoveredRoom(room)}
-                onMouseLeave={() => setHoveredRoom(null)}
+                onMouseEnter={() => handleMouseEnter(room)}
+                onMouseLeave={handleMouseLeave}
                 onClick={() => onRoomClick && onRoomClick({
                   room,
                   hotel: hotels.find(h => h.id === selectedHotel),
@@ -170,8 +203,16 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
       </div>
       
       {/* Tooltip moderno */}
-      {hoveredRoom && (
-        <div className="absolute top-2 right-2 md:top-6 md:right-6 bg-white/95 backdrop-blur-md p-2 md:p-4 rounded-xl md:rounded-2xl shadow-2xl border-0 z-20 animate-in slide-in-from-right-2 duration-300 max-w-xs">
+      {hoveredRoom && showTooltip && (
+        <div 
+          className="absolute top-2 right-2 md:top-6 md:right-6 bg-white/95 backdrop-blur-md p-2 md:p-4 rounded-xl md:rounded-2xl shadow-2xl border-0 z-50 animate-in slide-in-from-right-2 duration-300 max-w-xs pointer-events-none"
+          onMouseEnter={() => {
+            if (hoverTimeoutRef.current) {
+              clearTimeout(hoverTimeoutRef.current);
+            }
+          }}
+          onMouseLeave={handleMouseLeave}
+        >
           <div className="flex items-center space-x-3 mb-3">
             <div className={`w-4 h-4 rounded-full ${getStatusColor(hoveredRoom)}`}></div>
             <div>

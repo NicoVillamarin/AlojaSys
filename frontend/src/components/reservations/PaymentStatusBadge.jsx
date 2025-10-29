@@ -50,9 +50,18 @@ const PaymentStatusBadge = forwardRef(({ reservationId, reservationData }, ref) 
   const totalPrice = parseFloat(reservationData?.total_price || 0)
   const balanceDue = totalPrice - totalPaid
   const isFullyPaid = balanceDue <= 0.01
-  // Considerar heurística por si el backend aún no marcó is_deposit
-  const hasDeposits = payments.some(p => p.is_deposit === true) ||
-                      payments.some(p => parseFloat(p.amount || 0) + 0.01 < totalPrice)
+  // Determinar si hay señas:
+  // - Si el backend marcó explícitamente is_deposit=true, es seña
+  // - Heurística: si hay algún pago explícito que sea menor al total, es seña
+  //   (pero NO aplicar heurística si el pago es igual o casi igual al total - podría ser pago total con rounding)
+  const hasDeposits = payments.some(p => {
+    // Si el backend marcó explícitamente is_deposit, usar ese valor
+    if (p.is_deposit === true) return true
+    if (p.is_deposit === false) return false
+    // Heurística: solo considerar seña si el monto es significativamente menor al total
+    // (más de 1 peso de diferencia para evitar problemas de redondeo)
+    return parseFloat(p.amount || 0) + 1.0 < totalPrice
+  })
 
   // Determinar el estado del pago
   const getPaymentStatus = () => {

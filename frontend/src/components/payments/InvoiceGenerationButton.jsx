@@ -14,8 +14,10 @@ export default function InvoiceGenerationButton({ paymentId, onSuccess, disabled
     enabled: !!paymentId
   })
 
+  // Acción correcta: el endpoint de backend para generar factura desde un pago
+  // está bajo /api/payments/generate-invoice-from-payment/<payment_id>/
   const { mutate: generateInvoice } = useDispatchAction({
-    resource: 'invoicing/invoices',
+    resource: 'payments',
     onSuccess: (data) => {
       setIsGenerating(false)
       onSuccess?.(data)
@@ -30,9 +32,10 @@ export default function InvoiceGenerationButton({ paymentId, onSuccess, disabled
     if (!paymentId) return
     
     setIsGenerating(true)
+    // Llamar al endpoint extendido y solicitar envío a AFIP en el mismo paso
     generateInvoice({
-      action: 'generate_from_payment',
-      body: { payment_id: paymentId },
+      action: `generate-invoice-from-payment/${paymentId}`,
+      body: { send_to_afip: true },
       method: 'POST'
     })
   }

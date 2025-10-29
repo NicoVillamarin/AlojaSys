@@ -46,12 +46,18 @@ def me_view(request):
             hotels = profile.hotels.filter(is_active=True).select_related('city', 'city__state', 'city__state__country')
             enterprises = Enterprise.objects.filter(id=profile.enterprise.id, is_active=True) if profile.enterprise else Enterprise.objects.none()
         
+        # Construir URL del avatar si existe
+        avatar_image_url = None
+        if profile.avatar_image:
+            avatar_image_url = request.build_absolute_uri(profile.avatar_image.url)
+        
         response_data.update({
             "profile": {
                 "id": profile.id,
                 "phone": profile.phone or "",
                 "position": profile.position or "",
                 "is_active": profile.is_active,
+                "avatar_image_url": avatar_image_url,
             },
             "enterprise_ids": [enterprise.id for enterprise in enterprises],
             "enterprise": {
@@ -141,14 +147,12 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         
         # Filtro por estado activo
         is_active = self.request.query_params.get("is_active")
-        if is_active is not None:
+        if is_active is not None and is_active != "":
             if is_active.lower() in ['true', '1']:
                 qs = qs.filter(is_active=True)
             elif is_active.lower() in ['false', '0']:
                 qs = qs.filter(is_active=False)
-        else:
-            # Por defecto, solo mostrar usuarios activos
-            qs = qs.filter(is_active=True)
+        # Si no se especifica filtro, mostrar todos los usuarios (activos e inactivos)
         
         return qs
 

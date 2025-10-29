@@ -40,7 +40,11 @@
     "cancellation_policies": "Cancellation Policies",
     "histories": "Histories",
     "refunds_history": "Refunds History",
-    "vouchers": "Vouchers"
+    "vouchers": "Vouchers",
+    "bank_reconciliation": "Bank Reconciliation",
+    "invoicing": "Invoicing",
+    "invoicing_electronic": "Electronic Invoicing",
+    "invoicing_receipts": "Payment Receipts"
   },
   "vouchers_modal": {
     "create_voucher": "Create Voucher",

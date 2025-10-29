@@ -78,16 +78,20 @@ const Tooltip = ({
 
       {isVisible && (
         <div
-          className={`fixed z-50 px-3 py-2 text-sm text-white bg-gray-900 rounded-lg shadow-xl border border-gray-700 ${className}`}
+          className={`fixed z-50 px-3 py-2 text-sm text-white bg-gray-900 rounded-lg shadow-xl border border-gray-700 overflow-hidden ${className}`}
           style={{
             top: `${tooltipPosition.top}px`,
             left: `${tooltipPosition.left}px`,
             maxWidth: maxWidth,
             pointerEvents: 'none',
-            transform: 'translateX(-50%)'
+            transform: 'translateX(-50%)',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word'
           }}
         >
-          {content}
+          <div className="break-words">
+            {content}
+          </div>
           
           {/* Flecha del tooltip */}
           <div

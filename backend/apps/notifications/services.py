@@ -166,6 +166,49 @@ class NotificationService:
         )
     
     @staticmethod
+    def create_receipt_generated_notification(
+        receipt_type: str,
+        receipt_number: str,
+        reservation_code: str,
+        hotel_name: str,
+        amount: str,
+        hotel_id: Optional[int] = None,
+        reservation_id: Optional[int] = None,
+        user_id: Optional[int] = None
+    ) -> Notification:
+        """Crea notificación cuando se genera un comprobante automáticamente"""
+        
+        # Determinar título y mensaje según el tipo de comprobante
+        type_titles = {
+            'payment': 'Comprobante de Pago Generado',
+            'refund': 'Comprobante de Devolución Generado',
+            'deposit': 'Comprobante de Seña Generado'
+        }
+        
+        title = type_titles.get(receipt_type.lower(), 'Comprobante Generado')
+        
+        # Determinar tipo de notificación
+        notification_type = NotificationType.RECEIPT_GENERATED
+        
+        message = f"Se generó automáticamente el comprobante {receipt_number} por ${amount} para la reserva #{reservation_code} en {hotel_name}"
+        
+        return NotificationService.create(
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            user_id=user_id,
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            metadata={
+                'receipt_type': receipt_type,
+                'receipt_number': receipt_number,
+                'reservation_code': reservation_code,
+                'hotel_name': hotel_name,
+                'amount': amount
+            }
+        )
+    
+    @staticmethod
     def create_bulk_notification(
         notification_type: str,
         title: str,

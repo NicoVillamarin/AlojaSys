@@ -57,7 +57,7 @@ const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
 export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen, isMobile = false, onMobileClose }) {
   const { t } = useTranslation();
   const location = useLocation();
-  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false });
+  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false });
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
@@ -65,7 +65,8 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     const isHistories = location.pathname.startsWith("/reservations/") && location.pathname.includes("/history") || 
                        location.pathname === "/payments" || 
                        location.pathname === "/refunds/history";
-    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, financial: isFinancial, histories: isHistories }));
+    const isInvoicing = location.pathname.startsWith("/invoicing");
+    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, financial: isFinancial, histories: isHistories, invoicing: isInvoicing }));
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
@@ -148,12 +149,30 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               <Chevron open={openGroups.financial} />
             </button>
             <div
-              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.financial ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+              className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.financial ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
                 }`}
             >
               <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.refunds')}</Item>
               <Item to="/vouchers" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.vouchers')}</Item>
-              <Item to="/invoicing" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>Facturación</span>}</Item>
+              <div className="mt-1 ml-2">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup("invoicing")}
+                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.invoicing ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                    }`}
+                  aria-expanded={openGroups.invoicing}
+                >
+                  <span>{t('sidebar.invoicing')}</span>
+                  <Chevron open={openGroups.invoicing} />
+                </button>
+                <div
+                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.invoicing ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                    }`}
+                >
+                  <Item to="/invoicing" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.invoicing_electronic')}</Item>
+                  <Item to="/invoicing/receipts" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.invoicing_receipts')}</Item>
+                </div>
+              </div>
               <Item to="/bank-reconciliation" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>{t('sidebar.bank_reconciliation')}</span>}</Item>
             </div>
           </div>

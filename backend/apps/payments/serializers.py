@@ -357,6 +357,8 @@ class RefundSerializer(serializers.ModelSerializer):
     """Serializer para reembolsos"""
     reservation_id = serializers.IntegerField(source="reservation.id", read_only=True)
     reservation_display_name = serializers.CharField(source="reservation.display_name", read_only=True)
+    hotel_name = serializers.CharField(source="reservation.hotel.name", read_only=True)
+    hotel_id = serializers.IntegerField(source="reservation.hotel.id", read_only=True)
     payment_method_display = serializers.CharField(source="payment.method", read_only=True)
     created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -366,11 +368,11 @@ class RefundSerializer(serializers.ModelSerializer):
     class Meta:
         model = Refund
         fields = [
-            "id", "reservation", "reservation_id", "reservation_display_name", "payment", "payment_method_display",
-            "amount", "reason", "reason_display", "status", "status_display",
+            "id", "reservation", "reservation_id", "reservation_display_name", "hotel_name", "hotel_id",
+            "payment", "payment_method_display", "amount", "reason", "reason_display", "status", "status_display",
             "refund_method", "processing_days", "external_reference", "notes",
             "processed_at", "created_at", "updated_at", "created_by", "created_by_name",
-            "generated_voucher"
+            "generated_voucher", "receipt_pdf_url", "receipt_number"
         ]
         read_only_fields = ["created_at", "updated_at", "processed_at"]
     

@@ -74,7 +74,7 @@ class AfipTestService(AfipInvoiceService):
         
         # Validaciones específicas para testing
         if not self._is_valid_test_document_number(getattr(invoice, 'client_document_number', '')):
-            logger.warning(f"Documento {invoice.customer_document_number} puede no ser válido para testing")
+            logger.warning(f"Documento {invoice.client_document_number} puede no ser válido para testing")
         
         # Validar que los montos sean razonables para testing
         if invoice.total > Decimal('1000000'):  # 1 millón

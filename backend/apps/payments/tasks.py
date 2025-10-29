@@ -1131,6 +1131,7 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                     'method': refund.method,
                     'date': refund.created_at.strftime("%d/%m/%Y %H:%M:%S"),
                     'reason': refund.reason,
+                    'receipt_number': refund.receipt_number,
                     'hotel_info': {
                         'name': refund.reservation.hotel.name,
                         'address': getattr(refund.reservation.hotel, 'address', ''),
@@ -1153,6 +1154,7 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                     'amount': float(payment.amount),
                     'method': payment.method,
                     'date': payment.date.strftime("%d/%m/%Y %H:%M:%S"),
+                    'receipt_number': payment.receipt_number,
                     'hotel_info': {
                         'name': payment.reservation.hotel.name,
                         'address': getattr(payment.reservation.hotel, 'address', ''),
@@ -1178,9 +1180,8 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
         info_table = []
         if payment_type == 'refund':
             info_table = [
+                ['Número de Comprobante:', payment_data.get('receipt_number', 'N/A')],
                 ['Código de Reserva:', payment_data.get('reservation_code', 'N/A')],
-                ['ID de Reembolso:', str(payment_data.get('refund_id', 'N/A'))],
-                ['ID de Pago Original:', str(payment_data.get('payment_id', 'N/A'))],
                 ['Monto del Reembolso:', f"${payment_data.get('amount', 0):,.2f}"],
                 ['Método de Reembolso:', payment_data.get('method', 'N/A')],
                 ['Fecha del Reembolso:', payment_data.get('date', 'N/A')],
@@ -1189,8 +1190,8 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                 info_table.append(['Razón del Reembolso:', payment_data.get('reason')])
         else:
             info_table = [
+                ['Número de Comprobante:', payment_data.get('receipt_number', 'N/A')],
                 ['Código de Reserva:', payment_data.get('reservation_code', 'N/A')],
-                ['ID de Pago:', str(payment_data.get('payment_id', 'N/A'))],
                 ['Monto:', f"${payment_data.get('amount', 0):,.2f}"],
                 ['Método de Pago:', payment_data.get('method', 'N/A')],
                 ['Fecha del Pago:', payment_data.get('date', 'N/A')],
@@ -1218,6 +1219,28 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
         pdf_path = generator.generate(modern_data, filename)
         
         logger.info(f"PDF generado exitosamente: {pdf_path}")
+        
+        # Construir y actualizar la URL del PDF en la base de datos
+        from django.conf import settings
+        
+        # Construir URL relativa que el frontend convertirá a absoluta
+        relative_path = f"documents/{filename}"
+        media_url = getattr(settings, 'MEDIA_URL', '/media/')
+        
+        # URL relativa que el frontend convertirá a absoluta agregando el dominio
+        pdf_url = f"{media_url}{relative_path}"
+        
+        # Actualizar el campo receipt_pdf_url en el modelo
+        if payment_type == 'refund':
+            refund.refresh_from_db()
+            refund.receipt_pdf_url = pdf_url
+            refund.save(update_fields=['receipt_pdf_url'])
+            logger.info(f"Actualizado receipt_pdf_url para refund {refund.id}: {pdf_url}")
+        else:
+            payment.refresh_from_db()
+            payment.receipt_pdf_url = pdf_url
+            payment.save(update_fields=['receipt_pdf_url'])
+            logger.info(f"Actualizado receipt_pdf_url para payment {payment.id}: {pdf_url}")
 
         # Encadenar envío de email con el huésped principal
         try:
@@ -1342,9 +1365,8 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                 info_table = []
                 if payment_type == 'refund':
                     info_table = [
+                        ['Número de Comprobante:', refund.receipt_number or 'N/A'],
                         ['Código de Reserva:', f"RES-{reservation.id}"],
-                        ['ID de Reembolso:', str(payment_id)],
-                        ['ID de Pago Original:', str(refund.payment.id)],
                         ['Monto del Reembolso:', f"${amount:,.2f}"],
                         ['Método de Reembolso:', method],
                         ['Fecha del Reembolso:', date],
@@ -1353,8 +1375,8 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                         info_table.append(['Razón del Reembolso:', reason])
                 else:
                     info_table = [
+                        ['Número de Comprobante:', payment.receipt_number or 'N/A'],
                         ['Código de Reserva:', f"RES-{reservation.id}"],
-                        ['ID de Pago:', str(payment_id)],
                         ['Monto:', f"${amount:,.2f}"],
                         ['Método de Pago:', method],
                         ['Fecha del Pago:', date],

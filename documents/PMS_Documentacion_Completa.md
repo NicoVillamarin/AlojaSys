@@ -6389,7 +6389,7 @@ def test_idempotency_key_generation(self):
 
 ## 3.14 Módulo Comprobantes de Pagos (Payment Receipts)
 
-**Propósito**: Generación, gestión y almacenamiento de comprobantes de pago para señas y pagos parciales, con integración completa al sistema de facturación.
+**Propósito**: Generación, gestión y almacenamiento de comprobantes de pago para señas, pagos parciales y devoluciones, con integración completa al sistema de facturación.
 
 ### Modelos Principales
 
@@ -6406,6 +6406,19 @@ class Payment(models.Model):
     metadata = models.JSONField(default=dict, blank=True, help_text="Metadatos adicionales del pago")
 ```
 
+#### Refund (Extendido)
+```python
+class Refund(models.Model):
+    # ... campos existentes ...
+    
+    # URL del comprobante PDF generado
+    receipt_pdf_url = models.URLField(
+        blank=True, 
+        null=True, 
+        help_text="URL del comprobante PDF generado"
+    )
+```
+
 ### Funcionalidades del Módulo
 
 #### 1. Generación de Comprobantes
@@ -6413,6 +6426,10 @@ class Payment(models.Model):
 - **Diseño profesional**: Layout consistente con branding del hotel
 - **Datos completos**: Información del pago, reserva y huésped
 - **Almacenamiento seguro**: URLs persistentes para acceso posterior
+- **Tipos de comprobantes**: Señas, pagos completos y devoluciones
+- **Identificadores formateados**: Sistema de numeración único con prefijos (S-0001-000012 para señas, P-0001-000085 para pagos, D-0001-000004 para devoluciones)
+- **Generación automática**: Se generan automáticamente al crear señas o confirmar reembolsos
+- **Notificaciones**: Sistema de notificaciones integrado para avisar cuando se generan comprobantes
 
 #### 2. Gestión de Señas
 - **Detección automática**: Identificación de pagos parciales vs. pagos completos
@@ -6420,7 +6437,13 @@ class Payment(models.Model):
 - **Políticas configurables**: Integración con `PaymentPolicy` para montos de seña
 - **Validaciones**: Verificación de montos y tipos de pago
 
-#### 3. Interfaz de Usuario
+#### 3. Gestión de Devoluciones
+- **Comprobantes de reembolso**: Generación automática de PDFs para devoluciones
+- **Estados de reembolso**: Seguimiento de devoluciones pendientes, procesando, completadas
+- **Métodos de devolución**: Efectivo, transferencia, tarjeta, voucher, método original
+- **Integración con refunds**: Conexión directa con el sistema de reembolsos existente
+
+#### 4. Interfaz de Usuario
 
 ##### Componentes Frontend
 ```javascript
@@ -6450,21 +6473,36 @@ const PaymentTooltip = ({ reservationId, reservationData }) => {
   // Incluye montos, métodos, fechas y estados
 };
 
-// PaymentReceipts.jsx - Lista de comprobantes
+// PaymentReceipts.jsx - Lista de comprobantes de señas
 const PaymentReceipts = () => {
   // Filtrado inteligente de pagos de señas
   // Acciones para ver y descargar comprobantes
 };
+
+// RefundReceipts.jsx - Lista de comprobantes de devoluciones
+const RefundReceipts = () => {
+  // Filtrado de reembolsos con comprobantes
+  // Acciones para generar, ver y descargar comprobantes
+};
 ```
 
 ##### Flujo de Generación
-1. **Usuario hace clic en "Comprobante"** en gestión de reservas
-2. **Sistema identifica pagos de seña** usando `is_deposit` o heurística
-3. **Selecciona el último pago parcial** para generar comprobante
-4. **Llama al endpoint** `/api/payments/generate-receipt/{payment_id}/`
-5. **Genera PDF** usando Celery task `generate_payment_receipt_pdf`
-6. **Actualiza `receipt_pdf_url`** en la base de datos
-7. **Abre PDF** en nueva pestaña del navegador
+
+**Para Señas:**
+1. **Usuario crea seña** → Sistema detecta `is_deposit: true`
+2. **Genera automáticamente número de comprobante** con prefijo `S-` (S-0001-000012)
+3. **Genera PDF automáticamente** usando Celery task
+4. **Crea notificación** para informar al usuario
+5. **Actualiza `receipt_pdf_url`** en la base de datos
+6. **Al hacer clic en "Comprobante"** → Abre PDF existente en nueva pestaña
+
+**Para Devoluciones:**
+1. **Usuario marca reembolso como completado** → Sistema cambia estado a `completed`
+2. **Genera automáticamente número de comprobante** con prefijo `D-` (D-0001-000004)
+3. **Genera PDF automáticamente** usando Celery task
+4. **Crea notificación** para informar al usuario
+5. **Actualiza `receipt_pdf_url`** en la base de datos
+6. **Botón "Comprobante"** se convierte en íconos de vista/descarga automáticamente
 
 ### APIs y Endpoints
 

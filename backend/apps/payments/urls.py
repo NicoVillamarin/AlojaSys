@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ping, create_checkout_preference, create_brick_intent, process_card_payment, webhook, get_reservation_payments,
     PaymentMethodViewSet, PaymentPolicyViewSet, CancellationPolicyViewSet, RefundPolicyViewSet, RefundViewSet, RefundVoucherViewSet, process_deposit_payment, process_full_payment, rotate_payment_tokens,
-    BankTransferPaymentViewSet, upload_bank_transfer_receipt, create_deposit, generate_invoice_from_payment_extended, PaymentViewSet, generate_receipt_from_payment,
+    BankTransferPaymentViewSet, upload_bank_transfer_receipt, create_deposit, generate_invoice_from_payment_extended, PaymentViewSet, generate_receipt_from_payment, generate_receipt_from_refund,
 )
 from .views_collections import PaymentCollectionViewSet
 from .views_reconciliation import BankReconciliationViewSet, ReconciliationMatchViewSet, BankReconciliationConfigViewSet
@@ -40,6 +40,7 @@ urlpatterns = [
     path("create-deposit/", create_deposit, name="payments-create-deposit"),
     path("generate-invoice-from-payment/<int:payment_id>/", generate_invoice_from_payment_extended, name="payments-generate-invoice-extended"),
     path("generate-receipt/<int:payment_id>/", generate_receipt_from_payment, name="payments-generate-receipt"),
+    path("generate-refund-receipt/<int:refund_id>/", generate_receipt_from_refund, name="payments-generate-refund-receipt"),
     
     path("", include(router.urls)),
 ]

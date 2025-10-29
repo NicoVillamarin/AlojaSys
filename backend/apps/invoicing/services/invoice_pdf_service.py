@@ -67,7 +67,7 @@ class InvoicePDFService:
             fontSize=18,
             spaceAfter=12,
             alignment=TA_CENTER,
-            textColor=colors.darkblue,
+            textColor=colors.HexColor('#1E293B'),  # slate-900
             fontName='Helvetica-Bold'
         ))
         
@@ -78,7 +78,7 @@ class InvoicePDFService:
             fontSize=14,
             spaceAfter=8,
             alignment=TA_LEFT,
-            textColor=colors.darkblue,
+            textColor=colors.HexColor('#334155'),  # slate-700
             fontName='Helvetica-Bold'
         ))
         
@@ -111,7 +111,7 @@ class InvoicePDFService:
             spaceAfter=8,
             alignment=TA_CENTER,
             fontName='Helvetica-Bold',
-            textColor=colors.darkgreen
+            textColor=colors.HexColor('#334155')  # slate-700
         ))
     
     def generate_pdf(self, invoice: Invoice) -> str:
@@ -504,17 +504,18 @@ class InvoicePDFService:
         table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.whitesmoke),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('BOX', (0, 0), (-1, -1), 0.75, colors.lightgrey),
             ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 11),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.darkgreen),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#334155')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ]))
         
         return table

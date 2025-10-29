@@ -36,13 +36,14 @@ class PaymentSerializer(serializers.ModelSerializer):
     guest_name = serializers.CharField(source='reservation.guest_name', read_only=True)
     hotel_name = serializers.CharField(source='reservation.hotel.name', read_only=True)
     receipt_pdf_url = serializers.URLField(read_only=True, allow_null=True)
+    receipt_number = serializers.CharField(read_only=True, allow_null=True)
     
     class Meta:
         model = Payment
         fields = [
             'id', 'date', 'method', 'amount', 'status', 'is_deposit', 
             'created_at', 'reservation_id', 'reservation_display_name', 
-            'guest_name', 'hotel_name', 'receipt_pdf_url', 'notes'
+            'guest_name', 'hotel_name', 'receipt_pdf_url', 'receipt_number', 'notes'
         ]
 
 
@@ -994,7 +995,28 @@ class RefundViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         print(f"DEBUG ViewSet: partial_update llamado para reembolso {kwargs.get('pk')}")
         print(f"DEBUG ViewSet: Datos recibidos: {request.data}")
-        return super().partial_update(request, *args, **kwargs)
+        
+        # Obtener el refund antes de actualizar
+        refund = self.get_object()
+        old_status = refund.status
+        
+        # Hacer la actualización normal
+        response = super().partial_update(request, *args, **kwargs)
+        
+        # Si se cambió el estado a COMPLETED, llamar a mark_as_completed para generar PDF
+        if response.status_code in [200, 201] and old_status != RefundStatus.COMPLETED:
+            # Recargar el refund para obtener el nuevo estado
+            refund.refresh_from_db()
+            if refund.status == RefundStatus.COMPLETED:
+                try:
+                    # Llamar al método que genera el PDF automáticamente
+                    refund.mark_as_completed(user=request.user)
+                    # No hacer save() porque mark_as_completed ya lo hace
+                except Exception as e:
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error en mark_as_completed para refund {refund.id}: {e}")
+        
+        return response
     
     @action(detail=False, methods=['get'])
     def for_reservation(self, request):
@@ -2182,6 +2204,23 @@ def generate_receipt_from_payment(request, payment_id: int):
     try:
         payment = get_object_or_404(Payment, id=payment_id)
 
+        # Generar número de comprobante si no existe
+        if not payment.receipt_number:
+            from .models import ReceiptNumberSequence
+            
+            # Determinar el tipo de comprobante según si es seña o pago total
+            if payment.is_deposit:
+                receipt_type = ReceiptNumberSequence.ReceiptType.DEPOSIT  # "S"
+            else:
+                receipt_type = ReceiptNumberSequence.ReceiptType.PAYMENT  # "P"
+            
+            receipt_number = ReceiptNumberSequence.generate_receipt_number(
+                hotel=payment.reservation.hotel,
+                receipt_type=receipt_type
+            )
+            payment.receipt_number = receipt_number
+            payment.save(update_fields=['receipt_number'])
+
         # Programar/generar el PDF
         try:
             from .tasks import generate_payment_receipt_pdf
@@ -2208,4 +2247,55 @@ def generate_receipt_from_payment(request, payment_id: int):
 
     except Exception as e:
         logger.error(f"Error generando recibo para pago {payment_id}: {e}", exc_info=True)
+        return Response({'error': 'Error interno del servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_receipt_from_refund(request, refund_id: int):
+    """
+    Genera (o regenera) el PDF de comprobante para un reembolso existente.
+
+    Uso: POST /api/payments/generate-refund-receipt/{refund_id}/
+    Devuelve la URL donde quedará disponible el PDF.
+    """
+    try:
+        refund = get_object_or_404(Refund, id=refund_id)
+
+        # Generar número de comprobante si no existe
+        if not refund.receipt_number:
+            from .models import ReceiptNumberSequence
+            receipt_number = ReceiptNumberSequence.generate_receipt_number(
+                hotel=refund.reservation.hotel,
+                receipt_type=ReceiptNumberSequence.ReceiptType.REFUND  # "D"
+            )
+            refund.receipt_number = receipt_number
+            refund.save(update_fields=['receipt_number'])
+
+        # Programar/generar el PDF
+        try:
+            from .tasks import generate_payment_receipt_pdf
+            generate_payment_receipt_pdf.delay(refund.id, 'refund')
+        except Exception:
+            logger.exception("Error encolando tarea de comprobante de reembolso")
+
+        # Construir URL del archivo destino
+        from django.conf import settings
+        filename = f"refund_{refund.id}.pdf"
+        relative_path = f"documents/{filename}"
+        base_url = getattr(settings, 'MEDIA_URL', '/media/')
+        absolute_url = request.build_absolute_uri(os.path.join(base_url, relative_path))
+
+        # Actualizar el campo receipt_pdf_url en la base de datos
+        refund.receipt_pdf_url = absolute_url
+        refund.save(update_fields=['receipt_pdf_url'])
+
+        return Response({
+            'message': 'Comprobante de reembolso en proceso de generación',
+            'refund_id': refund.id,
+            'receipt_pdf_url': absolute_url
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Error generando comprobante para reembolso {refund_id}: {e}", exc_info=True)
         return Response({'error': 'Error interno del servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

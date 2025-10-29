@@ -26,12 +26,12 @@ export default function DropdownUser() {
 
   const initials = (me?.first_name || me?.username || 'U').slice(0,1).toUpperCase()
 
-  const avatarSrc = me?.avatar || NoUser
+  const avatarSrc = me?.profile?.avatar_image_url || NoUser
 
   return (
     <div className='relative' ref={ref}>
       <button onClick={() => setIsOpen(o=>!o)} className='flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-aloja-gray-100'>
-        <img src={avatarSrc} alt='avatar' className='w-11 h-11 rounded-full object-cover' onError={(e)=>{e.currentTarget.src=NoUser}} />
+        <img src={avatarSrc} alt='avatar' className='w-14 h-14 rounded-full object-cover border-4 border-gray-300' onError={(e)=>{e.currentTarget.src=NoUser}} />
         <span className='font-bold text-aloja-gray-800 hidden sm:block'>{me?.first_name || me?.username || ''}</span>
         <svg className='h-6 w-6 text-aloja-gray-800' viewBox='0 0 20 20' fill='currentColor' aria-hidden>
           <path fillRule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z' clipRule='evenodd' />

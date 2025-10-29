@@ -7,8 +7,10 @@ import logging
 from typing import Dict, Optional
 from django.conf import settings
 from .afip_auth_service import AfipAuthService, AfipAuthError
+from .afip_zeep_auth_service import AfipZeepAuthService, AfipZeepAuthError
 from .afip_invoice_service import AfipInvoiceService, AfipInvoiceError
 from .afip_test_service import AfipTestService, AfipTestError
+from .afip_mock_service import MockAfipInvoiceService, MockAfipAuthService
 
 logger = logging.getLogger(__name__)
 
@@ -28,18 +30,33 @@ class AfipService:
         """
         self.config = config
         self.is_production = config.environment == 'production'
+        self.use_mock = getattr(settings, 'AFIP_USE_MOCK', False)
         
         # Inicializar servicios específicos
-        self.auth_service = AfipAuthService(config)
+        # Preferimos Zeep para WSAA por robustez
+        if self.use_mock and not self.is_production:
+            # En modo mock, evitar llamadas reales
+            self.auth_service = MockAfipAuthService(config)
+        else:
+            try:
+                self.auth_service = AfipZeepAuthService(config)
+            except Exception:
+                # Fallback al servicio existente si fallara carga
+                self.auth_service = AfipAuthService(config)
         
         if self.is_production:
             self.invoice_service = AfipInvoiceService(config)
             self.test_service = None
         else:
-            self.invoice_service = AfipTestService(config)
-            self.test_service = AfipTestService(config)
+            if self.use_mock:
+                self.invoice_service = MockAfipInvoiceService(config)
+                self.test_service = None
+            else:
+                self.invoice_service = AfipTestService(config)
+                self.test_service = AfipTestService(config)
         
-        logger.info(f"AfipService inicializado para hotel {config.hotel.id} en modo {config.environment}")
+        mode = f"{config.environment}{' (mock)' if (self.use_mock and not self.is_production) else ''}"
+        logger.info(f"AfipService inicializado para hotel {config.hotel.id} en modo {mode}")
     
     def send_invoice(self, invoice) -> Dict:
         """
@@ -56,6 +73,9 @@ class AfipService:
                 logger.info(f"Enviando factura {invoice.number} a AFIP producción")
                 return self.invoice_service.send_invoice(invoice)
             else:
+                if self.use_mock:
+                    logger.info(f"Enviando factura {invoice.number} a AFIP (mock)")
+                    return self.invoice_service.send_invoice(invoice)
                 logger.info(f"Enviando factura {invoice.number} a AFIP homologación")
                 return self.invoice_service.send_test_invoice(invoice)
                 
@@ -82,7 +102,13 @@ class AfipService:
                     'has_sign': bool(sign)
                 }
             else:
-                # En test, usar el servicio de testing
+                if self.use_mock:
+                    return {
+                        'success': True,
+                        'message': 'Conexión mock activa',
+                        'environment': 'test-mock'
+                    }
+                # En test real, usar el servicio de testing
                 return self.test_service.test_afip_connection()
                 
         except Exception as e:
@@ -104,6 +130,13 @@ class AfipService:
             if self.is_production:
                 return self._validate_production_environment()
             else:
+                if self.use_mock:
+                    return {
+                        'environment': 'test-mock',
+                        'checks': {'mock': {'success': True, 'message': 'Modo mock habilitado'}},
+                        'overall_success': True,
+                        'timestamp': self._get_timestamp()
+                    }
                 return self.test_service.validate_test_environment()
                 
         except Exception as e:

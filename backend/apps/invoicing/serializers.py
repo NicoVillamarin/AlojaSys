@@ -190,6 +190,14 @@ class AfipStatusSerializer(serializers.Serializer):
     last_error = serializers.CharField(required=False, allow_null=True)
 
 
+class InjectTASerializer(serializers.Serializer):
+    """Serializer para inyectar manualmente un TA válido en AfipConfig"""
+    token = serializers.CharField(max_length=10000)
+    sign = serializers.CharField(max_length=10000)
+    generation_time = serializers.DateTimeField(required=False)
+    expiration_time = serializers.DateTimeField(required=False)
+
+
 class GenerateInvoiceFromPaymentSerializer(serializers.Serializer):
     """Serializer para generar factura desde pago"""
     customer_name = serializers.CharField(max_length=255, required=False)

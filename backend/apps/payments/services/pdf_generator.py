@@ -170,15 +170,17 @@ class ModernPDFGenerator:
                 pass
 
         title = Paragraph(title_text, self.styles["CustomTitle"])
+        
         date = Paragraph(f"<font size='9' color='#64748B'>Generado el {generated_date}</font>",
                          ParagraphStyle(name="Date", alignment=TA_RIGHT, textColor="#64748B"))
 
         header = Table(
             [[logo_cell, title, date]],
-            colWidths=[1.2*inch, 3.8*inch, 2*inch]
+            colWidths=[1.2*inch, 4.6*inch, 2*inch]
         )
         header.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
             ('ALIGN', (1, 0), (1, 0), 'CENTER'),
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 15)

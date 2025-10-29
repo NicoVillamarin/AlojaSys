@@ -642,6 +642,22 @@ class Refund(models.Model):
         help_text="Historial compacto de cambios del reembolso"
     )
     
+    # URL del comprobante PDF generado
+    receipt_pdf_url = models.URLField(
+        blank=True, 
+        null=True, 
+        help_text="URL del comprobante PDF generado"
+    )
+    
+    # Número de comprobante serio (ej: C-0001-000045)
+    receipt_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Número de comprobante serio (ej: C-0001-000045)"
+    )
+    
     # Relación con voucher generado (si el método de reembolso es voucher)
     generated_voucher = models.ForeignKey(
         'RefundVoucher',
@@ -668,12 +684,59 @@ class Refund(models.Model):
     def save(self, *args, **kwargs):
         """Override save para crear log automático al crear un refund"""
         is_new = self.pk is None
+        
+        # Generar número de comprobante si no existe
+        if not self.receipt_number:
+            try:
+                self.receipt_number = ReceiptNumberSequence.generate_receipt_number(
+                    hotel=self.reservation.hotel,
+                    receipt_type=ReceiptNumberSequence.ReceiptType.REFUND  # "D"
+                )
+            except Exception as e:
+                # Si hay error, no fallar la creación del refund
+                pass
+        
         super().save(*args, **kwargs)
         
         # Si es un nuevo refund, crear log de creación
         if is_new:
             from .services.refund_audit_service import RefundAuditService
             RefundAuditService.log_refund_created(self, self.created_by)
+            
+            # Si el refund se crea ya completado, generar automáticamente el PDF del comprobante
+            if self.status == RefundStatus.COMPLETED and not self.receipt_pdf_url:
+                try:
+                    from .tasks import generate_payment_receipt_pdf
+                    # Generar el PDF de forma asíncrona
+                    generate_payment_receipt_pdf.delay(self.id, 'refund')
+                    
+                    # Enviar notificación sobre el comprobante generado
+                    try:
+                        from apps.notifications.services import NotificationService
+                        
+                        user_id = self.created_by_id if self.created_by_id else None
+                        
+                        NotificationService.create_receipt_generated_notification(
+                            receipt_type='refund',
+                            receipt_number=self.receipt_number or f'D-{self.id}',
+                            reservation_code=f"RES-{self.reservation.id}",
+                            hotel_name=self.reservation.hotel.name,
+                            amount=str(self.amount),
+                            hotel_id=self.reservation.hotel.id,
+                            reservation_id=self.reservation.id,
+                            user_id=user_id
+                        )
+                    except Exception as notif_error:
+                        # No fallar si hay error en notificación
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Error creando notificación para refund {self.id}: {notif_error}")
+                        
+                except Exception as e:
+                    # Si hay error generando el PDF, no fallar la creación del refund
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error generando PDF automáticamente para refund {self.id}: {e}")
 
     def mark_as_processing(self, user=None):
         """Marca el reembolso como en procesamiento"""
@@ -708,14 +771,44 @@ class Refund(models.Model):
             from .tasks import generate_payment_receipt_pdf, send_payment_receipt_email
             generate_payment_receipt_pdf.delay(self.id, 'refund')
             
-            # Enviar email con recibo si hay email del huésped
-            if (self.reservation.guests_data and 
-                self.reservation.guests_data.get('email')):
-                send_payment_receipt_email.delay(
-                    self.id, 
-                    'refund', 
-                    self.reservation.guests_data['email']
+            # Enviar notificación sobre el comprobante generado
+            try:
+                from apps.notifications.services import NotificationService
+                
+                user_id = self.created_by_id if self.created_by_id else None
+                
+                NotificationService.create_receipt_generated_notification(
+                    receipt_type='refund',
+                    receipt_number=self.receipt_number or f'D-{self.id}',
+                    reservation_code=f"RES-{self.reservation.id}",
+                    hotel_name=self.reservation.hotel.name,
+                    amount=str(self.amount),
+                    hotel_id=self.reservation.hotel.id,
+                    reservation_id=self.reservation.id,
+                    user_id=user_id
                 )
+            except Exception as notif_error:
+                # No fallar si hay error en notificación
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error creando notificación para reembolso {self.id}: {notif_error}")
+            
+            # Enviar email con recibo si hay email del huésped
+            if self.reservation.guests_data:
+                # guests_data es una lista, buscar el huésped principal
+                primary_guest = next(
+                    (guest for guest in self.reservation.guests_data if guest.get('is_primary', False)), 
+                    None
+                )
+                if not primary_guest and self.reservation.guests_data:
+                    primary_guest = self.reservation.guests_data[0]
+                
+                if primary_guest and primary_guest.get('email'):
+                    send_payment_receipt_email.delay(
+                        self.id, 
+                        'refund', 
+                        primary_guest['email']
+                    )
         except Exception as e:
             # No fallar el proceso si hay error generando PDF
             import logging
@@ -1638,3 +1731,79 @@ class BankTransferPayment(models.Model):
             self.is_cbu_valid and
             not self.reviewed_by
         )
+
+
+class ReceiptNumberSequence(models.Model):
+    """
+    Modelo para manejar la numeración secuencial de comprobantes
+    Formato: PREFIJO-SERIE-NUMERO (ej: R-0001-000045)
+    """
+    class ReceiptType(models.TextChoices):
+        DEPOSIT = "S", "Recibo de Seña"  # S-0001-000012
+        PAYMENT = "P", "Recibo de Pago Total"  # P-0001-000085
+        REFUND = "D", "Comprobante de Devolución"  # D-0001-000004
+        CANCELLATION = "C", "Comprobante de Cancelación"  # C-0001-000012
+        VOUCHER = "V", "Voucher de Crédito"
+        INTERNAL = "INT", "Comprobante Interno"
+    
+    hotel = models.ForeignKey(
+        Hotel, 
+        on_delete=models.CASCADE, 
+        related_name="receipt_sequences",
+        help_text="Hotel al que pertenece esta secuencia"
+    )
+    receipt_type = models.CharField(
+        max_length=10,
+        choices=ReceiptType.choices,
+        help_text="Tipo de comprobante"
+    )
+    series = models.PositiveIntegerField(
+        default=1,
+        help_text="Número de serie (0001-9999)"
+    )
+    current_number = models.PositiveIntegerField(
+        default=0,
+        help_text="Último número usado en esta serie"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Si esta secuencia está activa"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['hotel', 'receipt_type', 'series']
+        ordering = ['hotel', 'receipt_type', 'series']
+    
+    def __str__(self):
+        return f"{self.get_receipt_type_display()}-{self.series:04d} (Hotel: {self.hotel.name})"
+    
+    def get_next_number(self):
+        """Obtiene el siguiente número en la secuencia"""
+        self.current_number += 1
+        self.save(update_fields=['current_number', 'updated_at'])
+        return self.current_number
+    
+    def get_formatted_receipt_number(self):
+        """Retorna el número de comprobante formateado: PREFIJO-SERIE-NUMERO"""
+        return f"{self.receipt_type}-{self.series:04d}-{self.current_number:06d}"
+    
+    @classmethod
+    def get_or_create_sequence(cls, hotel, receipt_type, series=1):
+        """Obtiene o crea una secuencia para el hotel y tipo especificados"""
+        sequence, created = cls.objects.get_or_create(
+            hotel=hotel,
+            receipt_type=receipt_type,
+            series=series,
+            defaults={'current_number': 0}
+        )
+        return sequence
+    
+    @classmethod
+    def generate_receipt_number(cls, hotel, receipt_type, series=1):
+        """Genera un nuevo número de comprobante"""
+        sequence = cls.get_or_create_sequence(hotel, receipt_type, series)
+        sequence.get_next_number()
+        return sequence.get_formatted_receipt_number()
