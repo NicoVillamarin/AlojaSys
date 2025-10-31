@@ -29,6 +29,7 @@ import BankReconciliation from "src/pages/financial/BankReconciliation";
 import InvoicingManagement from "src/pages/invoicing/InvoicingManagement";
 import PaymentReceiptsManagement from "src/pages/invoicing/PaymentReceiptsManagement";
 import AfipConfig from "src/pages/invoicing/AfipConfig";
+import OtaConfig from "src/pages/configurations/OtaConfig";
 
 
 export const appRoutes = [
@@ -56,6 +57,7 @@ export const appRoutes = [
       { path: "settings/payments/policies", element: React.createElement(PaymentPolicies) },
       { path: "settings/policies/cancellation", element: React.createElement(CancellationPolicies) },
       { path: "settings/policies/devolution", element: React.createElement(DevolutionPolicies) },
+      { path: "settings/otas", element: React.createElement(OtaConfig) },
       { path: "refunds", element: React.createElement(RefundsManagement) },
       { path: "refunds/history", element: React.createElement(RefundsHistorical) },
       { path: "vouchers", element: React.createElement(VouchersManagement) },

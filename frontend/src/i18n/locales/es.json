@@ -45,7 +45,8 @@
     "bank_reconciliation": "Conciliación Bancaria",
     "invoicing": "Facturación",
     "invoicing_electronic": "Factura Electrónica",
-    "invoicing_receipts": "Comprobante de Pago"
+    "invoicing_receipts": "Comprobante de Pago",
+    "otas": "OTAs"
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",
@@ -112,7 +113,9 @@
     "min_value_1": "El valor mínimo es 1",
     "max_value_365": "El valor máximo es 365",
     "code_help": "Solo letras minúsculas y guiones bajos (ej: credit_card)",
-    "saving": "Guardando..."
+    "saving": "Guardando...",
+    "copy": "Copiar",
+    "copied": "Copiado"
   },
   "reservations": {
     "title": "Gestión de Reservas",
@@ -1563,6 +1566,160 @@
         "no_reconciliations": "No hay conciliaciones",
         "upload_csv_to_start": "Sube un archivo CSV para comenzar."
       }
+    }
+  },
+  "ota": {
+    "config": {
+      "title": "Configuración de OTAs",
+      "create_button": "Crear OTAs",
+      "edit_title": "Editar Configuración OTA",
+      "create_title": "Crear Configuración OTA",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Selecciona un hotel",
+      "provider": "Proveedor",
+      "label": "Etiqueta",
+      "label_placeholder": "Nombre visible (opcional)",
+      "ical_token": "Token iCal (salida)",
+      "ical_token_placeholder": "Ej: clave segura para acceso .ics",
+      "credentials": "Credenciales (JSON)",
+      "credentials_placeholder": "{\n  \"api_key\": \"...\"\n}",
+      "is_active": "Activo",
+      "booking_hotel_id": "Hotel ID (Booking)",
+      "booking_client_id": "Client ID (Booking)",
+      "booking_client_secret": "Client Secret (Booking)",
+      "booking_base_url": "Base URL (Booking)",
+      "booking_mode": "Modo",
+      "booking_mode_test": "Test",
+      "booking_mode_prod": "Producción",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Proveedor",
+        "label": "Etiqueta",
+        "active": "Activo",
+        "token": "Token"
+      }
+    }
+  },
+  "ota": {
+    "config": {
+      "title": "Configuración de OTAs",
+      "create_button": "Crear OTAs",
+      "edit_title": "Editar Configuración OTA",
+      "create_title": "Crear Configuración OTA",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Selecciona un hotel",
+      "provider": "Proveedor",
+      "label": "Etiqueta",
+      "label_placeholder": "Nombre visible (opcional)",
+      "ical_token": "Token iCal (salida)",
+      "ical_token_placeholder": "Ej: clave segura para acceso .ics",
+      "credentials": "Credenciales (JSON)",
+      "credentials_placeholder": "{\n  \"api_key\": \"...\"\n}",
+      "is_active": "Activo",
+      "booking_hotel_id": "Hotel ID (Booking)",
+      "booking_client_id": "Client ID (Booking)",
+      "booking_client_secret": "Client Secret (Booking)",
+      "booking_base_url": "Base URL (Booking)",
+      "booking_mode": "Modo",
+      "booking_mode_test": "Test",
+      "booking_mode_prod": "Producción",
+      "airbnb_account_id": "Account ID (Airbnb)",
+      "airbnb_client_id": "Client ID (Airbnb)",
+      "airbnb_client_secret": "Client Secret (Airbnb)",
+      "airbnb_base_url": "Base URL (Airbnb)",
+      "airbnb_mode": "Modo",
+      "copy_hotel_ical": "Copiar URL iCal del hotel",
+      "show_token": "Mostrar token",
+      "hide_token": "Ocultar token",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Proveedor",
+        "label": "Etiqueta",
+        "active": "Activo",
+        "token": "Token"
+      }
+    },
+    "mappings": {
+      "title": "Mapeos por Habitación",
+      "subtitle": "Conectá cada habitación con su feed ICS o ID externo",
+      "create_button": "Nuevo Mapeo",
+      "edit_title": "Editar Mapeo de Habitación",
+      "create_title": "Crear Mapeo de Habitación",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Selecciona un hotel",
+      "room": "Habitación",
+      "room_placeholder": "Selecciona una habitación",
+      "provider": "Proveedor",
+      "external_id": "ID Externo",
+      "external_id_placeholder": "ID en la OTA (opcional)",
+      "ical_in_url": "URL iCal de entrada",
+      "ical_in_url_placeholder": "https://.../calendar.ics",
+      "is_active": "Activo",
+      "import_now": "Importar ahora",
+      "copy_room_ical": "Copiar URL iCal de la habitación",
+      "table": {
+        "hotel": "Hotel",
+        "room": "Habitación",
+        "provider": "Proveedor",
+        "external_id": "ID Externo",
+        "ical_in_url": "URL iCal (entrada)",
+        "active": "Activo",
+        "last_import": "Última importación"
+      }
+    },
+    "room_types": {
+      "title": "Tipos de Habitación (Mapeos)",
+      "subtitle": "Relacioná tus tipos internos con códigos de la OTA",
+      "create_button": "Nuevo Mapeo Tipo",
+      "edit_title": "Editar Mapeo Tipo de Habitación",
+      "create_title": "Crear Mapeo Tipo de Habitación",
+      "hotel": "Hotel",
+      "provider": "Proveedor",
+      "room_type_code": "Código Tipo (PMS)",
+      "provider_code": "Código OTA",
+      "name": "Nombre (opcional)",
+      "is_active": "Activo",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Proveedor",
+        "room_type_code": "Código Tipo",
+        "provider_code": "Código OTA",
+        "name": "Nombre",
+        "active": "Activo"
+      }
+    },
+    "rate_plans": {
+      "title": "Planes de Tarifa (Mapeos)",
+      "subtitle": "Relacioná tus planes internos con IDs de la OTA",
+      "create_button": "Nuevo Mapeo Plan",
+      "edit_title": "Editar Mapeo Plan de Tarifa",
+      "create_title": "Crear Mapeo Plan de Tarifa",
+      "hotel": "Hotel",
+      "provider": "Proveedor",
+      "rate_plan_code": "Código Plan (PMS)",
+      "provider_code": "Código OTA",
+      "currency": "Moneda",
+      "is_active": "Activo",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Proveedor",
+        "rate_plan_code": "Código Plan",
+        "provider_code": "Código OTA",
+        "currency": "Moneda",
+        "active": "Activo"
+      }
+    },
+    "ari": {
+      "push_title": "Push ARI",
+      "push_now": "Enviar",
+      "hotel": "Hotel",
+      "provider": "Proveedor",
+      "date_from": "Desde",
+      "date_to": "Hasta"
+    },
+    "filters": {
+      "hotel": "Hotel",
+      "hotel_placeholder": "Filtrar por hotel"
     }
   }
 }

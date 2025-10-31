@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.calendar",
     "apps.notifications",
     "apps.invoicing",
+    "apps.otas",
 ]
 
 MIDDLEWARE = [
@@ -302,7 +303,17 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.invoicing.tasks.generate_daily_invoice_report_task",
         "schedule": crontab(hour=23, minute=0),  # Diario a las 11:00 PM
     },
+    # OTAs - Import ICS
+    "otas_import_ics_hourly": {
+        "task": "apps.otas.tasks.import_all_ics",
+        "schedule": crontab(minute=10),  # Cada hora al minuto 10
+    },
 }
+
+# Asegurar registro explícito de tareas de OTAs en Celery (además del autodiscover)
+CELERY_IMPORTS = (
+    "apps.otas.tasks",
+)
 
 CHANNEL_COMMISSION_RATES = {
     "direct": 0,

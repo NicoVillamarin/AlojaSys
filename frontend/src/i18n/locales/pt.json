@@ -43,7 +43,8 @@
     "bank_reconciliation": "Conciliamento Bancário",
     "invoicing": "Faturamento",
     "invoicing_electronic": "Faturamento Eletrônico",
-    "invoicing_receipts": "Comprovante de Pagamento"
+    "invoicing_receipts": "Comprovante de Pagamento",
+    "otas": "OTAs"
   },
   "vouchers_modal": {
     "create_voucher": "Criar Voucher",
@@ -502,6 +503,56 @@
       "to_confirm_revenue": "por confirmar",
       "per_room": "por quarto",
       "today": "hoje"
+    },
+    "room_types": {
+      "title": "Tipos de Quarto (Mapeamentos)",
+      "subtitle": "Mapeie seus tipos internos para códigos da OTA",
+      "create_button": "Novo Mapeamento de Tipo",
+      "edit_title": "Editar Mapeamento de Tipo de Quarto",
+      "create_title": "Criar Mapeamento de Tipo de Quarto",
+      "hotel": "Hotel",
+      "provider": "Provedor",
+      "room_type_code": "Código do Tipo (PMS)",
+      "provider_code": "Código OTA",
+      "name": "Nome (opcional)",
+      "is_active": "Ativo",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Provedor",
+        "room_type_code": "Código do Tipo",
+        "provider_code": "Código OTA",
+        "name": "Nome",
+        "active": "Ativo"
+      }
+    },
+    "rate_plans": {
+      "title": "Planos de Tarifa (Mapeamentos)",
+      "subtitle": "Mapeie seus planos internos para IDs da OTA",
+      "create_button": "Novo Mapeamento de Plano",
+      "edit_title": "Editar Mapeamento de Plano",
+      "create_title": "Criar Mapeamento de Plano",
+      "hotel": "Hotel",
+      "provider": "Provedor",
+      "rate_plan_code": "Código do Plano (PMS)",
+      "provider_code": "Código OTA",
+      "currency": "Moeda",
+      "is_active": "Ativo",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Provedor",
+        "rate_plan_code": "Código do Plano",
+        "provider_code": "Código OTA",
+        "currency": "Moeda",
+        "active": "Ativo"
+      }
+    },
+    "ari": {
+      "push_title": "Push ARI",
+      "push_now": "Enviar",
+      "hotel": "Hotel",
+      "provider": "Provedor",
+      "date_from": "De",
+      "date_to": "Até"
     },
     "charts": {
       "reservation_trend": "Tendência de Reservas",
@@ -1376,6 +1427,78 @@
         "customer_request": "Solicitação do Cliente",
         "system_error": "Erro do Sistema"
       }
+    }
+  },
+  "ota": {
+    "config": {
+      "title": "Configuração de OTAs",
+      "create_button": "Criar OTAs",
+      "edit_title": "Editar Configuração OTA",
+      "create_title": "Criar Configuração OTA",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Selecione um hotel",
+      "provider": "Provedor",
+      "label": "Rótulo",
+      "label_placeholder": "Nome de exibição (opcional)",
+      "ical_token": "Token iCal (saída)",
+      "ical_token_placeholder": "ex.: chave segura para acesso .ics",
+      "credentials": "Credenciais (JSON)",
+      "credentials_placeholder": "{\n  \"api_key\": \"...\"\n}",
+      "is_active": "Ativo",
+      "booking_hotel_id": "Hotel ID (Booking)",
+      "booking_client_id": "Client ID (Booking)",
+      "booking_client_secret": "Client Secret (Booking)",
+      "booking_base_url": "Base URL (Booking)",
+      "booking_mode": "Modo",
+      "booking_mode_test": "Teste",
+      "booking_mode_prod": "Produção",
+      "airbnb_account_id": "Account ID (Airbnb)",
+      "airbnb_client_id": "Client ID (Airbnb)",
+      "airbnb_client_secret": "Client Secret (Airbnb)",
+      "airbnb_base_url": "Base URL (Airbnb)",
+      "airbnb_mode": "Modo",
+      "copy_hotel_ical": "Copiar URL iCal do hotel",
+      "show_token": "Mostrar token",
+      "hide_token": "Ocultar token",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Provedor",
+        "label": "Rótulo",
+        "active": "Ativo",
+        "token": "Token"
+      }
+    },
+    "mappings": {
+      "title": "Mapeamentos por Quarto",
+      "subtitle": "Conecte cada quarto ao seu feed ICS ou ID externo",
+      "create_button": "Novo Mapeamento",
+      "edit_title": "Editar Mapeamento de Quarto",
+      "create_title": "Criar Mapeamento de Quarto",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Selecione um hotel",
+      "room": "Quarto",
+      "room_placeholder": "Selecione um quarto",
+      "provider": "Provedor",
+      "external_id": "ID Externo",
+      "external_id_placeholder": "ID na OTA (opcional)",
+      "ical_in_url": "URL iCal (entrada)",
+      "ical_in_url_placeholder": "https://.../calendar.ics",
+      "is_active": "Ativo",
+      "import_now": "Importar agora",
+      "copy_room_ical": "Copiar URL iCal do quarto",
+      "table": {
+        "hotel": "Hotel",
+        "room": "Quarto",
+        "provider": "Provedor",
+        "external_id": "ID Externo",
+        "ical_in_url": "URL iCal (entrada)",
+        "active": "Ativo",
+        "last_import": "Última importação"
+      }
+    },
+    "filters": {
+      "hotel": "Hotel",
+      "hotel_placeholder": "Filtrar por hotel"
     }
   }
 }

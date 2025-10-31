@@ -201,6 +201,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                 }`}
             >
               <Item to="/settings/enterprises" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.enterprises')}</Item>
+              <Item to="/settings/otas" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.otas')}</Item>
               <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
               <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
               <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>

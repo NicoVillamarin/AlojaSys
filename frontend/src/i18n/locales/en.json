@@ -44,7 +44,8 @@
     "bank_reconciliation": "Bank Reconciliation",
     "invoicing": "Invoicing",
     "invoicing_electronic": "Electronic Invoicing",
-    "invoicing_receipts": "Payment Receipts"
+    "invoicing_receipts": "Payment Receipts",
+    "otas": "OTAs"
   },
   "vouchers_modal": {
     "create_voucher": "Create Voucher",
@@ -540,6 +541,56 @@
       "to_confirm_revenue": "to confirm",
       "per_room": "per room",
       "today": "today"
+    },
+    "room_types": {
+      "title": "Room Types (Mappings)",
+      "subtitle": "Map your internal room types to OTA codes",
+      "create_button": "New Type Mapping",
+      "edit_title": "Edit Room Type Mapping",
+      "create_title": "Create Room Type Mapping",
+      "hotel": "Hotel",
+      "provider": "Provider",
+      "room_type_code": "Type Code (PMS)",
+      "provider_code": "OTA Code",
+      "name": "Name (optional)",
+      "is_active": "Active",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Provider",
+        "room_type_code": "Type Code",
+        "provider_code": "OTA Code",
+        "name": "Name",
+        "active": "Active"
+      }
+    },
+    "rate_plans": {
+      "title": "Rate Plans (Mappings)",
+      "subtitle": "Map your internal rate plans to OTA IDs",
+      "create_button": "New Plan Mapping",
+      "edit_title": "Edit Rate Plan Mapping",
+      "create_title": "Create Rate Plan Mapping",
+      "hotel": "Hotel",
+      "provider": "Provider",
+      "rate_plan_code": "Plan Code (PMS)",
+      "provider_code": "OTA Code",
+      "currency": "Currency",
+      "is_active": "Active",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Provider",
+        "rate_plan_code": "Plan Code",
+        "provider_code": "OTA Code",
+        "currency": "Currency",
+        "active": "Active"
+      }
+    },
+    "ari": {
+      "push_title": "Push ARI",
+      "push_now": "Send",
+      "hotel": "Hotel",
+      "provider": "Provider",
+      "date_from": "From",
+      "date_to": "To"
     },
     "charts": {
       "reservation_trend": "Reservation Trend",
@@ -1433,6 +1484,78 @@
         "customer_request": "Customer Request",
         "system_error": "System Error"
       }
+    }
+  },
+  "ota": {
+    "config": {
+      "title": "OTA Configuration",
+      "create_button": "Create OTA",
+      "edit_title": "Edit OTA Configuration",
+      "create_title": "Create OTA Configuration",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Select a hotel",
+      "provider": "Provider",
+      "label": "Label",
+      "label_placeholder": "Display name (optional)",
+      "ical_token": "iCal Token (output)",
+      "ical_token_placeholder": "e.g., secure key for .ics access",
+      "credentials": "Credentials (JSON)",
+      "credentials_placeholder": "{\n  \"api_key\": \"...\"\n}",
+      "is_active": "Active",
+      "booking_hotel_id": "Hotel ID (Booking)",
+      "booking_client_id": "Client ID (Booking)",
+      "booking_client_secret": "Client Secret (Booking)",
+      "booking_base_url": "Base URL (Booking)",
+      "booking_mode": "Mode",
+      "booking_mode_test": "Test",
+      "booking_mode_prod": "Production",
+      "airbnb_account_id": "Account ID (Airbnb)",
+      "airbnb_client_id": "Client ID (Airbnb)",
+      "airbnb_client_secret": "Client Secret (Airbnb)",
+      "airbnb_base_url": "Base URL (Airbnb)",
+      "airbnb_mode": "Mode",
+      "copy_hotel_ical": "Copy hotel iCal URL",
+      "show_token": "Show token",
+      "hide_token": "Hide token",
+      "table": {
+        "hotel": "Hotel",
+        "provider": "Provider",
+        "label": "Label",
+        "active": "Active",
+        "token": "Token"
+      }
+    },
+    "mappings": {
+      "title": "Room Mappings",
+      "subtitle": "Link each room with its ICS feed or external ID",
+      "create_button": "New Mapping",
+      "edit_title": "Edit Room Mapping",
+      "create_title": "Create Room Mapping",
+      "hotel": "Hotel",
+      "hotel_placeholder": "Select a hotel",
+      "room": "Room",
+      "room_placeholder": "Select a room",
+      "provider": "Provider",
+      "external_id": "External ID",
+      "external_id_placeholder": "ID on the OTA (optional)",
+      "ical_in_url": "iCal URL (input)",
+      "ical_in_url_placeholder": "https://.../calendar.ics",
+      "is_active": "Active",
+      "import_now": "Import now",
+      "copy_room_ical": "Copy room iCal URL",
+      "table": {
+        "hotel": "Hotel",
+        "room": "Room",
+        "provider": "Provider",
+        "external_id": "External ID",
+        "ical_in_url": "iCal URL (input)",
+        "active": "Active",
+        "last_import": "Last import"
+      }
+    },
+    "filters": {
+      "hotel": "Hotel",
+      "hotel_placeholder": "Filter by hotel"
     }
   }
 }
