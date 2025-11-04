@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Iterable, Dict, Any
 
 from django.db import transaction
@@ -42,6 +42,22 @@ class OtaAdapterBase:
     def push_ari(self, payload: Dict[str, Any]) -> AriPushResult:
         # En mock simplemente retorna éxito con conteo
         return AriPushResult(success=True, pushed=len(payload.get("items", [])), details={"mock": True})
+
+    # Pull de reservas (interfaz)
+    def pull_reservations(self, since: datetime) -> Dict[str, Any]:
+        # En mock, generamos 1 reserva sintética para demo
+        return {
+            "items": [
+                {
+                    "external_id": f"demo-{since.strftime('%H%M%S')}",
+                    "guest_name": "Demo Guest",
+                    "check_in": (since.date() + timedelta(days=2)).isoformat(),
+                    "check_out": (since.date() + timedelta(days=4)).isoformat(),
+                    "room_type": "DOUBLE",
+                    "rate_plan": "STANDARD",
+                }
+            ]
+        }
 
 
 class BookingAdapter(OtaAdapterBase):
@@ -101,6 +117,22 @@ class BookingAdapter(OtaAdapterBase):
         # Fallback
         return AriPushResult(success=True, pushed=len(payload.get("items", [])), details={"mock": True, "fallback": True})
 
+    def pull_reservations(self, since: datetime) -> Dict[str, Any]:
+        if self.is_mock or not self.is_available():
+            return super().pull_reservations(since)
+        base_url: str = (self.config.booking_base_url or "").rstrip("/")
+        path = "/get" if "httpbin.org" in base_url else "/reservations/changes"
+        url = f"{base_url}{path}"
+        params = {"since": since.isoformat()}
+        headers = {"X-Provider": "booking"}
+        try:
+            resp = requests.get(url, params=params, headers=headers, timeout=10)
+            if 200 <= resp.status_code < 300:
+                return {"items": []}  # echo sin formato real
+        except Exception:
+            pass
+        return super().pull_reservations(since)
+
 
 class AirbnbAdapter(OtaAdapterBase):
     provider = OtaProvider.AIRBNB
@@ -148,6 +180,22 @@ class AirbnbAdapter(OtaAdapterBase):
                 break
 
         return AriPushResult(success=True, pushed=len(payload.get("items", [])), details={"mock": True, "fallback": True})
+
+    def pull_reservations(self, since: datetime) -> Dict[str, Any]:
+        if self.is_mock or not self.is_available():
+            return super().pull_reservations(since)
+        base_url: str = (self.config.airbnb_base_url or "").rstrip("/")
+        path = "/get" if "httpbin.org" in base_url else "/reservations/changes"
+        url = f"{base_url}{path}"
+        params = {"since": since.isoformat()}
+        headers = {"X-Provider": "airbnb"}
+        try:
+            resp = requests.get(url, params=params, headers=headers, timeout=10)
+            if 200 <= resp.status_code < 300:
+                return {"items": []}
+        except Exception:
+            pass
+        return super().pull_reservations(since)
 
 
 def get_adapter(provider: str, hotel_id: int) -> OtaAdapterBase:
@@ -199,32 +247,102 @@ def build_mock_ari_payload(
 
 
 def push_ari_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, date_from: date, date_to: date) -> Dict[str, Any]:
-    adapter = get_adapter(provider, hotel_id)
-    payload = build_mock_ari_payload(hotel_id, provider, date_from, date_to)
+    from django.utils import timezone
+    import traceback
+    
+    try:
+        adapter = get_adapter(provider, hotel_id)
+        payload = build_mock_ari_payload(hotel_id, provider, date_from, date_to)
 
-    # Log de request
-    OtaSyncLog.objects.create(
-        job=job,
-        level=OtaSyncLog.Level.INFO,
-        message="PUSH_ARI_REQUEST",
-        payload={"provider": provider, "items": len(payload.get("items", []))},
-    )
+        # Log de request
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.INFO,
+            message="PUSH_ARI_REQUEST",
+            payload={"provider": provider, "items": len(payload.get("items", []))},
+        )
 
-    result = adapter.push_ari(payload)
+        result = adapter.push_ari(payload)
 
-    # Log de response
-    OtaSyncLog.objects.create(
-        job=job,
-        level=OtaSyncLog.Level.INFO,
-        message="PUSH_ARI_RESPONSE",
-        payload={"pushed": result.pushed, "errors": result.errors, **(result.details or {})},
-    )
+        # Log de response
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.INFO,
+            message="PUSH_ARI_RESPONSE",
+            payload={"pushed": result.pushed, "errors": result.errors, **(result.details or {})},
+        )
 
-    job.stats = {
-        **(job.stats or {}),
-        "pushed": result.pushed,
-        "errors": result.errors,
-    }
-    return job.stats
+        job.stats = {
+            **(job.stats or {}),
+            "pushed": result.pushed,
+            "errors": result.errors,
+        }
+        return job.stats
+    except Exception as e:
+        # Registrar error en log con detalles completos
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.ERROR,
+            message="PUSH_ARI_SERVICE_ERROR",
+            payload={
+                "hotel_id": hotel_id,
+                "provider": provider,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc(),
+                "timestamp": timezone.now().isoformat(),
+            },
+        )
+        raise  # Re-lanzar para que el task lo maneje
+
+
+def pull_reservations_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, since: datetime) -> Dict[str, Any]:
+    from django.utils import timezone
+    import traceback
+    
+    try:
+        adapter = get_adapter(provider, hotel_id)
+
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.INFO,
+            message="PULL_RES_REQUEST",
+            payload={"provider": provider, "since": since.isoformat()},
+        )
+
+        data = adapter.pull_reservations(since)
+        items = data.get("items", [])
+
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.INFO,
+            message="PULL_RES_RESPONSE",
+            payload={"count": len(items)},
+        )
+
+        job.stats = {
+            **(job.stats or {}),
+            "fetched": len(items),
+            "created": 0,
+            "updated": 0,
+            "skipped": len(items),  # por ahora no aplicamos cambios
+        }
+        return job.stats
+    except Exception as e:
+        # Registrar error en log con detalles completos
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.ERROR,
+            message="PULL_RES_SERVICE_ERROR",
+            payload={
+                "hotel_id": hotel_id,
+                "provider": provider,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc(),
+                "timestamp": timezone.now().isoformat(),
+            },
+        )
+        raise  # Re-lanzar para que el task lo maneje
 
 

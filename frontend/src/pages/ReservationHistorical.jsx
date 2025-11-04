@@ -212,6 +212,67 @@ export default function ReservationHistorical() {
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
           { key: 'room_name', header: t('dashboard.reservations_management.table_headers.room'), sortable: true },
           {
+            key: 'channel',
+            header: t('dashboard.reservations_management.table_headers.channel'),
+            sortable: true,
+            render: (r) => {
+              const isOta = r.is_ota || r.external_id
+              const channel = r.channel_display || r.channel || 'Directo'
+              const channelValue = r.channel || 'direct'
+              
+              // Colores según el canal
+              const getChannelBadge = () => {
+                if (!isOta) {
+                  return (
+                    <Badge variant="directo" size="sm">
+                      Directo
+                    </Badge>
+                  )
+                }
+                
+                // Badge según el tipo de canal OTA
+                switch (channelValue) {
+                  case 'booking':
+                    return (
+                      <Badge variant="booking" size="sm">
+                        Booking
+                      </Badge>
+                    )
+                  case 'airbnb':
+                    return (
+                      <Badge variant="airbnb" size="sm">
+                        Airbnb
+                      </Badge>
+                    )
+                  case 'expedia':
+                    return (
+                      <Badge variant="airbnb" size="sm">
+                        Expedia
+                      </Badge>
+                    )
+                  case 'other':
+                    return (
+                      <Badge variant="warning" size="sm">
+                        {channel}
+                      </Badge>
+                    )
+                  default:
+                    return (
+                      <Badge variant="warning" size="sm">
+                        {channel}
+                      </Badge>
+                    )
+                }
+              }
+              
+              return (
+                <div className="flex items-center gap-1">
+                  {getChannelBadge()}
+                </div>
+              )
+            }
+          },
+          {
             key: 'check_in',
             header: t('dashboard.reservations_management.table_headers.check_in'),
             sortable: true,

@@ -161,16 +161,24 @@ export default function OtaConfig() {
                   { key: 'is_active', header: t('ota.config.table.active'), sortable: true, render: (c) => (c.is_active ? '✓' : '—') },
                   {
                     key: 'ical_out_token', header: t('ota.config.table.token'), sortable: false, render: (c) => {
-                      const isOn = !!revealed[c.id]
-                      const token = String(c.ical_out_token || '')
-                      const masked = token ? `${token.slice(0, 3)}••••${token.slice(-3)}` : '—'
+                      const token_masked = String(c.ical_out_token_masked || c.ical_out_token || '')
                       return (
                         <div className="flex items-center gap-2">
-                          <span>{isOn ? token : masked}</span>
-                          <button onClick={() => setRevealed((r) => ({ ...r, [c.id]: !isOn }))} aria-label={isOn ? t('ota.config.hide_token') : t('ota.config.show_token')}>
-                            {isOn ? <EyeSlashIcon size="18" /> : <EyeIcon size="18" />}
-                          </button>
+                          <span className="font-mono text-sm">{token_masked || '—'}</span>
                         </div>
+                      )
+                    }
+                  },
+                  {
+                    key: 'verified', header: t('ota.config.table.verified'), sortable: false, render: (c) => {
+                      return c.verified ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {t('common.verified')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                          {t('common.not_verified')}
+                        </span>
                       )
                     }
                   },
@@ -182,18 +190,18 @@ export default function OtaConfig() {
                     render: (c) => (
                       <div className="flex justify-end items-center gap-x-2">
                         <EditIcon size="18" onClick={() => setEditItem(c)} className="cursor-pointer" />
-                        <Tooltip content={t('ota.config.copy_hotel_ical')}>
-                          <CopyIcon
-                            size="18"
-                            className="cursor-pointer"
-                            onClick={() => {
-                              const base = getApiURL()
-                              const url = `${base}/api/otas/ical/hotel/${c.hotel}.ics?token=${c.ical_out_token}`
-                              navigator.clipboard.writeText(url)
-                              showSuccess(t('common.copied'))
-                            }}
-                          />
-                        </Tooltip>
+                        {c.ical_hotel_url && (
+                          <Tooltip content={t('ota.config.copy_hotel_ical')}>
+                            <CopyIcon
+                              size="18"
+                              className="cursor-pointer"
+                              onClick={() => {
+                                navigator.clipboard.writeText(c.ical_hotel_url)
+                                showSuccess(t('common.copied'))
+                              }}
+                            />
+                          </Tooltip>
+                        )}
                         <DeleteButton resource="otas/configs" id={c.id} onDeleted={refetch} className="cursor-pointer" />
                       </div>
                     ),
@@ -240,7 +248,18 @@ export default function OtaConfig() {
                     { key: 'provider', header: t('ota.mappings.table.provider'), sortable: true },
                     { key: 'external_id', header: t('ota.mappings.table.external_id'), sortable: true },
                     { key: 'ical_in_url', header: t('ota.mappings.table.ical_in_url'), sortable: false },
+                    { key: 'sync_direction', header: t('ota.mappings.table.sync_direction'), sortable: true, render: (m) => {
+                        const dir = m.sync_direction || 'both'
+                        if (dir === 'both') return t('ota.mappings.sync_direction_both')
+                        if (dir === 'import') return t('ota.mappings.sync_direction_import')
+                        return t('ota.mappings.sync_direction_export')
+                    }},
                     { key: 'is_active', header: t('ota.mappings.table.active'), sortable: true, render: (m) => (m.is_active ? '✓' : '—') },
+                    { key: 'last_synced', header: t('ota.mappings.table.last_synced'), sortable: true, render: (m) => {
+                        if (!m.last_synced) return '—'
+                        const d = new Date(m.last_synced)
+                        return d.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+                    }},
                     {
                         key: 'last_import', header: t('ota.mappings.table.last_import'), sortable: false, render: (m) => {
                             const job = getLastJobForMapping(m.id)
@@ -277,10 +296,18 @@ export default function OtaConfig() {
                                     <CopyIcon
                                         onClick={() => {
                                             const cfg = (results || []).find(c => c.hotel === m.hotel && c.provider === 'ical' && c.is_active)
-                                            if (!cfg?.ical_out_token) return
-                                            const base = getApiURL()
-                                            const url = `${base}/api/otas/ical/room/${m.room}.ics?token=${cfg.ical_out_token}`
-                                            navigator.clipboard.writeText(url)
+                                            // Usar ical_hotel_url si está disponible, o construir manualmente
+                                            if (cfg?.ical_hotel_url) {
+                                              // Reemplazar hotel con room en la URL
+                                              const roomUrl = cfg.ical_hotel_url.replace(`/hotel/${cfg.hotel}.ics`, `/room/${m.room}.ics`)
+                                              navigator.clipboard.writeText(roomUrl)
+                                            } else {
+                                              // Fallback: construir manualmente (requiere token real)
+                                              const base = getApiURL()
+                                              // Nota: esto requiere que el token esté disponible
+                                              // En producción, siempre usar ical_hotel_url
+                                              return
+                                            }
                                             showSuccess(t('common.copied'))
                                         }}
                                         size="18"

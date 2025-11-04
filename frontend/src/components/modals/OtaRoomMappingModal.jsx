@@ -26,6 +26,7 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
     provider: mapping?.provider ?? 'ical',
     external_id: mapping?.external_id ?? '',
     ical_in_url: mapping?.ical_in_url ?? '',
+    sync_direction: mapping?.sync_direction ?? 'both',
     is_active: mapping?.is_active ?? true,
   }
 
@@ -48,6 +49,7 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
           provider: values.provider || undefined,
           external_id: values.external_id || undefined,
           ical_in_url: values.ical_in_url || undefined,
+          sync_direction: values.sync_direction || 'both',
           is_active: !!values.is_active,
         }
         if (isEdit && mapping?.id) updateItem({ id: mapping.id, body: payload })
@@ -107,6 +109,19 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
             <InputText title={t('ota.mappings.external_id')} name="external_id" placeholder={t('ota.mappings.external_id_placeholder')} />
             <div className="lg:col-span-2">
               <InputText title={t('ota.mappings.ical_in_url')} name="ical_in_url" placeholder={t('ota.mappings.ical_in_url_placeholder')} />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-aloja-navy mb-1">{t('ota.mappings.sync_direction')}</label>
+              <select
+                className="border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm w-full"
+                value={values.sync_direction}
+                onChange={(e) => setFieldValue('sync_direction', e.target.value)}
+              >
+                <option value="both">{t('ota.mappings.sync_direction_both')}</option>
+                <option value="import">{t('ota.mappings.sync_direction_import')}</option>
+                <option value="export">{t('ota.mappings.sync_direction_export')}</option>
+              </select>
             </div>
 
             <div className="lg:col-span-2">

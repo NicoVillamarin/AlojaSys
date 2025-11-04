@@ -9,8 +9,11 @@ export default function TableGeneric({
   emptyMessage = "Sin datos",
   className = "",
   getRowId,
+  defaultSort = null,
 }) {
-  const [sortState, setSortState] = useState({ key: null, direction: null });
+  const [sortState, setSortState] = useState(
+    defaultSort ? { key: defaultSort.key, direction: defaultSort.direction } : { key: null, direction: null }
+  );
   const rowRefs = useRef(new Map());
   const prevPositionsRef = useRef(new Map());
 
@@ -194,6 +197,10 @@ TableGeneric.propTypes = {
   emptyMessage: PropTypes.string,
   className: PropTypes.string,
   getRowId: PropTypes.func,
+  defaultSort: PropTypes.shape({
+    key: PropTypes.string.isRequired,
+    direction: PropTypes.oneOf(['asc', 'desc']).isRequired,
+  }),
 };
 
 

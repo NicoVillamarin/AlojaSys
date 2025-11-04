@@ -15,6 +15,18 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
 
 
   // Solo obtener el resumen del dashboard con auto-refresh
+  // Si hay startDate y endDate, usar rango de fechas; si no, usar date única
+  const summaryParams = {
+    ...(hotelId && { hotel_id: hotelId })
+  }
+  
+  if (startDate && endDate) {
+    summaryParams.start_date = startDate
+    summaryParams.end_date = endDate
+  } else {
+    summaryParams.date = (date || new Date().toISOString().split('T')[0])
+  }
+  
   const { 
     results: summary, 
     isPending: summaryLoading, 
@@ -22,10 +34,7 @@ export const useDashboardMetrics = (hotelId = null, date = null, startDate = nul
   } = useAction({
     resource: 'dashboard',
     action: 'summary',
-    params: { 
-      ...(hotelId && { hotel_id: hotelId }),
-      date: (date || new Date().toISOString().split('T')[0])
-    },
+    params: summaryParams,
     enabled: true,
     refetchInterval: 30000, // Auto-refresh cada 30 segundos
     refetchIntervalInBackground: true, // Continuar refrescando aunque la pestaña no esté activa

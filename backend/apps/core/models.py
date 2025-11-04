@@ -19,6 +19,7 @@ class Hotel(models.Model):
     check_in_time = models.TimeField(default=time(15, 0))
     check_out_time = models.TimeField(default=time(11, 0))
     auto_check_in_enabled = models.BooleanField(default=False)
+    auto_check_out_enabled = models.BooleanField(default=True, help_text="Habilita el check-out automático de reservas")
     auto_no_show_enabled = models.BooleanField(default=False, help_text="Habilita el marcado automático de reservas como no-show")
     logo = models.ImageField(
         upload_to='hotels/logos/%Y/%m/%d/',
@@ -33,6 +34,11 @@ class Hotel(models.Model):
     class Meta:
         verbose_name = "Hotel"
         verbose_name_plural = "Hoteles"
+        permissions = [
+            # Django crea automáticamente: add_hotel, change_hotel, delete_hotel, view_hotel
+            # Puedes agregar permisos personalizados aquí si necesitas:
+            # ("manage_hotel", "Puede gestionar configuración del hotel"),
+        ]
 
     def __str__(self) -> str:
         return self.name

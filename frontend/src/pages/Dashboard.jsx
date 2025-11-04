@@ -29,6 +29,7 @@ import GlobalIcon from 'src/assets/icons/GlobalIcon'
 import { format, parseISO } from 'date-fns'
 import { getStatusLabel } from './utils'
 import { useUserHotels } from 'src/hooks/useUserHotels'
+import Tooltip from 'src/components/Tooltip'
 
 const Dashboard = () => {
   const { t } = useTranslation()
@@ -38,6 +39,11 @@ const Dashboard = () => {
   const [selectedHotel, setSelectedHotel] = useState(hasSingleHotel ? singleHotelId : null) // null = todos los hoteles
   const [activeTab, setActiveTab] = useState(hasSingleHotel ? singleHotelId?.toString() : 'global') // global o hotel_id
   const [revenueMetric, setRevenueMetric] = useState('gross') // 'gross' | 'net'
+  // Modo de vista: simple/avanzado (persistido)
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('dashboard_view_mode') || 'simple' } catch { return 'simple' }
+  })
+  const showAdvanced = viewMode === 'advanced'
   // Usar el hook de período personalizado
   const {
     selectedPeriod,
@@ -218,6 +224,9 @@ const Dashboard = () => {
   })
 
   // Hook del dashboard con métricas detalladas (funciona para global y hotel específico)
+  // Siempre usar rango de fechas cuando está disponible (incluyendo períodos predefinidos)
+  // Los períodos como "current-month", "last-month", "7-days", etc. tienen dateRange.start y dateRange.end
+  const hasDateRange = dateRange.start && dateRange.end
   const {
     metrics: dashboardMetrics,
     isLoading: dashboardLoading,
@@ -225,10 +234,44 @@ const Dashboard = () => {
     refreshMetrics: refreshDashboardMetrics
   } = useDashboardMetrics(
     selectedHotel,
-    dateRange.end,            // date para summary
-    dateRange.start,          // start_date para trends/revenue
-    dateRange.end             // end_date para trends/revenue
+    hasDateRange ? null : dateRange.end,  // date solo si no hay rango (fecha única - caso raro)
+    hasDateRange ? dateRange.start : null, // start_date cuando hay rango
+    hasDateRange ? dateRange.end : null   // end_date cuando hay rango
   )
+  
+  // Obtener reservas específicas para gráficos:
+  // - Para ingresos: filtradas por check_in dentro del rango
+  // - Para tendencias: el gráfico filtra por created_at en el frontend
+  const { results: chartReservations, isPending: chartReservationsLoading } = useList({
+    resource: 'reservations',
+    params: {
+      ...(activeTab !== 'global' && selectedHotel ? { hotel: selectedHotel } : {}),
+      // Para ingresos, necesitamos reservas con check_in dentro del rango
+      ...(hasDateRange ? {
+        check_in__gte: dateRange.start,
+        check_in__lte: dateRange.end
+      } : {}),
+      page_size: 1000
+    },
+    enabled: true
+  })
+  
+  // Obtener reservas para el gráfico de tendencias (filtradas por created_at dentro del rango)
+  // Usamos un rango más amplio y filtramos en el frontend porque created_at puede tener hora
+  const { results: trendsReservations, isPending: trendsReservationsLoading } = useList({
+    resource: 'reservations',
+    params: {
+      ...(activeTab !== 'global' && selectedHotel ? { hotel: selectedHotel } : {}),
+      // Para tendencias, obtener reservas con created_at en un rango amplio
+      // El gráfico filtrará por fecha exacta en el frontend
+      ...(hasDateRange ? {
+        created_at__gte: `${dateRange.start}T00:00:00`,
+        created_at__lte: `${dateRange.end}T23:59:59`
+      } : {}),
+      page_size: 1000
+    },
+    enabled: true
+  })
 
   // Auto-refresh de datos críticos cada 30 segundos (sin isLoading por ahora)
   useEffect(() => {
@@ -242,11 +285,17 @@ const Dashboard = () => {
     return () => clearInterval(interval)
   }, [dashboardMetrics, globalSummary, hotelSummary, refreshDashboardMetrics])
 
+  // Persistir modo de vista
+  useEffect(() => {
+    try { localStorage.setItem('dashboard_view_mode', viewMode) } catch {}
+  }, [viewMode])
+
   // Datos actuales según el tab activo
-  // Usar futureReservations para el gráfico de tendencias ya que contiene todas las reservas
-  const reservations = activeTab === 'global' ? futureReservations : filteredFutureReservations
+  // Para gráficos, usar chartReservations que están filtradas por el período correcto
+  // Para otras cosas (tablas, etc.), usar futureReservations sin filtro de fecha
+  const reservations = chartReservations || (activeTab === 'global' ? futureReservations : filteredFutureReservations)
   const rooms = activeTab === 'global' ? globalRooms : filteredRooms
-  const reservationsLoading = activeTab === 'global' ? futureReservationsLoading : filteredFutureReservationsLoading
+  const reservationsLoading = chartReservationsLoading || (activeTab === 'global' ? futureReservationsLoading : filteredFutureReservationsLoading)
   const roomsLoading = activeTab === 'global' ? globalRoomsLoading : filteredRoomsLoading
 
   // Función para calcular habitaciones ocupadas desde las reservas
@@ -608,8 +657,8 @@ const Dashboard = () => {
         subtitle: t('dashboard.kpis.to_confirm_revenue'),
         showProgress: false
       },
-      // KPIs adicionales del dashboard (solo si están disponibles)
-      ...(metrics.averageRoomRate ? [{
+      // KPIs adicionales del dashboard (solo si están disponibles y en modo avanzado)
+      ...(showAdvanced && metrics.averageRoomRate ? [{
         title: t('dashboard.kpis.average_rate'),
         value: `$${metrics.averageRoomRate?.toLocaleString() || '0'}`,
         icon: CurrencyDollarIcon,
@@ -629,6 +678,142 @@ const Dashboard = () => {
         subtitle: t('dashboard.kpis.today'),
         showProgress: false
       }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.revpar !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.revpar')}
+            <Tooltip content={t('dashboard.kpis_help.revpar')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: `$${parseFloat(dashboardMetrics.summary.revpar || 0).toLocaleString()}`,
+        icon: CurrencyDollarIcon,
+        color: "from-purple-500 to-purple-600",
+        bgColor: "bg-purple-50",
+        iconColor: "text-purple-600",
+        subtitle: t('dashboard.kpis.per_available_room'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.avg_length_of_stay_days !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.avg_los')}
+            <Tooltip content={t('dashboard.kpis_help.avg_los')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: `${parseFloat(dashboardMetrics.summary.avg_length_of_stay_days || 0).toFixed(2)} ${t('dashboard.kpis.days')}`,
+        icon: BedAvailableIcon,
+        color: "from-teal-500 to-teal-600",
+        bgColor: "bg-teal-50",
+        iconColor: "text-teal-600",
+        subtitle: t('dashboard.kpis.in_house'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.lead_time_avg_days !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.lead_time_avg')}
+            <Tooltip content={t('dashboard.kpis_help.lead_time_avg')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: `${parseFloat(dashboardMetrics.summary.lead_time_avg_days || 0).toFixed(2)} ${t('dashboard.kpis.days')}`,
+        icon: ChartBarIcon,
+        color: "from-sky-500 to-sky-600",
+        bgColor: "bg-sky-50",
+        iconColor: "text-sky-600",
+        subtitle: t('dashboard.kpis.for_today_arrivals'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.pickup_today !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.pickup_today')}
+            <Tooltip content={t('dashboard.kpis_help.pickup')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: dashboardMetrics.summary.pickup_today,
+        icon: CheckCircleIcon,
+        color: "from-emerald-500 to-emerald-600",
+        bgColor: "bg-emerald-50",
+        iconColor: "text-emerald-600",
+        subtitle: t('dashboard.kpis.new_bookings'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.pickup_7d !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.pickup_7d')}
+            <Tooltip content={t('dashboard.kpis_help.pickup_7d')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: dashboardMetrics.summary.pickup_7d,
+        icon: CheckCircleIcon,
+        color: "from-amber-500 to-amber-600",
+        bgColor: "bg-amber-50",
+        iconColor: "text-amber-600",
+        subtitle: t('dashboard.kpis.new_bookings_last_7d'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.otb_next_30d_nights !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.otb_30d_nights')}
+            <Tooltip content={t('dashboard.kpis_help.otb_30d')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: dashboardMetrics.summary.otb_next_30d_nights,
+        icon: BedAvailableIcon,
+        color: "from-indigo-500 to-indigo-600",
+        bgColor: "bg-indigo-50",
+        iconColor: "text-indigo-600",
+        subtitle: t('dashboard.kpis.room_nights'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.otb_next_30d_revenue !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.otb_30d_revenue')}
+            <Tooltip content={t('dashboard.kpis_help.otb_30d_revenue')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: `$${parseFloat(dashboardMetrics.summary.otb_next_30d_revenue || 0).toLocaleString()}`,
+        icon: CurrencyDollarIcon,
+        color: "from-emerald-500 to-emerald-600",
+        bgColor: "bg-emerald-50",
+        iconColor: "text-emerald-600",
+        subtitle: t('dashboard.kpis.next_30_days'),
+        showProgress: false
+      }] : []),
+      ...(showAdvanced && dashboardMetrics?.summary?.cancellation_rate_30d !== undefined ? [{
+        title: (
+          <>
+            {t('dashboard.kpis.cancellation_rate_30d')}
+            <Tooltip content={t('dashboard.kpis_help.cancellation_rate_30d')}>
+              <span className="ml-1 cursor-help">ℹ️</span>
+            </Tooltip>
+          </>
+        ),
+        value: `${parseFloat(dashboardMetrics.summary.cancellation_rate_30d || 0).toFixed(2)}%`,
+        icon: WrenchScrewdriverIcon,
+        color: "from-rose-500 to-rose-600",
+        bgColor: "bg-rose-50",
+        iconColor: "text-rose-600",
+        subtitle: t('dashboard.kpis.last_30_days'),
+        showProgress: false
+      }] : [])
     ]
   }
 
@@ -655,9 +840,9 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-white">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-200 px-6 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-gray-600 mt-1 text-xl font-bold">
@@ -673,48 +858,86 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* Selector de Período */}
-          <div className="flex gap-2">
-            <PeriodSelector
-              selectedPeriod={selectedPeriod}
-              onPeriodChange={handlePeriodChange}
-              className="flex-shrink-0"
-            />
-
-            {/* Botón para refrescar métricas del dashboard */}
-            <div className="flex items-center gap-2">
+          {/* Controles del Dashboard - Agrupados y organizados */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Grupo 1: Período y Actualización */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              <PeriodSelector
+                selectedPeriod={selectedPeriod}
+                onPeriodChange={handlePeriodChange}
+                className="flex-shrink-0"
+              />
+              <div className="h-4 w-px bg-gray-300"></div>
               <button
                 onClick={refreshDashboardMetrics}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                className="px-3 py-1.5 bg-white text-gray-700 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium border border-gray-300 transition-colors flex items-center gap-1.5"
                 title={t('dashboard.error_loading_metrics')}
               >
-                🔄 {t('dashboard.update_now')}
+                <span className="text-base">🔄</span>
+                <span>{t('dashboard.update_now')}</span>
               </button>
-              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                {t('dashboard.auto_update')}
-              </div>
               {isLoading && (
-                <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">
-                  ⏳ {t('dashboard.updating')}
-                </div>
+                <>
+                  <div className="h-4 w-px bg-gray-300"></div>
+                  <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                    <span className="animate-spin">⏳</span>
+                    <span>{t('dashboard.updating')}</span>
+                  </div>
+                </>
               )}
             </div>
 
+            {/* Grupo 2: Modo de vista */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              <span className="text-xs font-medium text-gray-600">{t('dashboard.view_mode')}:</span>
+              <div className="inline-flex rounded-md shadow-sm" role="group">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('simple')}
+                  className={`px-3 py-1 text-xs font-medium border transition-all ${
+                    viewMode === 'simple'
+                      ? 'bg-white text-gray-900 border-gray-300 shadow-sm'
+                      : 'bg-transparent text-gray-600 border-transparent hover:text-gray-900'
+                  } rounded-l-md`}
+                >
+                  {t('dashboard.simple_mode')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('advanced')}
+                  className={`px-3 py-1 text-xs font-medium border border-l-0 transition-all ${
+                    viewMode === 'advanced'
+                      ? 'bg-white text-gray-900 border-gray-300 shadow-sm'
+                      : 'bg-transparent text-gray-600 border-transparent hover:text-gray-900'
+                  } rounded-r-md`}
+                >
+                  {t('dashboard.advanced_mode')}
+                </button>
+              </div>
+            </div>
+
+            {/* Badge de auto-update (solo cuando no está cargando) */}
+            {!isLoading && (
+              <div className="text-xs text-blue-700 bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 font-medium">
+                {t('dashboard.auto_update')}
+              </div>
+            )}
+
             {/* Inputs de fecha personalizada (solo cuando se selecciona "Personalizado") */}
             {selectedPeriod === 'custom' && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => handleCustomDateChange(e.target.value, customEndDate)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
                   placeholder="Desde"
                 />
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => handleCustomDateChange(customStartDate, e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
                   placeholder="Hasta"
                 />
               </div>
@@ -758,19 +981,19 @@ const Dashboard = () => {
         {/* Gráficos */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Gráfico de línea de tiempo de reservas */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
             <ReservationsTimelineChart
               key={`timeline-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
-              reservations={reservations}
+              reservations={trendsReservations || reservations}
               dateRange={dateRange}
-              isLoading={isLoading}
+              isLoading={trendsReservationsLoading || dashboardLoading}
               selectedPeriod={selectedPeriod}
               trends={dashboardMetrics?.trends}
             />
           </div>
 
           {/* Gráfico de ocupación por tipo de habitación */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
             <RoomTypeOccupancyChart
               rooms={rooms}
               dateRange={dateRange}
@@ -781,7 +1004,7 @@ const Dashboard = () => {
 
         {/* Gráfico de reservas futuras */}
         {futureReservationsData && futureReservationsData.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
             <FutureReservationsChart
               key={`future-${selectedPeriod}-${dateRange.start}-${dateRange.end}`}
               futureReservations={futureReservationsData}
@@ -793,21 +1016,23 @@ const Dashboard = () => {
         )}
 
         {/* Gráfico de ingresos */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-700">{t('dashboard.revenue')}</h2>
-            <div className="inline-flex rounded-md shadow-sm" role="group">
+            <h2 className="flex items-center gap-2 text-xl font-semibold text-gray-700">
+              <CurrencyDollarIcon className="w-5 h-5 text-emerald-600" /> {t('dashboard.revenue')}
+            </h2>
+            <div className="inline-flex rounded-lg bg-gray-100 p-0.5" role="group">
               <button
                 type="button"
                 onClick={() => setRevenueMetric('gross')}
-                className={`px-3 py-1.5 text-sm font-medium border border-gray-200 ${revenueMetric === 'gross' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-l-md`}
+                className={`px-3 py-1 text-sm font-medium rounded-l-md transition-colors ${revenueMetric === 'gross' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}
               >
                 {t('dashboard.gross')}
               </button>
               <button
                 type="button"
                 onClick={() => setRevenueMetric('net')}
-                className={`px-3 py-1.5 text-sm font-medium border border-gray-200 border-l-0 ${revenueMetric === 'net' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700'} rounded-r-md`}
+                className={`px-3 py-1 text-sm font-medium rounded-r-md transition-colors ${revenueMetric === 'net' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}
               >
                 {t('dashboard.net')}
               </button>
@@ -815,9 +1040,9 @@ const Dashboard = () => {
           </div>
           <RevenueChart
             key={`revenue-${selectedPeriod}-${dateRange.start}-${dateRange.end}-${revenueMetric}`}
-            reservations={reservations}
+            reservations={chartReservations || reservations}
             dateRange={dateRange}
-            isLoading={isLoading}
+            isLoading={chartReservationsLoading || dashboardLoading}
             selectedPeriod={selectedPeriod}
             revenueAnalysis={dashboardMetrics?.revenueAnalysis}
             metric={revenueMetric}
@@ -827,7 +1052,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Tabla de reservas actuales (check-in) */}
           {((activeTab !== 'global' && selectedHotel && hotelSummary?.current_reservations) || (activeTab === 'global' && globalSummary?.current_reservations)) && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">
                 {activeTab === 'global' ? t('dashboard.current_checkins') : t('dashboard.hotel_checkins')}
               </h2>
@@ -890,7 +1115,7 @@ const Dashboard = () => {
 
           {/* Tabla de reservas confirmadas futuras */}
           {futureReservationsData && futureReservationsData.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">
                 {activeTab === 'global' ? t('dashboard.future_reservations_global') : t('dashboard.future_reservations_hotel')}
               </h2>

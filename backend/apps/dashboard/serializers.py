@@ -68,6 +68,15 @@ class DashboardSummarySerializer(serializers.Serializer):
     # Resumen financiero
     total_revenue = serializers.DecimalField(max_digits=10, decimal_places=2)
     average_room_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+    # KPIs adicionales
+    revpar = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    avg_length_of_stay_days = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    lead_time_avg_days = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    pickup_today = serializers.IntegerField(required=False)
+    pickup_7d = serializers.IntegerField(required=False)
+    otb_next_30d_nights = serializers.IntegerField(required=False)
+    otb_next_30d_revenue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    cancellation_rate_30d = serializers.DecimalField(max_digits=5, decimal_places=2, required=False)
     # Extensiones de pricing
     revenue_night = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     nights_sold = serializers.IntegerField(required=False)
@@ -81,6 +90,7 @@ class DashboardTrendsSerializer(serializers.Serializer):
     occupancy_rate = serializers.DecimalField(max_digits=5, decimal_places=2)
     total_revenue = serializers.DecimalField(max_digits=10, decimal_places=2)
     average_room_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+    revpar = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     total_guests = serializers.IntegerField()
     check_in_today = serializers.IntegerField()
     check_out_today = serializers.IntegerField()

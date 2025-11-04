@@ -26,6 +26,7 @@ class ReservationChannel(models.TextChoices):
     DIRECT = "direct", "Directo"
     BOOKING = "booking", "Booking"
     EXPEDIA = "expedia", "Expedia"
+    AIRBNB = "airbnb", "Airbnb"
     OTHER = "other", "Otro"
 
 class Reservation(models.Model):
@@ -34,6 +35,7 @@ class Reservation(models.Model):
     guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
     guests_data = models.JSONField(default=list, help_text="Información de todos los huéspedes")
     channel = models.CharField(max_length=20, choices=ReservationChannel.choices, default=ReservationChannel.DIRECT)
+    external_id = models.CharField(max_length=255, blank=True, null=True, help_text="ID externo de la reserva (ej: UID de iCal, ID de OTA)")
     promotion_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de promoción aplicado")
     voucher_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de voucher aplicado")
     check_in = models.DateField()
@@ -57,6 +59,14 @@ class Reservation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
+        # Normalización de canal/origen
+        # - Si no hay external_id, forzar canal DIRECT (reservas internas)
+        # - Si hay external_id, no permitir canal DIRECT (debe ser una reserva de OTA)
+        if not self.external_id and self.channel != ReservationChannel.DIRECT:
+            self.channel = ReservationChannel.DIRECT
+        if self.external_id and self.channel == ReservationChannel.DIRECT:
+            raise ValidationError({"channel": "Reservas con external_id deben tener canal distinto de DIRECT."})
+
         if self.check_in >= self.check_out:
             raise ValidationError("check_in debe ser anterior a check_out.")
 
@@ -70,22 +80,26 @@ class Reservation(models.Model):
             if self.guests < 1:
                 raise ValidationError("Debe haber al menos 1 huésped.")
 
-        active_status = [
-            ReservationStatus.PENDING,
-            ReservationStatus.CONFIRMED,
-            ReservationStatus.CHECK_IN,
-        ]
-        qs = Reservation.objects.filter(
-            hotel=self.hotel,
-            room=self.room,
-            status__in=active_status,
-            check_in__lt=self.check_out,
-            check_out__gt=self.check_in,
-        )
-        if self.pk:
-            qs = qs.exclude(pk=self.pk)
-        if qs.exists():
-            raise ValidationError("La habitación ya está reservada en ese rango.")
+        # Si la reserva tiene external_id, es una reserva importada desde OTA
+        # Permitimos solapamientos porque la OTA puede tener reservas que se solapan
+        # con reservas gestionadas directamente en el PMS
+        if not self.external_id:
+            active_status = [
+                ReservationStatus.PENDING,
+                ReservationStatus.CONFIRMED,
+                ReservationStatus.CHECK_IN,
+            ]
+            qs = Reservation.objects.filter(
+                hotel=self.hotel,
+                room=self.room,
+                status__in=active_status,
+                check_in__lt=self.check_out,
+                check_out__gt=self.check_in,
+            )
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError("La habitación ya está reservada en ese rango.")
 
         # Reglas de tarifas: CTA/CTD, min/max stay
         if self.room_id and self.check_in and self.check_out:
@@ -113,6 +127,7 @@ class Reservation(models.Model):
                 raise ValidationError({"__all__": f"Máximo de estadía: {start_rule.max_stay} noches."})
             
     def save(self, *args, **kwargs):
+        skip_clean = kwargs.pop('skip_clean', False)
         if self.room_id and self.check_in and self.check_out:
             nights = (self.check_out - self.check_in).days
             # Precio base por noche desde la habitación
@@ -125,7 +140,12 @@ class Reservation(models.Model):
             self.total_price = (Decimal(max(nights, 0)) * (Decimal(base_nightly) + Decimal(extra_fee))).quantize(Decimal('0.01'))
             if self.hotel_id is None:
                 self.hotel = self.room.hotel
-        super().save(*args, **kwargs)
+        if skip_clean:
+            # Saltar clean() para reservas importadas desde OTAs que pueden tener solapamientos
+            super().save(*args, **kwargs)
+        else:
+            self.full_clean()
+            super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["-created_at"]
@@ -133,6 +153,18 @@ class Reservation(models.Model):
             models.Index(fields=["hotel", "room"]),
             models.Index(fields=["hotel", "check_in"]),
             models.Index(fields=["status"]),
+            models.Index(fields=["external_id"]),  # Para búsquedas por ID externo (OTAs)
+        ]
+        # Django crea automáticamente estos permisos:
+        # - reservations.add_reservation
+        # - reservations.change_reservation
+        # - reservations.delete_reservation
+        # - reservations.view_reservation
+        permissions = [
+            # Puedes agregar permisos personalizados aquí si necesitas
+            # ("cancel_reservation", "Puede cancelar reservas"),
+            # ("check_in_reservation", "Puede realizar check-in"),
+            # ("check_out_reservation", "Puede realizar check-out"),
         ]
 
     @property

@@ -22,6 +22,7 @@
    - [3.13 Procesamiento Automático de Reembolsos](#313-procesamiento-automático-de-reembolsos)
    - [3.14 Facturación Electrónica Argentina](#314-facturación-electrónica-argentina)
    - [3.15 Comprobantes de Señas y Pagos Parciales](#315-comprobantes-de-señas-y-pagos-parciales)
+   - [3.16 Integraciones con OTAs (Channel Manager)](#316-integraciones-con-otas-channel-manager)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
 5. [Casos de Uso Reales](#casos-de-uso-reales)
 6. [Beneficios del Sistema](#beneficios-del-sistema)
@@ -88,6 +89,8 @@ Permite configurar y administrar la información básica de cada hotel en el sis
 - **Ubicación**: País, provincia, ciudad
 - **Horarios**: Hora de check-in y check-out
 - **Zona Horaria**: Para manejar reservas en diferentes zonas
+- **Auto Check-in**: Configuración para marcar automáticamente reservas como check-in al llegar la fecha de entrada
+- **Auto Check-out**: Configuración para hacer check-out automático cuando pasa la fecha de salida (habilitado por defecto)
 - **Auto No-Show**: Configuración para marcar automáticamente reservas como no-show
 
 #### Ejemplo Práctico
@@ -97,6 +100,8 @@ Dirección: "Av. Corrientes 1234, Buenos Aires"
 Check-in: 15:00 hs
 Check-out: 11:00 hs
 Zona horaria: America/Argentina/Buenos_Aires
+Auto check-in: Deshabilitado
+Auto check-out: Habilitado (por defecto)
 Auto no-show: Habilitado
 ```
 
@@ -105,7 +110,37 @@ Auto no-show: Habilitado
 - ✅ **Configuración flexible** de horarios
 - ✅ **Soporte multi-hotel** desde una sola plataforma
 - ✅ **Datos legales** para facturación
+- ✅ **Auto check-in configurable** por hotel
+- ✅ **Auto check-out configurable** por hotel (habilitado por defecto para mayor eficiencia)
 - ✅ **Auto no-show configurable** por hotel
+
+### Check-out Automático
+
+El sistema puede hacer check-out automático de las reservas cuando pasa la fecha de salida, liberando las habitaciones sin necesidad de intervención manual.
+
+#### ¿Cómo funciona?
+
+**Proceso Automático**:
+1. **Detección**: El sistema verifica cada hora si hay reservas que deben hacer check-out
+2. **Fecha Pasada**: Si la fecha de check-out ya pasó, se procesa inmediatamente
+3. **Fecha de Hoy**: Si es el día de check-out, espera hasta la hora configurada del hotel (ej: 11:00 AM)
+4. **Check-out**: Cambia el estado de la reserva a "Check-out" automáticamente
+5. **Liberación**: Marca la habitación como "Disponible" para nuevas reservas
+
+#### Configuración
+
+- **Habilitado por Defecto**: Todos los hoteles tienen check-out automático habilitado automáticamente
+- **Personalizable**: Puedes deshabilitarlo por hotel si prefieres hacer check-outs manualmente
+- **Zona Horaria**: Respeta la zona horaria del hotel para cálculos precisos
+- **Hora Configurada**: Usa la hora de check-out configurada del hotel (ej: 11:00 AM)
+
+#### Beneficios del Check-out Automático
+
+- ✅ **Menos Trabajo Manual**: No necesitas recordar hacer check-outs manualmente
+- ✅ **Habitaciones Disponibles**: Las habitaciones se liberan automáticamente para nuevas reservas
+- ✅ **Sin Olvidos**: Las reservas con fecha de salida pasada se procesan automáticamente
+- ✅ **Eficiencia**: El sistema funciona 24/7 sin necesidad de supervisión
+- ✅ **Configurable**: Puedes habilitarlo o deshabilitarlo según tus necesidades
 
 ---
 
@@ -208,6 +243,7 @@ Datos de la reserva:
 - **Fechas**: Check-in debe ser anterior al check-out
 - **Restricciones**: Respeta CTA (cerrado a llegadas) y CTD (cerrado a salidas)
 - **Estadía mínima/máxima**: Valida según las reglas del hotel
+- **🛡️ Verificación con OTAs**: Antes de confirmar una reserva, el sistema verifica automáticamente si la habitación está ocupada en Booking.com o Airbnb para evitar overbooking (ver detalles más abajo)
 
 ### Beneficios
 - ✅ **Reservas sin errores** gracias a las validaciones
@@ -3591,6 +3627,14 @@ Imagina que tienes que procesar 50 reembolsos al día. ¿Cómo manejas:
 
 #### Check-outs del Día
 ```
+Opción 1: Check-out Automático (si está habilitado)
+1. Sistema verifica cada hora si hay reservas que deben hacer check-out
+2. Si la fecha de check-out pasó, procesa automáticamente
+3. Si es el día de check-out, espera hasta la hora configurada del hotel
+4. Cambia estado a "Check-out" y libera habitación automáticamente
+5. Habitación aparece como "Disponible" en el calendario sin intervención manual
+
+Opción 2: Check-out Manual
 1. Recepcionista abre el sistema
 2. Abre el calendario en vista diaria
 3. Ve los check-outs programados visualmente
@@ -5821,6 +5865,539 @@ El módulo de **Comprobantes de Señas y Devoluciones** permite generar, gestion
 - **Múltiples hoteles**: Funciona con cualquier cantidad de establecimientos
 - **Alto volumen**: Maneja miles de comprobantes sin problemas
 - **Performance optimizada**: Respuesta rápida incluso con grandes volúmenes
+
+## 3.16 Integraciones con OTAs (Channel Manager)
+
+### ¿Qué hace?
+### Nueva vista: Canales de Reservas
+
+Dispones de una pantalla específica para gestionar las conexiones con OTAs (se accede desde el menú como "Canales de Reservas").
+
+- Qué permite:
+  - Ver todos los canales configurados por hotel y proveedor (Booking.com, Airbnb, iCal, etc.).
+  - Filtrar por hotel, proveedor y estado (activo/inactivo).
+  - Editar una conexión (incluye URL iCal, modo sandbox/producción y credenciales cuando aplique).
+  - Copiar la URL iCal del hotel con un clic.
+  - Ver el estado de verificación de la URL del proveedor ("Verificado").
+  - Ejecutar "Sincronizar ahora" y ver en tiempo real el resultado del último proceso (éxito/falla/en ejecución).
+
+Seguridad de datos visibles:
+- Los tokens iCal y secretos se muestran enmascarados (solo los primeros 4 caracteres).
+- Nunca se exponen claves completas; solo se pueden actualizar.
+
+
+**AlojaSys** se conecta automáticamente con plataformas de reservas online (Booking.com, Airbnb, etc.) para sincronizar disponibilidad, tarifas y reservas en ambos sentidos. Es como tener un "asistente digital" que mantiene tu hotel sincronizado con todos los canales de venta.
+
+### ¿Cómo funciona?
+
+El sistema trabaja en **dos direcciones automáticamente**:
+
+#### 📤 Desde AlojaSys hacia las OTAs
+
+1. **Cuando creas o modificas una reserva** en AlojaSys, el sistema automáticamente:
+   - Actualiza la disponibilidad en Booking.com, Airbnb, etc.
+   - Sincroniza los precios si cambiaron
+   - Bloquea las fechas ocupadas para que no aparezcan disponibles
+
+2. **Sincronización continua**: El sistema también hace una sincronización completa todas las noches para asegurar que todo esté actualizado.
+
+#### 📥 Desde las OTAs hacia AlojaSys
+
+1. **Reservas automáticas**: Cuando alguien reserva en Booking.com o Airbnb:
+   - El sistema consulta cada 1-2 minutos si hay reservas nuevas (respaldo)
+   - Las reservas aparecen automáticamente en AlojaSys
+   - No necesitas hacer nada manual
+
+2. **Importación de calendarios**: También puedes configurar que AlojaSys lea los calendarios de las OTAs para bloquear fechas ocupadas.
+
+### Configuración Inicial
+
+#### Paso 1: Configurar el Proveedor OTA
+
+1. Ve a **Configuración → OTAs**
+2. Clic en **"Crear OTAs"**
+3. Selecciona:
+   - **Hotel**: El hotel que quieres conectar
+   - **Proveedor**: Booking.com, Airbnb, iCal, etc.
+   - **Etiqueta**: Un nombre para identificarlo (ej: "Booking Principal")
+
+**Para Booking.com o Airbnb** (cuando tengas credenciales):
+- **Hotel ID**: El ID de tu propiedad en la plataforma
+- **Client ID** y **Client Secret**: Credenciales que te entrega la OTA
+- **Base URL**: URL del entorno (sandbox para pruebas, producción para uso real)
+- **Modo**: Test (pruebas) o Producción
+
+**Para iCal** (sin credenciales):
+- Solo necesitas el **Token iCal** (el sistema puede generarlo automáticamente)
+
+#### Paso 2: Mapear Tipos de Habitación
+
+Las OTAs usan códigos diferentes para los tipos de habitación. Necesitas "mapear" (relacionar) tus tipos internos con los códigos de la OTA:
+
+1. En la pestaña **"Tipos de Habitación (Mapeos)"**
+2. Clic en **"Nuevo Mapeo Tipo"**
+3. Completa:
+   - **Hotel**: Tu hotel
+   - **Proveedor**: Booking/Airbnb
+   - **Código Tipo (PMS)**: Tu código interno (ej: "DOUBLE")
+   - **Código OTA**: El código que usa la OTA (ej: "STD_DBL")
+   - **Nombre**: Opcional, para referencia
+
+**Ejemplo**: 
+- En AlojaSys tienes una habitación tipo "DOBLE"
+- En Booking.com el mismo tipo se llama "STD_DBL"
+- El mapeo conecta ambos: "DOBLE" = "STD_DBL"
+
+#### Paso 3: Mapear Planes de Tarifa
+
+Similar a los tipos, necesitas mapear tus planes de tarifa:
+
+1. En la pestaña **"Planes de Tarifa (Mapeos)"**
+2. Clic en **"Nuevo Mapeo Plan"**
+3. Completa:
+   - **Hotel**: Tu hotel
+   - **Proveedor**: Booking/Airbnb
+   - **Código Plan (PMS)**: Tu plan interno (ej: "STANDARD")
+   - **Código OTA**: El ID que usa la OTA (ej: "STD_REFUND")
+   - **Moneda**: ARS, USD, etc.
+
+**Ejemplo**:
+- En AlojaSys tienes el plan "Estándar"
+- En Booking.com el mismo plan tiene ID "STD_REFUND"
+- El mapeo conecta ambos: "Estándar" = "STD_REFUND"
+
+#### Paso 4: (Opcional) Mapeos por Habitación Individual
+
+Si usas iCal (calendarios compartidos), puedes mapear habitación por habitación:
+
+1. En la pestaña **"Mapeos por Habitación"**
+2. Clic en **"Nuevo Mapeo"**
+3. Selecciona:
+   - **Habitación**: La habitación específica
+   - **Proveedor**: iCal
+   - **URL iCal de entrada**: La URL que te da la OTA para leer su calendario
+   - **Dirección de sincronización**: 
+     - **Ambos**: Importa y exporta (recomendado)
+     - **Solo Importar**: Solo lee el calendario de la OTA
+     - **Solo Exportar**: Solo comparte tu calendario con la OTA
+
+**Nota**: Para Booking/Airbnb con API real, no necesitas esto; el sistema usa los mapeos de tipos y planes.
+
+**¿Cuándo usar cada opción de sincronización?**
+- **Ambos**: Cuando quieres sincronización completa bidireccional (la mayoría de casos)
+- **Solo Importar**: Cuando la OTA solo te permite leer su calendario, pero no quieres compartir el tuyo
+- **Solo Exportar**: Cuando quieres que la OTA vea tu disponibilidad, pero tú gestionas todo desde AlojaSys
+
+### Uso Diario
+
+#### Ver Reservas de OTAs en AlojaSys
+
+Las reservas que vienen de Booking.com o Airbnb aparecen automáticamente en tu lista de reservas. Se identifican porque tienen el proveedor (ej: "Booking.com") y puedes ver todos los detalles del huésped.
+
+#### Sincronización Automática
+
+El sistema sincroniza automáticamente:
+
+- **⚡ Sincronización instantánea (Webhooks)** → Cuando alguien reserva en Booking.com o Airbnb, **la reserva aparece en AlojaSys en segundos**:
+  - Booking.com y Airbnb envían notificaciones automáticas al sistema
+  - Las reservas se crean/actualizan instantáneamente sin esperar
+  - **Beneficio principal**: Evita overbooking (reservas duplicadas) porque el sistema se actualiza al instante
+  - Si los webhooks no están configurados, el sistema usa el método de respaldo cada 1-2 minutos
+  
+- **Al crear/modificar/cancelar una reserva** en AlojaSys → Se actualiza en las OTAs en menos de 1 minuto
+  - **Antes de confirmar**: El sistema verifica automáticamente si la habitación está ocupada en las OTAs para evitar sobreventas (overbooking)
+  
+- **Cada 1-2 minutos (respaldo)** → El sistema consulta si hay reservas nuevas en las OTAs (solo si los webhooks no están disponibles)
+  
+- **Cada hora** → Importa calendarios iCal si los tienes configurados:
+  - Descarga los calendarios desde las URLs configuradas
+  - Procesa cada evento del calendario usando su código único (UID)
+  - Crea o actualiza reservas automáticamente:
+    - Si es un evento nuevo → Crea una nueva reserva con estado "Confirmada"
+    - Si el evento ya existe (mismo código único) → Actualiza las fechas si cambiaron
+  - Identifica el origen de cada evento (Booking.com, Airbnb, iCal genérico) para rastreo
+  - Respeta la configuración de "Dirección de sincronización" (solo importa si está permitido)
+  - Actualiza la fecha de última sincronización exitosa
+  - Registra todos los detalles en el log de sincronización (qué eventos procesó, cuántas reservas creó/actualizó, si hubo errores)
+- **Todas las noches** → Sincronización completa de seguridad
+
+#### Push Manual de Disponibilidad
+
+Si necesitas forzar una sincronización:
+
+1. Ve a **Configuración → OTAs**
+2. En la pestaña **"Mapeos por Habitación"**
+3. Clic en **"Push ARI"**
+4. Selecciona:
+   - **Hotel**: El hotel
+   - **Proveedor**: Booking/Airbnb
+   - **Desde** y **Hasta**: Rango de fechas a sincronizar
+5. Clic en **"Enviar"**
+
+El sistema actualizará disponibilidad y precios para ese rango de fechas.
+
+#### Importar Calendarios iCal
+
+Si usas feeds iCal:
+
+1. En **"Mapeos por Habitación"**
+2. Encuentra el mapeo que quieres importar
+3. Clic en el ícono de **"Importar ahora"** (flecha hacia abajo)
+4. El sistema:
+   - Descargará el calendario desde la URL configurada
+   - Procesará cada evento en el calendario
+   - **Identifica cada evento** usando su código único (UID) para evitar duplicados
+   - **Crea reservas automáticamente** con:
+     - Fechas de check-in y check-out del evento
+     - Estado "Confirmada"
+     - Canal según el proveedor (Booking.com aparece como "Booking", Airbnb/iCal como "Otro", etc.)
+     - Notas indicando que fue importado desde la OTA
+     - Un identificador único (external_id) que permite al sistema reconocer si ya existe
+   - **Si el evento ya existe** (mismo código único), actualiza las fechas automáticamente si cambiaron
+   - **Registra cada acción** en el log de sincronización con detalles completos y consistentes:
+     - Qué evento procesó (usando su código único UID)
+     - Si creó una nueva reserva o actualizó una existente (o la saltó por no tener cambios)
+     - Si hubo algún error o conflicto
+     - El origen del evento (source: "booking", "airbnb", "ical", "expedia")
+     - El canal de la reserva (channel: "booking", "expedia", "other")
+     - El estado de la operación (status: "success", "skipped", "error")
+     - Toda esta información está disponible en los logs para auditoría completa
+5. Verás el resultado con estadísticas: cuántos eventos procesó, cuántas reservas creó, actualizó o saltó por duplicados
+
+**Nota importante**: 
+- Las reservas importadas tienen un **identificador único** (UID del evento) que permite al sistema:
+  - **Evitar duplicados**: Si importas el mismo calendario varias veces, no se crean reservas duplicadas
+  - **Actualizar automáticamente**: Si la OTA cambia las fechas de una reserva, se actualiza en AlojaSys automáticamente
+  - **Rastrear el origen**: Puedes ver de dónde vino cada reserva en los logs de sincronización
+- El sistema registra **todo lo que hace** en logs detallados y consistentes que incluyen:
+  - El origen (source): Booking.com, Airbnb, iCal genérico, Expedia
+  - El canal (channel): cómo aparece la reserva en el sistema
+  - El estado (status): si fue exitoso, si se saltó por no tener cambios, o si hubo un error
+  - El identificador único (external_id): para rastrear cada evento
+  - Todos estos campos están presentes en cada log de forma consistente para facilitar el seguimiento y la auditoría
+
+También puedes copiar la URL iCal de exportación (el botón de copiar) para compartirla con otras plataformas.
+
+### Monitoreo y Estado
+
+#### Sistema de Auditoría y Logs
+
+AlojaSys registra automáticamente **todas las acciones** de sincronización con las OTAs en un sistema de logs completo y detallado. Esto te permite:
+
+**¿Qué se registra?**
+
+1. **Inicio de cada sincronización**:
+   - Cuando se inicia automáticamente (cada hora, cada 1-2 minutos)
+   - Cuando se inicia manualmente desde el sistema
+   - Cuando se inicia porque creaste o modificaste una reserva
+
+2. **Resultado de cada operación**:
+   - Si una reserva se creó correctamente desde la OTA
+   - Si una reserva se actualizó porque cambió la fecha
+   - Si una reserva se saltó porque no tenía cambios
+   - Si hubo algún error o conflicto
+
+3. **Información del origen**:
+   - De dónde vino cada reserva (Booking.com, Airbnb, iCal genérico, etc.)
+   - Qué acción la causó (creación manual, webhook, importación de calendario)
+   - Detalles completos de cada operación
+
+**¿Para qué sirve?**
+
+- ✅ **Saber qué pasó**: Puedes ver exactamente qué reservas se sincronizaron y cuándo
+- ✅ **Resolver problemas**: Si algo falla, los logs te muestran exactamente dónde y por qué
+- ✅ **Auditoría**: Tienes un registro completo de todas las sincronizaciones para revisar después
+- ✅ **Análisis**: Puedes ver patrones de uso y detectar problemas antes de que afecten
+
+**¿Dónde ver los logs?**
+
+En la interfaz de **Configuración → OTAs**, en la pestaña de **"Logs"**, puedes ver todos los registros de sincronización filtrados por:
+- Hotel
+- Proveedor (Booking, Airbnb, etc.)
+- Tipo de mensaje (éxito, advertencia, error)
+- Fecha
+
+#### Ver Última Sincronización
+
+En la tabla de **"Mapeos por Habitación"**, encontrarás:
+
+- **Columna "Sincronización"**: Muestra la dirección configurada (Ambos, Solo Importar, Solo Exportar)
+- **Columna "Última sincronización"**: Muestra la fecha y hora de la última sincronización exitosa (import o export)
+- **Columna "Última importación"**: Muestra el estado del último job de importación:
+  - **success** → Todo funcionó correctamente
+  - **running** → Está sincronizando en este momento
+  - **failed** → Hubo un error (revisa los logs)
+
+También muestra cuántos eventos procesó (ej: "success • 5/3+0+2" = procesó 5, creó 3 nuevos, actualizó 0, saltó 2 duplicados).
+
+#### Ver Jobs de Sincronización
+
+Todos los trabajos de sincronización quedan registrados para auditoría. Puedes verlos consultando el API o solicitando reportes al soporte.
+
+**Nota sobre Webhooks**: Si tienes webhooks configurados (Booking.com o Airbnb), verás jobs adicionales marcados como "webhook" en los logs. Estos indican que las reservas fueron sincronizadas instantáneamente desde las OTAs.
+
+#### Configurar Webhooks (Opcional pero Recomendado)
+
+**¿Qué son los webhooks?**
+Los webhooks son notificaciones instantáneas que Booking.com y Airbnb envían a AlojaSys cuando ocurre algo importante (nueva reserva, cancelación, modificación). Es como recibir un mensaje inmediato en lugar de tener que preguntar cada 1-2 minutos si pasó algo.
+
+**¿Por qué configurarlos?**
+- ✅ **Sincronización instantánea**: Las reservas aparecen en segundos, no en minutos
+- ✅ **Evita overbooking**: Si alguien reserva en Booking.com, el sistema se actualiza al instante y no permite otra reserva para las mismas fechas
+- ✅ **Mejor experiencia**: No hay demoras ni retrasos
+
+**¿Cómo configurarlos?**
+1. **Booking.com**:
+   - Ve a Partner Hub → Configuración → Webhooks
+   - Ingresa la URL: `https://tu-dominio.com/api/otas/webhooks/booking/`
+   - Configura eventos: Reservas nuevas, modificaciones, cancelaciones
+   - Guarda un secreto seguro (se lo proporcionarás a tu equipo técnico)
+
+2. **Airbnb**:
+   - Ve a Partner Portal → Configuración → Webhooks
+   - Ingresa la URL: `https://tu-dominio.com/api/otas/webhooks/airbnb/`
+   - Configura eventos similares a Booking.com
+
+3. **Proporciona los secretos** a tu equipo técnico para que los configuren en el sistema.
+
+**Si no configuras webhooks**: El sistema funcionará igual, pero usará el método de respaldo (consulta cada 1-2 minutos), lo cual puede causar pequeños retrasos.
+
+#### Prevención de Overbooking (Validación Automática)
+#### Webhooks con seguridad e idempotencia
+
+- Seguridad: se verifica la firma de cada notificación (HMAC-SHA256) para garantizar que provenga de la OTA.
+- Idempotencia: aunque la OTA envíe el mismo evento más de una vez, el sistema lo procesa una sola vez (usa un identificador único del evento).
+
+
+**¿Qué hace el sistema para evitar sobreventas?**
+
+Antes de confirmar una reserva que creas directamente en AlojaSys, el sistema verifica automáticamente si esa habitación ya está reservada en Booking.com o Airbnb. Esto evita que tengas dos reservas para las mismas fechas.
+
+**¿Cómo funciona?**
+
+1. **Cuando intentas confirmar una reserva** en AlojaSys:
+   - El sistema revisa todas las OTAs configuradas para esa habitación (Booking.com, Airbnb, etc.)
+   - Busca si hay reservas de esas OTAs en las mismas fechas
+   - Si encuentra un conflicto → **No permite confirmar la reserva**
+   - Te muestra un mensaje: "La habitación no está disponible en las OTAs"
+
+2. **Ejemplo práctico**:
+   ```
+   Situación:
+   - 14:00: Cliente reserva Habitación 101 del 15 al 17 en Booking.com
+   - 14:01: (Webhook actualiza AlojaSys instantáneamente)
+   - 14:02: Recepcionista intenta crear reserva para Habitación 101 del 15 al 17
+   - Resultado: Sistema rechaza la reserva → "Habitación no disponible en las OTAs"
+   ```
+
+3. **Beneficios**:
+   - ✅ **Evita overbooking**: No puedes vender una habitación dos veces
+   - ✅ **Funciona automáticamente**: No necesitas verificar manualmente
+   - ✅ **Funciona con webhooks y sin ellos**: Aunque los webhooks no estén configurados, verifica las reservas ya sincronizadas
+
+4. **¿Cuándo NO verifica?**
+   - Para reservas que vienen de las OTAs (estas ya están sincronizadas, no pueden causar conflicto)
+   - Para reservas en estado "Pendiente" (solo verifica al confirmar)
+   - Si no hay OTAs configuradas para esa habitación
+
+5. **Modo estricto vs. advertencias**:
+   - **Al confirmar**: Si hay conflicto, rechaza la reserva completamente
+   - **Al crear como pendiente**: Puede permitir la reserva pero agregar una advertencia en las notas
+
+**En resumen**: El sistema te protege automáticamente de vender la misma habitación dos veces, tanto desde AlojaSys como desde las OTAs.
+
+### Casos de Uso Reales
+
+#### Caso 1: Hotel Boutique con Booking.com
+
+**Situación**: El hotel recibe 70% de reservas desde Booking.com.
+
+**Configuración**:
+1. Configura Booking.com con credenciales de producción
+2. Mapea 3 tipos de habitación (Simple, Doble, Suite)
+3. Mapea 2 planes de tarifa (Estándar, No Reembolsable)
+
+**Resultado**:
+- ✅ Todas las reservas de Booking aparecen automáticamente en AlojaSys
+- ✅ Cuando se cancela una reserva en AlojaSys, se libera en Booking en menos de 1 minuto
+- ✅ Los precios se sincronizan automáticamente
+- ✅ Ahorra 2 horas diarias de trabajo manual
+
+#### Caso 2: Host Airbnb Multi-Propiedad
+
+**Situación**: Administra 5 propiedades en Airbnb desde AlojaSys.
+
+**Configuración**:
+1. Configura Airbnb para cada propiedad
+2. Mapea tipos y planes por propiedad
+3. Usa iCal para importar reservas existentes
+
+**Resultado**:
+- ✅ Todas las propiedades se sincronizan desde un solo lugar
+- ✅ Evita sobreventas (el sistema bloquea automáticamente)
+- ✅ Gestión centralizada de todas las reservas
+
+#### Caso 3: Hotel con Múltiples Canales
+
+**Situación**: Vende por Booking.com, Airbnb, Expedia y sitio web propio.
+
+**Configuración**:
+1. Configura cada proveedor en AlojaSys
+2. Mapea tipos y planes para cada uno
+
+**Resultado**:
+- ✅ Disponibilidad sincronizada en todos los canales
+- ✅ Precios consistentes
+- ✅ Sin conflictos de doble reserva
+- ✅ Reportes unificados de todos los canales
+
+### Beneficios para el Hotel
+
+#### Para el Personal de Recepción
+
+- ✅ **Reservas automáticas**: Las reservas de OTAs aparecen solas, no hay que copiarlas manualmente
+- ✅ **Sincronización en tiempo real**: Cambios en AlojaSys se reflejan en las OTAs al instante
+- ✅ **Menos errores**: No hay riesgo de olvidar actualizar disponibilidad en algún canal
+- ✅ **Ahorro de tiempo**: Automatiza tareas repetitivas
+
+#### Para la Gerencia
+
+- ✅ **Control centralizado**: Gestiona todos los canales desde un solo lugar
+- ✅ **Sin sobreventas**: El sistema evita vender la misma habitación dos veces
+- ✅ **Precios consistentes**: Mantiene los precios sincronizados automáticamente
+- ✅ **Reportes completos**: Métricas de todos los canales en un solo dashboard
+
+#### Para el Negocio
+
+- ✅ **Mayor visibilidad**: Tu hotel aparece en más plataformas sin trabajo extra
+- ✅ **Aumento de reservas**: Automatización permite atender más canales simultáneamente
+- ✅ **Competitividad**: Respuesta rápida a cambios de disponibilidad y precios
+- ✅ **Reducción de costos**: Menos personal necesario para gestionar múltiples canales
+
+### Resolución de Problemas
+
+#### Problema: "Las reservas de Booking no aparecen en AlojaSys"
+
+**Causas posibles**:
+- La configuración de Booking no está activa
+- Faltan credenciales válidas
+- El proveedor está en modo "Test" sin datos reales
+
+**Solución**:
+1. Verifica que la configuración esté marcada como "Activa"
+2. Confirma que las credenciales sean correctas
+3. Si estás en modo Test, cambia a Producción cuando tengas acceso
+
+#### Problema: "La disponibilidad no se actualiza en Booking"
+
+**Causas posibles**:
+- No hay mapeos de tipos/planes activos
+- Error en la última sincronización
+- Rate limiting de Booking (muchos requests)
+
+**Solución**:
+1. Verifica que tengas mapeos activos en "Tipos de Habitación" y "Planes de Tarifa"
+2. Haz un "Push ARI" manual para forzar sincronización
+3. Si el problema persiste, revisa los logs o contacta soporte
+
+#### Problema: "El import iCal no funciona"
+
+**Causas posibles**:
+- La URL iCal no es válida o está expirada
+- La URL requiere autenticación
+- El formato del calendario no es compatible
+
+**Solución**:
+1. Verifica que la URL sea accesible (pruébala en un navegador)
+2. Confirma que no requiera login adicional
+3. Contacta a la OTA para obtener una URL válida
+
+### Seguridad
+
+#### Protección de Información Sensible
+
+- ✅ **Tokens enmascarados**: Los tokens iCal se muestran parcialmente (solo primeros 4 caracteres) para proteger la información
+- ✅ **Secrets ocultos**: Las claves secretas (Client Secret) no se muestran nunca, solo se pueden actualizar
+- ✅ **URLs completas seguras**: Las URLs de iCal se generan automáticamente sin exponer el token completo
+
+**Ejemplo**: Si tu token es `abc123xyz789`, solo verás `abc1********` en la interfaz.
+
+#### Validación de Configuraciones
+
+El sistema valida automáticamente tus configuraciones para prevenir errores:
+
+- ✅ **Validación de dominios**: Verifica que las URLs de Booking.com y Airbnb sean correctas
+  - Solo acepta dominios oficiales: `booking.com`, `airbnb.com`, o dominios de prueba
+  - Rechaza URLs inválidas o sospechosas antes de guardar
+  
+- ✅ **Indicador de verificación**: Un badge "Verificado" (verde) indica que tu configuración es válida
+  - Aparece automáticamente cuando la URL pasa la validación
+  - Si está "No Verificado" (gris), revisa que la URL sea correcta
+
+**Ejemplo de Validación**:
+```
+✅ URL válida: https://connectivity-sandbox.booking.com/api/v1/...
+   → Badge: "Verificado" (verde)
+
+❌ URL inválida: https://otro-dominio.com/api/...
+   → Error: "El dominio 'otro-dominio.com' no está permitido"
+   → Badge: "No Verificado" (gris)
+```
+
+#### Protección de Credenciales
+
+- ✅ **Credenciales encriptadas**: Los secrets de API se almacenan de forma segura en la base de datos
+- ✅ **Logs sanitizados**: Los logs del sistema no exponen información sensible
+- ✅ **Modo Test/Prod**: Separación clara entre entornos de prueba y producción
+  - No puedes mezclar credenciales de prueba con producción
+  - El sistema detecta automáticamente el tipo de credenciales
+
+#### Mejores Prácticas
+
+**Para Tokens iCal**:
+1. **No compartas tus tokens**: Son únicos para tu hotel y proveedor
+2. **Rotación periódica**: Cambia tus tokens cada cierto tiempo para mayor seguridad
+3. **Usa URLs completas**: El sistema genera las URLs automáticamente, no necesitas el token completo
+
+**Para Credenciales de API (Booking/Airbnb)**:
+1. **Mantén secreto el Client Secret**: Nunca lo compartas ni lo incluyas en emails
+2. **Usa modo Test para desarrollo**: Prueba primero con credenciales de sandbox
+3. **Verifica antes de producción**: Asegúrate de que el badge muestre "Verificado" antes de activar en producción
+
+**Indicadores Visuales**:
+- 🟢 **Badge "Verificado"**: Tu configuración es válida y lista para usar
+- ⚪ **Badge "No Verificado"**: Revisa tu configuración (URL puede ser inválida)
+- 🔒 **Campo tipo "password"**: Los secrets siempre se ocultan al escribir
+- 📋 **Botón "Copiar URL"**: Genera la URL completa sin exponer el token
+
+### Configuración Avanzada
+
+#### Modo Test vs Producción
+
+- **Test**: Para pruebas sin afectar datos reales. Usa sandbox de las OTAs.
+- **Producción**: Para uso real. Solo activar cuando estés certificado y listo.
+
+**Importante**: Nunca uses credenciales de producción en modo Test.
+
+#### Múltiples Configuraciones por Hotel
+
+Puedes tener varias configuraciones del mismo proveedor para un hotel si necesitas:
+- Diferentes cuentas (ej: Booking.com para diferentes propiedades)
+- Configuraciones de prueba y producción simultáneas
+
+#### Personalización por Proveedor
+
+Cada proveedor (Booking, Airbnb, etc.) tiene campos específicos. El sistema muestra solo los campos relevantes según el proveedor seleccionado.
+
+#### Control de Dirección de Sincronización
+
+Cada mapeo de habitación permite configurar la dirección de sincronización:
+
+- **Ambos** (recomendado): Sincronización completa en ambas direcciones
+- **Solo Importar**: Útil cuando solo quieres recibir reservas de la OTA, sin compartir tu disponibilidad
+- **Solo Exportar**: Útil cuando quieres compartir disponibilidad sin importar reservas externas
+
+**Ejemplo práctico**: Si tienes una habitación que solo se vende por tu sitio web, pero quieres que Booking.com vea que está ocupada → usa "Solo Exportar". Así, Booking.com bloqueará esas fechas, pero no recibirás reservas desde Booking para esa habitación.
 
 ---
 

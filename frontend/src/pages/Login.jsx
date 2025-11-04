@@ -20,6 +20,8 @@ export default function Login() {
       setLoading(true);
       await authLogin(form.username, form.password);
       showSuccess("Inicio de sesión correcto");
+      // Invalidar caché de React Query para forzar recarga de datos del usuario
+      // Esto se hace automáticamente con staleTime: 0 en useMe
       navigate("/", { replace: true });
     } catch (err) {
       showErrorConfirm(err?.message || "Credenciales inválidas");

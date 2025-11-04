@@ -39,6 +39,15 @@ class Room(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["is_active"]),
         ]
+        # Django crea automáticamente estos permisos:
+        # - rooms.add_room
+        # - rooms.change_room
+        # - rooms.delete_room
+        # - rooms.view_room
+        permissions = [
+            # Puedes agregar permisos personalizados aquí si necesitas
+            # ("maintenance_room", "Puede marcar habitaciones en mantenimiento"),
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.get_room_type_display()}"

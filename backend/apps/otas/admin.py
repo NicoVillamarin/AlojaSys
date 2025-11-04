@@ -10,8 +10,8 @@ class OtaConfigAdmin(admin.ModelAdmin):
 
 @admin.register(OtaRoomMapping)
 class OtaRoomMappingAdmin(admin.ModelAdmin):
-    list_display = ("hotel", "room", "provider", "external_id", "is_active")
-    list_filter = ("provider", "is_active", "hotel")
+    list_display = ("hotel", "room", "provider", "external_id", "sync_direction", "last_synced", "is_active")
+    list_filter = ("provider", "is_active", "hotel", "sync_direction")
     search_fields = ("room__name", "external_id")
 
 

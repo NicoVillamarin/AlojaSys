@@ -67,20 +67,42 @@ class DashboardMetricsDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 @api_view(['GET'])
 def dashboard_summary(request):
-    """Obtiene un resumen de métricas para un hotel específico o global"""
+    """Obtiene un resumen de métricas para un hotel específico o global.
+    Acepta date (fecha única) o start_date/end_date (rango de fechas)"""
     hotel_id = request.query_params.get('hotel_id')
-    target_date = request.query_params.get('date', date.today().isoformat())
+    target_date_param = request.query_params.get('date')
+    start_date_param = request.query_params.get('start_date')
+    end_date_param = request.query_params.get('end_date')
     
-    # Si no hay hotel_id, calcular métricas globales
-    if not hotel_id:
+    # Determinar si usar rango o fecha única
+    use_date_range = start_date_param and end_date_param
+    if use_date_range:
         try:
-            target_date = date.fromisoformat(target_date)
+            start_date = date.fromisoformat(start_date_param)
+            end_date = date.fromisoformat(end_date_param)
+            if start_date > end_date:
+                return Response(
+                    {'error': 'start_date debe ser menor o igual a end_date'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Para rangos, usamos end_date como target_date para KPIs específicos del día
+            target_date = end_date
+        except ValueError:
+            return Response(
+                {'error': 'Formato de fecha inválido en start_date o end_date'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    else:
+        try:
+            target_date = date.fromisoformat(target_date_param) if target_date_param else date.today()
         except ValueError:
             return Response(
                 {'error': 'Formato de fecha inválido'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+    
+    # Si no hay hotel_id, calcular métricas globales
+    if not hotel_id:
         # Obtener todos los hoteles activos
         hotels = Hotel.objects.filter(is_active=True)
         if not hotels.exists():
@@ -89,74 +111,205 @@ def dashboard_summary(request):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Calcular métricas globales sumando todos los hoteles
-        total_rooms = 0
-        available_rooms = 0
-        occupied_rooms = 0
-        maintenance_rooms = 0
-        out_of_service_rooms = 0
-        reserved_rooms = 0
-        total_reservations = 0
-        pending_reservations = 0
-        confirmed_reservations = 0
-        cancelled_reservations = 0
-        check_in_today = 0
-        check_out_today = 0
-        no_show_today = 0
-        total_guests = 0
-        guests_checked_in = 0
-        guests_expected_today = 0
-        guests_departing_today = 0
-        total_revenue = Decimal('0.00')
-        # Extensiones: noches/ADR y comisiones
-        revenue_night = Decimal('0.00')
-        nights_sold = 0
-        adr_night = Decimal('0.00')
-        commissions_checkin = Decimal('0.00')
-        revenue_net_checkin = Decimal('0.00')
-        
-        for hotel in hotels:
-            metrics = DashboardMetrics.objects.filter(hotel=hotel, date=target_date).first()
-            if not metrics:
-                metrics = DashboardMetrics.calculate_metrics(hotel, target_date)
-            total_rooms += metrics.total_rooms
-            available_rooms += metrics.available_rooms
-            occupied_rooms += metrics.occupied_rooms
-            maintenance_rooms += metrics.maintenance_rooms
-            out_of_service_rooms += metrics.out_of_service_rooms
-            reserved_rooms += metrics.reserved_rooms
-            total_reservations += metrics.total_reservations
-            pending_reservations += metrics.pending_reservations
-            confirmed_reservations += metrics.confirmed_reservations
-            cancelled_reservations += metrics.cancelled_reservations
-            check_in_today += metrics.check_in_today
-            check_out_today += metrics.check_out_today
-            no_show_today += metrics.no_show_today
-            total_guests += metrics.total_guests
-            guests_checked_in += metrics.guests_checked_in
-            guests_expected_today += metrics.guests_expected_today
-            guests_departing_today += metrics.guests_departing_today
-            total_revenue += metrics.total_revenue
-        
-        # Extensiones nocturnas / ADR nocturno
-        nights_qs = ReservationNight.objects.filter(hotel__in=hotels, date=target_date)
-        revenue_night = nights_qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
-        nights_sold = nights_qs.count()
-        adr_night = (revenue_night / Decimal(nights_sold)).quantize(Decimal('0.01')) if nights_sold else Decimal('0.00')
+        # Si se usa rango de fechas, calcular métricas agregadas
+        if use_date_range:
+            # Agregar métricas de todas las fechas del rango
+            total_rooms = 0
+            available_rooms = 0
+            occupied_rooms = 0
+            maintenance_rooms = 0
+            out_of_service_rooms = 0
+            reserved_rooms = 0
+            total_reservations = 0
+            pending_reservations = 0
+            confirmed_reservations = 0
+            cancelled_reservations = 0
+            check_in_today = 0
+            check_out_today = 0
+            no_show_today = 0
+            total_guests = 0
+            guests_checked_in = 0
+            guests_expected_today = 0
+            guests_departing_today = 0
+            total_revenue = Decimal('0.00')
+            revenue_night = Decimal('0.00')
+            nights_sold = 0
+            
+            # Iterar sobre todas las fechas del rango
+            current_date = start_date
+            dates_count = 0
+            while current_date <= end_date:
+                dates_count += 1
+                for hotel in hotels:
+                    metrics = DashboardMetrics.objects.filter(hotel=hotel, date=current_date).first()
+                    if not metrics:
+                        metrics = DashboardMetrics.calculate_metrics(hotel, current_date)
+                    # Para rangos, acumulamos valores
+                    if current_date == end_date:  # Solo contamos habitaciones en la última fecha
+                        total_rooms += metrics.total_rooms
+                        available_rooms += metrics.available_rooms
+                        maintenance_rooms += metrics.maintenance_rooms
+                        out_of_service_rooms += metrics.out_of_service_rooms
+                    occupied_rooms += metrics.occupied_rooms
+                    reserved_rooms += metrics.reserved_rooms
+                    total_reservations += metrics.total_reservations
+                    pending_reservations += metrics.pending_reservations
+                    confirmed_reservations += metrics.confirmed_reservations
+                    cancelled_reservations += metrics.cancelled_reservations
+                    check_in_today += metrics.check_in_today if current_date == end_date else 0
+                    check_out_today += metrics.check_out_today if current_date == end_date else 0
+                    no_show_today += metrics.no_show_today if current_date == end_date else 0
+                    total_guests += metrics.total_guests if current_date == end_date else 0
+                    guests_checked_in += metrics.guests_checked_in if current_date == end_date else 0
+                    guests_expected_today += metrics.guests_expected_today if current_date == end_date else 0
+                    guests_departing_today += metrics.guests_departing_today if current_date == end_date else 0
+                    total_revenue += metrics.total_revenue
+                
+                # Extensiones nocturnas para el rango completo
+                nights_day = ReservationNight.objects.filter(hotel__in=hotels, date=current_date)
+                revenue_night += nights_day.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
+                nights_sold += nights_day.count()
+                
+                current_date += timedelta(days=1)
+            
+            # Calcular promedios para el rango
+            avg_occupied_rooms = occupied_rooms / dates_count if dates_count > 0 else 0
+            adr_night = (revenue_night / Decimal(nights_sold)).quantize(Decimal('0.01')) if nights_sold else Decimal('0.00')
+            average_room_rate = (total_revenue / Decimal(avg_occupied_rooms)).quantize(Decimal('0.01')) if avg_occupied_rooms > 0 else Decimal('0.00')
+            occupancy_rate = (Decimal(avg_occupied_rooms) / Decimal(total_rooms) * Decimal('100')).quantize(Decimal('0.01')) if total_rooms > 0 else Decimal('0.00')
+            revpar = (total_revenue / Decimal(total_rooms * dates_count)).quantize(Decimal('0.01')) if total_rooms > 0 and dates_count > 0 else Decimal('0.00')
+            
+            # Comisiones solo del último día
+            checkin_qs = Reservation.objects.filter(
+                hotel__in=hotels,
+                check_in=target_date,
+                status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
+            )
+            commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+            revenue_net_checkin = (total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+        else:
+            # Comportamiento original: una sola fecha
+            total_rooms = 0
+            available_rooms = 0
+            occupied_rooms = 0
+            maintenance_rooms = 0
+            out_of_service_rooms = 0
+            reserved_rooms = 0
+            total_reservations = 0
+            pending_reservations = 0
+            confirmed_reservations = 0
+            cancelled_reservations = 0
+            check_in_today = 0
+            check_out_today = 0
+            no_show_today = 0
+            total_guests = 0
+            guests_checked_in = 0
+            guests_expected_today = 0
+            guests_departing_today = 0
+            total_revenue = Decimal('0.00')
+            revenue_night = Decimal('0.00')
+            nights_sold = 0
+            adr_night = Decimal('0.00')
+            commissions_checkin = Decimal('0.00')
+            revenue_net_checkin = Decimal('0.00')
+            
+            for hotel in hotels:
+                metrics = DashboardMetrics.objects.filter(hotel=hotel, date=target_date).first()
+                if not metrics:
+                    metrics = DashboardMetrics.calculate_metrics(hotel, target_date)
+                total_rooms += metrics.total_rooms
+                available_rooms += metrics.available_rooms
+                occupied_rooms += metrics.occupied_rooms
+                maintenance_rooms += metrics.maintenance_rooms
+                out_of_service_rooms += metrics.out_of_service_rooms
+                reserved_rooms += metrics.reserved_rooms
+                total_reservations += metrics.total_reservations
+                pending_reservations += metrics.pending_reservations
+                confirmed_reservations += metrics.confirmed_reservations
+                cancelled_reservations += metrics.cancelled_reservations
+                check_in_today += metrics.check_in_today
+                check_out_today += metrics.check_out_today
+                no_show_today += metrics.no_show_today
+                total_guests += metrics.total_guests
+                guests_checked_in += metrics.guests_checked_in
+                guests_expected_today += metrics.guests_expected_today
+                guests_departing_today += metrics.guests_departing_today
+                total_revenue += metrics.total_revenue
+            
+            # Extensiones nocturnas / ADR nocturno
+            nights_qs = ReservationNight.objects.filter(hotel__in=hotels, date=target_date)
+            revenue_night = nights_qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
+            nights_sold = nights_qs.count()
+            adr_night = (revenue_night / Decimal(nights_sold)).quantize(Decimal('0.01')) if nights_sold else Decimal('0.00')
+            
+            # Comisiones por check-in del día y neto
+            checkin_qs = Reservation.objects.filter(
+                hotel__in=hotels,
+                check_in=target_date,
+                status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
+            )
+            commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+            revenue_net_checkin = (total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+            
+            # Calcular promedios
+            average_room_rate = (total_revenue / Decimal(occupied_rooms)).quantize(Decimal('0.01')) if occupied_rooms > 0 else Decimal('0.00')
+            occupancy_rate = (Decimal(occupied_rooms) / Decimal(total_rooms) * Decimal('100')).quantize(Decimal('0.01')) if total_rooms > 0 else Decimal('0.00')
+            revpar = (total_revenue / Decimal(total_rooms)).quantize(Decimal('0.01')) if total_rooms > 0 else Decimal('0.00')
 
-        # Comisiones por check-in del día y neto
-        # Llegadas de hoy incluyen pendientes/confirmadas/check-in
-        checkin_qs = Reservation.objects.filter(
+        # LOS promedio (en-house en fecha objetivo)
+        inhouse_qs = Reservation.objects.filter(
             hotel__in=hotels,
-            check_in=target_date,
-            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
-        )
-        commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
-        revenue_net_checkin = (total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+            status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
+            check_in__lte=target_date,
+            check_out__gt=target_date,
+        ).only('check_in', 'check_out')
+        los_sum = 0
+        los_count = 0
+        for r in inhouse_qs:
+            nights = (r.check_out - r.check_in).days
+            if nights > 0:
+                los_sum += nights
+                los_count += 1
+        avg_length_of_stay_days = (Decimal(los_sum) / Decimal(los_count)).quantize(Decimal('0.01')) if los_count else Decimal('0.00')
 
-        # Calcular promedios
-        average_room_rate = (total_revenue / Decimal(occupied_rooms)).quantize(Decimal('0.01')) if occupied_rooms > 0 else Decimal('0.00')
-        occupancy_rate = (Decimal(occupied_rooms) / Decimal(total_rooms) * Decimal('100')).quantize(Decimal('0.01')) if total_rooms > 0 else Decimal('0.00')
+        # Lead time promedio (para llegadas del día)
+        lt_sum = 0
+        lt_count = 0
+        for r in checkin_qs.only('created_at', 'check_in'):
+            try:
+                lt_days = (r.check_in - r.created_at.date()).days
+                if lt_days >= 0:
+                    lt_sum += lt_days
+                    lt_count += 1
+            except Exception:
+                continue
+        lead_time_avg_days = (Decimal(lt_sum) / Decimal(lt_count)).quantize(Decimal('0.01')) if lt_count else Decimal('0.00')
+
+        # Pickup (nuevas reservas creadas)
+        pickup_today = Reservation.objects.filter(
+            hotel__in=hotels,
+            created_at__date=target_date,
+            check_in__gte=target_date,
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).count()
+        pickup_7d = Reservation.objects.filter(
+            hotel__in=hotels,
+            created_at__date__range=[target_date - timedelta(days=6), target_date],
+            check_in__gte=target_date,
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+        ).count()
+
+        # On The Books próximos 30 días (noches e ingresos)
+        otb_end = target_date + timedelta(days=29)
+        otb_qs = ReservationNight.objects.filter(hotel__in=hotels, date__range=[target_date, otb_end])
+        otb_next_30d_nights = otb_qs.count()
+        otb_next_30d_revenue = (otb_qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')).quantize(Decimal('0.01'))
+
+        # Tasa de cancelación últimos 30 días (cancelled / creadas)
+        win_start = target_date - timedelta(days=29)
+        created_30d = Reservation.objects.filter(hotel__in=hotels, created_at__date__range=[win_start, target_date]).count()
+        cancelled_30d = Reservation.objects.filter(hotel__in=hotels, status=ReservationStatus.CANCELLED, updated_at__date__range=[win_start, target_date]).count()
+        cancellation_rate_30d = (Decimal(cancelled_30d) / Decimal(created_30d) * Decimal('100')).quantize(Decimal('0.01')) if created_30d else Decimal('0.00')
         
         # Crear resumen global
         summary_data = {
@@ -183,12 +336,21 @@ def dashboard_summary(request):
             'total_revenue': total_revenue,
             'average_room_rate': average_room_rate,
             'occupancy_rate': occupancy_rate,
+            'revpar': revpar,
             # Extensiones
             'revenue_night': revenue_night,
             'nights_sold': nights_sold,
             'adr_night': adr_night,
             'commissions_checkin': commissions_checkin,
             'revenue_net_checkin': revenue_net_checkin,
+            # KPIs adicionales
+            'avg_length_of_stay_days': avg_length_of_stay_days,
+            'lead_time_avg_days': lead_time_avg_days,
+            'pickup_today': pickup_today,
+            'pickup_7d': pickup_7d,
+            'otb_next_30d_nights': otb_next_30d_nights,
+            'otb_next_30d_revenue': otb_next_30d_revenue,
+            'cancellation_rate_30d': cancellation_rate_30d,
         }
         
         serializer = DashboardSummarySerializer(summary_data)
@@ -196,62 +358,215 @@ def dashboard_summary(request):
     
     try:
         hotel = Hotel.objects.get(id=hotel_id)
-        target_date = date.fromisoformat(target_date)
     except Hotel.DoesNotExist:
         return Response(
             {'error': 'Hotel no encontrado'}, 
             status=status.HTTP_404_NOT_FOUND
         )
-    except ValueError:
-        return Response(
-            {'error': 'Formato de fecha inválido'}, 
-            status=status.HTTP_400_BAD_REQUEST
+    
+    # Si se usa rango de fechas para hotel específico, calcular métricas agregadas
+    if use_date_range:
+        # Agregar métricas de todas las fechas del rango
+        total_rooms = 0
+        available_rooms = 0
+        occupied_rooms = 0
+        maintenance_rooms = 0
+        out_of_service_rooms = 0
+        reserved_rooms = 0
+        total_reservations = 0
+        pending_reservations = 0
+        confirmed_reservations = 0
+        cancelled_reservations = 0
+        check_in_today = 0
+        check_out_today = 0
+        no_show_today = 0
+        total_guests = 0
+        guests_checked_in = 0
+        guests_expected_today = 0
+        guests_departing_today = 0
+        total_revenue = Decimal('0.00')
+        revenue_night = Decimal('0.00')
+        nights_sold = 0
+        
+        # Iterar sobre todas las fechas del rango
+        current_date = start_date
+        dates_count = 0
+        while current_date <= end_date:
+            dates_count += 1
+            metrics = DashboardMetrics.objects.filter(hotel=hotel, date=current_date).first()
+            if not metrics:
+                metrics = DashboardMetrics.calculate_metrics(hotel, current_date)
+            # Para rangos, acumulamos valores
+            if current_date == end_date:  # Solo contamos habitaciones en la última fecha
+                total_rooms += metrics.total_rooms
+                available_rooms += metrics.available_rooms
+                maintenance_rooms += metrics.maintenance_rooms
+                out_of_service_rooms += metrics.out_of_service_rooms
+            occupied_rooms += metrics.occupied_rooms
+            reserved_rooms += metrics.reserved_rooms
+            total_reservations += metrics.total_reservations
+            pending_reservations += metrics.pending_reservations
+            confirmed_reservations += metrics.confirmed_reservations
+            cancelled_reservations += metrics.cancelled_reservations
+            check_in_today += metrics.check_in_today if current_date == end_date else 0
+            check_out_today += metrics.check_out_today if current_date == end_date else 0
+            no_show_today += metrics.no_show_today if current_date == end_date else 0
+            total_guests += metrics.total_guests if current_date == end_date else 0
+            guests_checked_in += metrics.guests_checked_in if current_date == end_date else 0
+            guests_expected_today += metrics.guests_expected_today if current_date == end_date else 0
+            guests_departing_today += metrics.guests_departing_today if current_date == end_date else 0
+            total_revenue += metrics.total_revenue
+            
+            # Extensiones nocturnas para el rango completo
+            nights_day = ReservationNight.objects.filter(hotel=hotel, date=current_date)
+            revenue_night += nights_day.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
+            nights_sold += nights_day.count()
+            
+            current_date += timedelta(days=1)
+        
+        # Calcular promedios para el rango
+        avg_occupied_rooms = occupied_rooms / dates_count if dates_count > 0 else 0
+        adr_night = (revenue_night / Decimal(nights_sold)).quantize(Decimal('0.01')) if nights_sold else Decimal('0.00')
+        average_room_rate = (total_revenue / Decimal(avg_occupied_rooms)).quantize(Decimal('0.01')) if avg_occupied_rooms > 0 else Decimal('0.00')
+        occupancy_rate = (Decimal(avg_occupied_rooms) / Decimal(total_rooms) * Decimal('100')).quantize(Decimal('0.01')) if total_rooms > 0 else Decimal('0.00')
+        revpar = (total_revenue / Decimal(total_rooms * dates_count)).quantize(Decimal('0.01')) if total_rooms > 0 and dates_count > 0 else Decimal('0.00')
+        
+        # Comisiones solo del último día
+        checkin_qs = Reservation.objects.filter(
+            hotel=hotel,
+            check_in=target_date,
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
         )
-    
-    # Calcular/obtener métricas para la fecha especificada
-    metrics = DashboardMetrics.objects.filter(hotel=hotel, date=target_date).first()
-    if not metrics:
-        metrics = DashboardMetrics.calculate_metrics(hotel, target_date)
-    
-    # Extensiones financieras desde módulo de pricing
-    nights_qs = ReservationNight.objects.filter(hotel=hotel, date=target_date)
-    revenue_night = nights_qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
-    nights_sold = nights_qs.count()
-    adr_night = (revenue_night / Decimal(nights_sold)).quantize(Decimal('0.01')) if nights_sold else Decimal('0.00')
+        commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+        revenue_net_checkin = (total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+        
+        summary_data = {
+            'hotel_id': hotel.id,
+            'hotel_name': hotel.name,
+            'date': target_date,
+            'total_rooms': total_rooms,
+            'available_rooms': available_rooms,
+            'occupied_rooms': avg_occupied_rooms,
+            'occupancy_rate': occupancy_rate,
+            'total_reservations': total_reservations,
+            'check_in_today': check_in_today,
+            'check_out_today': check_out_today,
+            'total_guests': total_guests,
+            'guests_checked_in': guests_checked_in,
+            'guests_expected_today': guests_expected_today,
+            'guests_departing_today': guests_departing_today,
+            'total_revenue': total_revenue,
+            'average_room_rate': average_room_rate,
+            'revpar': revpar,
+            'revenue_night': revenue_night,
+            'nights_sold': nights_sold,
+            'adr_night': adr_night,
+            'commissions_checkin': commissions_checkin,
+            'revenue_net_checkin': revenue_net_checkin,
+        }
+    else:
+        # Comportamiento original: una sola fecha
+        # Calcular/obtener métricas para la fecha especificada
+        metrics = DashboardMetrics.objects.filter(hotel=hotel, date=target_date).first()
+        if not metrics:
+            metrics = DashboardMetrics.calculate_metrics(hotel, target_date)
+        
+        # Extensiones financieras desde módulo de pricing
+        nights_qs = ReservationNight.objects.filter(hotel=hotel, date=target_date)
+        revenue_night = nights_qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')
+        nights_sold = nights_qs.count()
+        adr_night = (revenue_night / Decimal(nights_sold)).quantize(Decimal('0.01')) if nights_sold else Decimal('0.00')
 
-    # Llegadas de hoy incluyen pendientes/confirmadas/check-in
-    checkin_qs = Reservation.objects.filter(
+        # Llegadas de hoy incluyen pendientes/confirmadas/check-in
+        checkin_qs = Reservation.objects.filter(
+            hotel=hotel,
+            check_in=target_date,
+            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
+        )
+        commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+        revenue_net_checkin = (metrics.total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+
+        # Crear resumen
+        summary_data = {
+            'hotel_id': hotel.id,
+            'hotel_name': hotel.name,
+            'date': target_date,
+            'total_rooms': metrics.total_rooms,
+            'available_rooms': metrics.available_rooms,
+            'occupied_rooms': metrics.occupied_rooms,
+            'occupancy_rate': metrics.occupancy_rate,
+            'total_reservations': metrics.total_reservations,
+            'check_in_today': metrics.check_in_today,
+            'check_out_today': metrics.check_out_today,
+            'total_guests': metrics.total_guests,
+            'guests_checked_in': metrics.guests_checked_in,
+            'guests_expected_today': metrics.guests_expected_today,
+            'guests_departing_today': metrics.guests_departing_today,
+            'total_revenue': metrics.total_revenue,
+            'average_room_rate': metrics.average_room_rate,
+            'revpar': (metrics.total_revenue / Decimal(metrics.total_rooms)).quantize(Decimal('0.01')) if metrics.total_rooms > 0 else Decimal('0.00'),
+            'revenue_night': revenue_night,
+            'nights_sold': nights_sold,
+            'adr_night': adr_night,
+            'commissions_checkin': commissions_checkin,
+            'revenue_net_checkin': revenue_net_checkin,
+        }
+
+    # KPIs adicionales por hotel
+    # LOS promedio (en-house en fecha objetivo)
+    inhouse_qs = Reservation.objects.filter(
         hotel=hotel,
-        check_in=target_date,
-        status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT]
-    )
-    commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
-    revenue_net_checkin = (metrics.total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+        status__in=[ReservationStatus.CHECK_IN, ReservationStatus.CHECK_OUT],
+        check_in__lte=target_date,
+        check_out__gt=target_date,
+    ).only('check_in', 'check_out')
+    los_sum = 0
+    los_count = 0
+    for r in inhouse_qs:
+        nights = (r.check_out - r.check_in).days
+        if nights > 0:
+            los_sum += nights
+            los_count += 1
+    summary_data['avg_length_of_stay_days'] = (Decimal(los_sum) / Decimal(los_count)).quantize(Decimal('0.01')) if los_count else Decimal('0.00')
 
-    # Crear resumen
-    summary_data = {
-        'hotel_id': hotel.id,
-        'hotel_name': hotel.name,
-        'date': target_date,
-        'total_rooms': metrics.total_rooms,
-        'available_rooms': metrics.available_rooms,
-        'occupied_rooms': metrics.occupied_rooms,
-        'occupancy_rate': metrics.occupancy_rate,
-        'total_reservations': metrics.total_reservations,
-        'check_in_today': metrics.check_in_today,
-        'check_out_today': metrics.check_out_today,
-        'total_guests': metrics.total_guests,
-        'guests_checked_in': metrics.guests_checked_in,
-        'guests_expected_today': metrics.guests_expected_today,
-        'guests_departing_today': metrics.guests_departing_today,
-        'total_revenue': metrics.total_revenue,
-        'average_room_rate': metrics.average_room_rate,
-        'revenue_night': revenue_night,
-        'nights_sold': nights_sold,
-        'adr_night': adr_night,
-        'commissions_checkin': commissions_checkin,
-        'revenue_net_checkin': revenue_net_checkin,
-    }
+    # Lead time promedio (para llegadas del día)
+    lt_sum = 0
+    lt_count = 0
+    for r in checkin_qs.only('created_at', 'check_in'):
+        try:
+            lt_days = (r.check_in - r.created_at.date()).days
+            if lt_days >= 0:
+                lt_sum += lt_days
+                lt_count += 1
+        except Exception:
+            continue
+    summary_data['lead_time_avg_days'] = (Decimal(lt_sum) / Decimal(lt_count)).quantize(Decimal('0.01')) if lt_count else Decimal('0.00')
+
+    # Pickup (nuevas reservas creadas)
+    summary_data['pickup_today'] = Reservation.objects.filter(
+        hotel=hotel,
+        created_at__date=target_date,
+        check_in__gte=target_date,
+        status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+    ).count()
+    summary_data['pickup_7d'] = Reservation.objects.filter(
+        hotel=hotel,
+        created_at__date__range=[target_date - timedelta(days=6), target_date],
+        check_in__gte=target_date,
+        status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+    ).count()
+
+    # On The Books próximos 30 días (noches e ingresos)
+    otb_end = target_date + timedelta(days=29)
+    otb_qs = ReservationNight.objects.filter(hotel=hotel, date__range=[target_date, otb_end])
+    summary_data['otb_next_30d_nights'] = otb_qs.count()
+    summary_data['otb_next_30d_revenue'] = (otb_qs.aggregate(s=Sum('total_night'))['s'] or Decimal('0.00')).quantize(Decimal('0.01'))
+
+    # Tasa de cancelación últimos 30 días
+    win_start = target_date - timedelta(days=29)
+    created_30d = Reservation.objects.filter(hotel=hotel, created_at__date__range=[win_start, target_date]).count()
+    cancelled_30d = Reservation.objects.filter(hotel=hotel, status=ReservationStatus.CANCELLED, updated_at__date__range=[win_start, target_date]).count()
+    summary_data['cancellation_rate_30d'] = (Decimal(cancelled_30d) / Decimal(created_30d) * Decimal('100')).quantize(Decimal('0.01')) if created_30d else Decimal('0.00')
     
     serializer = DashboardSummarySerializer(summary_data)
     return Response(serializer.data)
@@ -334,6 +649,7 @@ def dashboard_trends(request):
                 'occupancy_rate': daily_occupancy_rate,
                 'total_revenue': daily_total_revenue,
                 'average_room_rate': daily_average_room_rate,
+                'revpar': (daily_total_revenue / Decimal(daily_total_rooms)).quantize(Decimal('0.01')) if daily_total_rooms > 0 else Decimal('0.00'),
                 'total_guests': daily_total_guests,
                 'check_in_today': daily_check_in,
                 'check_out_today': daily_check_out,
@@ -403,6 +719,7 @@ def dashboard_trends(request):
             'occupancy_rate': metric.occupancy_rate,
             'total_revenue': metric.total_revenue,
             'average_room_rate': metric.average_room_rate,
+            'revpar': (metric.total_revenue / Decimal(metric.total_rooms)).quantize(Decimal('0.01')) if metric.total_rooms > 0 else Decimal('0.00'),
             'total_guests': metric.total_guests,
             'check_in_today': metric.check_in_today,
             'check_out_today': metric.check_out_today,

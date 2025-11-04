@@ -308,6 +308,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.otas.tasks.import_all_ics",
         "schedule": crontab(minute=10),  # Cada hora al minuto 10
     },
+    # Pull de reservas cada 5 minutos (mock/sandbox hasta credenciales reales)
+    "otas_pull_reservations_5min": {
+        "task": "apps.otas.tasks.pull_reservations_all_hotels_task",
+        "schedule": 300.0,
+    },
 }
 
 # Asegurar registro explícito de tareas de OTAs en Celery (además del autodiscover)

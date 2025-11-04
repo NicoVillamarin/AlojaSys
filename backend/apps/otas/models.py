@@ -43,6 +43,12 @@ class OtaConfig(models.Model):
         PROD = "prod", "Prod"
     airbnb_mode = models.CharField(max_length=8, choices=AirbnbMode.choices, default=AirbnbMode.TEST)
 
+    # Verificación de configuración (base_url válido)
+    verified = models.BooleanField(
+        default=False,
+        help_text="Indica si la configuración base_url es válida y está verificada"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -56,6 +62,11 @@ class OtaConfig(models.Model):
         return f"OTA Config - {self.hotel.name} - {self.provider}"
 
 class OtaRoomMapping(models.Model):
+    class SyncDirection(models.TextChoices):
+        IMPORT = "import", "Import"
+        EXPORT = "export", "Export"
+        BOTH = "both", "Both"
+
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="ota_room_mappings")
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="ota_mappings")
     provider = models.CharField(max_length=20, choices=OtaProvider.choices)
@@ -65,6 +76,12 @@ class OtaRoomMapping(models.Model):
 
     # URL de ICS de entrada (pull) para esta habitacion
     ical_in_url = models.URLField(blank=True, null=True)
+
+    # Dirección de sincronización
+    sync_direction = models.CharField(max_length=10, choices=SyncDirection.choices, default=SyncDirection.BOTH)
+
+    # Última sincronización exitosa
+    last_synced = models.DateTimeField(null=True, blank=True)
 
     # Estado del mapeo
     is_active = models.BooleanField(default=True)

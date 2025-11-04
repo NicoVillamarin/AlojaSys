@@ -55,6 +55,8 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
     position: user?.position ?? '',
     enterprise: user?.enterprise ?? null,
     hotels: user?.hotels ?? [],
+    groups_ids: user?.groups?.map(g => g.id) ?? [], // IDs de los grupos/roles
+    is_superuser: user?.is_superuser ?? false, // Campo para superuser
     avatar_image: null, // Archivo seleccionado
     existing_avatar_url: user?.avatar_image_url ?? null, // URL del avatar existente
   }
@@ -89,6 +91,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
     phone: Yup.string(),
     position: Yup.string(),
     hotels: Yup.array().min(1, t('users_modal.assigned_hotels_required')),
+    groups_ids: Yup.array().of(Yup.number()), // Opcional, no requerido
   })
 
   const [instanceKey, setInstanceKey] = useState(0)
@@ -114,6 +117,8 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           position: values.position || undefined,
           enterprise: values.enterprise?.id || undefined,
           hotels: values.hotels || [],
+          groups_ids: values.groups_ids && values.groups_ids.length > 0 ? values.groups_ids : [], // Enviar array vacío si no hay grupos
+          is_superuser: values.is_superuser || false, // Enviar si es superuser
         }
         
         // Solo incluir password si se proporcionó
@@ -220,6 +225,39 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
               {touched.hotels && errors.hotels && (
                 <p className='mt-1 text-xs text-red-600'>{errors.hotels}</p>
               )}
+            </div>
+            <div className='lg:col-span-2'>
+              <SelectAsync
+                title={t('users_modal.assigned_roles')}
+                name='groups_ids'
+                resource='groups'
+                placeholder={t('users_modal.assigned_roles_placeholder')}
+                getOptionLabel={(g) => g?.name}
+                getOptionValue={(g) => g?.id}
+                isMulti={true}
+              />
+              {touched.groups_ids && errors.groups_ids && (
+                <p className='mt-1 text-xs text-red-600'>{errors.groups_ids}</p>
+              )}
+            </div>
+            <div className='lg:col-span-2'>
+              <label className='flex items-center gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors'>
+                <input
+                  type='checkbox'
+                  name='is_superuser'
+                  checked={values.is_superuser}
+                  onChange={handleChange}
+                  className='w-4 h-4 text-aloja-navy border-gray-300 rounded focus:ring-aloja-navy cursor-pointer'
+                />
+                <div className='flex-1'>
+                  <span className='text-sm font-medium text-aloja-gray-800'>
+                    {t('users_modal.is_superuser')}
+                  </span>
+                  <p className='text-xs text-aloja-gray-600 mt-0.5'>
+                    {t('users_modal.is_superuser_desc')}
+                  </p>
+                </div>
+              </label>
             </div>
             <div className='lg:col-span-2'>
               <FileImage

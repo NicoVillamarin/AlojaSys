@@ -25,19 +25,24 @@ def sync_room_occupancy_for_today(self):
             if res.status != ReservationStatus.CHECK_IN:
                 res.status = ReservationStatus.CHECK_IN
                 res.save(update_fields=["status"])
-            if res.room.status != RoomStatus.OCCUPIED:
+            if res.room and res.room.status != RoomStatus.OCCUPIED:
                 res.room.status = RoomStatus.OCCUPIED
                 res.room.save(update_fields=["status"])
 
     with transaction.atomic():
         # Procesar checkout automático basado en horario del hotel (usando zona horaria del hotel)
-        # Obtener todas las reservas que deberían hacer checkout hoy (fecha basada en TZ del servidor)
+        # Obtener todas las reservas que deberían hacer checkout hoy O que ya pasaron su fecha de check-out
+        # (incluye check-outs pasados que no se procesaron automáticamente)
         checkout_reservations = Reservation.objects.select_related("room", "hotel").filter(
             status=ReservationStatus.CHECK_IN,
-            check_out=today,
+            check_out__lte=today,  # Incluye hoy y fechas pasadas
         )
 
         for res in checkout_reservations:
+            # Verificar si el hotel tiene check-out automático habilitado
+            if not getattr(res.hotel, "auto_check_out_enabled", True):
+                continue
+            
             # Hora actual en la zona horaria configurada del hotel
             try:
                 hotel_tz = ZoneInfo(res.hotel.timezone) if res.hotel and res.hotel.timezone else None
@@ -47,21 +52,40 @@ def sync_room_occupancy_for_today(self):
             aware_now = timezone.now()
             local_now = timezone.localtime(aware_now, hotel_tz) if hotel_tz else aware_now
             current_time_local = local_now.time()
+            checkout_date = res.check_out
 
-            # Verificar si ya pasó la hora de checkout del hotel (en hora local del hotel)
+            # Verificar si la fecha de check-out ya pasó o es hoy
+            # Si es hoy, verificar la hora de checkout del hotel
+            # Si ya pasó, hacer checkout automático inmediatamente
             hotel_checkout_time = res.hotel.check_out_time
-            if current_time_local >= hotel_checkout_time:
-                # Realizar checkout automático
+            
+            if checkout_date < today:
+                # La fecha de check-out ya pasó, hacer checkout automático inmediatamente
                 res.status = ReservationStatus.CHECK_OUT
-                res.save(update_fields=["status"])
+                res.save(update_fields=["status"], skip_clean=True)
 
                 # Liberar la habitación
-                if res.room.status == RoomStatus.OCCUPIED:
+                if res.room and res.room.status == RoomStatus.OCCUPIED:
                     res.room.status = RoomStatus.AVAILABLE
                     res.room.save(update_fields=["status"])
 
+                room_name = res.room.name if res.room else "N/A"
                 print(
-                    f"✅ Checkout automático realizado para reserva {res.id} - {res.room.name} (hora local {current_time_local}, tz={res.hotel.timezone})"
+                    f"✅ Checkout automático realizado para reserva {res.id} - {room_name} (check-out pasado: {checkout_date}, tz={res.hotel.timezone})"
+                )
+            elif checkout_date == today and current_time_local >= hotel_checkout_time:
+                # Es hoy y ya pasó la hora de checkout, hacer checkout automático
+                res.status = ReservationStatus.CHECK_OUT
+                res.save(update_fields=["status"], skip_clean=True)
+
+                # Liberar la habitación
+                if res.room and res.room.status == RoomStatus.OCCUPIED:
+                    res.room.status = RoomStatus.AVAILABLE
+                    res.room.save(update_fields=["status"])
+
+                room_name = res.room.name if res.room else "N/A"
+                print(
+                    f"✅ Checkout automático realizado para reserva {res.id} - {room_name} (hora local {current_time_local}, tz={res.hotel.timezone})"
                 )
 
     with transaction.atomic():
@@ -108,20 +132,26 @@ def process_automatic_checkouts(self):
     """
     Tarea para procesar checkouts automáticos basados en el horario configurado en cada hotel.
     Esta tarea debe ejecutarse cada hora para verificar si hay reservas que deben hacer checkout.
+    Procesa tanto reservas con check_out=today como check_out<today (check-outs pasados que no se procesaron).
     """
     today = timezone.localdate() if timezone.is_aware(timezone.now()) else date.today()
     
     print("🕐 Procesando checkouts automáticos - evaluando por hotel en su zona horaria")
     
-    # Obtener todas las reservas que deberían hacer checkout hoy y están en CHECK_IN
+    # Obtener todas las reservas que deberían hacer checkout hoy O que ya pasaron su fecha de check-out
+    # y están en CHECK_IN (incluye check-outs pasados que no se procesaron automáticamente)
     checkout_reservations = Reservation.objects.select_related("room", "hotel").filter(
         status=ReservationStatus.CHECK_IN,
-        check_out=today,
+        check_out__lte=today,  # Incluye hoy y fechas pasadas
     )
     
     processed_count = 0
     
     for res in checkout_reservations:
+        # Verificar si el hotel tiene check-out automático habilitado
+        if not getattr(res.hotel, "auto_check_out_enabled", True):
+            continue
+        
         # Hora actual en la zona horaria del hotel
         try:
             hotel_tz = ZoneInfo(res.hotel.timezone) if res.hotel and res.hotel.timezone else None
@@ -135,24 +165,47 @@ def process_automatic_checkouts(self):
         # Verificar si ya pasó la hora de checkout del hotel
         hotel_checkout_time = res.hotel.check_out_time
 
+        checkout_date = res.check_out
+        
         print(
-            f"📋 Reserva {res.id} - Hotel: {res.hotel.name} - TZ: {res.hotel.timezone} - Ahora local: {current_time_local} - Checkout configurado: {hotel_checkout_time}"
+            f"📋 Reserva {res.id} - Hotel: {res.hotel.name} - TZ: {res.hotel.timezone} - Check-out: {checkout_date} - Ahora local: {current_time_local} - Checkout configurado: {hotel_checkout_time}"
         )
 
-        if current_time_local >= hotel_checkout_time:
+        # Si la fecha de check-out ya pasó, hacer checkout automático inmediatamente
+        # Si es hoy, verificar si ya pasó la hora de checkout
+        if checkout_date < today:
             try:
                 with transaction.atomic():
-                    # Realizar checkout automático
+                    # Realizar checkout automático (check-out pasado)
                     res.status = ReservationStatus.CHECK_OUT
-                    res.save(update_fields=["status"])
+                    res.save(update_fields=["status"], skip_clean=True)
                     
                     # Liberar la habitación
-                    if res.room.status == RoomStatus.OCCUPIED:
+                    if res.room and res.room.status == RoomStatus.OCCUPIED:
                         res.room.status = RoomStatus.AVAILABLE
                         res.room.save(update_fields=["status"])
                     
+                    room_name = res.room.name if res.room else "N/A"
                     processed_count += 1
-                    print(f"✅ Checkout automático realizado para reserva {res.id} - {res.room.name} - Hotel: {res.hotel.name}")
+                    print(f"✅ Checkout automático realizado para reserva {res.id} - {room_name} - Hotel: {res.hotel.name} (check-out pasado: {checkout_date})")
+                    
+            except Exception as e:
+                print(f"❌ Error procesando checkout automático para reserva {res.id}: {e}")
+        elif checkout_date == today and current_time_local >= hotel_checkout_time:
+            try:
+                with transaction.atomic():
+                    # Realizar checkout automático (es hoy y ya pasó la hora)
+                    res.status = ReservationStatus.CHECK_OUT
+                    res.save(update_fields=["status"], skip_clean=True)
+                    
+                    # Liberar la habitación
+                    if res.room and res.room.status == RoomStatus.OCCUPIED:
+                        res.room.status = RoomStatus.AVAILABLE
+                        res.room.save(update_fields=["status"])
+                    
+                    room_name = res.room.name if res.room else "N/A"
+                    processed_count += 1
+                    print(f"✅ Checkout automático realizado para reserva {res.id} - {room_name} - Hotel: {res.hotel.name}")
                     
             except Exception as e:
                 print(f"❌ Error procesando checkout automático para reserva {res.id}: {e}")
@@ -295,7 +348,7 @@ def auto_mark_no_show_daily(self):
             # Buscar reservas confirmadas con check-in pasado para este hotel
             expired_reservations = Reservation.objects.filter(
                 hotel=hotel,
-                status='confirmed',
+                status=ReservationStatus.CONFIRMED,
                 check_in__lt=today
             )
             
@@ -306,15 +359,15 @@ def auto_mark_no_show_daily(self):
             
             for reservation in expired_reservations:
                 try:
-                    # Cambiar estado a no_show
-                    reservation.status = 'no_show'
-                    reservation.save(update_fields=['status'])
+                    # Cambiar estado a no_show evitando revalidaciones de solapamiento
+                    reservation.status = ReservationStatus.NO_SHOW
+                    reservation.save(update_fields=['status'], skip_clean=True)
                     
                     # Registrar el cambio de estado
                     ReservationStatusChange.objects.create(
                         reservation=reservation,
-                        from_status='confirmed',
-                        to_status='no_show',
+                        from_status=ReservationStatus.CONFIRMED,
+                        to_status=ReservationStatus.NO_SHOW,
                         changed_by=None,  # Sistema automático
                         notes='Auto no-show: check-in date passed'
                     )

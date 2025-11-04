@@ -45,7 +45,9 @@
     "invoicing": "Invoicing",
     "invoicing_electronic": "Electronic Invoicing",
     "invoicing_receipts": "Payment Receipts",
-    "otas": "OTAs"
+    "otas": "OTAs",
+    "channels": "Booking Channels",
+    "roles": "Roles"
   },
   "vouchers_modal": {
     "create_voucher": "Create Voucher",
@@ -221,6 +223,13 @@
     "postal_code": "ZIP",
     "latitude": "Lat",
     "longitude": "Lng"
+  },
+  "roles": {
+    "create_role": "Create role",
+    "search_placeholder": "Search roles…",
+    "name": "Name",
+    "permissions_count": "Permissions",
+    "more_permissions": "more"
   },
   "plan_rates": {
     "title": "Rate Plans",
@@ -489,6 +498,9 @@
     "update_now": "Update Now",
     "auto_update": "Auto-update every 30s",
     "updating": "Updating...",
+    "view_mode": "View mode",
+    "simple_mode": "Simple",
+    "advanced_mode": "Advanced",
     "main_metrics": "Main Metrics",
     "error_loading_metrics": "Error loading dashboard metrics",
     "revenue": "Revenue",
@@ -540,7 +552,34 @@
       "total_count": "total",
       "to_confirm_revenue": "to confirm",
       "per_room": "per room",
-      "today": "today"
+      "today": "today",
+      "revpar": "RevPAR",
+      "per_available_room": "per available room",
+      "avg_los": "Average Stay (LOS)",
+      "days": "days",
+      "in_house": "in-house",
+      "lead_time_avg": "Average Lead Time",
+      "for_today_arrivals": "for today's arrivals",
+      "pickup_today": "Pickup Today",
+      "new_bookings": "New bookings",
+      "pickup_7d": "Pickup 7 days",
+      "new_bookings_last_7d": "New bookings last 7 days",
+      "otb_30d_nights": "OTB 30d (nights)",
+      "room_nights": "room nights",
+      "otb_30d_revenue": "OTB 30d (revenue)",
+      "next_30_days": "next 30 days",
+      "cancellation_rate_30d": "Cancellation Rate 30d",
+      "last_30_days": "last 30 days"
+    },
+    "kpis_help": {
+      "revpar": "Revenue per available room: total revenue for the day divided by available rooms (out-of-service excluded). Useful to understand real inventory performance.",
+      "avg_los": "LOS (Length of Stay): average number of nights per currently in-house reservation. Helps estimate typical stay duration.",
+      "lead_time_avg": "Average days between reservation creation and check‑in (for today's arrivals). Useful for pricing/stock planning.",
+      "pickup": "New bookings created today with future check‑in (including confirmed and pending). Measures today's booking pace.",
+      "pickup_7d": "New bookings created in the last 7 days with future check‑in. Measures weekly booking trend.",
+      "otb_30d": "On The Books next 30 days (nights): total nights already sold within the next 30 days.",
+      "otb_30d_revenue": "On The Books next 30 days (revenue): projected revenue from nights sold within the next 30 days.",
+      "cancellation_rate_30d": "% of cancelled bookings over bookings created in the last 30 days. Useful to detect policy/communication issues."
     },
     "room_types": {
       "title": "Room Types (Mappings)",
@@ -905,6 +944,7 @@
     "automation_settings": "Automation Settings",
     "status": "Status",
     "auto_check_in_enabled": "Self-check-in upon arrival on the check-in date",
+    "auto_check_out_enabled": "Auto check-out when check-out date passes",
     "auto_no_show_enabled": "Auto no-show for expired reservations",
     "active": "Active",
     "enabled_for_operation": "Enabled for operation"
@@ -942,6 +982,8 @@
     "assigned_hotels": "Assigned hotels",
     "assigned_hotels_required": "Must assign at least one hotel",
     "assigned_hotels_placeholder": "Select hotels...",
+    "assigned_roles": "Assigned Roles",
+    "assigned_roles_placeholder": "Select roles (optional)…",
     "password_note": "Note:",
     "password_note_text": "If you don't want to change the password, leave the field blank."
   },
@@ -965,6 +1007,33 @@
     "lng": "Lng",
     "lng_number": "Lng must be a number",
     "lng_placeholder": "-74.0060"
+  },
+  "roles_modal": {
+    "edit_role": "Edit role",
+    "create_role": "Create role",
+    "save_changes": "Save changes",
+    "create_role_btn": "Create role",
+    "cancel": "Cancel",
+    "name": "Role name",
+    "name_placeholder": "E.g: Receptionist, Administrator",
+    "name_required": "Role name is required",
+    "name_min": "Name must be at least 2 characters",
+    "permissions": "Permissions",
+    "permissions_required": "Must select at least one permission",
+    "loading_permissions": "Loading permissions…",
+    "no_permissions": "No permissions available",
+    "no_permissions_found": "No permissions found with selected filters",
+    "selected_permissions": "Selected permissions",
+    "filters_and_presets": "Filters and templates",
+    "search_permissions_placeholder": "Search permissions…",
+    "filter_by_category": "Filter by category",
+    "all_categories": "All",
+    "role_presets": "Role templates",
+    "selected_permissions_count": "{{count}} permission selected",
+    "selected_permissions_count_plural": "{{count}} permissions selected",
+    "clear_filters": "Clear filters",
+    "show_technical_permissions": "Show technical permissions",
+    "show_technical_permissions_desc": "Internal system permissions (log entries, content types, sessions)"
   },
   "states_modal": {
     "edit_state": "Edit state/province",
@@ -1541,6 +1610,10 @@
       "ical_in_url": "iCal URL (input)",
       "ical_in_url_placeholder": "https://.../calendar.ics",
       "is_active": "Active",
+      "sync_direction": "Sync Direction",
+      "sync_direction_both": "Both",
+      "sync_direction_import": "Import Only",
+      "sync_direction_export": "Export Only",
       "import_now": "Import now",
       "copy_room_ical": "Copy room iCal URL",
       "table": {
@@ -1549,6 +1622,8 @@
         "provider": "Provider",
         "external_id": "External ID",
         "ical_in_url": "iCal URL (input)",
+        "sync_direction": "Sync",
+        "last_synced": "Last Synced",
         "active": "Active",
         "last_import": "Last import"
       }

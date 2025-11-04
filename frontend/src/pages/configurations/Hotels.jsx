@@ -92,6 +92,7 @@ export default function Hotels() {
           { key: 'phone', header: t('dashboard.reservations_management.table_headers.phone'), sortable: true },
           { key: 'address', header: t('dashboard.reservations_management.table_headers.address'), sortable: true },
           { key: 'auto_check_in_enabled', header: t('hotels_modal.auto_check_in_enabled'), render: (h) => h.auto_check_in_enabled ? <CheckIcon color="green" /> : <XIcon color="red" />, sortable: true },
+          { key: 'auto_check_out_enabled', header: t('hotels_modal.auto_check_out_enabled'), render: (h) => h.auto_check_out_enabled !== false ? <CheckIcon color="green" /> : <XIcon color="red" />, sortable: true },
           { key: 'auto_no_show_enabled', header: t('hotels_modal.auto_no_show_enabled'), render: (h) => h.auto_no_show_enabled ? <CheckIcon color="green" /> : <XIcon color="red" />, sortable: true },
           {
             key: 'actions',

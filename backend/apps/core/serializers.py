@@ -12,7 +12,7 @@ class HotelSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Hotel
-        fields = ["id", "enterprise", "enterprise_name", "name", "legal_name", "tax_id", "check_in_time", "check_out_time", "auto_check_in_enabled", "auto_no_show_enabled", "email", "phone",
+        fields = ["id", "enterprise", "enterprise_name", "name", "legal_name", "tax_id", "check_in_time", "check_out_time", "auto_check_in_enabled", "auto_check_out_enabled", "auto_no_show_enabled", "email", "phone",
                   "address", "country", "state", "city", "city_name", "state_name", "country_code2",
                   "logo", "logo_url", "logo_base64", "logo_filename", "is_active", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]

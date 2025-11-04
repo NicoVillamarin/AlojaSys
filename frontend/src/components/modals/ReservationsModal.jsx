@@ -212,8 +212,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     room_data: reservation?.room_data ?? null, // Información completa de la habitación
     status: reservation?.status ?? 'pending',
     notes: reservation?.notes ?? '',
-    // Precargar canal, código de promoción y voucher para edición
-    channel: reservation?.channel ?? '',
+    // Canal siempre DIRECT para reservas creadas desde el sistema
+    // Si la reserva tiene external_id (viene de OTA), el backend lo maneja automáticamente
+    channel: reservation?.external_id ? reservation?.channel ?? 'direct' : 'direct',
     promotion_code: reservation?.promotion_code ?? '',
     voucher_code: reservation?.voucher_code ?? '',
   }
@@ -510,7 +511,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         guests_data: guestsData,
         check_in: checkIn || undefined,
         check_out: checkOut || undefined,
-        channel: values.channel || undefined,
+        // No enviar channel, el backend lo normaliza automáticamente a DIRECT para reservas sin external_id
         notes: values.notes || undefined,
         status: values.status || 'pending',
         promotion_code: values.promotion_code || undefined,

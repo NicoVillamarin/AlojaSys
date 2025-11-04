@@ -56,9 +56,9 @@ const ReviewReservation = () => {
     check_in: values.check_in,
     check_out: values.check_out,
     guests: values.guests || 1,
-    ...(values.channel ? { channel: values.channel } : {}),
+    channel: 'direct', // Siempre DIRECT para reservas creadas desde el sistema
     ...(values.promotion_code ? { promotion_code: values.promotion_code } : {}),
-  }), [values.room, values.check_in, values.check_out, values.guests, values.channel, values.promotion_code])
+  }), [values.room, values.check_in, values.check_out, values.guests, values.promotion_code])
 
   const { results: quoteRes, isPending: quotePending } = useAction({
     resource: 'reservations',

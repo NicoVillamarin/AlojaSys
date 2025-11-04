@@ -1,12 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useFormikContext } from 'formik'
 import { useTranslation } from 'react-i18next'
-import { getApiURL } from 'src/services/utils'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import SpinnerData from '../SpinnerData'
 import WalletIcon from 'src/assets/icons/WalletIcon'
-import SelectStandalone from 'src/components/selects/SelectStandalone'
 import InputText from 'src/components/inputs/InputText'
 import { useAction } from 'src/hooks/useAction'
 
@@ -15,21 +13,15 @@ const PaymentInformation = () => {
   const { values, setFieldValue } = useFormikContext()
   const [pricingData, setPricingData] = useState(null)
   const [error, setError] = useState(null)
-  const [choices, setChoices] = useState({ channels: [] })
   const [canBookIssue, setCanBookIssue] = useState(null)
 
-  // cargar channels vía hook de acciones
-  const { results: choicesData } = useAction({ resource: 'rates', action: 'choices', enabled: true })
-  const channelInitRef = useRef(false)
+  // Forzar canal DIRECT para reservas creadas desde el sistema
   useEffect(() => {
-    const channels = choicesData?.channels || []
-    setChoices({ channels })
-    if (!channelInitRef.current && !values.channel && channels.length > 0) {
-      setFieldValue('channel', channels[0].value)
-      channelInitRef.current = true
+    if (!values.channel || values.channel !== 'direct') {
+      setFieldValue('channel', 'direct')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [choicesData])
+  }, [])
 
   // Función para obtener la cotización de precios
   const ready = !!(values.room && values.guests && values.check_in && values.check_out)
@@ -37,7 +29,7 @@ const PaymentInformation = () => {
     room_id: values.room,
     check_in: values.check_in,
     check_out: values.check_out,
-    ...(values.channel ? { channel: values.channel } : {}),
+    channel: 'direct', // Siempre DIRECT para reservas creadas desde el sistema
   }
   const { results: canBookRes, isPending: canPending, refetch: refetchCanBook } = useAction({
     resource: 'reservations',
@@ -63,7 +55,7 @@ const PaymentInformation = () => {
     check_in: values.check_in,
     check_out: values.check_out,
     guests: values.guests || 1,
-    ...(values.channel ? { channel: values.channel } : {}),
+    channel: 'direct', // Siempre DIRECT para reservas creadas desde el sistema
     ...(appliedPromo ? { promotion_code: appliedPromo } : {}),
     ...(appliedVoucher ? { voucher_code: appliedVoucher } : {}),
   }
@@ -228,20 +220,9 @@ const PaymentInformation = () => {
 
   return (
     <div className="space-y-6">
-      {/* Controles de canal, código promo y voucher */}
+      {/* Controles de código promo y voucher */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-          <div>
-            <div className="text-sm font-medium text-gray-700 mb-1">{t('payment_information.channel')}</div>
-            <SelectStandalone
-              value={values.channel ? (choices.channels.find(c => c.value === values.channel) || { value: values.channel, label: values.channel }) : null}
-              onChange={(opt) => setFieldValue('channel', opt?.value || '')}
-              options={choices.channels}
-              isClearable={true}
-              getOptionLabel={(o) => o.label}
-              getOptionValue={(o) => o.value}
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
           <div className="relative">
             <InputText
               name="promotion_code_draft"

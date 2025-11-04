@@ -30,6 +30,8 @@ import InvoicingManagement from "src/pages/invoicing/InvoicingManagement";
 import PaymentReceiptsManagement from "src/pages/invoicing/PaymentReceiptsManagement";
 import AfipConfig from "src/pages/invoicing/AfipConfig";
 import OtaConfig from "src/pages/configurations/OtaConfig";
+import Otas from "src/pages/configurations/Otas";
+import Roles from "src/pages/configurations/Roles";
 
 
 export const appRoutes = [
@@ -58,6 +60,7 @@ export const appRoutes = [
       { path: "settings/policies/cancellation", element: React.createElement(CancellationPolicies) },
       { path: "settings/policies/devolution", element: React.createElement(DevolutionPolicies) },
       { path: "settings/otas", element: React.createElement(OtaConfig) },
+      { path: "otas", element: React.createElement(Otas) },
       { path: "refunds", element: React.createElement(RefundsManagement) },
       { path: "refunds/history", element: React.createElement(RefundsHistorical) },
       { path: "vouchers", element: React.createElement(VouchersManagement) },
@@ -67,6 +70,7 @@ export const appRoutes = [
       { path: "invoicing", element: React.createElement(InvoicingManagement) },
       { path: "invoicing/receipts", element: React.createElement(PaymentReceiptsManagement) },
       { path: "settings/fiscal", element: React.createElement(AfipConfig) },
+      { path: "settings/roles", element: React.createElement(Roles) },
     ],
   },
 ];

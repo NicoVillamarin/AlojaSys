@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { usePermissions, useHasAnyPermission } from "src/hooks/usePermissions";
 import logo from "../assets/img/logo_new_alone_white.png";
 import logo_name from "../assets/img/name_white.png";
 import { Chevron } from "src/assets/icons/Chevron";
@@ -17,6 +18,8 @@ import UserIcon from "src/assets/icons/UserIcon";
 import ReceptionIcon from "src/assets/icons/ReceptionIcon";
 import CalendarIcon from "src/assets/icons/CalendarIcon";
 import ReconciliationIcon from "src/assets/icons/ReconciliationIcon";
+import ChannelsIcon from "src/assets/icons/ChannelsIcon";
+import { useMe } from "src/hooks/useMe";
 
 const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
   <NavLink
@@ -57,7 +60,79 @@ const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
 export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen, isMobile = false, onMobileClose }) {
   const { t } = useTranslation();
   const location = useLocation();
-  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false });
+  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false, rates: false, policies: false });
+  const {data: me } = useMe();
+  
+  // Permisos para el menú principal
+  const hasViewDashboard = usePermissions("dashboard.view_dashboardmetrics");
+  const hasViewReservations = usePermissions("reservations.view_reservation");
+  const hasAddReservations = usePermissions("reservations.add_reservation");
+  const hasReception = useHasAnyPermission(["reservations.view_reservation", "reservations.add_reservation", "reservations.change_reservation"]);
+  const hasViewCalendar = usePermissions("calendar.view_calendarview");
+  const hasViewRooms = usePermissions("rooms.view_room");
+  const hasViewOTAs = usePermissions("otas.view_otaconfig");
+  
+  // Permisos para Histories
+  const hasViewReservationsHistory = usePermissions("reservations.view_reservation");
+  const hasViewPayments = usePermissions("payments.view_payment");
+  const hasViewRefunds = usePermissions("payments.view_refund");
+  const hasAnyHistory = useHasAnyPermission(["reservations.view_reservation", "payments.view_payment", "payments.view_refund"]);
+  
+  // Permisos para Financial
+  const hasViewRefundsMenu = usePermissions("payments.view_refund");
+  const hasViewVouchers = usePermissions("payments.view_refundvoucher");
+  const hasViewInvoices = usePermissions("invoicing.view_invoice");
+  const hasViewReceipts = usePermissions("invoicing.view_receipt");
+  const hasViewInvoicing = useHasAnyPermission(["invoicing.view_invoice", "invoicing.view_receipt"]);
+  const hasViewBankReconciliation = usePermissions("payments.view_bankreconciliation");
+  const hasAnyFinancial = useHasAnyPermission(["payments.view_refund", "payments.view_refundvoucher", "invoicing.view_invoice", "invoicing.view_receipt", "payments.view_bankreconciliation"]);
+  
+  // Permisos para Configuration
+  const hasViewEnterprises = usePermissions("enterprises.view_enterprise");
+  const hasViewOTAsConfig = usePermissions("otas.view_otaconfig");
+  const hasViewRoomsConfig = usePermissions("rooms.view_room");
+  const hasViewHotels = usePermissions("core.view_hotel");
+  const hasViewUsers = usePermissions("users.view_userprofile");
+  const hasViewRoles = usePermissions("auth.view_group");
+  
+  // Permisos para Locations
+  const hasViewCountries = usePermissions("locations.view_country");
+  const hasViewStates = usePermissions("locations.view_state");
+  const hasViewCities = usePermissions("locations.view_city");
+  const hasAnyLocation = useHasAnyPermission(["locations.view_country", "locations.view_state", "locations.view_city"]);
+  
+  // Permisos para Rates
+  const hasViewRatePlans = usePermissions("rates.view_rateplan");
+  const hasViewRateRules = usePermissions("rates.view_raterule");
+  const hasViewPromos = usePermissions("rates.view_promorule");
+  const hasViewTaxes = usePermissions("rates.view_taxrule");
+  const hasAnyRate = useHasAnyPermission(["rates.view_rateplan", "rates.view_raterule", "rates.view_promorule", "rates.view_taxrule"]);
+  
+  // Permisos para Policies
+  const hasViewPaymentPolicies = usePermissions("payments.view_paymentpolicy");
+  const hasViewCancellationPolicies = usePermissions("payments.view_cancellationpolicy");
+  const hasViewRefundPolicies = usePermissions("payments.view_refundpolicy");
+  const hasAnyPolicy = useHasAnyPermission(["payments.view_paymentpolicy", "payments.view_cancellationpolicy", "payments.view_refundpolicy"]);
+  
+  // Verificar si tiene algún permiso de configuración
+  const hasAnySettings = useHasAnyPermission([
+    "enterprises.view_enterprise",
+    "otas.view_otaconfig",
+    "rooms.view_room",
+    "core.view_hotel",
+    "users.view_userprofile",
+    "auth.view_group",
+    "locations.view_country",
+    "locations.view_state",
+    "locations.view_city",
+    "rates.view_rateplan",
+    "rates.view_raterule",
+    "rates.view_promorule",
+    "rates.view_taxrule",
+    "payments.view_paymentpolicy",
+    "payments.view_cancellationpolicy",
+    "payments.view_refundpolicy"
+  ]);
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
@@ -102,13 +177,25 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         </div>
       </div>
       <nav className="mt-2 flex flex-col gap-1">
-        <Item to="/" onMobileClose={onMobileClose} isMobile={isMobile}><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
-        <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
-        <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
-        <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
-        <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
-       
-        {!isMini && (
+        {hasViewDashboard && (
+          <Item to="/" onMobileClose={onMobileClose} isMobile={isMobile}><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
+        )}
+        {hasReception && (
+          <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
+        )}
+        {hasViewReservations && (
+          <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
+        )}
+        {hasViewCalendar && (
+          <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
+        )}
+        {hasViewRooms && (
+          <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
+        )}
+        {hasViewOTAs && (
+          <Item to="/otas" onMobileClose={onMobileClose} isMobile={isMobile}><ChannelsIcon size="20" /> {!isMini && <span>{t('sidebar.channels')}</span>}</Item>
+        )}
+        {!isMini && hasAnyHistory && (
           <div className="mt-1">
             <button
               type="button"
@@ -127,13 +214,19 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.histories ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
                 }`}
             >
-              <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.reservations_history')}</Item>
-              <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payments')}</Item>
-              <Item to="/refunds/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds_history')}</Item>
+              {hasViewReservationsHistory && (
+                <Item to="/reservations/1/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.reservations_history')}</Item>
+              )}
+              {hasViewPayments && (
+                <Item to="/payments" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payments')}</Item>
+              )}
+              {hasViewRefunds && (
+                <Item to="/refunds/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds_history')}</Item>
+              )}
             </div>
           </div>
         )}
-        {!isMini && (
+        {!isMini && hasAnyFinancial && (
           <div className="mt-1">
             <button
               type="button"
@@ -152,28 +245,40 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.financial ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
                 }`}
             >
-              <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.refunds')}</Item>
-              <Item to="/vouchers" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.vouchers')}</Item>
-              <div className="mt-1 ml-2">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup("invoicing")}
-                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.invoicing ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-                    }`}
-                  aria-expanded={openGroups.invoicing}
-                >
-                  <span>{t('sidebar.invoicing')}</span>
-                  <Chevron open={openGroups.invoicing} />
-                </button>
-                <div
-                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.invoicing ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                    }`}
-                >
-                  <Item to="/invoicing" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.invoicing_electronic')}</Item>
-                  <Item to="/invoicing/receipts" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.invoicing_receipts')}</Item>
+              {hasViewRefundsMenu && (
+                <Item to="/refunds" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.refunds')}</Item>
+              )}
+              {hasViewVouchers && (
+                <Item to="/vouchers" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.vouchers')}</Item>
+              )}
+              {hasViewInvoicing && (
+                <div className="mt-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup("invoicing")}
+                    className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.invoicing ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    aria-expanded={openGroups.invoicing}
+                  >
+                    <span>{t('sidebar.invoicing')}</span>
+                    <Chevron open={openGroups.invoicing} />
+                  </button>
+                  <div
+                    className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.invoicing ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                  >
+                    {hasViewInvoices && (
+                      <Item to="/invoicing" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('sidebar.invoicing_electronic')}</Item>
+                    )}
+                    {hasViewReceipts && (
+                      <Item to="/invoicing/receipts" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.invoicing_receipts')}</Item>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <Item to="/bank-reconciliation" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>{t('sidebar.bank_reconciliation')}</span>}</Item>
+              )}
+              {hasViewBankReconciliation && (
+                <Item to="/bank-reconciliation" onMobileClose={onMobileClose} isMobile={isMobile}>{!isMini && <span>{t('sidebar.bank_reconciliation')}</span>}</Item>
+              )}
             </div>
           </div>
         )}
@@ -181,7 +286,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}
         {/*<Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>*/}
-        {!isMini && (
+        {!isMini && hasAnySettings && (
           <div className="mt-1">
             <button
               type="button"
@@ -200,73 +305,113 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ${openGroups.settings ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
                 }`}
             >
-              <Item to="/settings/enterprises" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.enterprises')}</Item>
-              <Item to="/settings/otas" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.otas')}</Item>
-              <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
-              <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
-              <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
+              {hasViewEnterprises && (
+                <Item to="/settings/enterprises" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.enterprises')}</Item>
+              )}
+              {hasViewOTAsConfig && (
+                <Item to="/settings/otas" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.otas')}</Item>
+              )}
+              {hasViewRoomsConfig && (
+                <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
+              )}
+              {hasViewHotels && (
+                <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
+              )}
+              {hasViewUsers && (
+                <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
+              )}
+              {hasViewRoles && (
+                <Item to="/settings/roles" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.roles')}</Item>
+              )}
+              {/* Fiscal - por ahora sin permiso específico, se puede agregar después */}
               <Item to="/settings/fiscal" onMobileClose={onMobileClose} isMobile={isMobile}>Configuración Fiscal</Item>
-              <div className="mt-1 ml-2">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup("locations")}
-                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.locations ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-                    }`}
-                  aria-expanded={openGroups.locations}
-                >
-                  <span>{t('sidebar.locations')}</span>
-                  <Chevron open={openGroups.locations} />
-                </button>
-                <div
-                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.locations ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                    }`}
-                >
-                  <Item to="/settings/locations/countries" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.countries')}</Item>
-                  <Item to="/settings/locations/states" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.states')}</Item>
-                  <Item to="/settings/locations/cities" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cities')}</Item>
+              {hasAnyLocation && (
+                <div className="mt-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup("locations")}
+                    className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.locations ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    aria-expanded={openGroups.locations}
+                  >
+                    <span>{t('sidebar.locations')}</span>
+                    <Chevron open={openGroups.locations} />
+                  </button>
+                  <div
+                    className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.locations ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                  >
+                    {hasViewCountries && (
+                      <Item to="/settings/locations/countries" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.countries')}</Item>
+                    )}
+                    {hasViewStates && (
+                      <Item to="/settings/locations/states" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.states')}</Item>
+                    )}
+                    {hasViewCities && (
+                      <Item to="/settings/locations/cities" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cities')}</Item>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="mt-1 ml-2">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup("rates")}
-                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.rates ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-                    }`}
-                  aria-expanded={openGroups.rates}
-                >
-                  <span>{t('sidebar.rates')}</span>
-                  <Chevron open={openGroups.rates} />
-                </button>
-                <div
-                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.rates ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                    }`}
-                >
-                  <Item to="/settings/rates/plans" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_plans')}</Item>
-                  <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
-                  <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
-                  <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+              )}
+              {hasAnyRate && (
+                <div className="mt-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup("rates")}
+                    className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.rates ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    aria-expanded={openGroups.rates}
+                  >
+                    <span>{t('sidebar.rates')}</span>
+                    <Chevron open={openGroups.rates} />
+                  </button>
+                  <div
+                    className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.rates ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                  >
+                    {hasViewRatePlans && (
+                      <Item to="/settings/rates/plans" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_plans')}</Item>
+                    )}
+                    {hasViewRateRules && (
+                      <Item to="/settings/rates/rules" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rate_rules')}</Item>
+                    )}
+                    {hasViewPromos && (
+                      <Item to="/settings/rates/promos" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.promotions')}</Item>
+                    )}
+                    {hasViewTaxes && (
+                      <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="mt-1 ml-2">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup("policies")}
-                  className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.policies ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
-                    }`}
-                  aria-expanded={openGroups.policies}
-                >
-                  <span>{t('sidebar.policies')}</span>
-                  <Chevron open={openGroups.policies} />
-                </button>
-                <div
-                  className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.policies ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-                    }`}
-                >
-                  <Item to="/settings/payments/policies" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payment_policies')}</Item>
-                  <Item to="/settings/policies/cancellation" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cancellation_policies')}</Item>
-                  <Item to="/settings/policies/devolution" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.devolution_policies')}</Item>
+              )}
+              {hasAnyPolicy && (
+                <div className="mt-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup("policies")}
+                    className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.policies ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    aria-expanded={openGroups.policies}
+                  >
+                    <span>{t('sidebar.policies')}</span>
+                    <Chevron open={openGroups.policies} />
+                  </button>
+                  <div
+                    className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.policies ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                  >
+                    {hasViewPaymentPolicies && (
+                      <Item to="/settings/payments/policies" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.payment_policies')}</Item>
+                    )}
+                    {hasViewCancellationPolicies && (
+                      <Item to="/settings/policies/cancellation" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.cancellation_policies')}</Item>
+                    )}
+                    {hasViewRefundPolicies && (
+                      <Item to="/settings/policies/devolution" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.devolution_policies')}</Item>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
               {/** futuros submenús: tarifas, impuestos, usuarios, etc. */}
             </div>
           </div>

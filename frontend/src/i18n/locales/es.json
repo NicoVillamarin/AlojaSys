@@ -46,7 +46,9 @@
     "invoicing": "Facturación",
     "invoicing_electronic": "Factura Electrónica",
     "invoicing_receipts": "Comprobante de Pago",
-    "otas": "OTAs"
+    "otas": "OTAs",
+    "channels": "Canales de Reservas",
+    "roles": "Roles"
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",
@@ -95,6 +97,9 @@
     "success": "Éxito",
     "all": "Todos",
     "status": "Estado",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "other": "Otro",
     "hotel": "Hotel",
     "clear_search": "Limpiar búsqueda",
     "load_more": "Cargar más",
@@ -115,7 +120,9 @@
     "code_help": "Solo letras minúsculas y guiones bajos (ej: credit_card)",
     "saving": "Guardando...",
     "copy": "Copiar",
-    "copied": "Copiado"
+    "copied": "Copiado",
+    "verified": "Verificado",
+    "not_verified": "No Verificado"
   },
   "reservations": {
     "title": "Gestión de Reservas",
@@ -224,6 +231,13 @@
     "postal_code": "CP",
     "latitude": "Lat",
     "longitude": "Lng"
+  },
+  "roles": {
+    "create_role": "Crear rol",
+    "search_placeholder": "Buscar roles…",
+    "name": "Nombre",
+    "permissions_count": "Permisos",
+    "more_permissions": "más"
   },
   "plan_rates": {
     "title": "Planes de Tarifa",
@@ -492,6 +506,9 @@
     "update_now": "Actualizar Ahora",
     "auto_update": "Auto-actualización cada 30s",
     "updating": "Actualizando...",
+    "view_mode": "Modo de vista",
+    "simple_mode": "Simple",
+    "advanced_mode": "Avanzado",
     "main_metrics": "Métricas Principales",
     "error_loading_metrics": "Error cargando métricas del dashboard",
     "revenue": "Ingresos",
@@ -543,7 +560,34 @@
       "total_count": "totales",
       "to_confirm_revenue": "por confirmar",
       "per_room": "por habitación",
-      "today": "hoy"
+      "today": "hoy",
+      "revpar": "RevPAR",
+      "per_available_room": "por habitación disponible",
+      "avg_los": "Estadía Promedio (LOS)",
+      "days": "días",
+      "in_house": "en el hotel",
+      "lead_time_avg": "Lead Time Promedio",
+      "for_today_arrivals": "para llegadas de hoy",
+      "pickup_today": "Pickup Hoy",
+      "new_bookings": "Nuevas reservas",
+      "pickup_7d": "Pickup 7 días",
+      "new_bookings_last_7d": "Nuevas reservas últimos 7 días",
+      "otb_30d_nights": "OTB 30d (noches)",
+      "room_nights": "noches",
+      "otb_30d_revenue": "OTB 30d (ingresos)",
+      "next_30_days": "próximos 30 días",
+      "cancellation_rate_30d": "Tasa de Cancelación 30d",
+      "last_30_days": "últimos 30 días"
+    },
+    "kpis_help": {
+      "revpar": "Ingresos por habitación disponible: ingreso total del día dividido por habitaciones disponibles (incluye ocupadas y no vendibles por out-of-service se excluyen). Útil para entender rendimiento real del inventario.",
+      "avg_los": "LOS (Length of Stay): cantidad promedio de noches por reserva actualmente alojada (in-house). Ayuda a estimar duración típica de estadías.",
+      "lead_time_avg": "Días promedio entre la fecha de creación de la reserva y la fecha de check‑in (para llegadas de hoy). Útil para planificar pricing/stock.",
+      "pickup": "Reservas nuevas creadas hoy con check‑in futuro (incluyendo confirmadas y pendientes). Mide el ritmo de ventas del día.",
+      "pickup_7d": "Reservas nuevas creadas en los últimos 7 días con check‑in futuro. Mide tendencia semanal de ventas.",
+      "otb_30d": "On The Books próximos 30 días (noches): total de noches ya vendidas dentro de los próximos 30 días.",
+      "otb_30d_revenue": "On The Books próximos 30 días (ingresos): ingresos netos proyectados por noches vendidas dentro de los próximos 30 días.",
+      "cancellation_rate_30d": "% de reservas canceladas sobre reservas creadas en los últimos 30 días. Útil para detectar problemas de política/comunicación."
     },
     "charts": {
       "reservation_trend": "Tendencia de Reservas",
@@ -602,6 +646,7 @@
         "guest": "Huésped",
         "hotel": "Hotel",
         "room": "Habitación",
+        "channel": "Canal/Origen",
         "check_in": "Check-in",
         "check_out": "Check-out",
         "created": "Creada",
@@ -913,6 +958,7 @@
     "active": "Activo",
     "enabled_for_operation": "Habilitado para operar",
     "auto_check_in_enabled": "Auto check-in al llegar la fecha de entrada",
+    "auto_check_out_enabled": "Auto check-out al pasar la fecha de salida",
     "auto_no_show_enabled": "Auto no-show para reservas vencidas"
   },
   "users_modal": {
@@ -951,6 +997,10 @@
     "assigned_hotels": "Hoteles asignados",
     "assigned_hotels_required": "Debe asignar al menos un hotel",
     "assigned_hotels_placeholder": "Seleccionar hoteles...",
+    "assigned_roles": "Roles Asignados",
+    "assigned_roles_placeholder": "Selecciona los roles (opcional)…",
+    "is_superuser": "Usuario Administrador del Sistema",
+    "is_superuser_desc": "Marque esta opción solo para personal de AlojaSys. Los superusuarios tienen acceso completo a todas las funciones del sistema.",
     "password_note": "Nota:",
     "password_note_text": "Si no deseas cambiar la contraseña, deja el campo en blanco."
   },
@@ -974,6 +1024,33 @@
     "lng": "Lng",
     "lng_number": "Lng debe ser número",
     "lng_placeholder": "-58.3816"
+  },
+  "roles_modal": {
+    "edit_role": "Editar rol",
+    "create_role": "Crear rol",
+    "save_changes": "Guardar cambios",
+    "create_role_btn": "Crear rol",
+    "cancel": "Cancelar",
+    "name": "Nombre del rol",
+    "name_placeholder": "Ej: Recepcionista, Administrador",
+    "name_required": "El nombre del rol es requerido",
+    "name_min": "El nombre debe tener al menos 2 caracteres",
+    "permissions": "Permisos",
+    "permissions_required": "Debe seleccionar al menos un permiso",
+    "loading_permissions": "Cargando permisos…",
+    "no_permissions": "No hay permisos disponibles",
+    "no_permissions_found": "No se encontraron permisos con los filtros seleccionados",
+    "selected_permissions": "Permisos seleccionados",
+    "filters_and_presets": "Filtros y plantillas",
+    "search_permissions_placeholder": "Buscar permisos…",
+    "filter_by_category": "Filtrar por categoría",
+    "all_categories": "Todas",
+    "role_presets": "Plantillas de roles",
+    "selected_permissions_count": "Se seleccionaron {{count}} permiso",
+    "selected_permissions_count_plural": "Se seleccionaron {{count}} permisos",
+    "clear_filters": "Limpiar filtros",
+    "show_technical_permissions": "Mostrar permisos técnicos",
+    "show_technical_permissions_desc": "Permisos internos del sistema (log entries, content types, sessions)"
   },
   "states_modal": {
     "edit_state": "Editar provincia/estado",
@@ -1569,38 +1646,33 @@
     }
   },
   "ota": {
-    "config": {
-      "title": "Configuración de OTAs",
-      "create_button": "Crear OTAs",
-      "edit_title": "Editar Configuración OTA",
-      "create_title": "Crear Configuración OTA",
+    "title": "Canales OTA",
+    "create_button": "Crear Canal OTA",
+    "sync_now": "Sincronizar ahora",
+    "sync_started": "Sincronización iniciada",
+    "sync_error": "Error al iniciar sincronización",
+    "sync_success": "Exitoso",
+    "sync_failed": "Fallido",
+    "sync_running": "Ejecutando",
+    "sync_pending": "Pendiente",
+    "copy_hotel_ical": "Copiar URL iCal del hotel",
+    "table": {
       "hotel": "Hotel",
-      "hotel_placeholder": "Selecciona un hotel",
       "provider": "Proveedor",
       "label": "Etiqueta",
-      "label_placeholder": "Nombre visible (opcional)",
-      "ical_token": "Token iCal (salida)",
-      "ical_token_placeholder": "Ej: clave segura para acceso .ics",
-      "credentials": "Credenciales (JSON)",
-      "credentials_placeholder": "{\n  \"api_key\": \"...\"\n}",
-      "is_active": "Activo",
-      "booking_hotel_id": "Hotel ID (Booking)",
-      "booking_client_id": "Client ID (Booking)",
-      "booking_client_secret": "Client Secret (Booking)",
-      "booking_base_url": "Base URL (Booking)",
-      "booking_mode": "Modo",
-      "booking_mode_test": "Test",
-      "booking_mode_prod": "Producción",
-      "table": {
-        "hotel": "Hotel",
-        "provider": "Proveedor",
-        "label": "Etiqueta",
-        "active": "Activo",
-        "token": "Token"
-      }
-    }
-  },
-  "ota": {
+      "active": "Activo",
+      "token": "Token",
+      "verified": "Verificado",
+      "last_sync": "Última sincronización"
+    },
+    "filters": {
+      "hotel": "Hotel",
+      "hotel_placeholder": "Todos los hoteles",
+      "provider": "Proveedor",
+      "provider_placeholder": "Todos los proveedores",
+      "status": "Estado",
+      "status_placeholder": "Todos los estados"
+    },
     "config": {
       "title": "Configuración de OTAs",
       "create_button": "Crear OTAs",
@@ -1636,7 +1708,8 @@
         "provider": "Proveedor",
         "label": "Etiqueta",
         "active": "Activo",
-        "token": "Token"
+        "token": "Token",
+        "verified": "Verificado"
       }
     },
     "mappings": {
@@ -1655,6 +1728,10 @@
       "ical_in_url": "URL iCal de entrada",
       "ical_in_url_placeholder": "https://.../calendar.ics",
       "is_active": "Activo",
+      "sync_direction": "Dirección de sincronización",
+      "sync_direction_both": "Ambos",
+      "sync_direction_import": "Solo Importar",
+      "sync_direction_export": "Solo Exportar",
       "import_now": "Importar ahora",
       "copy_room_ical": "Copiar URL iCal de la habitación",
       "table": {
@@ -1663,6 +1740,8 @@
         "provider": "Proveedor",
         "external_id": "ID Externo",
         "ical_in_url": "URL iCal (entrada)",
+        "sync_direction": "Sincronización",
+        "last_synced": "Última sincronización",
         "active": "Activo",
         "last_import": "Última importación"
       }
@@ -1716,10 +1795,6 @@
       "provider": "Proveedor",
       "date_from": "Desde",
       "date_to": "Hasta"
-    },
-    "filters": {
-      "hotel": "Hotel",
-      "hotel_placeholder": "Filtrar por hotel"
     }
   }
 }

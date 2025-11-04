@@ -44,7 +44,9 @@
     "invoicing": "Faturamento",
     "invoicing_electronic": "Faturamento Eletrônico",
     "invoicing_receipts": "Comprovante de Pagamento",
-    "otas": "OTAs"
+    "otas": "OTAs",
+    "channels": "Canais de Reservas",
+    "roles": "Roles"
   },
   "vouchers_modal": {
     "create_voucher": "Criar Voucher",
@@ -213,6 +215,13 @@
     "postal_code": "CEP",
     "latitude": "Lat",
     "longitude": "Lng"
+  },
+  "roles": {
+    "create_role": "Criar função",
+    "search_placeholder": "Pesquisar funções…",
+    "name": "Nome",
+    "permissions_count": "Permissões",
+    "more_permissions": "mais"
   },
   "plan_rates": {
     "title": "Planos de Tarifa",
@@ -451,6 +460,9 @@
     "update_now": "Atualizar Agora",
     "auto_update": "Auto-atualização a cada 30s",
     "updating": "Atualizando...",
+    "view_mode": "Modo de visualização",
+    "simple_mode": "Simples",
+    "advanced_mode": "Avançado",
     "main_metrics": "Métricas Principais",
     "error_loading_metrics": "Erro carregando métricas do dashboard",
     "revenue": "Receita",
@@ -502,7 +514,34 @@
       "total_count": "total",
       "to_confirm_revenue": "por confirmar",
       "per_room": "por quarto",
-      "today": "hoje"
+      "today": "hoje",
+      "revpar": "RevPAR",
+      "per_available_room": "por quarto disponível",
+      "avg_los": "Estadia Média (LOS)",
+      "days": "dias",
+      "in_house": "no hotel",
+      "lead_time_avg": "Lead Time Médio",
+      "for_today_arrivals": "para chegadas de hoje",
+      "pickup_today": "Pickup Hoje",
+      "new_bookings": "Novas reservas",
+      "pickup_7d": "Pickup 7 dias",
+      "new_bookings_last_7d": "Novas reservas últimos 7 dias",
+      "otb_30d_nights": "OTB 30d (noites)",
+      "room_nights": "noites de quarto",
+      "otb_30d_revenue": "OTB 30d (receita)",
+      "next_30_days": "próximos 30 dias",
+      "cancellation_rate_30d": "Taxa de Cancelamento 30d",
+      "last_30_days": "últimos 30 dias"
+    },
+    "kpis_help": {
+      "revpar": "Receita por quarto disponível: receita total do dia dividida por quartos disponíveis (fora de serviço excluídos). Útil para entender o desempenho real do inventário.",
+      "avg_los": "LOS (Length of Stay): número médio de noites por reserva atualmente hospedada (in-house). Ajuda a estimar a duração típica das estadias.",
+      "lead_time_avg": "Dias médios entre a criação da reserva e o check‑in (para chegadas de hoje). Útil para planejar pricing/estoque.",
+      "pickup": "Novas reservas criadas hoje com check‑in futuro (inclui confirmadas e pendentes). Mede o ritmo de vendas do dia.",
+      "pickup_7d": "Novas reservas criadas nos últimos 7 dias com check‑in futuro. Mede a tendência semanal de vendas.",
+      "otb_30d": "On The Books próximos 30 dias (noites): total de noites já vendidas nos próximos 30 dias.",
+      "otb_30d_revenue": "On The Books próximos 30 dias (receita): receita projetada das noites vendidas nos próximos 30 dias.",
+      "cancellation_rate_30d": "% de reservas canceladas sobre reservas criadas nos últimos 30 dias. Útil para detectar problemas de política/comunicação."
     },
     "room_types": {
       "title": "Tipos de Quarto (Mapeamentos)",
@@ -849,6 +888,7 @@
     "active": "Ativo",
     "enabled_for_operation": "Habilitado para operação",
     "auto_check_in_enabled": "Auto check-in ao chegar a data de entrada",
+    "auto_check_out_enabled": "Auto check-out ao passar a data de saída",
     "auto_no_show_enabled": "Auto no-show para reservas vencidas"
 
   },
@@ -885,6 +925,8 @@
     "assigned_hotels": "Hotéis atribuídos",
     "assigned_hotels_required": "Deve atribuir pelo menos um hotel",
     "assigned_hotels_placeholder": "Selecionar hotéis...",
+    "assigned_roles": "Funções Atribuídas",
+    "assigned_roles_placeholder": "Selecione as funções (opcional)…",
     "password_note": "Nota:",
     "password_note_text": "Se não deseja alterar a senha, deixe o campo em branco."
   },
@@ -908,6 +950,33 @@
     "lng": "Lng",
     "lng_number": "Lng deve ser um número",
     "lng_placeholder": "-46.6333"
+  },
+  "roles_modal": {
+    "edit_role": "Editar função",
+    "create_role": "Criar função",
+    "save_changes": "Salvar alterações",
+    "create_role_btn": "Criar função",
+    "cancel": "Cancelar",
+    "name": "Nome da função",
+    "name_placeholder": "Ex: Recepcionista, Administrador",
+    "name_required": "O nome da função é obrigatório",
+    "name_min": "O nome deve ter pelo menos 2 caracteres",
+    "permissions": "Permissões",
+    "permissions_required": "Deve selecionar pelo menos uma permissão",
+    "loading_permissions": "Carregando permissões…",
+    "no_permissions": "Nenhuma permissão disponível",
+    "no_permissions_found": "Nenhuma permissão encontrada com os filtros selecionados",
+    "selected_permissions": "Permissões selecionadas",
+    "filters_and_presets": "Filtros e modelos",
+    "search_permissions_placeholder": "Pesquisar permissões…",
+    "filter_by_category": "Filtrar por categoria",
+    "all_categories": "Todas",
+    "role_presets": "Modelos de funções",
+    "selected_permissions_count": "{{count}} permissão selecionada",
+    "selected_permissions_count_plural": "{{count}} permissões selecionadas",
+    "clear_filters": "Limpar filtros",
+    "show_technical_permissions": "Mostrar permissões técnicas",
+    "show_technical_permissions_desc": "Permissões internas do sistema (log entries, content types, sessions)"
   },
   "states_modal": {
     "edit_state": "Editar estado/província",
@@ -1484,6 +1553,10 @@
       "ical_in_url": "URL iCal (entrada)",
       "ical_in_url_placeholder": "https://.../calendar.ics",
       "is_active": "Ativo",
+      "sync_direction": "Direção de Sincronização",
+      "sync_direction_both": "Ambos",
+      "sync_direction_import": "Apenas Importar",
+      "sync_direction_export": "Apenas Exportar",
       "import_now": "Importar agora",
       "copy_room_ical": "Copiar URL iCal do quarto",
       "table": {
@@ -1492,6 +1565,8 @@
         "provider": "Provedor",
         "external_id": "ID Externo",
         "ical_in_url": "URL iCal (entrada)",
+        "sync_direction": "Sincronização",
+        "last_synced": "Última Sincronização",
         "active": "Ativo",
         "last_import": "Última importação"
       }

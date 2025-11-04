@@ -143,14 +143,34 @@ export default function OtaConfigModal({ isOpen, onClose, isEdit = false, config
             </div>
 
             <InputText title={t('ota.config.label')} name="label" placeholder={t('ota.config.label_placeholder')} />
-            <InputText title={t('ota.config.ical_token')} name="ical_out_token" placeholder={t('ota.config.ical_token_placeholder')} />
+            <InputText 
+              title={t('ota.config.ical_token')} 
+              name="ical_out_token" 
+              placeholder={t('ota.config.ical_token_placeholder')}
+              statusMessage={isEdit && config?.ical_out_token_masked ? `Actual: ${config.ical_out_token_masked}` : undefined}
+              statusType={isEdit && config?.ical_out_token_masked ? 'info' : undefined}
+            />
 
             {values.provider === 'booking' && (
               <>
                 <InputText title={t('ota.config.booking_hotel_id')} name="booking_hotel_id" placeholder="e.g. 123456" />
                 <InputText title={t('ota.config.booking_client_id')} name="booking_client_id" placeholder="client id" autoComplete="off" />
-                <InputText title={t('ota.config.booking_client_secret')} name="booking_client_secret" placeholder="client secret" type="password" autoComplete="new-password" />
-                <InputText title={t('ota.config.booking_base_url')} name="booking_base_url" placeholder="https://connectivity-sandbox.booking.com" />
+                <InputText 
+                  title={t('ota.config.booking_client_secret')} 
+                  name="booking_client_secret" 
+                  placeholder="client secret" 
+                  type="password" 
+                  autoComplete="new-password"
+                  statusMessage={isEdit && config?.booking_client_secret_masked ? `Actual: ${config.booking_client_secret_masked}` : undefined}
+                  statusType={isEdit && config?.booking_client_secret_masked ? 'info' : undefined}
+                />
+                <InputText 
+                  title={t('ota.config.booking_base_url')} 
+                  name="booking_base_url" 
+                  placeholder="https://connectivity-sandbox.booking.com"
+                  statusMessage={config?.verified ? t('common.verified') : (config?.booking_base_url ? t('common.not_verified') : undefined)}
+                  statusType={config?.verified ? 'success' : (config?.booking_base_url ? 'warning' : undefined)}
+                />
                 <div>
                   <label className="block text-sm font-medium text-aloja-navy mb-1">{t('ota.config.booking_mode')}</label>
                   <select
@@ -169,8 +189,22 @@ export default function OtaConfigModal({ isOpen, onClose, isEdit = false, config
               <>
                 <InputText title={t('ota.config.airbnb_account_id')} name="airbnb_account_id" placeholder="e.g. test-account" />
                 <InputText title={t('ota.config.airbnb_client_id')} name="airbnb_client_id" placeholder="client id" autoComplete="off" />
-                <InputText title={t('ota.config.airbnb_client_secret')} name="airbnb_client_secret" placeholder="client secret" type="password" autoComplete="new-password" />
-                <InputText title={t('ota.config.airbnb_base_url')} name="airbnb_base_url" placeholder="https://httpbin.org" />
+                <InputText 
+                  title={t('ota.config.airbnb_client_secret')} 
+                  name="airbnb_client_secret" 
+                  placeholder="client secret" 
+                  type="password" 
+                  autoComplete="new-password"
+                  statusMessage={isEdit && config?.airbnb_client_secret_masked ? `Actual: ${config.airbnb_client_secret_masked}` : undefined}
+                  statusType={isEdit && config?.airbnb_client_secret_masked ? 'info' : undefined}
+                />
+                <InputText 
+                  title={t('ota.config.airbnb_base_url')} 
+                  name="airbnb_base_url" 
+                  placeholder="https://httpbin.org"
+                  statusMessage={config?.verified ? t('common.verified') : (config?.airbnb_base_url ? t('common.not_verified') : undefined)}
+                  statusType={config?.verified ? 'success' : (config?.airbnb_base_url ? 'warning' : undefined)}
+                />
                 <div>
                   <label className="block text-sm font-medium text-aloja-navy mb-1">{t('ota.config.airbnb_mode')}</label>
                   <select

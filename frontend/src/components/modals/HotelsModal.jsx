@@ -55,6 +55,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
     check_out_time: (hotel?.check_out_time ?? '11:00').slice(0, 5),
     is_active: hotel?.is_active ?? true,
     auto_check_in_enabled: hotel?.auto_check_in_enabled ?? false,
+    auto_check_out_enabled: hotel?.auto_check_out_enabled ?? true,
     auto_no_show_enabled: hotel?.auto_no_show_enabled ?? false,
     logo: null, // Archivo seleccionado
     existing_logo_url: hotel?.logo_url ?? null, // URL del logo existente
@@ -90,6 +91,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             check_out_time: values.check_out_time || undefined,
             is_active: values.is_active,
             auto_check_in_enabled: values.auto_check_in_enabled || false,
+            auto_check_out_enabled: values.auto_check_out_enabled !== undefined ? values.auto_check_out_enabled : true,
             auto_no_show_enabled: values.auto_no_show_enabled || false,
           }
           
@@ -143,6 +145,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             check_out_time: values.check_out_time || undefined,
             is_active: values.is_active,
             auto_check_in_enabled: values.auto_check_in_enabled || false,
+            auto_check_out_enabled: values.auto_check_out_enabled !== undefined ? values.auto_check_out_enabled : true,
             auto_no_show_enabled: values.auto_no_show_enabled || false,
           }
           
@@ -231,6 +234,17 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                       onChange={(e) => setFieldValue('auto_check_in_enabled', e.target.checked)}
                     />
                     <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_check_in_enabled')}</span>
+                  </label>
+                  <label htmlFor='auto_check_out_enabled' className='flex items-center gap-2 cursor-pointer'>
+                    <input
+                      id='auto_check_out_enabled'
+                      name='auto_check_out_enabled'
+                      type='checkbox'
+                      className='rounded border-gray-300'
+                      checked={!!values.auto_check_out_enabled}
+                      onChange={(e) => setFieldValue('auto_check_out_enabled', e.target.checked)}
+                    />
+                    <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_check_out_enabled')}</span>
                   </label>
                   <label htmlFor='auto_no_show_enabled' className='flex items-center gap-2 cursor-pointer'>
                     <input

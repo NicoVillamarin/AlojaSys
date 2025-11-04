@@ -34,16 +34,31 @@ class ReservationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = Reservation.objects.select_related("hotel", "room").order_by("-created_at")
+        qs = Reservation.objects.select_related("hotel", "room")
         hotel_id = self.request.query_params.get("hotel")
         room_id = self.request.query_params.get("room")
         status_param = self.request.query_params.get("status")
+        ordering = self.request.query_params.get("ordering", "-check_in")  # Por defecto ordenar por check-in descendente
+        
         if hotel_id and hotel_id.isdigit():
             qs = qs.filter(hotel_id=hotel_id)
         if room_id and room_id.isdigit():
             qs = qs.filter(room_id=room_id)
         if status_param:
             qs = qs.filter(status=status_param)
+        
+        # Validar que el campo de ordenamiento sea válido
+        valid_orderings = ['created_at', '-created_at', 'check_in', '-check_in', 'check_out', '-check_out', 'id', '-id']
+        if ordering in valid_orderings:
+            # Si se ordena por ID, mantener ordenamiento secundario por check_in descendente
+            # para asegurar que las reservas futuras estén visibles
+            if ordering in ['id', '-id']:
+                qs = qs.order_by(ordering, '-check_in')
+            else:
+                qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("-check_in")  # Fallback a check-in descendente
+        
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -1378,29 +1393,29 @@ def auto_mark_no_show(request):
     Marca automáticamente las reservas confirmadas vencidas como no-show
     """
     from datetime import date
+    from .models import ReservationStatusChange, ReservationStatus
     
     today = django_timezone.now().date()
     
     # Buscar reservas confirmadas con check-in pasado
     expired_reservations = Reservation.objects.filter(
-        status='confirmed',
+        status=ReservationStatus.CONFIRMED,
         check_in__lt=today
     )
     
     updated_count = 0
     for reservation in expired_reservations:
         # Cambiar estado a no_show
-        reservation.status = 'no_show'
-        reservation.save()
+        reservation.status = ReservationStatus.NO_SHOW
+        reservation.save(update_fields=['status'])
         
         # Registrar el cambio de estado
-        from .models import ReservationStatusChange
         ReservationStatusChange.objects.create(
             reservation=reservation,
-            from_status='confirmed',
-            to_status='no_show',
+            from_status=ReservationStatus.CONFIRMED,
+            to_status=ReservationStatus.NO_SHOW,
             changed_by=request.user if request.user.is_authenticated else None,
-            reason='Auto no-show: check-in date passed'
+            notes='Auto no-show: check-in date passed'
         )
         
         updated_count += 1

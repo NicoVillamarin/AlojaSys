@@ -70,7 +70,8 @@ export default function ReservationsGestions() {
       hotel: filters.hotel || undefined,
       room: filters.room || undefined,
       status: filters.status || undefined,
-      show_historical: true,
+      ordering: '-id', // Ordenar por ID descendente (más recientes primero), con ordenamiento secundario por check_in en backend
+      page_size: 1000, // Cargar más resultados para evitar problemas de paginación
     },
   })
 
@@ -95,6 +96,7 @@ export default function ReservationsGestions() {
     const to = filters.dateTo ? new Date(filters.dateTo) : null
     let arr = results || []
     // Excluir reservas finalizadas (check_out) de la gestión
+    // No filtramos por fecha aquí - las reservas pueden haberse creado hace tiempo pero aún no haber llegado el check-in
     arr = arr.filter((r) => r.status !== 'check_out' && r.status !== 'cancelled' && r.status !== 'no_show')
     if (q) {
       arr = arr.filter((r) => {
@@ -114,6 +116,8 @@ export default function ReservationsGestions() {
         return true
       })
     }
+    // Ordenar por ID descendente por defecto (más recientes primero)
+    arr.sort((a, b) => (b.id || 0) - (a.id || 0))
     return arr
   }, [results, filters.search, filters.dateFrom, filters.dateTo])
 
@@ -636,11 +640,73 @@ export default function ReservationsGestions() {
         isLoading={isPending}
         data={displayResults}
         getRowId={(r) => r.id}
+        defaultSort={{ key: 'id', direction: 'desc' }}
         columns={[
           { key: 'display_name', header: t('dashboard.reservations_management.table_headers.reservation'), sortable: true },
           { key: 'guest_name', header: t('dashboard.reservations_management.table_headers.guest'), sortable: true },
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
           { key: 'room_name', header: t('dashboard.reservations_management.table_headers.room'), sortable: true },
+          {
+            key: 'channel',
+            header: t('dashboard.reservations_management.table_headers.channel'),
+            sortable: true,
+            render: (r) => {
+              const isOta = r.is_ota || r.external_id
+              const channel = r.channel_display || r.channel || 'Directo'
+              const channelValue = r.channel || 'direct'
+              
+              // Colores según el canal
+              const getChannelBadge = () => {
+                if (!isOta) {
+                  return (
+                    <Badge variant="directo" size="sm">
+                      Directo
+                    </Badge>
+                  )
+                }
+                
+                // Badge según el tipo de canal OTA
+                switch (channelValue) {
+                  case 'booking':
+                    return (
+                      <Badge variant="booking" size="sm">
+                        Booking
+                      </Badge>
+                    )
+                  case 'airbnb':
+                    return (
+                      <Badge variant="airbnb" size="sm">
+                        Airbnb
+                      </Badge>
+                    )
+                  case 'expedia':
+                    return (
+                      <Badge variant="airbnb" size="sm">
+                        Expedia
+                      </Badge>
+                    )
+                  case 'other':
+                    return (
+                      <Badge variant="warning" size="sm">
+                        {channel}
+                      </Badge>
+                    )
+                  default:
+                    return (
+                      <Badge variant="warning" size="sm">
+                        {channel}
+                      </Badge>
+                    )
+                }
+              }
+              
+              return (
+                <div className="flex items-center gap-1">
+                  {getChannelBadge()}
+                </div>
+              )
+            }
+          },
           {
             key: 'check_in',
             header: t('dashboard.reservations_management.table_headers.check_in'),

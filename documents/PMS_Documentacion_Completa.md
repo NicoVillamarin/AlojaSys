@@ -18,10 +18,12 @@
    - [3.12 Módulo Conciliación Bancaria](#312-módulo-conciliación-bancaria)
    - [3.13 Módulo Facturación Electrónica](#313-módulo-facturación-electrónica)
    - [3.14 Módulo Comprobantes de Pagos](#314-módulo-comprobantes-de-pagos-payment-receipts)
+   - [3.15 Módulo OTAs (Channel Manager)](#315-módulo-otas-channel-manager)
 4. [Flujos de Trabajo Principales](#flujos-de-trabajo-principales)
 5. [APIs y Endpoints](#apis-y-endpoints)
 6. [Configuraciones y Políticas](#configuraciones-y-políticas)
 7. [Integraciones](#integraciones)
+   - [7.1 Integraciones OTAs (Channel Manager)](#integraciones-otas-channel-manager)
 
 ---
 
@@ -104,6 +106,7 @@ class Hotel(models.Model):
     check_in_time = TimeField()          # Hora de check-in
     check_out_time = TimeField()         # Hora de check-out
     auto_check_in_enabled = BooleanField # Check-in automático
+    auto_check_out_enabled = BooleanField(default=True) # Check-out automático (habilitado por defecto)
     auto_no_show_enabled = BooleanField  # Auto no-show automático
     is_active = BooleanField             # Estado activo
 ```
@@ -112,7 +115,9 @@ class Hotel(models.Model):
 - ✅ Gestión de información básica del hotel
 - ✅ Configuración de horarios de check-in/check-out
 - ✅ Gestión de zona horaria
-- ✅ Configuración de auto no-show automático
+- ✅ Configuración de check-in automático (`auto_check_in_enabled`)
+- ✅ Configuración de check-out automático (`auto_check_out_enabled`, default=True)
+- ✅ Configuración de auto no-show automático (`auto_no_show_enabled`)
 - ✅ Validación de datos (horarios no pueden ser iguales)
 - ✅ Relación con empresa y ubicación
 
@@ -229,6 +234,7 @@ class Payment(models.Model):
 - ✅ **Max Stay**: Máximo de noches permitidas
 - ✅ **Días cerrados**: Bloqueo completo de fechas
 - ✅ **Bloqueos de habitación**: Mantenimiento, fuera de servicio
+- ✅ **Validación de disponibilidad en OTAs**: Verifica conflictos con reservas de OTAs antes de confirmar (ver sección 3.15 para detalles)
 
 #### APIs Principales
 - `GET /api/reservations/` - Listar reservas con filtros
@@ -876,6 +882,78 @@ def auto_cancel_pending_deposits():
     # - Protección contra race conditions con locks
 ```
 
+#### Check-out Automático de Reservas (v2.4 - Mejorado)
+```python
+@shared_task(bind=True, autoretry_for=(ProgrammingError, OperationalError), retry_backoff=5, retry_jitter=True, retry_kwargs={"max_retries": 5})
+def process_automatic_checkouts(self):
+    """
+    Tarea para procesar checkouts automáticos basados en el horario configurado en cada hotel.
+    Esta tarea se ejecuta cada hora para verificar si hay reservas que deben hacer checkout.
+    Procesa tanto reservas con check_out=today como check_out<today (check-outs pasados que no se procesaron).
+    
+    Características:
+    - Respeta la configuración auto_check_out_enabled del hotel (default=True)
+    - Procesa check-outs pasados inmediatamente sin esperar hora configurada
+    - Procesa check-outs del día actual después de la hora configurada del hotel
+    - Considera la zona horaria del hotel para cálculos precisos
+    - Libera automáticamente las habitaciones al hacer check-out
+    - Usa skip_clean=True para evitar validaciones innecesarias al cambiar solo el estado
+    """
+    today = timezone.localdate()
+    
+    # Obtener reservas en CHECK_IN con check_out <= today
+    checkout_reservations = Reservation.objects.select_related("room", "hotel").filter(
+        status=ReservationStatus.CHECK_IN,
+        check_out__lte=today,
+    )
+    
+    for res in checkout_reservations:
+        # Verificar si el hotel tiene check-out automático habilitado
+        if not getattr(res.hotel, "auto_check_out_enabled", True):
+            continue
+        
+        checkout_date = res.check_out
+        hotel_checkout_time = res.hotel.check_out_time
+        
+        # Si la fecha ya pasó, hacer checkout automático inmediatamente
+        if checkout_date < today:
+            res.status = ReservationStatus.CHECK_OUT
+            res.save(update_fields=["status"], skip_clean=True)
+            if res.room and res.room.status == RoomStatus.OCCUPIED:
+                res.room.status = RoomStatus.AVAILABLE
+                res.room.save(update_fields=["status"])
+        
+        # Si es hoy, verificar si ya pasó la hora de checkout
+        elif checkout_date == today:
+            # Calcular hora actual en zona horaria del hotel
+            hotel_tz = ZoneInfo(res.hotel.timezone) if res.hotel.timezone else None
+            local_now = timezone.localtime(timezone.now(), hotel_tz) if hotel_tz else timezone.now()
+            current_time_local = local_now.time()
+            
+            if current_time_local >= hotel_checkout_time:
+                res.status = ReservationStatus.CHECK_OUT
+                res.save(update_fields=["status"], skip_clean=True)
+                if res.room and res.room.status == RoomStatus.OCCUPIED:
+                    res.room.status = RoomStatus.AVAILABLE
+                    res.room.save(update_fields=["status"])
+```
+
+```python
+@shared_task(bind=True, autoretry_for=(ProgrammingError, OperationalError), retry_backoff=5, retry_jitter=True, retry_kwargs={"max_retries": 5})
+def sync_room_occupancy_for_today(self):
+    """
+    Tarea que sincroniza el estado de las habitaciones con las reservas activas.
+    También procesa checkouts automáticos para reservas con check_out <= today.
+    
+    Características:
+    - Verifica auto_check_out_enabled antes de procesar check-outs
+    - Procesa check-outs pasados automáticamente
+    - Actualiza estado de habitaciones basado en reservas activas
+    - Respetando configuración auto_check_in_enabled del hotel
+    """
+    # ... lógica similar a process_automatic_checkouts ...
+```
+
 #### Auto No-Show de Reservas CONFIRMED (v2.0 - Mejorado)
 ```python
 @shared_task(bind=True, autoretry_for=(ProgrammingError, OperationalError), retry_backoff=5, retry_jitter=True, retry_kwargs={"max_retries": 5})
@@ -1059,6 +1137,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reservations.tasks.auto_mark_no_show_daily",
         "schedule": crontab(hour=9, minute=0),  # Diario a las 9:00 AM
     },
+    "process_automatic_checkouts_hourly": {
+        "task": "apps.reservations.tasks.process_automatic_checkouts",
+        "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
+    },
+    "sync_room_occupancy_daily": {
+        "task": "apps.reservations.tasks.sync_room_occupancy_for_today",
+        "schedule": crontab(hour=6, minute=0),  # Diario a las 6:00 AM
+    },
     "process_pending_refunds_hourly": {
         "task": "apps.payments.tasks.process_pending_refunds",
         "schedule": crontab(minute=30),  # Cada hora a los 30 minutos
@@ -1071,12 +1157,21 @@ CELERY_BEAT_SCHEDULE = {
 ```
 
 #### Cronograma de Tareas Automáticas
-1. **8:00 AM** - `auto_cancel_expired_reservations`: Cancela por falta de pago del depósito
-2. **8:15 AM** - `auto_cancel_pending_deposits`: Cancela PENDING por depósito vencido
-3. **8:30 AM** - `auto_cancel_expired_pending_reservations`: Cancela PENDING vencidas
-4. **9:00 AM** - `auto_mark_no_show_daily`: Marca CONFIRMED como no-show
-5. **Cada hora (30 min)** - `process_pending_refunds`: Procesa reembolsos pendientes
-6. **10:00 AM** - `retry_failed_refunds`: Reintenta reembolsos fallidos
+1. **6:00 AM** - `sync_room_occupancy_daily`: Sincroniza ocupación de habitaciones y procesa check-outs pasados
+2. **Cada hora (0 min)** - `process_automatic_checkouts_hourly`: Procesa check-outs automáticos (respetando hora configurada del hotel)
+3. **8:00 AM** - `auto_cancel_expired_reservations`: Cancela por falta de pago del depósito
+4. **8:15 AM** - `auto_cancel_pending_deposits`: Cancela PENDING por depósito vencido
+5. **8:30 AM** - `auto_cancel_expired_pending_reservations`: Cancela PENDING vencidas
+6. **9:00 AM** - `auto_mark_no_show_daily`: Marca CONFIRMED como no-show
+7. **Cada hora (30 min)** - `process_pending_refunds`: Procesa reembolsos pendientes
+8. **10:00 AM** - `retry_failed_refunds`: Reintenta reembolsos fallidos
+
+#### Lógica de Check-out Automático
+- **Reservas CHECK_IN con check-out pasado**: `CHECK_IN` → `CHECK_OUT` (liberar habitación inmediatamente)
+- **Reservas CHECK_IN con check-out hoy**: `CHECK_IN` → `CHECK_OUT` (después de hora configurada del hotel)
+- **Configuración por hotel**: Campo `auto_check_out_enabled` en modelo Hotel (default=True)
+- **Consideración de zona horaria**: Usa la zona horaria del hotel para cálculos precisos
+- **Procesamiento sin validaciones**: Usa `skip_clean=True` para evitar validaciones innecesarias
 
 #### Lógica de Cancelación Automática
 - **Reservas PENDING por depósito vencido**: `PENDING` → `CANCELLED` (liberar habitación, enviar emails)
@@ -3994,6 +4089,1149 @@ def validate_voucher(voucher_code, reservation_amount):
 - **Variables**: Configuración de ambiente
 - **Logs**: Monitoreo de aplicación
 - **Escalabilidad**: Recursos ajustables
+
+## 3.15 Módulo OTAs (Channel Manager)
+
+**Propósito**: Sincronización bidireccional de disponibilidad, tarifas y reservas con plataformas OTA (Online Travel Agencies) como Booking.com y Airbnb.
+
+#### Arquitectura
+
+El módulo OTAs está diseñado con un patrón de adapters que permite:
+- **Escalabilidad**: Agregar nuevos proveedores sin modificar código core
+- **Flexibilidad**: Modo mock para desarrollo, real para producción
+- **Observabilidad**: Logs detallados y jobs para auditoría
+
+```
+apps/otas/
+├── models.py              # OtaConfig, OtaRoomMapping, OtaSyncJob, etc.
+├── services/
+│   ├── ical_importer.py  # Importación de feeds iCal (legacy, usa ICALSyncService)
+│   ├── ical_sync_service.py  # ICALSyncService: servicio centralizado de sync iCal
+│   └── ari_publisher.py  # Push ARI (Availability, Rates, Inventory)
+├── adapters/              # Adapters por proveedor (BookingAdapter, AirbnbAdapter)
+├── tasks.py               # Tareas Celery para sync asíncrono
+├── signals.py             # Triggers automáticos on-change
+└── views.py               # APIs REST para gestión
+```
+
+#### Modelos Principales
+
+##### OtaConfig
+```python
+class OtaConfig(models.Model):
+    hotel = ForeignKey(Hotel)
+    provider = CharField(choices=[ICAL, BOOKING, AIRBNB, EXPEDIA, OTHER])
+    is_active = BooleanField(default=True)
+    
+    # iCal (export/import básico)
+    ical_out_token = CharField(max_length=64)  # Token para URLs .ics
+    
+    # Booking.com
+    booking_hotel_id = CharField(max_length=64)
+    booking_client_id = CharField(max_length=120)
+    booking_client_secret = CharField(max_length=120)
+    booking_base_url = URLField()
+    booking_mode = CharField(choices=[TEST, PROD])
+    
+    # Airbnb
+    airbnb_account_id = CharField(max_length=64)
+    airbnb_client_id = CharField(max_length=120)
+    airbnb_client_secret = CharField(max_length=120)
+    airbnb_base_url = URLField()
+    airbnb_mode = CharField(choices=[TEST, PROD])
+    
+    # JSON genérico para otros proveedores
+    credentials = JSONField(default=dict)
+    
+    # Verificación de configuración
+    verified = BooleanField(default=False)  # Indica si base_url es válido y está verificado
+```
+
+##### OtaRoomMapping
+```python
+class OtaRoomMapping(models.Model):
+    class SyncDirection(models.TextChoices):
+        IMPORT = "import", "Import"
+        EXPORT = "export", "Export"
+        BOTH = "both", "Both"
+
+    hotel = ForeignKey(Hotel)
+    room = ForeignKey(Room)
+    provider = CharField(choices=[ICAL, BOOKING, AIRBNB, ...])
+    external_id = CharField(max_length=120)      # ID de habitación en la OTA
+    ical_in_url = URLField()                      # URL feed iCal para importar reservas
+    sync_direction = CharField(choices=SyncDirection, default=SyncDirection.BOTH)
+    last_synced = DateTimeField(null=True, blank=True)  # Última sincronización exitosa
+    is_active = BooleanField(default=True)
+```
+
+**Campos Clave**:
+- `sync_direction`: Controla la dirección de sincronización:
+  - `"import"`: Solo importa desde la OTA (no exporta)
+  - `"export"`: Solo exporta hacia la OTA (no importa)
+  - `"both"`: Importa y exporta (comportamiento por defecto)
+- `last_synced`: Se actualiza automáticamente cuando hay una sincronización exitosa (import o export)
+
+##### OtaRoomTypeMapping / OtaRatePlanMapping
+```python
+class OtaRoomTypeMapping(models.Model):
+    hotel = ForeignKey(Hotel)
+    provider = CharField()
+    room_type_code = CharField(max_length=60)    # Código interno PMS (ej: "DOUBLE")
+    provider_code = CharField(max_length=120)     # Código en la OTA (ej: "STD_DBL")
+    is_active = BooleanField(default=True)
+
+class OtaRatePlanMapping(models.Model):
+    hotel = ForeignKey(Hotel)
+    provider = CharField()
+    rate_plan_code = CharField(max_length=60)     # Código interno PMS (ej: "STANDARD")
+    provider_code = CharField(max_length=120)     # ID en la OTA
+    currency = CharField(max_length=3, default="ARS")
+    is_active = BooleanField(default=True)
+```
+
+##### OtaSyncJob / OtaSyncLog
+```python
+class OtaSyncJob(models.Model):
+    hotel = ForeignKey(Hotel)
+    provider = CharField()
+    job_type = CharField(choices=[IMPORT_ICS, EXPORT_ICS, PUSH_ARI, PULL_RESERVATIONS])
+    status = CharField(choices=[PENDING, RUNNING, SUCCESS, FAILED])
+    stats = JSONField(default=dict)  # {pushed: N, errors: M, fetched: K, ...}
+    error_message = TextField(blank=True)
+
+class OtaSyncLog(models.Model):
+    job = ForeignKey(OtaSyncJob)
+    level = CharField(choices=[INFO, WARNING, ERROR])
+    message = TextField()
+    payload = JSONField(default=dict)  # Request/response sanitizados
+```
+
+#### Flujos Principales
+
+##### 1. iCal Export (AlojaSys → OTA)
+
+**Endpoint**: `GET /api/otas/ical/hotel/{hotel_id}.ics?token={token}`
+**Endpoint por habitación**: `GET /api/otas/ical/room/{room_id}.ics?token={token}`
+
+**Servicio**: `ICALSyncService.export_reservations()` (preparación) + `views.ical_export_*` (generación del archivo)
+
+**Lógica**:
+- Verifica `sync_direction`: Si hay mapeos específicos de la habitación, debe ser `"export"` o `"both"` para permitir export
+- Obtiene reservas confirmadas (`status=CONFIRMED`) para la habitación/hotel
+- Genera archivo `.ics` con todas las reservas confirmadas/pendientes del hotel/habitación
+- Cada reserva = evento "BUSY" en el calendario
+- Token autenticado para seguridad
+- Actualiza `last_synced` del mapeo automáticamente
+- Registra logs en `OtaSyncLog`
+
+**Uso**: Las OTAs leen este feed periódicamente para bloquear fechas ocupadas.
+
+##### 2. iCal Import (OTA → AlojaSys)
+
+**Trigger**: Manual ("Importar ahora") o automático (Celery Beat cada hora)
+
+**Servicio**: `ICALSyncService.import_reservations()`
+
+**Proceso**:
+1. Verificar `sync_direction`: Si es `"export"` solo, no procede con el import
+2. Fetch de `ical_in_url` del `OtaRoomMapping`
+3. Parse con `icalendar` library
+4. Por cada evento VEVENT:
+   - **Extraer `UID` como `external_id`** para idempotencia y tracking
+   - **Mapear provider a source y channel**:
+     - `source`: "ical", "booking", "airbnb", "expedia" (para logging y trazabilidad)
+     - `channel`: `ReservationChannel.BOOKING` (Booking), `EXPEDIA` (Expedia), `OTHER` (iCal/Airbnb genérico)
+   - **Decidir tipo de entidad**: Por defecto crea `Reservation`, opcionalmente `RoomBlock` si no se requiere reserva visible
+   - **Crear o actualizar `Reservation`** (si `create_reservation=True` por defecto):
+     - `external_id` = `event.UID` (busca por este campo para evitar duplicados)
+     - `channel` = provider mapeado (booking, expedia, other)
+     - `status` = `CONFIRMED`
+     - `guests` = 1, `guests_data` = `[{"source": "ical"}]` (valores mínimos requeridos)
+     - `check_in` = `DTSTART`, `check_out` = `DTEND`
+     - Guarda con `skip_clean=True` para permitir solapamientos con reservas del PMS
+   - **O crear `RoomBlock`** (si `create_reservation=False` para ICAL genérico):
+     - `block_type` = `HOLD`
+     - `reason` = `"external_id:{uid} - {summary}"` (almacena UID para búsqueda)
+     - `start_date` = `DTSTART`, `end_date` = `DTEND`
+   - Si hay conflictos de solapamiento al crear Reservation, registrar como WARNING pero continuar
+5. **Registrar en `OtaSyncLog`** con información completa:
+   - Mensajes: `RESERVATION_CREATED`, `RESERVATION_UPDATED`, `RESERVATION_NO_CHANGES`, `RESERVATION_CONFLICT`, `ROOMBLOCK_CREATED`, `ROOMBLOCK_UPDATED`, `ROOMBLOCK_ERROR`
+   - Payload con `source`, `channel`, `external_id`, `status` ("success"/"error"), `room_id`, `provider`, `check_in`, `check_out`, `error` (si aplica)
+6. Actualizar `last_synced` si hubo procesamiento exitoso (`processed > 0` o `created > 0` o `updated > 0`)
+
+**Task Celery**:
+```python
+@shared_task
+def import_ics_for_mapping_task(mapping_id: int, job_id: int | None):
+    mapping = OtaRoomMapping.objects.get(id=mapping_id)
+    stats = ICALSyncService.import_reservations(mapping, job=job)
+    # stats = {processed: N, created: M, updated: K, skipped: L, errors: P}
+```
+
+**Características mejoradas**:
+- ✅ **Idempotencia**: UID del evento (`external_id`) previene duplicados y permite actualizar reservas existentes
+- ✅ **Source tracking**: Cada evento registra su origen ("booking", "airbnb", "ical", "expedia") en logs
+- ✅ **Channel mapping**: Reservas se categorizan según provider (Booking → `ReservationChannel.BOOKING`, etc.)
+- ✅ **Logs detallados**: Cada acción registra `source`, `channel`, `status`, `external_id` para auditoría completa
+- ✅ **Flexibilidad**: Opción de crear `RoomBlock` en lugar de `Reservation` para bloqueos no visibles
+- ✅ **Manejo de errores robusto**: Continúa procesando aunque algunos eventos fallen, registrando cada error
+
+##### 3. Push ARI (AlojaSys → OTA)
+
+**Endpoint**: `POST /api/otas/ari/push/` con body:
+```json
+{
+  "hotel": 1,
+  "provider": "booking",
+  "date_from": "2025-11-01",
+  "date_to": "2025-11-07"
+}
+```
+
+**Proceso**:
+1. Resolver `OtaConfig` activo del hotel/proveedor
+2. Buscar mapeos activos (`OtaRoomTypeMapping`, `OtaRatePlanMapping`)
+3. Construir payload ARI diario (disponibilidad + precio por fecha)
+4. Ejecutar `adapter.push_ari(payload)` → HTTP POST al endpoint de la OTA
+5. Loggear request/response en `OtaSyncLog`
+
+**Task Celery**:
+```python
+@shared_task
+def push_ari_for_hotel_task(hotel_id: int, provider: str, date_from_str: str, date_to_str: str):
+    stats = push_ari_for_hotel(job, hotel_id, provider, date_from, date_to)
+```
+
+##### 4. Pull Reservations (OTA → AlojaSys)
+
+**Trigger**: Celery Beat cada 1-2 minutos (`pull_reservations_all_hotels_task`)
+
+**Proceso**:
+1. Para cada `OtaConfig` activo (Booking/Airbnb)
+2. Ejecutar `adapter.pull_reservations(since=last_check)`
+3. Obtener lista de reservas nuevas/modificadas
+4. Normalizar a modelo interno (crear/actualizar `Reservation`)
+5. Idempotencia por `external_id` de la OTA
+
+**Task Celery**:
+```python
+@shared_task
+def pull_reservations_for_hotel_task(hotel_id: int, provider: str, since_iso: str | None):
+    stats = pull_reservations_for_hotel(job, hotel_id, provider, since)
+```
+
+**Nota**: Este método de polling se usa como **respaldo**. Los webhooks (ver sección siguiente) proporcionan sincronización instantánea.
+
+##### 5. Webhooks (OTA → AlojaSys) - Sincronización Instantánea
+
+**Endpoints**:
+- `POST /api/otas/webhooks/booking/` - Webhook de Booking.com
+- `POST /api/otas/webhooks/airbnb/` - Webhook de Airbnb
+
+**Trigger**: Automático cuando Booking/Airbnb envía notificaciones HTTP en tiempo real
+
+**Ventaja sobre Pull**: Sincronización **instantánea** (segundos) en lugar de cada 1-2 minutos, evitando overbooking.
+
+**Implementación** (`apps/otas/views.py`):
+- Función `_process_reservation_webhook(provider, request)` procesa todos los webhooks
+- Funciones `booking_webhook()` y `airbnb_webhook()` son wrappers específicos
+
+**Proceso**:
+1. **Verificación HMAC**: Valida firma del webhook usando `WebhookSecurityService`
+   - Header requerido: `X-Signature` (HMAC-SHA256 del body)
+   - Secret desde variables de entorno: `BOOKING_WEBHOOK_SECRET`, `AIRBNB_WEBHOOK_SECRET` (fallback: `OTAS_WEBHOOK_SECRET`)
+   - En modo DEBUG, permite sin firma (útil para desarrollo/testing)
+2. **Idempotencia**: Verifica si el `event_id` ya fue procesado
+   - Usa `WebhookSecurityService.is_notification_processed(notification_id, None)`
+   - **Importante**: Verifica solo por `notification_id`, NO por `external_res_id`
+   - Permite múltiples eventos para la misma reserva (created, updated, cancelled)
+   - Rechaza el mismo `event_id` procesado dos veces
+3. **Extracción de datos** del payload:
+   - `event_id` o `id`: Identificador único del evento
+   - `reservation_id` o `external_id`: ID de la reserva en la OTA
+   - `hotel_id` o `property_id`: ID del hotel
+   - `ota_room_id` o `room_id`: ID de la habitación en la OTA
+   - `pms_room_id` o `room`: ID de la habitación en el PMS
+   - `check_in`, `check_out`: Fechas (ISO format)
+   - `guests`: Número de huéspedes
+   - `notes`: Notas adicionales
+4. **Resolución de hotel/habitación**:
+   - Primero busca `OtaRoomMapping` por `provider` + `ota_room_id` (external_id del mapping)
+   - Fallback: Busca `Room` por `pms_room_id` directamente
+   - Fallback: Busca `Hotel` por `hotel_id`
+5. **Creación/actualización de `Reservation`**:
+   - Busca reserva existente por `external_id` + `channel` (provider)
+   - Si existe: Actualiza `check_in`, `check_out`, `room`, `guests`, `status=CONFIRMED`
+   - Si no existe: Crea nueva reserva con:
+     - `external_id` = `reservation_id` del webhook
+     - `channel` = mapeado según provider (Booking → `ReservationChannel.BOOKING`, Airbnb → `OTHER`)
+     - `status` = `CONFIRMED`
+     - `guests` y `guests_data` desde payload
+     - `skip_clean=True` para permitir restricciones diferentes (reservas desde OTAs pueden tener validaciones más flexibles)
+6. **Registro en logs**:
+   - Crea `OtaSyncJob` con `job_type=PULL_RESERVATIONS`, `stats={"webhook": True, "provider": provider}`
+   - Crea `OtaSyncLog` con mensajes:
+     - `WEBHOOK_RESERVATION_CREATED`: Nueva reserva creada
+     - `WEBHOOK_RESERVATION_UPDATED`: Reserva existente actualizada
+     - `WEBHOOK_RESERVATION_NO_CHANGES`: Reserva no necesitó cambios
+     - `WEBHOOK_INCOMPLETE`: Datos insuficientes para procesar
+     - `WEBHOOK_ERROR`: Error durante procesamiento
+   - Payload incluye: `reservation_id`, `external_id`, `provider`, `status`, `room_id`, `check_in`, `check_out`
+7. **Marcar como procesado**: `WebhookSecurityService.mark_notification_processed(notification_id, None)` para idempotencia
+
+**Ejemplo de Payload (Booking)**:
+```json
+{
+  "event_id": "evt_1234567890",
+  "reservation_id": "BK_RES_ABC123",
+  "hotel_id": 1,
+  "ota_room_id": "BK_ROOM_001",
+  "check_in": "2025-11-10",
+  "check_out": "2025-11-12",
+  "guests": 2,
+  "notes": "Reserva desde Booking.com"
+}
+```
+
+**Seguridad**:
+- ✅ Verificación HMAC obligatoria en producción
+- ✅ Idempotencia para evitar procesamiento duplicado
+- ✅ Logs detallados para auditoría
+- ✅ Manejo robusto de errores (continúa procesando aunque algunos eventos fallen)
+
+**Testing**:
+```bash
+python manage.py test_ota_webhooks --hotel-id 1 --room-id 1 --skip-hmac
+```
+El comando prueba:
+- Creación de reserva desde webhook
+- Idempotencia (no procesa el mismo `event_id` dos veces)
+- Actualización de reserva existente (con nuevo `event_id`)
+- Webhooks de Booking y Airbnb
+
+#### Automatización (Signals)
+
+**Django Signals** (`apps/otas/signals.py`):
+
+```python
+@receiver(post_save, sender=Reservation)
+def reservation_saved(sender, instance, **kwargs):
+    # Encola push ARI automático para todos los proveedores activos
+    _enqueue_for_active_providers(instance.hotel_id)
+```
+
+**Throttling**: Coalesce eventos por 60 segundos (evita tormenta de jobs si hay múltiples cambios).
+
+#### Adapters
+
+**Patrón Base** (`OtaAdapterBase`):
+
+```python
+class OtaAdapterBase:
+    def push_ari(self, payload: Dict) -> AriPushResult:
+        """Envía disponibilidad/tarifas a la OTA"""
+        pass
+    
+    def pull_reservations(self, since: datetime) -> Dict:
+        """Obtiene reservas nuevas/modificadas desde la OTA"""
+        pass
+    
+    def is_available(self) -> bool:
+        """Valida si el adapter tiene config válida"""
+        pass
+```
+
+**BookingAdapter**:
+- Lee `OtaConfig.booking_base_url`, `booking_client_id/secret`
+- Construye requests HTTP con headers/auth según API de Booking
+- Maneja rate limiting (429) con backoff exponencial
+- Logs request/response en `OtaSyncLog`
+
+**AirbnbAdapter**:
+- Similar a BookingAdapter, con formato específico de Airbnb
+- Endpoints y payloads según documentación de Airbnb
+
+**Mock Mode**: Si no hay `base_url` configurado, el adapter opera en modo mock (no hace HTTP real, solo retorna success con conteos simulados).
+
+#### APIs Principales
+
+##### Configuración
+- `GET /api/otas/configs/` - Listar configuraciones OTA
+- `POST /api/otas/configs/` - Crear configuración
+- `PUT /api/otas/configs/{id}/` - Actualizar configuración
+- `DELETE /api/otas/configs/{id}/` - Eliminar configuración
+
+##### Mapeos
+- `GET /api/otas/mappings/` - Listar mapeos por habitación
+- `POST /api/otas/mappings/` - Crear mapeo
+- `POST /api/otas/mappings/{id}/import_now/` - Trigger manual import iCal
+
+##### Tipos y Planes
+- `GET /api/otas/room-type-mappings/` - Listar mapeos de tipos
+- `POST /api/otas/room-type-mappings/` - Crear mapeo tipo
+- `GET /api/otas/rate-plan-mappings/` - Listar mapeos de planes
+- `POST /api/otas/rate-plan-mappings/` - Crear mapeo plan
+
+##### ARI Push
+- `POST /api/otas/ari/push/` - Disparar push ARI manual
+
+##### Jobs y Logs
+- `GET /api/otas/jobs/` - Listar jobs de sincronización
+- `GET /api/otas/logs/` - Listar logs (filtrable por job_id)
+
+##### iCal Export
+- `GET /api/otas/ical/hotel/{hotel_id}.ics?token={token}` - Feed iCal del hotel
+- `GET /api/otas/ical/room/{room_id}.ics?token={token}` - Feed iCal de habitación
+
+##### Webhooks OTA (Sincronización Instantánea)
+- `POST /api/otas/webhooks/booking/` - Webhook de Booking.com para notificaciones en tiempo real
+  - **Autenticación**: Header `X-Signature` con HMAC-SHA256 del body (secret: `BOOKING_WEBHOOK_SECRET`)
+  - **Payload**: JSON con `event_id`, `reservation_id`, `hotel_id`, `ota_room_id`, `check_in`, `check_out`, `guests`, `notes`
+  - **Respuesta**: `{"ok": true, "status": "processed"}` o `{"ok": false, "status": "error", "error": "..."}`
+  - **Idempotencia**: Verifica `event_id` para evitar duplicados
+  - **Respuesta HTTP**: `200 OK` si procesado, `400 Bad Request` si error
+  
+- `POST /api/otas/webhooks/airbnb/` - Webhook de Airbnb para notificaciones en tiempo real
+  - Misma estructura que Booking.com
+  - Secret: `AIRBNB_WEBHOOK_SECRET` (fallback: `OTAS_WEBHOOK_SECRET`)
+
+**Configuración de Webhooks en OTAs**:
+- Booking.com: Configurar URL en Partner Hub → Webhooks → Reservations
+- Airbnb: Configurar URL en Partner Portal → Webhooks → Reservations
+
+**Ventajas de Webhooks vs Pull**:
+- ⚡ **Sincronización instantánea**: Reservas aparecen en segundos, no minutos
+- 🔒 **Menor riesgo de overbooking**: Actualización inmediata de disponibilidad
+- 📊 **Mejor trazabilidad**: Cada evento tiene un `event_id` único
+- 🎯 **Menos carga en servidores**: Push en lugar de polling constante
+
+**Fallback**: Si los webhooks fallan o no están configurados, el sistema usa pull cada 1-2 minutos como respaldo.
+
+##### 6. Validación de Disponibilidad en Tiempo Real (Prevención de Overbooking)
+
+**Servicio**: `OtaAvailabilityChecker` (`apps/otas/services/availability_checker.py`)
+
+**Propósito**: Verificar disponibilidad en OTAs antes de confirmar una reserva en AlojaSys para evitar overbooking.
+
+**Implementación**:
+- Se integra en `ReservationSerializer.create()` y `ReservationSerializer.update()` 
+- Solo se aplica a reservas sin `external_id` (reservas directas del PMS, no importadas desde OTAs)
+- Se activa cuando `status=CONFIRMED` (modo estricto) o antes de confirmar
+
+**Proceso**:
+1. **Obtener OTAs configuradas** para el hotel de la habitación
+2. **Para cada OTA activa** (Booking/Airbnb):
+   - Buscar `OtaRoomMapping` activo para la habitación
+   - Verificar si hay reservas en el PMS con `external_id` + `channel` correspondiente en el rango de fechas
+   - Si hay conflicto → retornar `AvailabilityCheckResult(is_available=False)`
+3. **Modo estricto** (`strict=True`):
+   - Si cualquier OTA indica no disponible → **rechaza la reserva** con `ValidationError`
+   - Mensaje: "La habitación no está disponible en las OTAs. [detalles]"
+4. **Modo no estricto** (`strict=False`):
+   - Si hay conflictos → permite la reserva pero agrega advertencias en las notas
+   - Formato: `"[OTA Check] [advertencias]"`
+
+**Integración en Reservations**:
+```python
+# En ReservationSerializer.create()
+if not instance.external_id and instance.room_id and instance.check_in and instance.check_out:
+    from apps.otas.services.availability_checker import OtaAvailabilityChecker
+    
+    strict_mode = validated_data.get('status') == ReservationStatus.CONFIRMED
+    
+    is_valid, warnings = OtaAvailabilityChecker.validate_before_confirmation(
+        room=instance.room,
+        check_in=instance.check_in,
+        check_out=instance.check_out,
+        exclude_reservation_id=None,
+        strict=strict_mode
+    )
+    
+    if not is_valid:
+        raise ValidationError("La habitación no está disponible en las OTAs. " + "; ".join(warnings))
+```
+
+**Métodos principales**:
+- `check_availability_for_room(room, check_in, check_out, exclude_reservation_id=None)`: Verifica todas las OTAs y retorna lista de `AvailabilityCheckResult`
+- `validate_before_confirmation(room, check_in, check_out, exclude_reservation_id, strict)`: Retorna `(is_valid: bool, warnings: List[str])`
+
+**Lógica actual**:
+- **Verificación local**: Consulta reservas en el PMS con `external_id` (reservas importadas desde OTAs)
+- **No hace llamadas externas** a APIs de OTAs (por ahora)
+- **Preparado para expansión**: Estructura lista para agregar llamadas reales a APIs de OTAs en el futuro
+
+**Testing**:
+```bash
+python manage.py test_ota_availability_check --hotel-id 1 --room-id 1
+```
+El comando prueba:
+- Verificación sin conflictos
+- Detección de conflictos con reservas de OTAs
+- Validación estricta (rechaza reserva)
+- Modo no estricto (permite con advertencias)
+- Exclusión de reserva propia al actualizar
+
+**Ventajas**:
+- ✅ **Evita overbooking**: Rechaza reservas que colisionan con reservas de OTAs
+- ✅ **Verificación rápida**: Consulta local (no requiere llamadas externas)
+- ✅ **Flexible**: Modo estricto/no estricto según necesidad
+- ✅ **Extensible**: Listo para agregar consultas reales a APIs de OTAs
+
+**Limitaciones actuales**:
+- Solo verifica reservas ya importadas en el PMS (no consulta APIs de OTAs directamente)
+- Depende de que las reservas de OTAs estén sincronizadas en el PMS
+- **Nota**: Con webhooks activos, esta limitación se mitiga porque las reservas se sincronizan instantáneamente
+
+##### 7. Seguridad de Tokens y Validaciones
+
+**Implementación**: `apps/otas/serializers.py` y `apps/otas/models.py`
+
+**Propósito**: Proteger información sensible y validar configuraciones de OTAs para prevenir errores y asegurar configuraciones válidas.
+
+###### 7.1 Enmascaramiento de Tokens y Secrets
+
+**Campos Protegidos**:
+- `ical_out_token`: Siempre enmascarado en lectura (muestra solo primeros 4 caracteres)
+- `booking_client_secret`: Campo write-only (no se retorna en respuestas GET)
+- `airbnb_client_secret`: Campo write-only (no se retorna en respuestas GET)
+
+**Implementación**:
+```python
+# Función helper para enmascarar valores sensibles
+def _mask_sensitive_value(value: str | None, visible_chars: int = 4) -> str | None:
+    """Enmascara un valor sensible mostrando solo los primeros caracteres."""
+    if not value or len(value) <= visible_chars:
+        return "****" if value else None
+    return f"{value[:visible_chars]}{'*' * max(8, len(value) - visible_chars)}"
+
+# En OtaConfigSerializer
+ical_out_token = serializers.CharField(...)  # Writable, pero enmascarado en to_representation()
+booking_client_secret = serializers.CharField(write_only=True, ...)  # Solo escritura
+airbnb_client_secret = serializers.CharField(write_only=True, ...)  # Solo escritura
+
+# Campos adicionales para mostrar en frontend
+ical_out_token_masked = serializers.SerializerMethodField()  # Siempre visible
+booking_client_secret_masked = serializers.SerializerMethodField()  # Siempre visible
+airbnb_client_secret_masked = serializers.SerializerMethodField()  # Siempre visible
+```
+
+**Comportamiento**:
+- **En lectura (GET)**: Todos los tokens/secrets se muestran enmascarados (`abcd********`)
+- **En escritura (POST/PUT)**: Se puede actualizar con el valor completo
+- **Frontend**: Usa campos `_masked` para mostrar, campos originales solo para editar
+
+**Ejemplo de Respuesta**:
+```json
+{
+  "id": 1,
+  "ical_out_token": "abcd********",
+  "ical_out_token_masked": "abcd********",
+  "booking_client_secret": null,  // No se retorna (write_only)
+  "booking_client_secret_masked": "clie********",
+  "verified": true
+}
+```
+
+###### 7.2 Validación de Dominios base_url
+
+**Validación Automática**: El serializer valida que `booking_base_url` y `airbnb_base_url` contengan dominios permitidos.
+
+**Dominios Permitidos**:
+- **Booking.com**: `booking.com`, `connectivity-sandbox.booking.com` (para testing)
+- **Airbnb**: `airbnb.com`, `api.airbnb.com` (para testing)
+- **Testing**: `httpbin.org` (para desarrollo y pruebas)
+
+**Implementación**:
+```python
+def validate_booking_base_url(self, value: str | None) -> str | None:
+    """Valida que booking_base_url contenga un dominio permitido."""
+    if not value:
+        return value
+    
+    allowed_domains = ['booking.com', 'httpbin.org']
+    
+    parsed = urlparse(value)
+    domain = parsed.netloc.lower().replace('www.', '')
+    
+    if not any(allowed in domain for allowed in allowed_domains):
+        raise ValidationError(
+            f"El dominio '{domain}' no está permitido. "
+            f"Dominios permitidos: {', '.join(allowed_domains)}"
+        )
+    
+    return value
+
+def validate_airbnb_base_url(self, value: str | None) -> str | None:
+    """Similar para Airbnb con dominios: ['airbnb.com', 'httpbin.org']"""
+```
+
+**Errores de Validación**:
+- Si el dominio no está en la lista permitida → `ValidationError` con mensaje claro
+- El error se muestra en el frontend antes de guardar
+
+###### 7.3 Campo verified (Verificación Automática)
+
+**Campo en Modelo**:
+```python
+class OtaConfig(models.Model):
+    # ...
+    verified = models.BooleanField(
+        default=False,
+        help_text="Indica si la configuración base_url es válida y está verificada"
+    )
+```
+
+**Actualización Automática**: El campo `verified` se actualiza automáticamente en el método `validate()` del serializer:
+- Si `provider == BOOKING` y `booking_base_url` contiene dominio permitido → `verified = True`
+- Si `provider == AIRBNB` y `airbnb_base_url` contiene dominio permitido → `verified = True`
+- Si no hay `base_url` o el dominio no es válido → `verified = False`
+- Para providers sin `base_url` (ej: ICAL) → `verified = False`
+
+**Lógica**:
+```python
+def validate(self, attrs):
+    provider = attrs.get('provider', self.instance.provider if self.instance else None)
+    
+    if provider == OtaProvider.BOOKING:
+        base_url = attrs.get('booking_base_url') or (self.instance.booking_base_url if self.instance else None)
+        
+        if base_url:
+            parsed = urlparse(base_url)
+            domain = parsed.netloc.lower().replace('www.', '')
+            if any(allowed in domain for allowed in ['booking.com', 'httpbin.org']):
+                attrs['verified'] = True
+            else:
+                attrs['verified'] = False
+        else:
+            attrs['verified'] = False
+    
+    # Similar para AIRBNB
+    
+    return attrs
+```
+
+**Uso en Frontend**:
+- Columna "Verificado" en la tabla de configuraciones
+- Badge visual: Verde si `verified = True`, Gris si `verified = False`
+- Indicador en el modal al editar `base_url` (muestra estado de verificación)
+
+###### 7.4 URLs Completas de iCal (Sin Exponer Tokens)
+
+**Problema Resuelto**: Evitar exponer el token real al construir URLs de iCal en el frontend.
+
+**Solución**: Campo calculado `ical_hotel_url` en el serializer:
+```python
+def get_ical_hotel_url(self, obj) -> str | None:
+    """Retorna la URL completa del iCal del hotel."""
+    if not obj.ical_out_token or not obj.hotel_id:
+        return None
+    request = self.context.get('request')
+    if request:
+        base_url = f"{request.scheme}://{request.get_host()}"
+        return f"{base_url}/api/otas/ical/hotel/{obj.hotel_id}.ics?token={obj.ical_out_token}"
+    return None
+```
+
+**Uso**:
+- Frontend recibe `ical_hotel_url` ya construida con el token real
+- No necesita acceder al token enmascarado para construir URLs
+- Botón "Copiar URL" usa directamente `ical_hotel_url`
+
+**Ventajas**:
+- ✅ **Seguridad**: El token nunca se expone en texto plano al frontend
+- ✅ **Conveniencia**: URLs listas para usar sin construcción manual
+- ✅ **Consistencia**: Misma estructura de URL siempre
+
+###### 7.5 Integración en Frontend
+
+**Tabla de Configuraciones** (`OtaConfig.jsx`):
+- Columna "Token": Muestra `ical_out_token_masked` (siempre enmascarado)
+- Columna "Verificado": Badge verde/gris según `verified`
+- Botón "Copiar URL": Usa `ical_hotel_url` (no construye manualmente)
+
+**Modal de Edición** (`OtaConfigModal.jsx`):
+- Campo `ical_out_token`: Muestra valor actual enmascarado como `statusMessage`
+- Campo `booking_base_url` / `airbnb_base_url`: 
+  - Muestra estado de verificación: "Verificado" (verde) o "No Verificado" (amarillo)
+  - Validación en tiempo real al escribir
+- Campos `booking_client_secret` / `airbnb_client_secret`:
+  - Type `password` para ocultar al escribir
+  - Muestra valor actual enmascarado como `statusMessage` al editar
+
+**Validaciones**:
+- El backend valida dominios antes de guardar
+- Si el dominio no es permitido, muestra error claro en el frontend
+- El campo `verified` se actualiza automáticamente después de guardar
+
+###### 7.6 Frontend - Vista de Gestión de OTAs (nueva)
+
+Ubicación del código: `frontend/src/pages/configurations/Otas.jsx` (ruta de navegación: `/#/otas`).
+
+Objetivo: Gestionar canales OTA y monitorear sincronizaciones en una vista separada del ABM de configuraciones.
+
+- Componentes clave:
+  - Tabla con columnas: hotel, proveedor, etiqueta, activo, token enmascarado, `verified`, última sincronización, acciones.
+  - Filtros: búsqueda libre, hotel, proveedor, estado (activo/inactivo).
+  - Acciones: editar (modal), copiar URL iCal del hotel (`ical_hotel_url`), eliminar, botón "Sincronizar ahora" que invoca `/api/otas/sync/`.
+  - Estado de última sync: obtiene el último `OtaSyncJob` y muestra `PENDING`/`RUNNING`/`SUCCESS`/`FAILED`.
+
+Internacionalización: claves bajo `ota.*` en `frontend/src/i18n/locales/es.json` (`ota.filters.*`, `ota.table.*`, `ota.sync_*`).
+
+##### Endpoints REST Personalizados (`apps/otas/api.py`)
+
+Endpoints personalizados para gestión y sincronización de OTAs con lógica específica:
+
+**Listar Canales OTA**
+- `GET /api/otas/` - Lista todos los canales OTA configurados con filtros opcionales
+  - **Query Params**:
+    - `provider` (opcional): Filtrar por proveedor (`ical`, `booking`, `airbnb`, `expedia`)
+    - `is_active` (opcional): Filtrar por estado activo (`true`/`false`)
+    - `hotel` (opcional): Filtrar por ID de hotel
+  - **Respuesta**: Lista de `OtaConfig` serializados
+  - **Ejemplo**: `GET /api/otas/?provider=booking&is_active=true`
+
+**Sincronización Manual**
+- `POST /api/otas/sync/` - Ejecuta sincronización manual de OTAs
+  - **Body** (opcional):
+    ```json
+    {
+      "provider": "ical",      // Sincronizar solo un proveedor
+      "hotel_id": 1           // Sincronizar solo un hotel
+    }
+    ```
+  - **Sin parámetros**: Sincroniza todos los mapeos activos usando `ICALSyncService.schedule_sync()`
+  - **Con `provider` y `hotel_id`**: Sincroniza solo iCal para el hotel específico
+  - **Respuesta**:
+    ```json
+    {
+      "status": "ok" | "error",
+      "message": "Sincronización ejecutada correctamente",
+      "stats": {
+        "total_mappings": 3,
+        "import_success": 2,
+        "import_errors": 1,
+        "export_success": 3,
+        "export_errors": 0
+      },
+      "logs": [...]  // Logs recientes (últimos 10)
+    }
+    ```
+  - **Nota**: Si se especifica `provider="ical"` y `hotel_id`, ejecuta `import_reservations()` y `export_reservations()` para cada mapeo encontrado.
+
+**Gestión de Mapeos (ViewSet extendido)**
+- `GET /api/otas/mappings/` - Lista todos los mapeos activos
+  - **Filtros automáticos**: Respeta paginación y ordenamiento
+  - **Respuesta**: Lista paginada de `OtaRoomMapping` con `sync_direction` y `last_synced`
+  
+- `POST /api/otas/mappings/` - Crear nuevo mapeo con validación de duplicados
+  - **Validación**: No permite crear más de un mapeo activo para la misma combinación `room` + `provider`
+  - **Body requerido**:
+    ```json
+    {
+      "hotel": 1,
+      "room": 5,
+      "provider": "ical",
+      "external_id": "room-external-123",
+      "ical_in_url": "https://example.com/feed.ics",
+      "sync_direction": "both",  // "import", "export", "both"
+      "is_active": true
+    }
+    ```
+  - **Campos**:
+    - `last_synced`: Solo lectura (se actualiza automáticamente)
+    - `sync_direction`: Controla la dirección de sincronización
+  
+- `PUT /api/otas/mappings/{id}/` - Actualizar mapeo existente
+  - Misma validación de duplicados que en `POST`
+
+**Logs de Sincronización (ViewSet extendido)**
+- `GET /api/otas/logs/` - Lista logs de sincronización con filtros avanzados
+  - **Query Params**:
+    - `hotel` (opcional): Filtrar por ID de hotel
+    - `provider` (opcional): Filtrar por proveedor
+    - `level` (opcional): Filtrar por nivel (`info`, `warning`, `error`)
+  - **Respuesta**: Lista paginada de `OtaSyncLog` ordenada por fecha descendente
+  - **Ejemplo**: `GET /api/otas/logs/?hotel=1&level=error`
+
+**Implementación**
+
+Estos endpoints están implementados en `apps/otas/api.py` como funciones `@api_view` personalizadas, mientras que los ViewSets estándar están en `apps/otas/views.py`:
+
+```python
+# apps/otas/api.py
+@api_view(["GET"])
+def list_ota_configs(request: Request) -> Response:
+    # Filtrado y serialización de OtaConfig
+
+@api_view(["POST"])
+def sync_otas(request: Request) -> Response:
+    # Ejecuta ICALSyncService.schedule_sync() o sync específico
+    # Retorna stats y logs recientes
+```
+
+**Validaciones y Características**
+
+- **Autenticación**: Todos los endpoints requieren autenticación JWT
+- **Paginación**: Endpoints de listado usan paginación DRF estándar
+- **Validación de duplicados**: `OtaRoomMappingViewSet.perform_create()` previene duplicados activos
+- **Filtrado**: Endpoints personalizados permiten filtros múltiples vía query params
+- **Stats detalladas**: `POST /api/otas/sync/` retorna estadísticas detalladas de sincronización
+
+**Pruebas**
+
+Script de prueba disponible:
+```bash
+python manage.py test_ota_api_endpoints --hotel-id 1 --room-id 1
+```
+
+Este script verifica todos los endpoints, filtros, validaciones y respuestas.
+
+#### Tareas Celery Beat
+
+Configurado en `hotel/settings.py`:
+
+```python
+CELERY_BEAT_SCHEDULE = {
+    "otas_import_ics_hourly": {
+        "task": "apps.otas.tasks.import_all_ics",
+        "schedule": 3600.0,  # Cada hora
+    },
+    "otas_pull_reservations_backup": {
+        "task": "apps.otas.tasks.pull_reservations_all_hotels_task",
+        "schedule": 120.0,  # Cada ~2 minutos (respaldo si no hay webhooks)
+    },
+}
+```
+
+#### Seguridad y Observabilidad
+
+**Tokens iCal**:
+- Generación: `python manage.py generate_ical_token --hotel-id 1`
+- URLs firmadas con `token` en query param
+- Rotación manual cuando sea necesario
+
+**Logs y Auditoría**:
+- `OtaSyncLog` con level (INFO/WARNING/ERROR)
+- Payload sanitizado (no expone secrets)
+- Trace ID para correlación de requests
+- **Registro completo de todas las sincronizaciones OTA** (ver sección "Auditoría y Trazabilidad" abajo)
+
+**Idempotencia**:
+- iCal: `OtaImportedEvent` por `(room, provider, uid)` único
+- ARI: Clave por `(hotel, room_type, rate_plan, date_range)`
+- Reservas: `external_id` único por OTA
+
+**Control de Sincronización**:
+- `sync_direction`: Permite controlar dirección de sincronización por mapeo:
+  - `"import"`: Solo importa desde la OTA (útil para feeds de solo lectura)
+  - `"export"`: Solo exporta hacia la OTA (útil cuando la OTA gestiona sus propias reservas)
+  - `"both"`: Sincronización bidireccional completa (default)
+- `last_synced`: Timestamp de última sincronización exitosa, actualizado automáticamente
+
+#### Comandos de Gestión
+
+```bash
+# Generar token iCal y mostrar URLs
+python manage.py generate_ical_token --hotel-id 1 --show-rooms
+
+# Import manual iCal
+python manage.py import_ical_now --mapping-id 1
+
+# Test push ARI
+python manage.py ota_push_ari_test --hotel-id 1 --provider booking --days 7
+
+# Test pull reservations
+python manage.py ota_pull_res_test --hotel-id 1 --provider booking --minutes 10
+
+# Test ICALSyncService completo
+python manage.py test_ical_sync_service --hotel-id 1 --room-id 1 --ical-url "URL_ICAL"
+
+# Smoke test completo
+python manage.py ota_smoke_test --hotel-id 1 --room-id 1
+```
+
+#### ICALSyncService
+
+**Ubicación**: `apps/otas/services/ical_sync_service.py`
+
+**Clase Principal**: `ICALSyncService`
+
+**Métodos Principales**:
+
+1. **`import_reservations(ota_room_mapping, job=None)`**:
+   - Descarga el feed iCal desde `ical_in_url`
+   - Parsea eventos VEVENT usando `icalendar`
+   - Por cada evento:
+     - **Usa `event.UID` como `external_id`** para idempotencia y tracking
+     - **Mapea provider a source y channel**:
+       - `source`: "ical", "booking", "airbnb", "expedia" (para logging)
+       - `channel`: `ReservationChannel.BOOKING` (Booking), `EXPEDIA` (Expedia), `OTHER` (iCal/Airbnb genérico)
+     - **Decide si crear Reservation o RoomBlock**:
+       - Por defecto: Booking/Airbnb/Expedia → `Reservation`
+       - ICAL genérico → `Reservation` (configurable para usar `RoomBlock` si no se requiere reserva visible)
+     - **Si crea Reservation**:
+       - `external_id` = UID del evento (para evitar duplicados)
+       - `channel` = provider mapeado (booking, expedia, other)
+       - `status` = `CONFIRMED`
+       - `guests` = 1 (valor por defecto)
+       - `guests_data` = `[{"source": "ical"}]` (mínimo requerido)
+       - `check_in` = `DTSTART`, `check_out` = `DTEND`
+       - Guarda con `skip_clean=True` para evitar validaciones de solapamiento (reservas importadas pueden solaparse)
+     - **Si crea RoomBlock** (cuando `create_reservation=False`):
+       - `block_type` = `HOLD`
+       - `reason` = `"external_id:{uid} - {summary}"` (almacena UID en reason para búsqueda)
+       - `start_date` = `DTSTART`, `end_date` = `DTEND`
+     - **Actualiza si existe**: Busca por `external_id` (Reservation) o por UID en `reason` (RoomBlock)
+   - Respeta `sync_direction` (solo importa si es `"import"` o `"both"`)
+   - Actualiza `last_synced` si hubo procesamiento exitoso
+   - **Registra en `OtaSyncLog` con información mejorada y consistente**:
+     - `message`: `RESERVATION_CREATED`, `RESERVATION_UPDATED`, `RESERVATION_NO_CHANGES`, `RESERVATION_CONFLICT`, `ROOMBLOCK_CREATED`, `ROOMBLOCK_UPDATED`, `ROOMBLOCK_NO_CHANGES`, `ROOMBLOCK_ERROR`
+     - `payload` incluye (todos los logs tienen estos campos de forma consistente):
+       - `source`: "ical", "booking", "airbnb", "expedia" (origen del evento)
+       - `channel`: channel de la reserva (booking, expedia, other)
+       - `external_id`: UID del evento iCal (para idempotencia)
+       - `status`: "success" (creación/actualización exitosa), "skipped" (sin cambios), o "error" (fallo)
+       - `room_id`, `provider`, `check_in`, `check_out`
+       - `reservation_id` o `block_id`: ID de la reserva/bloqueo creado/actualizado
+       - `error`: mensaje de error si aplica
+   - Retorna estadísticas: `{processed, created, updated, skipped, errors}`
+
+2. **`export_reservations(ota_room_mapping, job=None)`**:
+   - Respeta `sync_direction` (solo exporta si es `"export"` o `"both"`)
+   - Obtiene reservas confirmadas para la habitación del mapeo
+   - Cuenta cuántas reservas están disponibles para export
+   - Actualiza `last_synced` automáticamente
+   - Registra logs en `OtaSyncLog`
+   - **Nota**: La generación real del archivo `.ics` se hace en las vistas bajo demanda
+
+3. **`schedule_sync()`**:
+   - Recorre todos los `OtaRoomMapping` activos
+   - Para cada mapeo:
+     - Ejecuta `import_reservations()` si `sync_direction` lo permite
+     - Ejecuta `export_reservations()` si `sync_direction` lo permite
+   - Maneja errores con try/except por mapeo
+   - Registra logs detallados para cada acción
+   - Retorna estadísticas generales: `{total_mappings, import_success, import_errors, export_success, export_errors}`
+
+**Uso en Tareas Celery**:
+```python
+from apps.otas.services.ical_sync_service import ICALSyncService
+
+# Import para un mapeo específico
+mapping = OtaRoomMapping.objects.get(id=mapping_id)
+stats = ICALSyncService.import_reservations(mapping, job=job)
+
+# Sincronización completa programada
+stats = ICALSyncService.schedule_sync()
+```
+
+**Características Clave**:
+- ✅ **Creación directa de `Reservation` o `RoomBlock`** según necesidad:
+  - Por defecto: Booking/Airbnb/Expedia crean `Reservation` (rastreable como reserva visible)
+  - ICAL genérico también crea `Reservation` por defecto (comportamiento actual)
+  - Opción de crear `RoomBlock` para bloqueos no visibles como reservas
+- ✅ **Uso de `external_id` (UID del evento iCal)** para:
+  - Evitar duplicados: si existe reserva con mismo `external_id`, la actualiza
+  - Tracking: permite identificar reservas importadas desde OTAs
+- ✅ **Logging consistente y completo**:
+  - Todos los logs incluyen `source` (origen del evento), `channel` (canal de la reserva), `status` (éxito/saltado/error), y `external_id` (UID)
+  - Los logs permiten auditoría completa y debugging fácil
+  - Campos uniformes en todos los mensajes: `RESERVATION_CREATED`, `RESERVATION_UPDATED`, `RESERVATION_NO_CHANGES`, `ROOMBLOCK_CREATED`, `ROOMBLOCK_UPDATED`, `ROOMBLOCK_NO_CHANGES`, etc.
+  - Idempotencia: múltiples importaciones del mismo evento no crean duplicados
+- ✅ **Mapeo de source según canal**:
+  - `source` ("booking", "airbnb", "ical", "expedia") para logging y trazabilidad
+  - `channel` (`ReservationChannel`) para categorización en el PMS
+- ✅ **Manejo robusto de errores**: continúa procesando aunque algunos eventos fallen, registra cada error en logs
+- ✅ **Registro detallado en `OtaSyncLog`** con:
+  - `source` y `channel` del evento
+  - `status` ("success" o "error")
+  - `external_id` para correlación
+  - Detalles completos de cada operación (created, updated, skipped, conflict, error)
+- ✅ **Transacciones atómicas** para consistencia de datos
+- ✅ **Respeto estricto de `sync_direction`** (import/export/both)
+- ✅ **Actualización automática de `last_synced`** cuando hay procesamiento exitoso
+
+#### Auditoría y Trazabilidad
+
+**Sistema Completo de Logging**
+
+El módulo OTAs implementa un sistema completo de auditoría que registra **cada acción** de sincronización en `OtaSyncLog`, permitiendo trazabilidad completa y debugging detallado.
+
+**Puntos de Registro de Logs**:
+
+1. **Inicio de Sincronización**:
+   - **Tasks (`tasks.py`)**:
+     - `PUSH_ARI_STARTED`: Cuando se inicia un push ARI desde task
+     - `PULL_RES_STARTED`: Cuando se inicia un pull de reservas desde task
+     - `IMPORT_ICS_STARTED`: Cuando se inicia una importación iCal desde task
+   - **Signals (`signals.py`)**:
+     - `PUSH_ARI_STARTED`: Cuando se inicia un push ARI desde signal (post_save/post_delete de Reservation)
+     - Incluye información del trigger: `action`, `reservation_id`, `reservation_status`, `reservation_channel`, `check_in`, `check_out`, `created`
+   - **Services**:
+     - `IMPORT_STARTED` / `EXPORT_STARTED`: Cuando ICALSyncService inicia import/export
+     - `PUSH_ARI_REQUEST` / `PULL_RES_REQUEST`: Cuando ARI Publisher inicia request
+
+2. **Operaciones Exitosas**:
+   - `RESERVATION_CREATED` / `RESERVATION_UPDATED`: Cuando se crea/actualiza una reserva desde iCal
+   - `ROOMBLOCK_CREATED` / `ROOMBLOCK_UPDATED`: Cuando se crea/actualiza un bloqueo desde iCal
+   - `WEBHOOK_RESERVATION_CREATED` / `WEBHOOK_RESERVATION_UPDATED`: Cuando se procesa un webhook exitosamente
+   - `PUSH_ARI_RESPONSE` / `PULL_RES_RESPONSE`: Cuando se completa un push/pull con respuesta
+   - `PUSH_ARI_COMPLETED` / `PULL_RES_COMPLETED` / `IMPORT_ICS_TASK_COMPLETED`: Cuando un task finaliza exitosamente
+
+3. **Errores y Fallos**:
+   - `PUSH_ARI_ERROR` / `PULL_RES_ERROR` / `IMPORT_ICS_TASK_ERROR`: Errores en tasks con:
+     - Mensaje de error completo
+     - Tipo de error (`error_type`)
+     - Traceback completo (`traceback`)
+     - Timestamp explícito (`timestamp`)
+   - `PUSH_ARI_SERVICE_ERROR` / `PULL_RES_SERVICE_ERROR`: Errores en servicios ARI Publisher
+   - `IMPORT_ERROR` / `EXPORT_ERROR`: Errores en ICALSyncService
+   - `RESERVATION_CONFLICT` / `ROOMBLOCK_ERROR`: Conflictos o errores al procesar eventos
+
+**Estructura de Payload de Logs**:
+
+Todos los logs incluyen información consistente:
+
+```python
+{
+    # Información básica
+    "hotel_id": 1,
+    "provider": "booking",
+    "room_id": 5,
+    "mapping_id": 10,
+    
+    # Para operaciones de reservas
+    "reservation_id": 123,
+    "external_id": "UID-ICAL-123",
+    "source": "booking",  # "ical", "booking", "airbnb", "expedia"
+    "channel": "booking",  # ReservationChannel
+    "check_in": "2025-11-01",
+    "check_out": "2025-11-05",
+    "status": "success",  # "success", "skipped", "error"
+    
+    # Para operaciones desde signals
+    "trigger": "signal",  # "task", "signal", "manual"
+    "trigger_info": {
+        "action": "reservation_saved",
+        "reservation_id": 123,
+        "reservation_status": "confirmed",
+        "reservation_channel": "direct",
+        "check_in": "2025-11-01",
+        "check_out": "2025-11-05",
+        "created": false
+    },
+    
+    # Para errores
+    "error": "Connection timeout",
+    "error_type": "TimeoutError",
+    "traceback": "Traceback (most recent call last)...",
+    "timestamp": "2025-10-31T20:41:51.895154Z",
+    
+    # Para estadísticas
+    "stats": {
+        "processed": 10,
+        "created": 5,
+        "updated": 3,
+        "skipped": 2,
+        "errors": 0
+    }
+}
+```
+
+**Flujo Completo de Auditoría**:
+
+1. **Desde Signals (Automatizado)**:
+   ```
+   Reservation.save() 
+   → reservation_saved signal 
+   → _enqueue_for_active_providers() 
+   → _queue_push_ari_for_hotel() 
+   → Crea OtaSyncJob 
+   → Log: PUSH_ARI_STARTED (con trigger_info)
+   → push_ari_for_hotel_task.delay() 
+   → Log: PUSH_ARI_REQUEST 
+   → Log: PUSH_ARI_RESPONSE 
+   → Log: PUSH_ARI_COMPLETED
+   ```
+
+2. **Desde Tasks (Programado)**:
+   ```
+   Celery Beat trigger
+   → pull_reservations_all_hotels_task 
+   → pull_reservations_for_hotel_task 
+   → Crea OtaSyncJob 
+   → Log: PULL_RES_STARTED 
+   → Log: PULL_RES_REQUEST 
+   → Log: PULL_RES_RESPONSE 
+   → Log: PULL_RES_COMPLETED
+   ```
+
+3. **Desde ICALSyncService (Import/Export)**:
+   ```
+   ICALSyncService.import_reservations()
+   → Log: IMPORT_STARTED 
+   → Por cada evento:
+     → Log: RESERVATION_CREATED / RESERVATION_UPDATED / RESERVATION_NO_CHANGES
+   → Log: IMPORT_COMPLETED
+   ```
+
+**Beneficios de la Auditoría**:
+
+- ✅ **Trazabilidad completa**: Cada sincronización tiene un registro completo desde inicio hasta fin
+- ✅ **Debugging rápido**: Traceback completo en errores permite identificar problemas inmediatamente
+- ✅ **Información de contexto**: Trigger info permite saber qué causó cada sincronización
+- ✅ **Correlación**: `job_id` permite agrupar todos los logs de una sincronización
+- ✅ **Métricas**: Estadísticas detalladas en cada log permiten análisis de rendimiento
+- ✅ **Auditoría de seguridad**: Registro de todas las operaciones para cumplimiento
+
+**Consultar Logs**:
+
+```python
+# Obtener todos los logs de un job
+logs = OtaSyncJob.objects.get(id=job_id).logs.all()
+
+# Filtrar por nivel
+error_logs = OtaSyncLog.objects.filter(level=OtaSyncLog.Level.ERROR)
+
+# Filtrar por hotel y provider
+hotel_logs = OtaSyncLog.objects.filter(
+    job__hotel_id=1,
+    job__provider="booking"
+)
+
+# Buscar logs de sincronizaciones iniciadas desde signals
+signal_logs = OtaSyncLog.objects.filter(
+    message="PUSH_ARI_STARTED",
+    payload__trigger="signal"
+)
+```
+
+#### Testing
+
+**Mock Mode**: Por defecto, adapters operan en modo mock (no hacen HTTP real) hasta que se configuren credenciales. Esto permite:
+- Desarrollar sin acceso a sandbox
+- Tests unitarios sin dependencias externas
+- Validar flujo end-to-end con httpbin.org
+
+**iCal Testing**: Usa `test_ical_sync_service` para probar el servicio completo:
+```bash
+python manage.py test_ical_sync_service --hotel-id 1 --room-id 1 --ical-url "URL_VALIDA"
+```
+El script prueba:
+- Importación desde feed iCal
+- Exportación de reservas
+- Respeto de `sync_direction`
+- Actualización de `last_synced`
+- Manejo de errores y conflictos
+
+**Sandbox**: Una vez obtenidas credenciales (Booking Connectivity Partner, Airbnb Partner), configurar:
+- `base_url`: URL sandbox del proveedor
+- `client_id/secret`: Credenciales de prueba
+- `mode`: "test"
+- Probar con hoteles/propiedades de prueba
+
+**Producción**: Tras certificación, cambiar `mode` a "prod" y actualizar URLs/credenciales.
 
 ---
 

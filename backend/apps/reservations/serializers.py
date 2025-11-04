@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from datetime import date
-from .models import Reservation, ReservationStatus, ReservationCharge, Payment, ChannelCommission
+from .models import Reservation, ReservationStatus, ReservationCharge, Payment, ChannelCommission, ReservationChannel
 from apps.rooms.models import RoomStatus
 
 class ReservationSerializer(serializers.ModelSerializer):
@@ -21,6 +21,8 @@ class ReservationSerializer(serializers.ModelSerializer):
         source="applied_cancellation_policy.name", 
         read_only=True
     )
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    is_ota = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
@@ -28,7 +30,7 @@ class ReservationSerializer(serializers.ModelSerializer):
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "balance_due", "total_paid", "notes",
-            "channel", "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
+            "channel", "channel_display", "is_ota", "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
             "display_name", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "balance_due", "total_paid", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
@@ -65,6 +67,41 @@ class ReservationSerializer(serializers.ModelSerializer):
                         validated_data['applied_cancellation_policy'] = cancellation_policy
             
             instance = Reservation(**validated_data)
+
+            # Normalización de canal/origen
+            if not instance.external_id:
+                instance.channel = ReservationChannel.DIRECT
+            else:
+                if instance.channel == ReservationChannel.DIRECT:
+                    instance.channel = ReservationChannel.OTHER
+            
+            # Validar disponibilidad en OTAs antes de confirmar (solo para reservas sin external_id)
+            if not instance.external_id and instance.room_id and instance.check_in and instance.check_out:
+                from apps.otas.services.availability_checker import OtaAvailabilityChecker
+                from django.core.exceptions import ValidationError
+                
+                # Solo validar si es una reserva que se va a confirmar (CONFIRMED o PENDING que luego se confirmará)
+                # No validar para reservas importadas desde OTAs (external_id)
+                strict_mode = validated_data.get('status') == ReservationStatus.CONFIRMED
+                
+                is_valid, warnings = OtaAvailabilityChecker.validate_before_confirmation(
+                    room=instance.room,
+                    check_in=instance.check_in,
+                    check_out=instance.check_out,
+                    exclude_reservation_id=None,
+                    strict=strict_mode
+                )
+                
+                if not is_valid:
+                    # En modo estricto, rechazar la reserva
+                    error_msg = "La habitación no está disponible en las OTAs. " + "; ".join(warnings)
+                    raise ValidationError(error_msg)
+                elif warnings and strict_mode:
+                    # Si hay advertencias en modo estricto, incluirlas en las notas
+                    if not instance.notes:
+                        instance.notes = ""
+                    instance.notes += f"\n[OTA Check] {'; '.join(warnings)}"
+            
             instance.full_clean()
             instance.save()
             return instance
@@ -78,6 +115,31 @@ class ReservationSerializer(serializers.ModelSerializer):
                     raise ValidationError({
                         'status': 'No se puede confirmar una reserva con fecha de check-in anterior a la fecha actual.'
                     })
+                
+                # Validar disponibilidad en OTAs antes de confirmar (solo para reservas sin external_id)
+                if not instance.external_id and instance.room_id and instance.check_in and instance.check_out:
+                    from apps.otas.services.availability_checker import OtaAvailabilityChecker
+                    
+                    # Obtener fechas actualizadas si se están modificando
+                    check_in = validated_data.get('check_in', instance.check_in)
+                    check_out = validated_data.get('check_out', instance.check_out)
+                    
+                    is_valid, warnings = OtaAvailabilityChecker.validate_before_confirmation(
+                        room=instance.room,
+                        check_in=check_in,
+                        check_out=check_out,
+                        exclude_reservation_id=instance.id,
+                        strict=True  # En modo estricto al confirmar
+                    )
+                    
+                    if not is_valid:
+                        error_msg = "La habitación no está disponible en las OTAs. " + "; ".join(warnings)
+                        raise ValidationError(error_msg)
+                    elif warnings:
+                        # Agregar advertencias a las notas
+                        if not instance.notes:
+                            instance.notes = ""
+                        instance.notes += f"\n[OTA Check al confirmar] {'; '.join(warnings)}"
                 
                 # Guardar snapshot de la política de cancelación al confirmar la reserva
                 if instance.applied_cancellation_policy and not instance.applied_cancellation_snapshot:
@@ -101,11 +163,28 @@ class ReservationSerializer(serializers.ModelSerializer):
                         'snapshot_created_at': timezone.now().isoformat()
                     }
             
+            # Normalización de canal/origen en update
+            external_id_final = validated_data.get('external_id', instance.external_id)
+            # Aplicar el resto de campos excepto 'channel' (lo normalizamos luego)
             for key, value in validated_data.items():
+                if key == 'channel':
+                    continue
                 setattr(instance, key, value)
+
+            if not external_id_final:
+                instance.channel = ReservationChannel.DIRECT
+            else:
+                # Si viene DIRECT por error, forzar a OTHER como seguro por defecto
+                new_channel = validated_data.get('channel', instance.channel)
+                if new_channel == ReservationChannel.DIRECT:
+                    new_channel = ReservationChannel.OTHER
+                instance.channel = new_channel
             instance.full_clean()
             instance.save()
             return instance
+
+    def get_is_ota(self, obj):
+        return bool(obj.external_id)
 
     def get_total_price(self, obj):
         nights_sum = obj.nights.aggregate(s=Sum('total_night'))['s']

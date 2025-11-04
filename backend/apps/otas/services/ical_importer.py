@@ -28,8 +28,11 @@ def _normalize_range(start: date, end: date) -> tuple[date, date]:
 @transaction.atomic
 def import_ics_for_room_mapping(mapping_id: int, job: OtaSyncJob | None = None) -> dict:
     mapping = OtaRoomMapping.objects.select_related("hotel", "room").get(id=mapping_id)
+    # Respetar sync_direction: si es "export" solo, no importar
     if not mapping.is_active or not mapping.ical_in_url:
         return {"processed": 0, "created": 0, "updated": 0, "skipped": 0}
+    if mapping.sync_direction == OtaRoomMapping.SyncDirection.EXPORT:
+        return {"processed": 0, "created": 0, "updated": 0, "skipped": 0, "reason": "sync_direction is export only"}
 
     stats = {"processed": 0, "created": 0, "updated": 0, "skipped": 0}
 
@@ -120,6 +123,11 @@ def import_ics_for_room_mapping(mapping_id: int, job: OtaSyncJob | None = None) 
             message="IMPORT_COMPLETED",
             payload={"mapping_id": mapping.id, **stats},
         )
+
+    # Actualizar last_synced si hubo procesamiento exitoso
+    if stats["processed"] > 0:
+        mapping.last_synced = timezone.now()
+        mapping.save(update_fields=["last_synced"])
 
     return stats
 
