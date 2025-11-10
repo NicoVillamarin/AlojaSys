@@ -11,6 +11,7 @@ import { useUpdate } from 'src/hooks/useUpdate'
 
 const PROVIDER_OPTIONS = [
   { value: 'ical', label: 'iCal' },
+  { value: 'google', label: 'Google Calendar' },
   { value: 'booking', label: 'Booking' },
   { value: 'airbnb', label: 'Airbnb' },
   { value: 'expedia', label: 'Expedia' },
@@ -219,8 +220,37 @@ export default function OtaConfigModal({ isOpen, onClose, isEdit = false, config
               </>
             )}
 
+            {values.provider === 'google' && (
+              <div className="lg:col-span-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                  <p className="text-sm text-blue-800 font-medium mb-1">📋 Instrucciones para Google Calendar:</p>
+                  <ol className="text-xs text-blue-700 list-decimal list-inside space-y-1">
+                    <li>Crea una Service Account en Google Cloud Console</li>
+                    <li>Descarga el JSON de la Service Account</li>
+                    <li>Comparte tu calendario con el email de la Service Account</li>
+                    <li>Pega el JSON completo aquí en este formato:</li>
+                  </ol>
+                  <pre className="text-xs bg-blue-100 p-2 rounded mt-2 overflow-x-auto">
+{`{
+  "service_account_json": {
+    "type": "service_account",
+    "project_id": "...",
+    "private_key": "...",
+    "client_email": "...",
+    ...
+  }
+}`}
+                  </pre>
+                </div>
+              </div>
+            )}
+
             <div className="lg:col-span-2">
-              <InputTextTarea title={t('ota.config.credentials')} name="credentials" placeholder={t('ota.config.credentials_placeholder')} />
+              <InputTextTarea 
+                title={values.provider === 'google' ? 'Credenciales JSON (Service Account)' : t('ota.config.credentials')} 
+                name="credentials" 
+                placeholder={values.provider === 'google' ? 'Pega el JSON completo de la Service Account dentro de {"service_account_json": {...}}' : t('ota.config.credentials_placeholder')} 
+              />
             </div>
 
             <div className="lg:col-span-2">

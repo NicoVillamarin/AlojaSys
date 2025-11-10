@@ -150,6 +150,13 @@ class Reservation(models.Model):
     notes = TextField                   # Notas adicionales
     applied_cancellation_policy = ForeignKey('payments.CancellationPolicy', null=True, blank=True)
     applied_cancellation_snapshot = JSONField(null=True, blank=True)
+    
+    # Campos para pagos OTA (v2.5)
+    paid_by = CharField(20, choices=[('OTA', 'OTA'), ('HOTEL', 'Hotel')], null=True, blank=True)
+    # Indica si el pago fue realizado por la OTA o debe cobrarse en el hotel
+    
+    overbooking_flag = BooleanField(default=False)
+    # Indica si la reserva tiene solapamiento con otra reserva en la misma habitación
 ```
 
 #### Estados de Reserva
@@ -391,7 +398,7 @@ class PaymentIntentStatus(models.TextChoices):
     CANCELLED = "cancelled", "Cancelado"
 ```
 
-#### Payment (Extendido para Señas)
+#### Payment (Extendido para Señas y Pagos OTA)
 ```python
 class Payment(models.Model):
     reservation = ForeignKey(Reservation)
@@ -405,9 +412,29 @@ class Payment(models.Model):
     batch_number = CharField(100)        # Número de batch del terminal
     notes = TextField                    # Notas adicionales
     
-    # Campos para señas (pagos parciales) - NUEVO
+    # Campos para señas (pagos parciales)
     is_deposit = BooleanField            # Indica si es una seña/depósito
     metadata = JSONField                 # Metadatos adicionales del pago
+    
+    # Campos para pagos OTA (v2.5)
+    payment_source = CharField(30, choices=[
+        ('OTA_PAYOUT', 'OTA Payout'),      # Liquidación directa de la OTA
+        ('OTA_VCC', 'OTA Virtual Card'),   # Tarjeta virtual de la OTA
+        ('HOTEL_POS', 'Hotel POS'),        # Pago en el hotel
+        ('ONLINE_GATEWAY', 'Online Gateway') # Gateway online
+    ], null=True, blank=True)
+    provider = CharField(50, null=True, blank=True)  # Booking.com, Airbnb, etc.
+    external_reference = CharField(120, null=True, blank=True)  # ID de transacción de la OTA
+    currency = CharField(3, default='ARS')
+    
+    # Desglose financiero OTA
+    gross_amount = DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    commission_amount = DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    net_amount = DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    
+    # Fechas importantes
+    activation_date = DateField(null=True, blank=True)  # Fecha de activación del pago
+    payout_date = DateField(null=True, blank=True)      # Fecha de liquidación de la OTA
 ```
 
 #### PaymentGatewayConfig
@@ -4369,7 +4396,19 @@ def pull_reservations_for_hotel_task(hotel_id: int, provider: str, since_iso: st
      - `status` = `CONFIRMED`
      - `guests` y `guests_data` desde payload
      - `skip_clean=True` para permitir restricciones diferentes (reservas desde OTAs pueden tener validaciones más flexibles)
-6. **Registro en logs**:
+6. **Procesamiento de pagos OTA** (si aplica):
+   - Si el webhook incluye información de pago (`payment_info`), se crea un registro `Payment` con:
+     - `payment_source`: OTA_PAYOUT, OTA_VCC, etc.
+     - `provider`: Booking.com, Airbnb, etc.
+     - `external_reference`: ID de transacción de la OTA
+     - `gross_amount`, `commission_amount`, `net_amount`: Desglose financiero
+     - `payout_date`: Fecha de liquidación
+   - Se marca `reservation.paid_by = 'OTA'` automáticamente
+7. **Detección de overbooking**:
+   - Si hay otras reservas activas que se solapan en la misma habitación:
+     - Se marca `reservation.overbooking_flag = True`
+     - Se registra en logs para auditoría
+8. **Registro en logs**:
    - Crea `OtaSyncJob` con `job_type=PULL_RESERVATIONS`, `stats={"webhook": True, "provider": provider}`
    - Crea `OtaSyncLog` con mensajes:
      - `WEBHOOK_RESERVATION_CREATED`: Nueva reserva creada
@@ -4583,13 +4622,163 @@ El comando prueba:
 - Depende de que las reservas de OTAs estén sincronizadas en el PMS
 - **Nota**: Con webhooks activos, esta limitación se mitiga porque las reservas se sincronizan instantáneamente
 
-##### 7. Seguridad de Tokens y Validaciones
+##### 8. Servicio de Gestión de Reservas OTA (OtaReservationService)
+
+**Ubicación**: `apps/otas/services/ota_reservation_service.py`
+
+**Propósito**: Centralizar la lógica de creación/actualización de reservas desde OTAs, incluyendo manejo de pagos y detección de overbooking.
+
+**Servicio Principal**:
+```python
+class OtaReservationService:
+    @staticmethod
+    def upsert_reservation(
+        hotel: Hotel,
+        room: Room,
+        external_id: str,
+        channel: str,
+        check_in: date,
+        check_out: date,
+        guests: int,
+        guests_data: List[Dict],
+        notes: str = "",
+        payment_info: PaymentInfo = None
+    ) -> Dict[str, Any]:
+        """
+        Crea o actualiza una reserva desde una OTA.
+        
+        Args:
+            payment_info: Dataclass con información de pago OTA:
+                - payment_source: OTA_PAYOUT, OTA_VCC, etc.
+                - provider: Booking.com, Airbnb, etc.
+                - external_reference: ID de transacción
+                - gross_amount, commission_amount, net_amount
+                - payout_date, activation_date
+        """
+```
+
+**Funcionalidades**:
+
+1. **Upsert Idempotente**:
+   - Busca reserva existente por `external_id` + `channel`
+   - Usa `select_for_update()` para evitar condiciones de carrera
+   - Actualiza si existe, crea si no existe
+
+2. **Detección de Overbooking**:
+   - Verifica solapamientos con otras reservas activas (PENDING, CONFIRMED, CHECK_IN)
+   - Marca `overbooking_flag = True` si encuentra conflictos
+   - No bloquea la creación (permite overbooking para manejo manual)
+
+3. **Gestión de Pagos OTA**:
+   - Si `payment_info` está presente y `paid_by == 'OTA'`:
+     - Crea registro `Payment` con información detallada
+     - Establece `reservation.paid_by = 'OTA'`
+     - Calcula `balance_due` considerando el monto neto de la OTA
+
+4. **Comisiones de Canal**:
+   - Usa `ChannelCommission.objects.update_or_create()` para evitar duplicados
+   - Registra comisión desde `payment_info.commission_amount` si está disponible
+
+5. **Recálculo de Totales**:
+   - Genera `ReservationNight` para todas las fechas
+   - Recalcula `total_price` usando el servicio de pricing
+   - Asegura consistencia entre precio y noches
+
+**Uso en Webhooks**:
+```python
+# En apps/otas/views.py
+from apps.otas.services.ota_reservation_service import OtaReservationService, PaymentInfo
+
+payment_info = PaymentInfo(
+    payment_source='OTA_PAYOUT',
+    provider='booking',
+    external_reference=webhook_data.get('transaction_id'),
+    gross_amount=Decimal(webhook_data.get('gross_amount')),
+    commission_amount=Decimal(webhook_data.get('commission')),
+    net_amount=Decimal(webhook_data.get('net_amount')),
+    payout_date=parse_date(webhook_data.get('payout_date')),
+    currency='ARS'
+)
+
+result = OtaReservationService.upsert_reservation(
+    hotel=hotel,
+    room=room,
+    external_id=external_id,
+    channel=channel,
+    check_in=check_in,
+    check_out=check_out,
+    guests=guests,
+    guests_data=guests_data,
+    notes=notes,
+    payment_info=payment_info
+)
+```
+
+##### 9. Restricciones de Acciones con Overbooking
+
+**Implementación**: `frontend/src/pages/ReservationsGestions.jsx`
+
+**Lógica de Habilitación**:
+```javascript
+const hasOverbooking = (r) => !!r.overbooking_flag
+
+const canCheckIn = (r) => r.status === 'confirmed' && !hasOverbooking(r)
+const canCheckOut = (r) => r.status === 'check_in' && !hasOverbooking(r)
+const canCancel = (r) => (r.status === 'pending' || r.status === 'confirmed') && !hasOverbooking(r)
+const canConfirm = (r) => r.status === 'pending' && !hasOverbooking(r)
+const canEdit = (r) => r.status === 'pending' || hasOverbooking(r) // Siempre permitir editar para resolver
+const canGenerateInvoice = (r) => {
+  return (r.status === 'confirmed' || r.status === 'check_in' || r.status === 'check_out') && 
+         r.total_price > 0 && !hasOverbooking(r)
+}
+```
+
+**Comportamiento**:
+- Si `overbooking_flag === true`:
+  - ❌ Bloquea: Confirmar, Check-in, Check-out, Cancelar, Facturar
+  - ✅ Permite: Editar (para resolver el conflicto)
+- Una vez resuelto (sin solapamientos), el flag se actualiza automáticamente y se habilitan todas las acciones
+
+##### 10. Modal de Edición con Conciliación de Pagos OTA
+
+**Implementación**: `frontend/src/components/modals/ReservationsModal.jsx`
+
+**Características**:
+
+1. **Banner Informativo**:
+   - Se muestra cuando `reservation.paid_by === 'ota'`
+   - Indica el canal que pagó (Booking, Airbnb, etc.)
+   - Explica que el pago del canal no se modifica
+
+2. **Cálculo de Diferencia**:
+   - Calcula `balance_due` (precio actual - pagado por OTA)
+   - Muestra diferencia en tiempo real mientras se editan fechas/habitación
+
+3. **Botón "Cobrar Diferencia"**:
+   - Solo visible si `balance_due > 0`
+   - Abre `PaymentModal` con el monto de diferencia precargado
+   - Permite registrar pago adicional local
+
+4. **Cotización con Canal Correcto**:
+   - `PaymentInformation.jsx` usa `values.channel` (no fuerza 'direct')
+   - Asegura que el precio del modal coincide con el precio real de la reserva
+
+**Flujo de Usuario**:
+1. Usuario edita reserva pagada por OTA
+2. Cambia fechas/habitación → Sistema recalcula precio
+3. Si nuevo precio > pagado:
+   - Muestra diferencia
+   - Botón "Cobrar diferencia" disponible
+4. Usuario hace clic → Abre modal de pago con diferencia
+5. Usuario registra pago → Se suma al pago original de la OTA
+
+##### 11. Seguridad de Tokens y Validaciones
 
 **Implementación**: `apps/otas/serializers.py` y `apps/otas/models.py`
 
 **Propósito**: Proteger información sensible y validar configuraciones de OTAs para prevenir errores y asegurar configuraciones válidas.
 
-###### 7.1 Enmascaramiento de Tokens y Secrets
+###### 11.1 Enmascaramiento de Tokens y Secrets
 
 **Campos Protegidos**:
 - `ical_out_token`: Siempre enmascarado en lectura (muestra solo primeros 4 caracteres)
@@ -4633,7 +4822,7 @@ airbnb_client_secret_masked = serializers.SerializerMethodField()  # Siempre vis
 }
 ```
 
-###### 7.2 Validación de Dominios base_url
+###### 11.2 Validación de Dominios base_url
 
 **Validación Automática**: El serializer valida que `booking_base_url` y `airbnb_base_url` contengan dominios permitidos.
 
@@ -4670,7 +4859,7 @@ def validate_airbnb_base_url(self, value: str | None) -> str | None:
 - Si el dominio no está en la lista permitida → `ValidationError` con mensaje claro
 - El error se muestra en el frontend antes de guardar
 
-###### 7.3 Campo verified (Verificación Automática)
+###### 11.3 Campo verified (Verificación Automática)
 
 **Campo en Modelo**:
 ```python
@@ -4716,7 +4905,7 @@ def validate(self, attrs):
 - Badge visual: Verde si `verified = True`, Gris si `verified = False`
 - Indicador en el modal al editar `base_url` (muestra estado de verificación)
 
-###### 7.4 URLs Completas de iCal (Sin Exponer Tokens)
+###### 11.4 URLs Completas de iCal (Sin Exponer Tokens)
 
 **Problema Resuelto**: Evitar exponer el token real al construir URLs de iCal en el frontend.
 
@@ -4743,7 +4932,7 @@ def get_ical_hotel_url(self, obj) -> str | None:
 - ✅ **Conveniencia**: URLs listas para usar sin construcción manual
 - ✅ **Consistencia**: Misma estructura de URL siempre
 
-###### 7.5 Integración en Frontend
+###### 11.5 Integración en Frontend
 
 **Tabla de Configuraciones** (`OtaConfig.jsx`):
 - Columna "Token": Muestra `ical_out_token_masked` (siempre enmascarado)
@@ -4764,7 +4953,7 @@ def get_ical_hotel_url(self, obj) -> str | None:
 - Si el dominio no es permitido, muestra error claro en el frontend
 - El campo `verified` se actualiza automáticamente después de guardar
 
-###### 7.6 Frontend - Vista de Gestión de OTAs (nueva)
+###### 11.6 Frontend - Vista de Gestión de OTAs (nueva)
 
 Ubicación del código: `frontend/src/pages/configurations/Otas.jsx` (ruta de navegación: `/#/otas`).
 

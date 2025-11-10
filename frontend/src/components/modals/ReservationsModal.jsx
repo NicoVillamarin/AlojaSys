@@ -23,6 +23,7 @@ import PaymentInformation from '../reservations/PaymentInformation'
 import ReviewReservation from '../reservations/ReviewReservation'
 import { useMe } from 'src/hooks/useMe'
 import { useUserHotels } from 'src/hooks/useUserHotels'
+import PaymentModal from 'src/components/modals/PaymentModal'
 
 /**
  * ReservationsModal: crear/editar reserva
@@ -42,6 +43,8 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   
   // Hook para obtener hoteles del usuario logueado
   const { hotelIdsString, isSuperuser } = useUserHotels()
+  const [payOpen, setPayOpen] = useState(false)
+  const [payInfo, setPayInfo] = useState(null)
 
   // Función helper para formatear fechas correctamente
   const formatDate = (dateString, formatStr = 'dd MMM') => {
@@ -654,6 +657,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         )
 
         return (
+          <>
           <ModalLayout
             isOpen={isOpen}
             onClose={onClose}
@@ -662,6 +666,44 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
             size='lg2'
           >
             <div className="space-y-4 sm:space-y-6">
+              {/* Banner de pago por canal para reservas OTA editadas */}
+              {isEdit && reservation?.paid_by === 'ota' && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="text-emerald-900 font-semibold">
+                        Pagada por {reservation.channel_display || reservation.channel || 'canal'}
+                      </div>
+                      <div className="text-emerald-800 text-sm mt-1">
+                        Este pago pertenece al canal y no se modifica al editar. Si cambian fechas/precio,
+                        podés conciliar la <strong>diferencia</strong> desde aquí.
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm text-emerald-900 font-medium">
+                        Diferencia actual: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(parseFloat(reservation?.balance_due || 0))}
+                      </div>
+                      {parseFloat(reservation?.balance_due || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayInfo({
+                              balance_due: reservation.balance_due,
+                              total_paid: reservation.total_paid,
+                              total_reservation: reservation.total_price,
+                              payment_required_at: 'check_in'
+                            })
+                            setPayOpen(true)
+                          }}
+                          className="px-3 py-1.5 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+                        >
+                          Cobrar diferencia
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
               {activeTab === 'existing' && (
@@ -935,6 +977,17 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
               {activeTab === 'review' && <ReviewReservation />}
             </div>
           </ModalLayout>
+          {/* Modal de pago de diferencia */}
+          {isEdit && reservation?.id && (
+            <PaymentModal
+              isOpen={payOpen}
+              reservationId={reservation.id}
+              balanceInfo={payInfo}
+              onClose={() => { setPayOpen(false); setPayInfo(null); }}
+              onPaid={() => { setPayOpen(false); setPayInfo(null); onSuccess && onSuccess(); }}
+            />
+          )}
+          </>
         )
       }}
     </Formik>

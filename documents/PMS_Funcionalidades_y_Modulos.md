@@ -6158,6 +6158,136 @@ Los webhooks son notificaciones instantáneas que Booking.com y Airbnb envían a
    - Ingresa la URL: `https://tu-dominio.com/api/otas/webhooks/airbnb/`
    - Configura eventos similares a Booking.com
 
+### Gestión de Pagos de Reservas OTA
+
+#### ¿Cómo Funcionan los Pagos cuando el Huésped Reserva por una OTA?
+
+Cuando un huésped reserva a través de Booking.com, Airbnb u otra OTA, existen dos escenarios principales de pago:
+
+**1. Reserva Pagada por la OTA (OTA Collect)**
+- El huésped paga directamente a la OTA (Booking.com, Airbnb, etc.)
+- La OTA luego liquida el dinero al hotel, descontando su comisión
+- El sistema marca automáticamente la reserva como **"Pagada por [nombre del canal]"** (ej: "Pagada por Booking", "Pagada por Airbnb")
+- El sistema registra información detallada del pago:
+  - Monto bruto que pagó el huésped
+  - Comisión retenida por la OTA
+  - Monto neto que recibirá el hotel
+  - Fecha de liquidación (payout date)
+  - Método de pago (Payout directo, Tarjeta Virtual, etc.)
+
+**2. Reserva con Pago Directo (Hotel Collect)**
+- La OTA solo envía la reserva, pero el huésped paga en el hotel
+- El sistema marca la reserva como **"Pago directo"**
+- El hotel debe cobrar al huésped normalmente al check-in o check-out
+
+#### ¿Cómo Identifico las Reservas Pagadas por OTA?
+
+En la lista de reservas, verás badges (etiquetas) que indican:
+- **Badge verde "Pagada por [Canal]"**: Reserva pagada por la OTA (Booking, Airbnb, etc.)
+- **Badge azul "Pago directo"**: Reserva que debe cobrarse en el hotel
+
+Estos badges aparecen en la columna **"Estado de Pagos"** de la tabla de reservas.
+
+#### ¿Qué Pasa si Edito una Reserva Pagada por OTA?
+
+Si necesitas editar una reserva que fue pagada por la OTA (cambiar fechas, habitación, etc.), el sistema te muestra claramente:
+
+1. **Banner informativo**: Indica que la reserva está "Pagada por [Canal]" y que el pago del canal no se modifica al editar
+2. **Diferencia de precio**: Si cambias fechas o habitación y el nuevo precio es diferente, el sistema calcula automáticamente la diferencia
+3. **Opción de conciliar**: Si hay una diferencia (el nuevo precio es mayor), puedes:
+   - **Cobrar la diferencia localmente**: El botón "Cobrar diferencia" te permite registrar un pago adicional para cubrir el nuevo precio
+   - El sistema genera un nuevo registro de pago local que se suma al pago original de la OTA
+
+**Ejemplo práctico:**
+- Reserva original: 2 noches por $200 (pagada por Booking)
+- Editas y cambias a 3 noches: nuevo precio $300
+- Diferencia: $100
+- Puedes usar "Cobrar diferencia" para registrar esos $100 adicionales que el huésped debe pagar al hotel
+
+#### Información Detallada de Pagos OTA
+
+El sistema registra automáticamente información completa sobre los pagos de OTAs:
+
+**En el modelo de Pago:**
+- **Origen del pago**: OTA_PAYOUT, OTA_VCC (Tarjeta Virtual), HOTEL_POS, ONLINE_GATEWAY
+- **Proveedor**: Booking.com, Airbnb, Expedia, etc.
+- **Referencia externa**: ID de transacción de la OTA
+- **Desglose financiero**:
+  - Monto bruto (lo que pagó el huésped)
+  - Comisión de la OTA
+  - Monto neto (lo que recibirá el hotel)
+- **Fechas importantes**:
+  - Fecha de activación del pago
+  - Fecha de liquidación (cuando la OTA transferirá el dinero)
+
+Esta información está disponible en el sistema y permite una conciliación precisa con las liquidaciones de las OTAs.
+
+### Detección y Manejo de Overbooking
+
+#### ¿Qué es el Overbooking?
+
+El **overbooking** ocurre cuando la misma habitación está reservada para dos o más huéspedes en fechas que se solapan. Esto puede pasar cuando:
+- Una OTA envía una reserva que se solapa con otra ya existente
+- Hay retrasos en la sincronización entre canales
+- Se crean reservas manuales que no consideran reservas de OTAs
+
+#### ¿Cómo Detecta el Sistema el Overbooking?
+
+El sistema detecta automáticamente overbooking cuando:
+1. Se recibe una reserva desde una OTA (vía webhook o importación)
+2. Esa reserva se solapa con otra reserva activa en la misma habitación
+3. El sistema marca automáticamente la reserva con el badge **"Overbooking"** (amarillo) en la columna **"Estado"**
+
+**Ejemplo:**
+- Reserva A: Habitación 101, 5-10 de noviembre (reserva directa del hotel)
+- Reserva B: Habitación 101, 7-12 de noviembre (reserva desde Booking.com)
+- Ambas ocupan la habitación los días 7, 8, 9 y 10 → Overbooking detectado
+
+#### ¿Cómo se Comporta el Sistema con Overbooking?
+
+**Restricciones Automáticas:**
+Cuando una reserva tiene el badge "Overbooking", el sistema **bloquea automáticamente** ciertas acciones para evitar problemas:
+- ❌ **No se puede confirmar** la reserva
+- ❌ **No se puede hacer check-in**
+- ❌ **No se puede hacer check-out**
+- ❌ **No se puede cancelar** (sin resolver primero)
+- ❌ **No se puede facturar**
+- ✅ **Sí se puede editar** (para resolver el conflicto)
+
+**¿Por qué solo editar?**
+- Permite cambiar la reserva a otra habitación disponible
+- Permite ajustar las fechas para eliminar el solapamiento
+- Una vez resuelto, el badge desaparece y se habilitan todas las acciones
+
+#### ¿Cómo Resolver un Overbooking?
+
+**Paso 1: Identificar el conflicto**
+- Revisa ambas reservas en conflicto
+- Verifica fechas y habitación
+
+**Paso 2: Decidir la solución**
+- **Opción A**: Mover una reserva a otra habitación disponible
+- **Opción B**: Ajustar fechas de una reserva para eliminar el solapamiento
+- **Opción C**: Cancelar una de las reservas (si es necesario)
+
+**Paso 3: Editar la reserva**
+- Haz clic en "Editar" en la reserva con overbooking
+- Cambia la habitación o las fechas según tu decisión
+- Guarda los cambios
+
+**Paso 4: Verificación**
+- El sistema verifica automáticamente si el conflicto se resolvió
+- Si ya no hay solapamiento, el badge "Overbooking" desaparece
+- Todas las acciones se habilitan automáticamente
+
+#### Beneficios del Sistema de Overbooking
+
+- ✅ **Detección automática**: No necesitas revisar manualmente cada reserva
+- ✅ **Prevención de errores**: Evita operaciones que causarían problemas (check-in en habitación ocupada)
+- ✅ **Visibilidad clara**: El badge amarillo te alerta inmediatamente
+- ✅ **Flexibilidad**: Te permite resolver el conflicto de la mejor manera para tu hotel
+- ✅ **Auditoría**: Todos los overbookings quedan registrados para análisis posterior
+
 3. **Proporciona los secretos** a tu equipo técnico para que los configuren en el sistema.
 
 **Si no configuras webhooks**: El sistema funcionará igual, pero usará el método de respaldo (consulta cada 1-2 minutos), lo cual puede causar pequeños retrasos.

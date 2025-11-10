@@ -15,6 +15,9 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
+# URL pública externa del backend (para webhooks), opcional
+EXTERNAL_BASE_URL = config('EXTERNAL_BASE_URL', default=None)
+
 # Hosts permitidos (Render añade RENDER_EXTERNAL_URL automáticamente)
 default_hosts = ['localhost', '127.0.0.1', 'backend']
 env_hosts = [h.strip() for h in config('ALLOWED_HOSTS', default='').split(',') if h.strip()]
@@ -303,10 +306,15 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.invoicing.tasks.generate_daily_invoice_report_task",
         "schedule": crontab(hour=23, minute=0),  # Diario a las 11:00 PM
     },
-    # OTAs - Import ICS
-    "otas_import_ics_hourly": {
+    # OTAs - Import ICS (más frecuente para near‑real time)
+    "otas_import_ics_1min": {
         "task": "apps.otas.tasks.import_all_ics",
-        "schedule": crontab(minute=10),  # Cada hora al minuto 10
+        "schedule": 60.0,  # cada 1 minuto (near real-time)
+    },
+    # OTAs - Google Calendar (pull) cada 1 minuto
+    "otas_import_google_1min": {
+        "task": "apps.otas.tasks.import_all_google",
+        "schedule": 60.0,
     },
     # Pull de reservas cada 5 minutos (mock/sandbox hasta credenciales reales)
     "otas_pull_reservations_5min": {

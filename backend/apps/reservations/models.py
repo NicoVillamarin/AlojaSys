@@ -43,6 +43,15 @@ class Reservation(models.Model):
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     notes = models.TextField(blank=True, null=True)
+    
+    # Pago por quién: OTA u HOTEL (para evitar dobles cobros y conciliar)
+    class PaidBy(models.TextChoices):
+        OTA = "ota", "Pagada por OTA"
+        HOTEL = "hotel", "Pago directo en hotel"
+    paid_by = models.CharField(max_length=10, choices=PaidBy.choices, blank=True, null=True)
+
+    # Bandera operativa para marcar choque/overbooking importado
+    overbooking_flag = models.BooleanField(default=False)
     applied_cancellation_policy = models.ForeignKey(
         'payments.CancellationPolicy', 
         on_delete=models.SET_NULL, 
@@ -267,6 +276,7 @@ class Payment(models.Model):
     date = models.DateField()
     method = models.CharField(max_length=30, default='cash')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='ARS')
     
     # Campos específicos para POSTNET
     terminal_id = models.CharField(max_length=50, blank=True, help_text="ID del terminal POSTNET")
@@ -277,6 +287,21 @@ class Payment(models.Model):
     # Campos para señas (pagos parciales)
     is_deposit = models.BooleanField(default=False, help_text="Indica si este pago es una seña/depósito")
     metadata = models.JSONField(default=dict, blank=True, help_text="Metadatos adicionales del pago")
+    
+    # Origen del pago (para conciliación OTA)
+    class PaymentSource(models.TextChoices):
+        OTA_PAYOUT = "ota_payout", "Payout OTA"
+        OTA_VCC = "ota_vcc", "Tarjeta virtual OTA"
+        HOTEL_POS = "hotel_pos", "POS del hotel"
+        ONLINE_GATEWAY = "online_gateway", "Pasarela online"
+    payment_source = models.CharField(max_length=20, choices=PaymentSource.choices, blank=True, null=True)
+    provider = models.CharField(max_length=20, blank=True, null=True, help_text="Proveedor/canal (booking, airbnb, expedia)")
+    external_reference = models.CharField(max_length=100, blank=True, null=True, help_text="ID externo de pago/transacción OTA")
+    gross_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    activation_date = models.DateField(blank=True, null=True, help_text="Fecha de activación de VCC (si aplica)")
+    payout_date = models.DateField(blank=True, null=True, help_text="Fecha estimada/real de payout OTA")
     
     # Campo para URL del comprobante PDF
     receipt_pdf_url = models.URLField(blank=True, null=True, help_text="URL del comprobante PDF generado")

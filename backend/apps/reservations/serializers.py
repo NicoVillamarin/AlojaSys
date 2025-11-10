@@ -23,6 +23,8 @@ class ReservationSerializer(serializers.ModelSerializer):
     )
     channel_display = serializers.CharField(source='get_channel_display', read_only=True)
     is_ota = serializers.SerializerMethodField()
+    paid_by = serializers.CharField(read_only=True)
+    overbooking_flag = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Reservation
@@ -30,7 +32,8 @@ class ReservationSerializer(serializers.ModelSerializer):
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
             "check_in", "check_out", "status", "total_price", "balance_due", "total_paid", "notes",
-            "channel", "channel_display", "is_ota", "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
+            "channel", "channel_display", "is_ota", "paid_by", "overbooking_flag",
+            "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
             "display_name", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "balance_due", "total_paid", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]

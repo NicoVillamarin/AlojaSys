@@ -209,6 +209,65 @@ class NotificationService:
         )
     
     @staticmethod
+    def create_ota_reservation_notification(
+        provider_name: str,
+        reservation_code: str,
+        room_name: str,
+        check_in_date: str,
+        check_out_date: str,
+        guest_name: str = "",
+        hotel_id: Optional[int] = None,
+        reservation_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        external_id: Optional[str] = None,
+        overbooking: bool = False
+    ) -> Notification:
+        """Crea notificación cuando se recibe una nueva reserva desde una OTA"""
+        
+        # Construir mensaje con información relevante
+        message_parts = [
+            f"Nueva reserva recibida desde {provider_name}",
+            f"Reserva: #{reservation_code}",
+            f"Habitación: {room_name}",
+            f"Check-in: {check_in_date}",
+            f"Check-out: {check_out_date}",
+        ]
+        
+        if guest_name:
+            message_parts.insert(2, f"Huésped: {guest_name}")
+        
+        if overbooking:
+            message_parts.append("⚠️ Advertencia: Posible sobre-reserva detectada")
+        
+        message = "\n".join(message_parts)
+        
+        # Título con información clave
+        title = f"Nueva reserva de {provider_name} - {room_name}"
+        
+        metadata = {
+            'provider': provider_name,
+            'reservation_code': reservation_code,
+            'room_name': room_name,
+            'check_in': check_in_date,
+            'check_out': check_out_date,
+            'guest_name': guest_name,
+            'overbooking': overbooking,
+        }
+        
+        if external_id:
+            metadata['external_id'] = external_id
+        
+        return NotificationService.create(
+            notification_type=NotificationType.OTA_RESERVATION_RECEIVED,
+            title=title,
+            message=message,
+            user_id=user_id,
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            metadata=metadata
+        )
+    
+    @staticmethod
     def create_bulk_notification(
         notification_type: str,
         title: str,

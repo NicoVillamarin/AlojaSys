@@ -136,7 +136,12 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
-    const isFinancial = location.pathname === "/refunds" || location.pathname.startsWith("/payments") || location.pathname === "/vouchers" || location.pathname === "/bank-reconciliation" || location.pathname.startsWith("/invoicing");
+    // Excluir /payments de isFinancial ya que pertenece a Histories
+    const isFinancial = location.pathname === "/refunds" || 
+                       (location.pathname.startsWith("/payments") && location.pathname !== "/payments") || 
+                       location.pathname === "/vouchers" || 
+                       location.pathname === "/bank-reconciliation" || 
+                       location.pathname.startsWith("/invoicing");
     const isHistories = location.pathname.startsWith("/reservations/") && location.pathname.includes("/history") || 
                        location.pathname === "/payments" || 
                        location.pathname === "/refunds/history";

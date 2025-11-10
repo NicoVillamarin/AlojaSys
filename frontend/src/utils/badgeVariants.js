@@ -9,6 +9,7 @@ import XIcon from 'src/assets/icons/Xicon'
 import HomeIcon from 'src/assets/icons/HomeIcon'
 import BookingIcon from 'src/assets/icons/BookingIcon'
 import Airbnbicon from 'src/assets/icons/Airbnbicon'
+import GoogleCalendarIcon from 'src/assets/icons/GoogleCalendarIcon'
 
 /**
  * Variantes predefinidas para el componente Badge.
@@ -284,6 +285,13 @@ export const badgeVariants = {
     border: 'border-indigo-200',
     icon: Airbnbicon,
     iconColor: 'text-indigo-600'
+  },
+  'google': {
+    bg: 'bg-blue-50',
+    text: 'text-blue-800',
+    border: 'border-blue-200',
+    icon: GoogleCalendarIcon,
+    iconColor: 'text-blue-600'
   },
   'default': {
     bg: 'bg-gray-50',

@@ -9,6 +9,7 @@ class OtaProvider(models.TextChoices):
     BOOKING = "booking", "Booking"
     AIRBNB = "airbnb", "Airbnb"
     EXPEDIA = "expedia", "Expedia"
+    GOOGLE = "google", "Google Calendar"
     OTHER = "other", "Otro"
 
 class OtaConfig(models.Model):
@@ -82,6 +83,13 @@ class OtaRoomMapping(models.Model):
 
     # Última sincronización exitosa
     last_synced = models.DateTimeField(null=True, blank=True)
+
+    # Google Calendar Webhooks (opcional)
+    google_watch_channel_id = models.CharField(max_length=120, blank=True, null=True)
+    google_resource_id = models.CharField(max_length=120, blank=True, null=True)
+    google_watch_expiration = models.DateTimeField(blank=True, null=True)
+    google_webhook_token = models.CharField(max_length=64, blank=True, null=True)
+    google_sync_token = models.CharField(max_length=255, blank=True, null=True)
 
     # Estado del mapeo
     is_active = models.BooleanField(default=True)

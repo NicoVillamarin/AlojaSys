@@ -68,6 +68,8 @@ const Notifications = () => {
         return <CheckCircleIcon size="16" className="text-yellow-500" />;
       case "refund_failed":
         return <XIcon size="16" className="text-orange-500" />;
+      case "ota_reservation_received":
+        return <CheckCircleIcon size="16" className="text-green-500" />;
       default:
         return <InfoIcon size="16" className="text-gray-500" />;
     }
@@ -83,6 +85,8 @@ const Notifications = () => {
         return "text-yellow-600 bg-yellow-50 border-yellow-200";
       case "refund_failed":
         return "text-orange-600 bg-orange-50 border-orange-200";
+      case "ota_reservation_received":
+        return "text-green-600 bg-green-50 border-green-200";
       default:
         return "text-gray-600 bg-gray-50 border-gray-200";
     }
@@ -200,6 +204,7 @@ const Notifications = () => {
                 <option value="no_show">No Show</option>
                 <option value="refund_auto">Reembolso Automático</option>
                 <option value="refund_failed">Reembolso Fallido</option>
+                <option value="ota_reservation_received">Nueva Reserva OTA</option>
               </select>
             </div>
           </div>

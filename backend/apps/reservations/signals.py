@@ -1,7 +1,7 @@
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
-from apps.reservations.models import Reservation, ReservationChangeLog, ReservationStatusChange, ReservationChangeEvent
+from apps.reservations.models import Reservation, ReservationChangeLog, ReservationStatusChange, ReservationChangeEvent, ReservationChannel, ReservationStatus
 from .services.pricing import generate_nights_for_reservation, recalc_reservation_totals
 from django.conf import settings
 from .models import Reservation, ReservationCharge, ChannelCommission
@@ -21,13 +21,25 @@ AUDIT_FIELDS = [
 
 def upsert_channel_commission(reservation: Reservation):
     from decimal import Decimal
+    # Si la reserva ya tiene una comisión (especialmente de OTA), no sobrescribirla
+    existing = ChannelCommission.objects.filter(reservation=reservation).first()
+    if existing:
+        # Si ya existe y tiene un amount > 0, probablemente fue creada por OtaReservationService
+        # No sobrescribirla para evitar conflictos
+        return
+    
     rates = getattr(settings, "CHANNEL_COMMISSION_RATES", {})
     rate = Decimal(str(rates.get(reservation.channel, 0)))
+    if rate == 0:
+        # Si no hay tasa configurada, no crear comisión
+        return
+    
     amount = (reservation.total_price or Decimal('0.00')) * (rate / Decimal('100'))
-    ChannelCommission.objects.update_or_create(
-        reservation=reservation,
-        defaults={'channel': reservation.channel, 'rate_percent': rate, 'amount': amount},
-    )
+    if amount > 0:
+        ChannelCommission.objects.update_or_create(
+            reservation=reservation,
+            defaults={'channel': reservation.channel, 'rate_percent': rate, 'amount': amount},
+        )
 
 @receiver(post_save, sender=Reservation)
 def reservation_post_save_first(sender, instance: Reservation, created, **kwargs):
@@ -99,3 +111,44 @@ def reservation_post_save_log(sender, instance: Reservation, created, **kwargs):
             fields_changed={"status": {"old": prev.status, "new": instance.status}},
             snapshot=build_snapshot(instance),
         )
+
+
+@receiver(post_save, sender=Reservation)
+def reservation_export_to_google(sender, instance: Reservation, created, **kwargs):
+    """Exporta reservas a Google Calendar cuando se crean/actualizan."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Solo procesar si tiene fechas y habitación
+    if not instance.check_in or not instance.check_out or not instance.room_id:
+        logger.debug(f"Reservation {instance.id}: Skipping Google export - missing dates or room")
+        return
+    
+    # Solo exportar si NO viene de Google Calendar (evitar loops)
+    if instance.channel == ReservationChannel.OTHER and instance.notes and 'google calendar' in instance.notes.lower():
+        logger.debug(f"Reservation {instance.id}: Skipping Google export - came from Google Calendar")
+        return
+    
+    try:
+        from django.db import transaction
+        from apps.otas.services.google_sync_service import export_reservation_to_google, delete_reservation_from_google
+
+        def _run():
+            try:
+                # Si se cancela, eliminar de Google
+                if instance.status == ReservationStatus.CANCELLED:
+                    result = delete_reservation_from_google(instance)
+                    logger.info(f"Reservation {instance.id}: Google Calendar delete result: {result}")
+                # Si está confirmada, exportar/actualizar
+                elif instance.status == ReservationStatus.CONFIRMED:
+                    result = export_reservation_to_google(instance)
+                    logger.info(f"Reservation {instance.id}: Google Calendar export result: {result}")
+                    if result.get("status") != "ok":
+                        logger.warning(f"Reservation {instance.id}: Google Calendar export failed: {result}")
+            except Exception as e:
+                logger.error(f"Reservation {instance.id}: Error exporting to Google Calendar: {str(e)}", exc_info=True)
+
+        # Ejecutar después del commit para evitar inconsistencias
+        transaction.on_commit(_run)
+    except Exception as e:
+        logger.error(f"Reservation {instance.id}: Error scheduling Google Calendar export: {str(e)}", exc_info=True)

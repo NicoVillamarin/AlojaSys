@@ -27,6 +27,7 @@ from .serializers import (
 )
 from .tasks import import_ics_for_mapping_task, push_ari_for_hotel_task
 from apps.payments.services.webhook_security import WebhookSecurityService
+from .services.ota_reservation_service import OtaReservationService, PaymentInfo
 from django.conf import settings
 import os
 from decimal import Decimal
@@ -382,101 +383,101 @@ def _process_reservation_webhook(provider: str, request) -> dict:
             return {"ok": True, "status": "accepted_noop"}
 
         channel = _provider_to_channel(provider)
-        reservation = (
-            Reservation.objects.filter(hotel=hotel, external_id=str(external_res_id), channel=channel)
-            .first()
-        )
 
-        if reservation:
-            changed = False
-            if reservation.room_id != room.id:
-                reservation.room = room
-                changed = True
-            if reservation.check_in != check_in or reservation.check_out != check_out:
-                reservation.check_in = check_in
-                reservation.check_out = check_out
-                changed = True
-            if reservation.status != ReservationStatus.CONFIRMED:
-                reservation.status = ReservationStatus.CONFIRMED
-                changed = True
-            if notes:
-                reservation.notes = (reservation.notes or "") + f"\nWebhook {provider}: {notes}"
-                changed = True
-            if changed:
-                reservation.save(skip_clean=True)
-                OtaSyncLog.objects.create(
-                    job=job,
-                    level=OtaSyncLog.Level.INFO,
-                    message="WEBHOOK_RESERVATION_UPDATED",
-                    payload={
-                        "reservation_id": reservation.id,
-                        "external_id": external_res_id,
-                        "provider": provider,
-                        "status": "success",
-                    },
-                )
-            else:
-                OtaSyncLog.objects.create(
-                    job=job,
-                    level=OtaSyncLog.Level.INFO,
-                    message="WEBHOOK_RESERVATION_NO_CHANGES",
-                    payload={"external_id": external_res_id, "provider": provider},
-                )
-        else:
-            # Obtener política de cancelación para el hotel
-            from apps.payments.models import CancellationPolicy
-            cancellation_policy = CancellationPolicy.resolve_for_hotel(hotel)
-            
-            # Preparar guests_data completo (al menos con nombre si viene en el payload)
-            guest_name = request.data.get('guest_name', f'Huésped {provider}')
-            guest_email = request.data.get('guest_email', '')
-            guests_data = [{
-                "name": guest_name,
-                "email": guest_email or f"{guest_name.lower().replace(' ', '.')}@example.com",
-                "is_primary": True,
+        # Construir guests_data (principal y adicionales)
+        guest_name = request.data.get('guest_name', f'Huésped {provider}')
+        guest_email = request.data.get('guest_email', '')
+        guests_data = [{
+            "name": guest_name,
+            "email": guest_email or f"{guest_name.lower().replace(' ', '.')}@example.com",
+            "is_primary": True,
+            "source": "webhook",
+            "provider": provider
+        }]
+        for i in range(2, guests + 1):
+            guests_data.append({
+                "name": f"Huésped {i}",
+                "email": f"guest{i}@example.com",
+                "is_primary": False,
                 "source": "webhook",
                 "provider": provider
-            }]
-            # Agregar huéspedes adicionales si hay más de 1
-            for i in range(2, guests + 1):
-                guests_data.append({
-                    "name": f"Huésped {i}",
-                    "email": f"guest{i}@example.com",
-                    "is_primary": False,
-                    "source": "webhook",
-                    "provider": provider
-                })
-            
-            # Crear instancia sin guardar primero para poder usar skip_clean=True
-            reservation = Reservation(
-                hotel=hotel,
-                room=room,
-                external_id=str(external_res_id),
-                channel=channel,
-                check_in=check_in,
-                check_out=check_out,
-                status=ReservationStatus.CONFIRMED,
-                guests=guests,
-                guests_data=guests_data,
-                notes=f"Creada por webhook {provider}",
-                applied_cancellation_policy=cancellation_policy,  # Aplicar política si existe
+            })
+
+        # PaymentInfo desde payload (si viene). Por defecto, HOTEL collect.
+        paid_by_val = request.data.get('paid_by')  # 'ota' | 'hotel'
+        payment_type = request.data.get('payment_source')  # 'ota_payout' | 'ota_vcc' | ...
+        payment_info = None
+        if paid_by_val:
+            payment_info = PaymentInfo(
+                paid_by=paid_by_val,
+                payment_source=payment_type,
+                provider=provider,
+                external_reference=request.data.get('payment_tx_id') or request.data.get('external_payment_id'),
+                currency=request.data.get('currency'),
+                gross_amount=_to_float(request.data.get('gross_amount')),
+                commission_amount=_to_float(request.data.get('commission_amount')),
+                net_amount=_to_float(request.data.get('net_amount')),
+                activation_date=_parse_iso_date(request.data.get('activation_date')),
+                payout_date=_parse_iso_date(request.data.get('payout_date')),
             )
-            # Guardar saltando validaciones (reservas desde OTAs pueden tener restricciones diferentes)
-            reservation.save(skip_clean=True)
-            
-            # Generar noches y calcular totales para que la reserva esté completa
+
+        # Upsert tolerante
+        # Obtener nombre legible del provider para notificaciones
+        provider_name = None
+        try:
+            provider_name = OtaProvider(provider).label
+        except (ValueError, KeyError):
+            provider_name = provider.title()  # Fallback a título del string
+        
+        result = OtaReservationService.upsert_reservation(
+            hotel=hotel,
+            room=room,
+            external_id=str(external_res_id),
+            channel=channel,
+            check_in=check_in,
+            check_out=check_out,
+            guests=guests,
+            guests_data=guests_data,
+            notes=f"Webhook {provider}: {notes}" if notes else f"Webhook {provider}",
+            payment_info=payment_info,
+            provider_name=provider_name,
+        )
+
+        # Asegurar noches y totales consistentes tras el upsert OTA
+        try:
+            from apps.reservations.models import Reservation
             from apps.reservations.services.pricing import generate_nights_for_reservation, recalc_reservation_totals
-            generate_nights_for_reservation(reservation)
-            recalc_reservation_totals(reservation)
+            res_obj = Reservation.objects.get(id=result.get("reservation_id"))
+            generate_nights_for_reservation(res_obj)
+            recalc_reservation_totals(res_obj)
+        except Exception:
+            pass
+
+        # Logs según resultado
+        if result.get("created"):
             OtaSyncLog.objects.create(
                 job=job,
                 level=OtaSyncLog.Level.INFO,
                 message="WEBHOOK_RESERVATION_CREATED",
                 payload={
-                    "reservation_id": reservation.id,
+                    "reservation_id": result.get("reservation_id"),
                     "external_id": external_res_id,
                     "provider": provider,
-                    "status": "success",
+                    "overbooking": result.get("overbooking"),
+                    "paid_by": result.get("paid_by"),
+                },
+            )
+        else:
+            OtaSyncLog.objects.create(
+                job=job,
+                level=OtaSyncLog.Level.INFO,
+                message="WEBHOOK_RESERVATION_UPDATED",
+                payload={
+                    "reservation_id": result.get("reservation_id"),
+                    "external_id": external_res_id,
+                    "provider": provider,
+                    "overbooking": result.get("overbooking"),
+                    "paid_by": result.get("paid_by"),
                 },
             )
 

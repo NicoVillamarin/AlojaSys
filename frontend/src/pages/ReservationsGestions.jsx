@@ -32,6 +32,7 @@ import InvoiceStatus from 'src/components/reservations/InvoiceStatus'
 import PaymentTooltip from 'src/components/reservations/PaymentTooltip'
 import PaymentStatusBadge from 'src/components/reservations/PaymentStatusBadge'
 import Tooltip from 'src/components/Tooltip'
+import { useEffectOnce } from 'src/hooks/useEffectOnce'
 
 
 
@@ -127,12 +128,35 @@ export default function ReservationsGestions() {
     return () => clearTimeout(id)
   }, [filters.search, filters.hotel, filters.room, filters.status, refetch])
 
-  const canCheckIn = (r) => r.status === 'confirmed'
-  const canCheckOut = (r) => r.status === 'check_in'
-  const canCancel = (r) => r.status === 'pending' || r.status === 'confirmed'
-  const canConfirm = (r) => r.status === 'pending'
-  const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
-  const canEarlyCheckOut = (r) => r.status === 'check_in' // Early check-out para reservas en check-in
+  // Escuchar eventos SSE de OTAs para refrescar automáticamente al recibir cambios
+  useEffect(() => {
+    const base = getApiURL()
+    const hotelParam = filters.hotel ? `?hotel=${filters.hotel}` : ''
+    const es = new EventSource(`${base}/api/otas/events/stream/${hotelParam}`)
+    es.onmessage = () => {
+      refetch()
+    }
+    es.addEventListener('update', () => refetch())
+    es.addEventListener('ping', () => {})
+    es.onerror = () => {
+      try { es.close() } catch {}
+      // Reintento simple después de 3s
+      setTimeout(() => {
+        // noop, el próximo render volverá a crear el EventSource
+      }, 3000)
+    }
+    return () => {
+      try { es.close() } catch {}
+    }
+  }, [filters.hotel, refetch])
+
+  const hasOverbooking = (r) => !!r.overbooking_flag
+  const canCheckIn = (r) => r.status === 'confirmed' && !hasOverbooking(r)
+  const canCheckOut = (r) => r.status === 'check_in' && !hasOverbooking(r)
+  const canCancel = (r) => (r.status === 'pending' || r.status === 'confirmed') && !hasOverbooking(r)
+  const canConfirm = (r) => r.status === 'pending' && !hasOverbooking(r)
+  const canEdit = (r) => r.status === 'pending' || hasOverbooking(r) // Editar permitido si pendiente o si hay overbooking para resolver
+  const canEarlyCheckOut = (r) => r.status === 'check_in' && !hasOverbooking(r) // Early check-out solo si no hay overbooking
   
   // Función para determinar si se puede generar factura
   const canGenerateInvoice = (r) => {
@@ -141,7 +165,7 @@ export default function ReservationsGestions() {
     // 2. Tiene precio total > 0
     // 3. No tiene facturas existentes (esto se verifica en el componente InvoiceStatus)
     return (r.status === 'confirmed' || r.status === 'check_in' || r.status === 'check_out') && 
-           r.total_price > 0
+           r.total_price > 0 && !hasOverbooking(r)
   }
 
   // Función para determinar el tipo de documento a generar
@@ -666,6 +690,10 @@ export default function ReservationsGestions() {
                 }
                 
                 // Badge según el tipo de canal OTA
+                // Detectar Google Calendar por notes o external_id
+                const isGoogle = (r.notes || '').toLowerCase().includes('google calendar') || 
+                                (r.external_id || '').includes('@google.com')
+                
                 switch (channelValue) {
                   case 'booking':
                     return (
@@ -686,6 +714,13 @@ export default function ReservationsGestions() {
                       </Badge>
                     )
                   case 'other':
+                    if (isGoogle) {
+                      return (
+                        <Badge variant="google" size="sm">
+                          Google Calendar
+                        </Badge>
+                      )
+                    }
                     return (
                       <Badge variant="warning" size="sm">
                         {channel}
@@ -699,7 +734,7 @@ export default function ReservationsGestions() {
                     )
                 }
               }
-              
+
               return (
                 <div className="flex items-center gap-1">
                   {getChannelBadge()}
@@ -735,13 +770,31 @@ export default function ReservationsGestions() {
             header: 'Estado de Pagos', 
             sortable: false, 
             render: (r) => (
-              <Tooltip
-                content={<PaymentTooltip reservationId={r.id} reservationData={r} />}
-                position="bottom"
-                maxWidth="320px"
-              >
-                <PaymentStatusBadge reservationId={r.id} reservationData={r} />
-              </Tooltip>
+              <div className="flex items-center gap-1 flex-wrap">
+                <Tooltip
+                  content={<PaymentTooltip reservationId={r.id} reservationData={r} />}
+                  position="bottom"
+                  maxWidth="320px"
+                >
+                  <PaymentStatusBadge reservationId={r.id} reservationData={r} />
+                </Tooltip>
+                {r.paid_by === 'ota' && (() => {
+                  let channelName = r.channel_display || r.channel || 'OTA'
+                  if (!r.channel_display && r.channel) {
+                    channelName = r.channel.charAt(0).toUpperCase() + r.channel.slice(1)
+                  }
+                  return (
+                    <Badge variant="success" size="sm">
+                      Pagada por {channelName}
+                    </Badge>
+                  )
+                })()}
+                {r.paid_by === 'hotel' && (
+                  <Badge variant="info" size="sm">
+                    Pago directo
+                  </Badge>
+                )}
+              </div>
             )
           },
           { 
@@ -749,9 +802,16 @@ export default function ReservationsGestions() {
             header: t('dashboard.reservations_management.table_headers.status'), 
             sortable: true, 
             render: (r) => (
-              <Badge variant={`reservation-${r.status}`} size="sm">
-                {getStatusLabel(r.status, t)}
-              </Badge>
+              <div className="flex items-center gap-1 flex-wrap">
+                <Badge variant={`reservation-${r.status}`} size="sm">
+                  {getStatusLabel(r.status, t)}
+                </Badge>
+                {r.overbooking_flag && (
+                  <Badge variant="warning" size="sm">
+                    Overbooking
+                  </Badge>
+                )}
+              </div>
             ) 
           },
           {

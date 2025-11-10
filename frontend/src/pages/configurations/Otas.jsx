@@ -15,6 +15,7 @@ import CopyIcon from 'src/assets/icons/CopyIcon'
 import fetchWithAuth from 'src/services/fetchWithAuth'
 import CheckIcon from 'src/assets/icons/CheckIcon'
 import XIcon from 'src/assets/icons/Xicon'
+import AutomatizedIcon from 'src/assets/icons/AutomatizedIcon'
 
 export default function Otas() {
     const { t } = useTranslation()
@@ -23,6 +24,7 @@ export default function Otas() {
     const [filters, setFilters] = useState({ search: '', provider: '', is_active: '' })
     const [hotelFilter, setHotelFilter] = useState('')
     const [syncingId, setSyncingId] = useState(null)
+    const [enablingId, setEnablingId] = useState(null)
     const didMountRef = useRef(false)
 
     const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
@@ -69,6 +71,27 @@ export default function Otas() {
             showErrorConfirm(error?.message || t('ota.sync_error'))
         } finally {
             setTimeout(() => setSyncingId(null), 2000)
+        }
+    }
+
+    const handleEnableAutoSync = async (config) => {
+        // Activa webhooks para todos los mapeos Google del hotel
+        setEnablingId(config.id)
+        try {
+            const response = await fetchWithAuth(`${getApiURL()}/api/otas/google/webhooks/enable/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hotel_id: config.hotel }),
+            })
+            if (response.status === 'ok' || response.enabled > 0) {
+                showSuccess(t('ota.google_auto_sync_enabled') || 'Auto-sync activado para Google')
+            } else {
+                showErrorConfirm(response.message || t('ota.google_auto_sync_error') || 'No se pudo activar auto-sync')
+            }
+        } catch (error) {
+            showErrorConfirm(error?.message || t('ota.google_auto_sync_error') || 'No se pudo activar auto-sync')
+        } finally {
+            setTimeout(() => setEnablingId(null), 1500)
         }
     }
 
@@ -273,6 +296,11 @@ export default function Otas() {
                         right: true,
                         render: (c) => (
                             <div className="flex justify-end items-center gap-x-2">
+                                {c.provider === 'google' && (
+                                    <Tooltip content={t('ota.enable_auto_sync') || 'Activar auto-sync'}>
+                                        <AutomatizedIcon disabled={enablingId === c.id} onClick={() => handleEnableAutoSync(c)} size="27"  className={`cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1 rounded hover:bg-gray-100 ${enablingId === c.id ? 'animate-spin' : ''}`} />
+                                    </Tooltip>
+                                )}
                                 <Tooltip content={t('ota.sync_now')}>
                                     <button
                                         disabled={syncingId === c.id}

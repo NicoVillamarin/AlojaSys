@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.conf import settings
 
 from apps.reservations.models import Reservation, ReservationStatus, ReservationChannel, RoomBlock, RoomBlockType
+from apps.notifications.services import NotificationService
 from ..models import (
     OtaRoomMapping,
     OtaSyncJob,
@@ -265,9 +266,24 @@ class ICALSyncService:
                             
                             # Extraer nombre del huésped del summary si es posible
                             guest_name = summary or f"Huésped {ota_room_mapping.provider}"
-                            # Intentar extraer nombre del summary si tiene formato "Nombre - ..."
-                            if summary and ' - ' in summary:
-                                guest_name = summary.split(' - ')[0].strip()
+                            # Intentar extraer nombre del summary si tiene formato "Reserva - Nombre" o "Reserva- Nombre"
+                            if summary:
+                                # Si tiene formato "Reserva - Nombre" o "Reserva- Nombre", extraer el nombre
+                                if ' - ' in summary:
+                                    parts = summary.split(' - ', 1)
+                                    if len(parts) > 1 and parts[0].strip().lower().startswith('reserva'):
+                                        guest_name = parts[1].strip()  # Tomar la parte después de "Reserva - "
+                                    else:
+                                        guest_name = parts[0].strip()  # Si no empieza con "Reserva", tomar la primera parte
+                                elif '-' in summary and not summary.startswith('-'):
+                                    # Formato "Reserva-Nombre" (sin espacio)
+                                    parts = summary.split('-', 1)
+                                    if len(parts) > 1 and parts[0].strip().lower().startswith('reserva'):
+                                        guest_name = parts[1].strip()  # Tomar la parte después de "Reserva-"
+                                    else:
+                                        guest_name = summary  # Si no empieza con "Reserva", usar el summary completo
+                                else:
+                                    guest_name = summary  # Si no tiene separador, usar el summary completo
                             
                             # Preparar guests_data completo
                             guests_data = [{
@@ -285,11 +301,13 @@ class ICALSyncService:
                                 channel=channel,  # Channel según provider (booking, expedia, other)
                                 check_in=start_date,
                                 check_out=end_date,
-                                status=ReservationStatus.CONFIRMED,
+                                status=ReservationStatus.PENDING,
                                 guests=1,
                                 guests_data=guests_data,
                                 notes=f"Importado desde {ota_room_mapping.provider} iCal: {summary or ''}",
                                 applied_cancellation_policy=cancellation_policy,  # Aplicar política si existe
+                                # Campos agregados para compatibilidad con columnas NOT NULL
+                                overbooking_flag=False,
                             )
                             reservation.save(skip_clean=True)
                             
@@ -297,6 +315,45 @@ class ICALSyncService:
                             from apps.reservations.services.pricing import generate_nights_for_reservation, recalc_reservation_totals
                             generate_nights_for_reservation(reservation)
                             recalc_reservation_totals(reservation)
+                            
+                            # Verificar si hay overbooking
+                            active_status = [
+                                ReservationStatus.PENDING,
+                                ReservationStatus.CONFIRMED,
+                                ReservationStatus.CHECK_IN,
+                            ]
+                            has_overlap = Reservation.objects.filter(
+                                hotel=reservation.hotel,
+                                room=reservation.room,
+                                status__in=active_status,
+                                check_in__lt=reservation.check_out,
+                                check_out__gt=reservation.check_in,
+                            ).exclude(pk=reservation.pk).exists()
+                            
+                            if has_overlap and not reservation.overbooking_flag:
+                                reservation.overbooking_flag = True
+                                reservation.save(update_fields=["overbooking_flag"])
+                            
+                            # Crear notificación para nueva reserva OTA
+                            try:
+                                provider_name = OtaProvider(ota_room_mapping.provider).label
+                                NotificationService.create_ota_reservation_notification(
+                                    provider_name=provider_name,
+                                    reservation_code=f"RES-{reservation.id}",
+                                    room_name=ota_room_mapping.room.name or f"Habitación {ota_room_mapping.room.number}",
+                                    check_in_date=start_date.strftime("%d/%m/%Y"),
+                                    check_out_date=end_date.strftime("%d/%m/%Y"),
+                                    guest_name=guest_name,
+                                    hotel_id=ota_room_mapping.hotel.id,
+                                    reservation_id=reservation.id,
+                                    external_id=uid,
+                                    overbooking=has_overlap
+                                )
+                            except Exception as notif_error:
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                logger.warning(f"Error al crear notificación para reserva OTA {reservation.id}: {notif_error}")
+                            
                             stats["created"] += 1
                             if job:
                                 OtaSyncLog.objects.create(

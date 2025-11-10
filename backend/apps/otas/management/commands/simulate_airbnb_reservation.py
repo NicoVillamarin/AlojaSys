@@ -19,6 +19,8 @@ from apps.reservations.models import Reservation, ReservationStatus, Reservation
 from apps.reservations.services.pricing import generate_nights_for_reservation, recalc_reservation_totals
 from apps.payments.models import CancellationPolicy
 from apps.otas.models import OtaProvider, OtaSyncJob, OtaSyncLog
+from apps.otas.services.ota_reservation_service import OtaReservationService, PaymentInfo
+from apps.reservations.models import Payment
 import random
 
 
@@ -70,6 +72,39 @@ class Command(BaseCommand):
             action='store_true',
             help='Crear también un OtaSyncJob y OtaSyncLog para simular el proceso completo'
         )
+        parser.add_argument(
+            '--paid-by-ota',
+            action='store_true',
+            help='Marcar la reserva como pagada por OTA (default: hotel)'
+        )
+        parser.add_argument(
+            '--payment-source',
+            type=str,
+            choices=['ota_payout', 'ota_vcc'],
+            default='ota_payout',
+            help='Tipo de pago OTA: ota_payout (payout) o ota_vcc (tarjeta virtual)'
+        )
+        parser.add_argument(
+            '--gross-amount',
+            type=float,
+            help='Monto bruto pagado por el huésped a la OTA'
+        )
+        parser.add_argument(
+            '--commission-amount',
+            type=float,
+            help='Comisión de la OTA (por defecto: 15%% del monto bruto)'
+        )
+        parser.add_argument(
+            '--payout-date',
+            type=str,
+            help='Fecha estimada de payout OTA (YYYY-MM-DD). Por defecto: check-in + 7 días'
+        )
+        parser.add_argument(
+            '--currency',
+            type=str,
+            default='ARS',
+            help='Moneda (default: ARS)'
+        )
 
     def handle(self, *args, **options):
         hotel_id = options['hotel']
@@ -82,6 +117,12 @@ class Command(BaseCommand):
         guest_name = options.get('guest_name') or options.get('guest-name') or 'Huésped Airbnb'
         external_id = options.get('external_id') or options.get('external-id') or f"airbnb-{random.randint(100000, 999999)}"
         create_job = options.get('create_job', False)
+        paid_by_ota = options.get('paid_by_ota', False)
+        payment_source = options.get('payment_source', 'ota_payout')
+        gross_amount = options.get('gross_amount')
+        commission_amount = options.get('commission_amount')
+        payout_date_str = options.get('payout_date')
+        currency = options.get('currency', 'ARS')
 
         # Validar hotel
         try:
@@ -160,38 +201,83 @@ class Command(BaseCommand):
                 "source": "airbnb"
             })
 
-        with transaction.atomic():
-            # Verificar si ya existe una reserva con este external_id
-            existing = Reservation.objects.filter(
-                external_id=external_id,
-                channel=ReservationChannel.AIRBNB
-            ).first()
-
-            if existing:
+        # Preparar PaymentInfo si se solicita pago OTA
+        payment_info = None
+        if paid_by_ota:
+            # Calcular montos si no se proporcionaron
+            if gross_amount is None:
+                # Estimar monto bruto basado en precio de la habitación (si ya está calculado)
+                # Por ahora usamos un valor por defecto
+                gross_amount = 100000.0  # Valor por defecto
                 self.stdout.write(
                     self.style.WARNING(
-                        f'⚠️  Ya existe una reserva con external_id="{external_id}" (ID: {existing.id}). '
-                        f'Se actualizará la reserva existente.'
+                        f'⚠️  No se proporcionó --gross-amount. Usando valor por defecto: ${gross_amount:.2f}'
                     )
                 )
-                reservation = existing
-                reservation.check_in = check_in
-                reservation.check_out = check_out
-                reservation.guests = guests
-                reservation.guests_data = guests_data
-                reservation.notes = f"Reserva simulada desde Airbnb (actualizada: {timezone.now().isoformat()})"
-                
-                # Aplicar política de cancelación si no tiene
-                if cancellation_policy and not reservation.applied_cancellation_policy:
-                    reservation.applied_cancellation_policy = cancellation_policy
-                
-                reservation.save(skip_clean=True)
-                
-                # Eliminar noches existentes antes de regenerar
-                from apps.reservations.models import ReservationNight
-                ReservationNight.objects.filter(reservation=reservation).delete()
-                
-                # Recalcular noches y totales
+            
+            if commission_amount is None:
+                # Por defecto: 15% del monto bruto
+                commission_amount = gross_amount * 0.15
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f'💰 Comisión calculada automáticamente (15%%): ${commission_amount:.2f}'
+                    )
+                )
+            
+            net_amount = gross_amount - commission_amount
+            
+            # Calcular fecha de payout si no se proporciona
+            payout_date = None
+            if payout_date_str:
+                try:
+                    payout_date = date.fromisoformat(payout_date_str)
+                except ValueError:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'⚠️  Fecha de payout inválida: {payout_date_str}. Usando fecha por defecto.'
+                        )
+                    )
+                    payout_date = check_in + timedelta(days=7)
+            else:
+                payout_date = check_in + timedelta(days=7)
+            
+            payment_info = PaymentInfo(
+                paid_by="ota",
+                payment_source=payment_source,
+                provider="airbnb",
+                external_reference=f"AB_TX_{external_id}",
+                currency=currency,
+                gross_amount=gross_amount,
+                commission_amount=commission_amount,
+                net_amount=net_amount,
+                payout_date=payout_date,
+            )
+
+        # Usar OtaReservationService para crear/actualizar con soporte de pagos OTA
+        with transaction.atomic():
+            result = OtaReservationService.upsert_reservation(
+                hotel=hotel,
+                room=room,
+                external_id=external_id,
+                channel=ReservationChannel.AIRBNB,
+                check_in=check_in,
+                check_out=check_out,
+                guests=guests,
+                guests_data=guests_data,
+                notes=f"Reserva simulada desde Airbnb (creada: {timezone.now().isoformat()})",
+                payment_info=payment_info,
+            )
+            
+            reservation = Reservation.objects.get(id=result['reservation_id'])
+            
+            # Aplicar política de cancelación si no tiene
+            if cancellation_policy and not reservation.applied_cancellation_policy:
+                reservation.applied_cancellation_policy = cancellation_policy
+                reservation.save(update_fields=["applied_cancellation_policy"])
+            
+            # Generar noches y calcular totales si no existen
+            from apps.reservations.models import ReservationNight
+            if not reservation.nights.exists():
                 try:
                     generate_nights_for_reservation(reservation)
                     recalc_reservation_totals(reservation)
@@ -203,43 +289,21 @@ class Command(BaseCommand):
                             f'La reserva se creó pero puede no tener precio calculado.'
                         )
                     )
-                
+            
+            if result['created']:
+                self.stdout.write(
+                    self.style.SUCCESS(f'✅ Reserva creada: ID {reservation.id}')
+                )
+            else:
                 self.stdout.write(
                     self.style.SUCCESS(f'✅ Reserva actualizada: ID {reservation.id}')
                 )
-            else:
-                # Crear nueva reserva
-                reservation = Reservation(
-                    hotel=hotel,
-                    room=room,
-                    external_id=external_id,
-                    channel=ReservationChannel.AIRBNB,  # Airbnb tiene su propio canal
-                    check_in=check_in,
-                    check_out=check_out,
-                    status=ReservationStatus.CONFIRMED,
-                    guests=guests,
-                    guests_data=guests_data,
-                    notes=f"Reserva simulada desde Airbnb (creada: {timezone.now().isoformat()})",
-                    applied_cancellation_policy=cancellation_policy,  # Aplicar política si existe
-                )
-                # Guardar saltando validaciones (como haría un webhook real)
-                reservation.save(skip_clean=True)
-                
-                # Generar noches y calcular totales
-                try:
-                    generate_nights_for_reservation(reservation)
-                    recalc_reservation_totals(reservation)
-                    reservation.refresh_from_db()
-                except Exception as e:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f'⚠️  Error al calcular noches/totales: {str(e)}. '
-                            f'La reserva se creó pero puede no tener precio calculado.'
-                        )
-                    )
-                
+            
+            if result.get('overbooking'):
                 self.stdout.write(
-                    self.style.SUCCESS(f'✅ Reserva creada: ID {reservation.id}')
+                    self.style.WARNING(
+                        f'⚠️  Overbooking detectado: hay otras reservas activas que se superponen.'
+                    )
                 )
 
         # Crear OtaSyncJob y OtaSyncLog si se solicita
@@ -305,6 +369,36 @@ class Command(BaseCommand):
         total_price_display = f'${reservation.total_price:.2f}' if reservation.total_price else '$0.00'
         self.stdout.write(f'  Precio total: {total_price_display}')
         
+        # Mostrar información de pago OTA
+        if reservation.paid_by:
+            paid_by_display = reservation.get_paid_by_display() if hasattr(reservation, 'get_paid_by_display') else reservation.paid_by
+            self.stdout.write(f'  Origen de pago: {paid_by_display}')
+            
+            if reservation.paid_by == Reservation.PaidBy.OTA:
+                # Buscar el Payment asociado
+                payment = Payment.objects.filter(
+                    reservation=reservation,
+                    payment_source__in=['ota_payout', 'ota_vcc']
+                ).first()
+                
+                if payment:
+                    self.stdout.write(f'  💳 Pago OTA registrado:')
+                    self.stdout.write(f'     - Tipo: {payment.get_payment_source_display() if hasattr(payment, "get_payment_source_display") else payment.payment_source}')
+                    self.stdout.write(f'     - Bruto: ${payment.gross_amount:.2f}')
+                    self.stdout.write(f'     - Comisión: ${payment.commission_amount:.2f}')
+                    self.stdout.write(f'     - Neto: ${payment.net_amount:.2f}')
+                    self.stdout.write(f'     - Estado: {payment.status}')
+                    if payment.payout_date:
+                        self.stdout.write(f'     - Payout estimado: {payment.payout_date}')
+                    if payment.external_reference:
+                        self.stdout.write(f'     - Ref. externa: {payment.external_reference}')
+                else:
+                    self.stdout.write(self.style.WARNING('     ⚠️  No se encontró Payment asociado'))
+        
+        # Mostrar overbooking flag
+        if reservation.overbooking_flag:
+            self.stdout.write(self.style.WARNING('  ⚠️  Overbooking: Sí (hay otras reservas que se superponen)'))
+        
         # Mostrar política de cancelación
         if reservation.applied_cancellation_policy:
             self.stdout.write(f'  Política de cancelación: {reservation.applied_cancellation_policy.name} ✅')
@@ -315,11 +409,15 @@ class Command(BaseCommand):
         self.stdout.write('')
         
         # Mensaje final
+        payment_status_msg = ""
+        if reservation.paid_by == Reservation.PaidBy.OTA:
+            payment_status_msg = " y aparece como 'Pagada por OTA' en el frontend"
+        
         if reservation.applied_cancellation_policy and reservation.total_price:
             self.stdout.write(
                 self.style.SUCCESS(
                     f'✅ La reserva está completa y lista para usar. Aparecerá en la gestión de reservas '
-                    f'con el badge de canal "Otro" y podrá cancelarse desde el sistema.'
+                    f'con el badge de canal "Airbnb"{payment_status_msg} y podrá cancelarse desde el sistema.'
                 )
             )
         elif not reservation.applied_cancellation_policy:
@@ -333,6 +431,15 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f'✅ La reserva se creó correctamente. Verifica que tenga precio calculado.'
+                )
+            )
+        
+        if paid_by_ota:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'\n💡 La reserva está marcada como pagada por OTA. '
+                    f'Verifica en el frontend que aparezca el badge "Pagada por OTA" y '
+                    f'que el Payment esté en estado "pending_settlement" para conciliación.'
                 )
             )
 

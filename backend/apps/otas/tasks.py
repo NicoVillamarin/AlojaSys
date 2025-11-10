@@ -5,9 +5,19 @@ from .models import OtaRoomMapping, OtaSyncJob, OtaProvider, OtaSyncLog
 from .services.ical_importer import import_ics_for_room_mapping  # Mantener para compatibilidad
 from .services.ical_sync_service import ICALSyncService
 from .services.ari_publisher import push_ari_for_hotel, pull_reservations_for_hotel
+
+# Lazy import para Google Calendar (opcional)
+try:
+    from .services.google_sync_service import import_events_for_mapping as google_import_events
+    GOOGLE_AVAILABLE = True
+except ImportError:
+    GOOGLE_AVAILABLE = False
+    google_import_events = None
 from .models import OtaConfig
 from django.utils import timezone
 from datetime import date, timedelta
+import os, json
+import redis
 
 
 @shared_task(bind=True)
@@ -50,6 +60,75 @@ def schedule_ical_sync(self):
 
 
 @shared_task(bind=True)
+def import_all_google(self):
+    """Importa eventos para todos los mapeos con provider=GOOGLE."""
+    if not GOOGLE_AVAILABLE:
+        return {"processed_mappings": 0, "error": "google_api_not_installed"}
+    
+    mappings = OtaRoomMapping.objects.select_related("hotel", "room").filter(
+        provider=OtaProvider.GOOGLE,
+        is_active=True,
+    ).exclude(external_id__isnull=True).exclude(external_id="")
+
+    total = 0
+    for m in mappings:
+        job = OtaSyncJob.objects.create(
+            hotel=m.hotel,
+            provider=OtaProvider.GOOGLE,
+            job_type=OtaSyncJob.JobType.IMPORT_ICS,
+            status=OtaSyncJob.JobStatus.RUNNING,
+            stats={"mapping_id": m.id},
+        )
+        try:
+            stats = google_import_events(m, job=job)
+            job.status = OtaSyncJob.JobStatus.SUCCESS if stats.get("errors", 0) == 0 else OtaSyncJob.JobStatus.FAILED
+            job.finished_at = timezone.now()
+            job.save(update_fields=["status", "stats", "finished_at"])
+            # Publicar evento para refrescar UI si éxito
+            if job.status == OtaSyncJob.JobStatus.SUCCESS:
+                try:
+                    redis_host = os.environ.get("REDIS_HOST", "redis")
+                    r = redis.Redis(host=redis_host, port=6379, db=0)
+                    payload = json.dumps({"type": "reservations_updated", "hotel_id": m.hotel_id, "provider": "google"})
+                    r.publish("otas:events", payload)
+                    r.publish(f"otas:events:{m.hotel_id}", payload)
+                except Exception:
+                    pass
+        except Exception as e:
+            job.status = OtaSyncJob.JobStatus.FAILED
+            job.error_message = str(e)
+            job.finished_at = timezone.now()
+            job.save(update_fields=["status", "error_message", "finished_at"])
+        total += 1
+
+    return {"processed_mappings": total}
+
+@shared_task(bind=True)
+def import_google_for_mapping_task(self, mapping_id: int):
+    """Importa eventos para un mapeo específico (usado por webhooks)."""
+    if not GOOGLE_AVAILABLE:
+        return {}
+    mapping = OtaRoomMapping.objects.select_related("hotel", "room").get(id=mapping_id)
+    job = OtaSyncJob.objects.create(
+        hotel=mapping.hotel,
+        provider=OtaProvider.GOOGLE,
+        job_type=OtaSyncJob.JobType.IMPORT_ICS,
+        status=OtaSyncJob.JobStatus.RUNNING,
+        stats={"mapping_id": mapping_id, "trigger": "webhook"},
+    )
+    try:
+        stats = google_import_events(mapping, job=job)
+        job.status = OtaSyncJob.JobStatus.SUCCESS if stats.get("errors", 0) == 0 else OtaSyncJob.JobStatus.FAILED
+        job.finished_at = timezone.now()
+        job.save(update_fields=["status", "stats", "finished_at"])
+    except Exception as e:
+        job.status = OtaSyncJob.JobStatus.FAILED
+        job.error_message = str(e)
+        job.finished_at = timezone.now()
+        job.save(update_fields=["status", "error_message", "finished_at"])
+    return job.stats or {}
+
+@shared_task(bind=True)
 def import_ics_for_mapping_task(self, mapping_id: int, job_id: int | None = None):
     """Importa iCal para un mapeo específico usando ICALSyncService."""
     if job_id:
@@ -81,6 +160,15 @@ def import_ics_for_mapping_task(self, mapping_id: int, job_id: int | None = None
         job.status = OtaSyncJob.JobStatus.SUCCESS if stats.get("errors", 0) == 0 else OtaSyncJob.JobStatus.FAILED
         job.finished_at = timezone.now()
         job.save(update_fields=["status", "stats", "finished_at"])
+        if job.status == OtaSyncJob.JobStatus.SUCCESS:
+            try:
+                redis_host = os.environ.get("REDIS_HOST", "redis")
+                r = redis.Redis(host=redis_host, port=6379, db=0)
+                payload = json.dumps({"type": "reservations_updated", "hotel_id": mapping.hotel_id, "provider": "ical"})
+                r.publish("otas:events", payload)
+                r.publish(f"otas:events:{mapping.hotel_id}", payload)
+            except Exception:
+                pass
         
         # Registrar finalización (el ICALSyncService ya registra IMPORT_COMPLETED, pero agregamos uno adicional aquí para consistencia)
         if stats.get("errors", 0) == 0:

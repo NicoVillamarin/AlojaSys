@@ -11,12 +11,13 @@ class NotificationType(models.TextChoices):
     REFUND_AUTO = "refund_auto", "Reembolso Automático"
     REFUND_FAILED = "refund_failed", "Reembolso Fallido"
     RECEIPT_GENERATED = "receipt_generated", "Comprobante Generado"
+    OTA_RESERVATION_RECEIVED = "ota_reservation_received", "Nueva Reserva OTA"
 
 
 class Notification(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     type = models.CharField(
-        max_length=20, 
+        max_length=30, 
         choices=NotificationType.choices,
         help_text="Tipo de notificación"
     )

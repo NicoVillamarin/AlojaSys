@@ -231,6 +231,10 @@ export default function ReservationHistorical() {
                 }
                 
                 // Badge según el tipo de canal OTA
+                // Detectar Google Calendar por notes o external_id
+                const isGoogle = (r.notes || '').toLowerCase().includes('google calendar') || 
+                                (r.external_id || '').includes('@google.com')
+                
                 switch (channelValue) {
                   case 'booking':
                     return (
@@ -251,6 +255,13 @@ export default function ReservationHistorical() {
                       </Badge>
                     )
                   case 'other':
+                    if (isGoogle) {
+                      return (
+                        <Badge variant="google" size="sm">
+                          Google Calendar
+                        </Badge>
+                      )
+                    }
                     return (
                       <Badge variant="warning" size="sm">
                         {channel}
@@ -264,7 +275,7 @@ export default function ReservationHistorical() {
                     )
                 }
               }
-              
+
               return (
                 <div className="flex items-center gap-1">
                   {getChannelBadge()}
@@ -300,9 +311,32 @@ export default function ReservationHistorical() {
             header: t('dashboard.reservations_management.table_headers.status'), 
             sortable: true, 
             render: (r) => (
-              <Badge variant={`reservation-${r.status}`} size="sm">
-                {getStatusLabel(r.status, t)}
-              </Badge>
+              <div className="flex items-center gap-1 flex-wrap">
+                <Badge variant={`reservation-${r.status}`} size="sm">
+                  {getStatusLabel(r.status, t)}
+                </Badge>
+                {r.overbooking_flag && (
+                  <Badge variant="warning" size="sm">
+                    Overbooking
+                  </Badge>
+                )}
+                {r.paid_by === 'ota' && (() => {
+                  let channelName = r.channel_display || r.channel || 'OTA'
+                  if (!r.channel_display && r.channel) {
+                    channelName = r.channel.charAt(0).toUpperCase() + r.channel.slice(1)
+                  }
+                  return (
+                    <Badge variant="success" size="sm">
+                      Pagada por {channelName}
+                    </Badge>
+                  )
+                })()}
+                {r.paid_by === 'hotel' && (
+                  <Badge variant="info" size="sm">
+                    Pago directo
+                  </Badge>
+                )}
+              </div>
             ) 
           },
         ]}

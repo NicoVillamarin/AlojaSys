@@ -15,13 +15,7 @@ const PaymentInformation = () => {
   const [error, setError] = useState(null)
   const [canBookIssue, setCanBookIssue] = useState(null)
 
-  // Forzar canal DIRECT para reservas creadas desde el sistema
-  useEffect(() => {
-    if (!values.channel || values.channel !== 'direct') {
-      setFieldValue('channel', 'direct')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Usar el canal actual (si la reserva viene de OTA, mantenerlo)
 
   // Función para obtener la cotización de precios
   const ready = !!(values.room && values.guests && values.check_in && values.check_out)
@@ -29,7 +23,7 @@ const PaymentInformation = () => {
     room_id: values.room,
     check_in: values.check_in,
     check_out: values.check_out,
-    channel: 'direct', // Siempre DIRECT para reservas creadas desde el sistema
+    channel: values.channel || 'direct',
   }
   const { results: canBookRes, isPending: canPending, refetch: refetchCanBook } = useAction({
     resource: 'reservations',
@@ -55,7 +49,7 @@ const PaymentInformation = () => {
     check_in: values.check_in,
     check_out: values.check_out,
     guests: values.guests || 1,
-    channel: 'direct', // Siempre DIRECT para reservas creadas desde el sistema
+    channel: values.channel || 'direct',
     ...(appliedPromo ? { promotion_code: appliedPromo } : {}),
     ...(appliedVoucher ? { voucher_code: appliedVoucher } : {}),
   }

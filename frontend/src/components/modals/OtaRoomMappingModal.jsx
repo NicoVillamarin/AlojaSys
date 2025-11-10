@@ -99,6 +99,7 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
                 onChange={(e) => setFieldValue('provider', e.target.value)}
               >
                 <option value="ical">iCal</option>
+                <option value="google">Google Calendar</option>
                 <option value="booking">Booking</option>
                 <option value="airbnb">Airbnb</option>
                 <option value="expedia">Expedia</option>
@@ -106,9 +107,15 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
               </select>
             </div>
 
-            <InputText title={t('ota.mappings.external_id')} name="external_id" placeholder={t('ota.mappings.external_id_placeholder')} />
+            <InputText 
+              title={values.provider === 'google' ? 'Google Calendar ID' : t('ota.mappings.external_id')} 
+              name="external_id" 
+              placeholder={values.provider === 'google' ? 'e.g. your_calendar@group.calendar.google.com' : t('ota.mappings.external_id_placeholder')} 
+            />
             <div className="lg:col-span-2">
-              <InputText title={t('ota.mappings.ical_in_url')} name="ical_in_url" placeholder={t('ota.mappings.ical_in_url_placeholder')} />
+              {values.provider === 'ical' && (
+                <InputText title={t('ota.mappings.ical_in_url')} name="ical_in_url" placeholder={t('ota.mappings.ical_in_url_placeholder')} />
+              )}
             </div>
 
             <div>
