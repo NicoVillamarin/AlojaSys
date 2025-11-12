@@ -19,7 +19,13 @@ class Command(BaseCommand):
         parser.add_argument(
             "json_file",
             type=str,
-            help="Ruta al archivo JSON con las habitaciones"
+            nargs='?',
+            help="Ruta al archivo JSON con las habitaciones (opcional si se usa --json)"
+        )
+        parser.add_argument(
+            "--json",
+            type=str,
+            help="JSON directo como string (alternativa a archivo)"
         )
         parser.add_argument(
             "--update",
@@ -102,18 +108,35 @@ class Command(BaseCommand):
         except Hotel.DoesNotExist:
             raise CommandError(f"Hotel {hotel_id} no existe")
 
-        # Validar archivo
-        if not os.path.exists(json_file):
-            raise CommandError(f"Archivo no encontrado: {json_file}")
-
-        # Leer JSON
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                rooms_data = json.load(f)
-        except json.JSONDecodeError as e:
-            raise CommandError(f"Error al parsear JSON: {e}")
-        except Exception as e:
-            raise CommandError(f"Error al leer archivo: {e}")
+        # Leer JSON desde --json, archivo, o stdin
+        json_input = options.get('json')
+        
+        if json_input:
+            # Leer desde parámetro --json
+            try:
+                rooms_data = json.loads(json_input)
+            except json.JSONDecodeError as e:
+                raise CommandError(f"Error al parsear JSON: {e}")
+        elif json_file:
+            # Leer desde archivo
+            if not os.path.exists(json_file):
+                raise CommandError(f"Archivo no encontrado: {json_file}")
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    rooms_data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise CommandError(f"Error al parsear JSON: {e}")
+            except Exception as e:
+                raise CommandError(f"Error al leer archivo: {e}")
+        else:
+            # Leer desde stdin
+            import sys
+            try:
+                rooms_data = json.load(sys.stdin)
+            except json.JSONDecodeError as e:
+                raise CommandError(f"Error al parsear JSON desde stdin: {e}")
+            except Exception as e:
+                raise CommandError(f"Error al leer desde stdin: {e}")
 
         if not isinstance(rooms_data, list):
             raise CommandError("El JSON debe ser un array de habitaciones")
