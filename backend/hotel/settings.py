@@ -349,19 +349,30 @@ CLOUDINARY_API_SECRET = config('CLOUDINARY_API_SECRET', default='')
 USE_CLOUDINARY = config('USE_CLOUDINARY', default=False, cast=bool)
 
 if USE_CLOUDINARY:
-    import cloudinary
-    import cloudinary.uploader
-    import cloudinary.api
-    
-    cloudinary.config(
-        cloud_name=CLOUDINARY_CLOUD_NAME,
-        api_key=CLOUDINARY_API_KEY,
-        api_secret=CLOUDINARY_API_SECRET,
-        secure=True
-    )
-    
-    # Configuración para Cloudinary
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    try:
+        import cloudinary
+        import cloudinary.uploader
+        import cloudinary.api
+        
+        cloudinary.config(
+            cloud_name=CLOUDINARY_CLOUD_NAME,
+            api_key=CLOUDINARY_API_KEY,
+            api_secret=CLOUDINARY_API_SECRET,
+            secure=True
+        )
+        
+        # Configuración para Cloudinary
+        DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    except ImportError:
+        # Si cloudinary no está instalado, usar almacenamiento local
+        USE_CLOUDINARY = False
+        MEDIA_URL = '/media/'
+        MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+        import warnings
+        warnings.warn(
+            "USE_CLOUDINARY=True pero cloudinary no está instalado. "
+            "Usando almacenamiento local. Instala: pip install cloudinary django-cloudinary-storage"
+        )
 else:
     # Configuración local
     MEDIA_URL = '/media/'
