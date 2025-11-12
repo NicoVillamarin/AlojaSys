@@ -230,12 +230,16 @@ if frontend_url and frontend_url.startswith("http"):
 if render_external_url and render_external_url.startswith("http"):
     CSRF_TRUSTED_ORIGINS.append(render_external_url)
 
-# Configuración de Celery
-# En Docker, usar el nombre del contenedor de Redis
-# En desarrollo local, usar localhost
+# Configuración de Redis/Celery
+# Preferimos REDIS_URL (Railway plugin). Si no existe, caemos a REDIS_HOST:6379.
+REDIS_URL = config('REDIS_URL', default=None)
 REDIS_HOST = config('REDIS_HOST', default='hotel_redis')
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/0"
-CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:6379/0"
+if REDIS_URL:
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+else:
+    CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/0"
+    CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:6379/0"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
@@ -244,7 +248,7 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f"redis://{REDIS_HOST}:6379/1",
+        'LOCATION': REDIS_URL if REDIS_URL else f"redis://{REDIS_HOST}:6379/1",
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         },
