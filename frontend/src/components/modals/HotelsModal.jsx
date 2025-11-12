@@ -206,9 +206,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             })
           } else {
             console.log('➕ Creando nuevo hotel')
-            createHotel({
-              body: payload
-            })
+            createHotel(payload)
           }
         } catch (error) {
           console.error('❌ Error procesando logo:', error)
@@ -236,7 +234,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
           if (isEditMode && currentHotel?.id) {
             updateHotel({ id: currentHotel.id, body: payload })
           } else {
-            createHotel({ body: payload })
+            createHotel(payload)
           }
         }
       }}
