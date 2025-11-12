@@ -23,6 +23,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "extra_guest_fee", 
             "base_price", 
             "status",
+            "cleaning_status",
             "is_active", 
             "description", 
             "created_at", 

@@ -8,6 +8,10 @@ import FileImage from 'src/components/inputs/FileImage'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
+import { useAction } from 'src/hooks/useAction'
+import SelectBasic from 'src/components/selects/SelectBasic'
+import Tabs from '../Tabs'
+import Button from 'src/components/Button'
 
 /**
  * HotelsModal: crear/editar hotel
@@ -24,47 +28,125 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
       reader.onerror = error => reject(error)
     })
   }
+  // Estado para pestañas
+  const [activeTab, setActiveTab] = React.useState('general')
+  
+  // Estado interno para manejar el hotel recién creado (para poder configurar limpieza)
+  const [createdHotel, setCreatedHotel] = React.useState(null)
+  const currentHotel = createdHotel || hotel
+  const isEditMode = isEdit || !!createdHotel
+
   const { mutate: createHotel, isPending: creating } = useCreate({
     resource: 'hotels',
     onSuccess: (data) => { 
       console.log('✅ Hotel creado exitosamente:', data)
+      // Guardar el hotel creado para mantener el modal en modo edición
+      setCreatedHotel(data)
+      // Cambiar a la pestaña de limpieza para que el usuario pueda configurarla
+      setActiveTab('housekeeping')
+      // Notificar al padre pero no cerrar el modal
       onSuccess && onSuccess(data)
-      onClose && onClose() 
+      // NO cerrar el modal automáticamente, dejar que el usuario lo cierre
     },
   })
   const { mutate: updateHotel, isPending: updating } = useUpdate({
     resource: 'hotels',
     onSuccess: (data) => { 
       console.log('✅ Hotel actualizado exitosamente:', data)
+      // Si había un hotel creado, actualizarlo también
+      if (createdHotel) {
+        setCreatedHotel(data)
+      }
       onSuccess && onSuccess(data)
-      onClose && onClose() 
+      // Solo cerrar si no estamos en la pestaña de limpieza
+      // (si estamos en limpieza, el usuario puede querer seguir configurando)
+      if (activeTab === 'general') {
+        onClose && onClose()
+      }
     },
   })
 
   const initialValues = {
-    name: hotel?.name ?? '',
-    legal_name: hotel?.legal_name ?? '',
-    tax_id: hotel?.tax_id ?? '',
-    email: hotel?.email ?? '',
-    phone: hotel?.phone ?? '',
-    address: hotel?.address ?? '',
-    country: hotel?.country ?? '',
-    state: hotel?.state ?? '',
-    city: hotel?.city ?? '',
-    check_in_time: (hotel?.check_in_time ?? '15:00').slice(0, 5),
-    check_out_time: (hotel?.check_out_time ?? '11:00').slice(0, 5),
-    is_active: hotel?.is_active ?? true,
-    auto_check_in_enabled: hotel?.auto_check_in_enabled ?? false,
-    auto_check_out_enabled: hotel?.auto_check_out_enabled ?? true,
-    auto_no_show_enabled: hotel?.auto_no_show_enabled ?? false,
+    name: currentHotel?.name ?? '',
+    legal_name: currentHotel?.legal_name ?? '',
+    tax_id: currentHotel?.tax_id ?? '',
+    email: currentHotel?.email ?? '',
+    phone: currentHotel?.phone ?? '',
+    address: currentHotel?.address ?? '',
+    country: currentHotel?.country ?? '',
+    state: currentHotel?.state ?? '',
+    city: currentHotel?.city ?? '',
+    check_in_time: (currentHotel?.check_in_time ?? '15:00').slice(0, 5),
+    check_out_time: (currentHotel?.check_out_time ?? '11:00').slice(0, 5),
+    is_active: currentHotel?.is_active ?? true,
+    auto_check_in_enabled: currentHotel?.auto_check_in_enabled ?? false,
+    auto_check_out_enabled: currentHotel?.auto_check_out_enabled ?? true,
+    auto_no_show_enabled: currentHotel?.auto_no_show_enabled ?? false,
     logo: null, // Archivo seleccionado
-    existing_logo_url: hotel?.logo_url ?? null, // URL del logo existente
+    existing_logo_url: currentHotel?.logo_url ?? null, // URL del logo existente
   }
 
   const validationSchema = Yup.object().shape({
     name: Yup.string().required(t('hotels_modal.name_required')),
     email: Yup.string().email(t('hotels_modal.email_invalid')).nullable(),
   })
+
+  // Housekeeping config (solo en edición, porque requiere hotel.id)
+  const hkEnabled = isEditMode && !!currentHotel?.id
+  const { results: hkConfig, isPending: hkLoading, refetch: refetchHK } = useAction({
+    resource: 'housekeeping/config',
+    action: hkEnabled ? `by-hotel/${currentHotel.id}` : undefined,
+    enabled: hkEnabled,
+  })
+  const [hkValues, setHkValues] = React.useState(null)
+  React.useEffect(() => {
+    if (hkConfig && hkEnabled) {
+      setHkValues(hkConfig)
+    }
+  }, [hkConfig, hkEnabled])
+  const { mutate: updateHK, isPending: savingHK } = useUpdate({
+    resource: 'housekeeping/config',
+    onSuccess: (data) => {
+      refetchHK && refetchHK()
+      // Después de guardar la configuración, cerrar el modal si el hotel fue recién creado
+      if (createdHotel) {
+        onClose && onClose()
+      }
+    },
+    method: 'PATCH',
+  })
+  const handleSaveHK = () => {
+    if (!hkValues?.id) return
+    const payload = {
+      enable_auto_assign: !!hkValues.enable_auto_assign,
+      create_daily_tasks: !!hkValues.create_daily_tasks,
+      daily_generation_time: hkValues.daily_generation_time || null,
+      skip_service_on_checkin: !!hkValues.skip_service_on_checkin,
+      skip_service_on_checkout: !!hkValues.skip_service_on_checkout,
+      linens_every_n_nights: Number(hkValues.linens_every_n_nights ?? 3),
+      towels_every_n_nights: Number(hkValues.towels_every_n_nights ?? 1),
+      morning_window_start: hkValues.morning_window_start || null,
+      morning_window_end: hkValues.morning_window_end || null,
+      afternoon_window_start: hkValues.afternoon_window_start || null,
+      afternoon_window_end: hkValues.afternoon_window_end || null,
+      quiet_hours_start: hkValues.quiet_hours_start || null,
+      quiet_hours_end: hkValues.quiet_hours_end || null,
+      prefer_by_zone: !!hkValues.prefer_by_zone,
+      rebalance_every_minutes: Number(hkValues.rebalance_every_minutes ?? 5),
+      checkout_priority: Number(hkValues.checkout_priority ?? 2),
+      daily_priority: Number(hkValues.daily_priority ?? 1),
+      alert_checkout_unstarted_minutes: Number(hkValues.alert_checkout_unstarted_minutes ?? 30),
+    }
+    updateHK({ id: hkValues.id, body: payload })
+  }
+  
+  // Resetear el estado cuando se cierra el modal
+  React.useEffect(() => {
+    if (!isOpen) {
+      setCreatedHotel(null)
+      setActiveTab('general')
+    }
+  }, [isOpen])
 
   return (
     <Formik
@@ -115,10 +197,10 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
           
           console.log('📋 Payload final:', payload)
           
-          if (isEdit && hotel?.id) {
-            console.log('🔄 Actualizando hotel ID:', hotel.id)
+          if (isEditMode && currentHotel?.id) {
+            console.log('🔄 Actualizando hotel ID:', currentHotel.id)
             updateHotel({ 
-              id: hotel.id, 
+              id: currentHotel.id, 
               body: payload
             })
           } else {
@@ -149,8 +231,8 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             auto_no_show_enabled: values.auto_no_show_enabled || false,
           }
           
-          if (isEdit && hotel?.id) {
-            updateHotel({ id: hotel.id, body: payload })
+          if (isEditMode && currentHotel?.id) {
+            updateHotel({ id: currentHotel.id, body: payload })
           } else {
             createHotel({ body: payload })
           }
@@ -161,14 +243,42 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
-          title={isEdit ? t('hotels_modal.edit_hotel') : t('hotels_modal.create_hotel')}
-          onSubmit={handleSubmit}
-          submitText={isEdit ? t('hotels_modal.save_changes') : t('hotels_modal.create')}
+          title={isEditMode ? t('hotels_modal.edit_hotel') : t('hotels_modal.create_hotel')}
+          onSubmit={activeTab === 'general' ? handleSubmit : undefined}
+          submitText={isEditMode ? t('hotels_modal.save_changes') : t('hotels_modal.create')}
           cancelText={t('hotels_modal.cancel')}
           submitDisabled={creating || updating}
+          customFooter={
+            activeTab === 'housekeeping' && hkEnabled ? (
+              <>
+                <Button variant="danger" size="md" onClick={onClose}>
+                  {t('hotels_modal.cancel')}
+                </Button>
+                <Button
+                  variant="success"
+                  size="md"
+                  disabled={hkLoading || savingHK || !hkValues}
+                  onClick={handleSaveHK}
+                  loadingText={savingHK}
+                >
+                  {t('hotels_modal.housekeeping.save_config')}
+                </Button>
+              </>
+            ) : undefined
+          }
           size='lg'
         >
-          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
+          <Tabs
+            tabs={[
+              { id: 'general', label: t('hotels_modal.general') },
+              ...(hkEnabled ? [{ id: 'housekeeping', label: t('hotels_modal.housekeeping.title') }] : []),
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+          
+          {activeTab === 'general' && (
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 pt-3'>
             <SelectAsync
               title={t('sidebar.enterprises')}
               name='enterprise'
@@ -259,7 +369,6 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                   </label>
                 </div>
               </div>
-              
               <div>
                 <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.status')}</label>
                 <label htmlFor='is_active' className='flex items-center gap-2 cursor-pointer mt-2'>
@@ -274,22 +383,223 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                   <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.enabled_for_operation')}</span>
                 </label>
               </div>
-                  {/* Logo del hotel */}
-            <div className='lg:col-span-2'>
-              <FileImage
-                name='logo'
-                label={t('hotels_modal.logo') || 'Logo del hotel'}
-                compress={true}
-                maxWidth={800}
-                maxHeight={600}
-                quality={0.9}
-                maxSize={2 * 1024 * 1024} // 2MB
-                existingImageUrl={isEdit ? values.existing_logo_url : null}
-                className='mb-4'
-              />
+              {/* Logo del hotel */}
+              <div className='lg:col-span-2'>
+                <FileImage
+                  name='logo'
+                  label={t('hotels_modal.logo') || 'Logo del hotel'}
+                  compress={true}
+                  maxWidth={800}
+                  maxHeight={600}
+                  quality={0.9}
+                  maxSize={2 * 1024 * 1024} // 2MB
+                  existingImageUrl={isEdit ? values.existing_logo_url : null}
+                  className='mb-4'
+                />
+              </div>
+              </div>
             </div>
+          )}
+
+          {activeTab === 'housekeeping' && hkEnabled && (
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 pt-3'>
+              <div className='lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
+                    {/* Activación y generación */}
+                    <label className='flex items-center gap-2 cursor-pointer'>
+                      <input
+                        type='checkbox'
+                        className='rounded border-gray-300'
+                        checked={!!hkValues?.enable_auto_assign}
+                        onChange={(e) => setHkValues((v) => ({ ...v, enable_auto_assign: e.target.checked }))}
+                        disabled={hkLoading}
+                      />
+                      <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.enable_auto_assign')}</span>
+                    </label>
+                    <label className='flex items-center gap-2 cursor-pointer'>
+                      <input
+                        type='checkbox'
+                        className='rounded border-gray-300'
+                        checked={!!hkValues?.create_daily_tasks}
+                        onChange={(e) => setHkValues((v) => ({ ...v, create_daily_tasks: e.target.checked }))}
+                        disabled={hkLoading}
+                      />
+                      <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.create_daily_tasks')}</span>
+                    </label>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.daily_generation_time')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.daily_generation_time || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, daily_generation_time: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    {/* Reglas de servicio */}
+                    <label className='flex items-center gap-2 cursor-pointer'>
+                      <input
+                        type='checkbox'
+                        className='rounded border-gray-300'
+                        checked={!!hkValues?.skip_service_on_checkin}
+                        onChange={(e) => setHkValues((v) => ({ ...v, skip_service_on_checkin: e.target.checked }))}
+                        disabled={hkLoading}
+                      />
+                      <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.skip_service_on_checkin')}</span>
+                    </label>
+                    <label className='flex items-center gap-2 cursor-pointer'>
+                      <input
+                        type='checkbox'
+                        className='rounded border-gray-300'
+                        checked={!!hkValues?.skip_service_on_checkout}
+                        onChange={(e) => setHkValues((v) => ({ ...v, skip_service_on_checkout: e.target.checked }))}
+                        disabled={hkLoading}
+                      />
+                      <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.skip_service_on_checkout')}</span>
+                    </label>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.linens_every')}</label>
+                      <input
+                        type='number'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.linens_every_n_nights ?? 3}
+                        onChange={(e) => setHkValues((v) => ({ ...v, linens_every_n_nights: e.target.value }))}
+                        placeholder='3'
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.towels_every')}</label>
+                      <input
+                        type='number'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.towels_every_n_nights ?? 1}
+                        onChange={(e) => setHkValues((v) => ({ ...v, towels_every_n_nights: e.target.value }))}
+                        placeholder='1'
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    {/* Ventanas */}
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.morning_window_start')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.morning_window_start || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, morning_window_start: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.morning_window_end')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.morning_window_end || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, morning_window_end: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.afternoon_window_start')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.afternoon_window_start || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, afternoon_window_start: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.afternoon_window_end')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.afternoon_window_end || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, afternoon_window_end: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.quiet_hours_start')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.quiet_hours_start || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, quiet_hours_start: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.quiet_hours_end')}</label>
+                      <input
+                        type='time'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.quiet_hours_end || ''}
+                        onChange={(e) => setHkValues((v) => ({ ...v, quiet_hours_end: e.target.value }))}
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    {/* Asignación y prioridades */}
+                    <label className='flex items-center gap-2 cursor-pointer'>
+                      <input
+                        type='checkbox'
+                        className='rounded border-gray-300'
+                        checked={!!hkValues?.prefer_by_zone}
+                        onChange={(e) => setHkValues((v) => ({ ...v, prefer_by_zone: e.target.checked }))}
+                      />
+                      <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.prefer_by_zone')}</span>
+                    </label>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.rebalance_every_minutes')}</label>
+                      <input
+                        type='number'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.rebalance_every_minutes ?? 5}
+                        onChange={(e) => setHkValues((v) => ({ ...v, rebalance_every_minutes: e.target.value }))}
+                        placeholder='5'
+                        disabled={hkLoading}
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.checkout_priority')}</label>
+                      <select
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.checkout_priority ?? 2}
+                        onChange={(e) => setHkValues((v) => ({ ...v, checkout_priority: Number(e.target.value) }))}
+                        disabled={hkLoading}
+                      >
+                        <option value={2}>{t('housekeeping.priority_high')}</option>
+                        <option value={1}>{t('housekeeping.priority_medium')}</option>
+                        <option value={0}>{t('housekeeping.priority_low')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.daily_priority')}</label>
+                      <select
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.daily_priority ?? 1}
+                        onChange={(e) => setHkValues((v) => ({ ...v, daily_priority: Number(e.target.value) }))}
+                        disabled={hkLoading}
+                      >
+                        <option value={2}>{t('housekeeping.priority_high')}</option>
+                        <option value={1}>{t('housekeeping.priority_medium')}</option>
+                        <option value={0}>{t('housekeeping.priority_low')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.alert_checkout_unstarted_minutes')}</label>
+                      <input
+                        type='number'
+                        className='w-full border border-gray-200 rounded-lg px-3 py-2 text-sm'
+                        value={hkValues?.alert_checkout_unstarted_minutes ?? 30}
+                        onChange={(e) => setHkValues((v) => ({ ...v, alert_checkout_unstarted_minutes: e.target.value }))}
+                        placeholder='30'
+                        disabled={hkLoading}
+                      />
+                    </div>
+                  </div>
             </div>
-          </div>
+          )}
         </ModalLayout>
       )}
     </Formik>

@@ -19,6 +19,7 @@ class UserProfile(models.Model):
         help_text="Foto de perfil del usuario"
     )
     is_active = models.BooleanField(default=True)
+    is_housekeeping_staff = models.BooleanField(default=False, help_text="Si está activo, el usuario es staff de limpieza con acceso limitado al módulo de housekeeping.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

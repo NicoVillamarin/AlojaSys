@@ -42,6 +42,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             'id',
+            'user_id',
             'username',
             'email',
             'first_name',
@@ -50,6 +51,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'full_name',
             'phone',
             'position',
+            'is_housekeeping_staff',
             'avatar_image',
             'avatar_image_url',
             'avatar_image_base64',
@@ -68,6 +70,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'groups_ids',  # Campo para asignar grupos
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'full_name', 'hotel_names', 'enterprise_name', 'avatar_image_url', 'permissions', 'groups', 'permissions_codenames']
+    
+    def get_user_id(self, obj):
+        return obj.user.id if obj and obj.user_id else None
     
     def get_hotel_names(self, obj):
         """Retorna lista de nombres de hoteles asignados"""
@@ -213,108 +218,146 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Crea un nuevo usuario y su perfil con hoteles asignados"""
-        # Obtener user_data (DRF lo anida automáticamente por los campos con source='user.*')
-        user_data = validated_data.pop('user', {})
+        from django.db import transaction
         
-        # Extraer la contraseña de user_data (ahora debería estar allí porque tiene source='user.password')
-        password = user_data.pop('password', None)
-        
-        # Extraer is_superuser de user_data (puede estar allí si se agregó en to_internal_value)
-        # Si no está en user_data, intentar obtenerlo de validated_data directamente
-        is_superuser_requested = user_data.pop('is_superuser', None)
-        if is_superuser_requested is None:
-            is_superuser_requested = validated_data.pop('is_superuser', False)
-        
-        hotels_data = validated_data.pop('hotels', [])
-        enterprise_data = validated_data.pop('enterprise', None)
-        groups_ids = validated_data.pop('groups_ids', [])
-        
-        # Extraer campos de avatar para procesar
-        avatar_image_base64 = validated_data.pop('avatar_image_base64', None)
-        avatar_image_filename = validated_data.pop('avatar_image_filename', None)
-        
-        # Procesar enterprise: puede venir como objeto (con .id) o como ID directo
-        enterprise_id = None
-        if enterprise_data:
-            if isinstance(enterprise_data, dict):
-                enterprise_id = enterprise_data.get('id')
-            elif hasattr(enterprise_data, 'id'):
-                enterprise_id = enterprise_data.id
-            else:
-                enterprise_id = enterprise_data
-        
-        # IMPORTANTE: Si no hay contraseña, no se puede crear el usuario
-        if not password:
-            raise serializers.ValidationError({'password': 'La contraseña es requerida para crear un usuario.'})
-        
-        # Crear el usuario sin password primero
-        # IMPORTANTE: Por defecto, los usuarios NO son superuser ni staff
-        # Solo los administradores de AlojaSys deberían ser superusers
-        print(f"🔐 CREANDO USUARIO: {user_data.get('username')}")
-        print(f"   - is_superuser solicitado: {is_superuser_requested}")
-        print(f"   - Antes de crear: is_superuser={is_superuser_requested}, is_staff={is_superuser_requested}")
-        
-        user = User.objects.create_user(
-            username=user_data.get('username'),
-            email=user_data.get('email', ''),
-            first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', ''),
-            is_staff=is_superuser_requested,  # Staff solo si es superuser
-            is_superuser=is_superuser_requested,  # Superuser según lo solicitado
-        )
-        
-        # VERIFICAR que se creó correctamente
-        user.refresh_from_db()
-        print(f"   - Después de create_user: is_superuser={user.is_superuser}, is_staff={user.is_staff}")
-        
-        # Validar que coincida con lo solicitado
-        if user.is_superuser != is_superuser_requested:
-            print(f"   ⚠️ ADVERTENCIA: is_superuser no coincide con lo solicitado!")
-            user.is_superuser = is_superuser_requested
-            user.is_staff = is_superuser_requested
+        # Usar transacción atómica para asegurar que todo se cree o nada
+        with transaction.atomic():
+            # Obtener user_data (DRF lo anida automáticamente por los campos con source='user.*')
+            user_data = validated_data.pop('user', {})
+            
+            # Extraer la contraseña de user_data (ahora debería estar allí porque tiene source='user.password')
+            password = user_data.pop('password', None)
+            
+            # Extraer is_superuser de user_data (puede estar allí si se agregó en to_internal_value)
+            # Si no está en user_data, intentar obtenerlo de validated_data directamente
+            is_superuser_requested = user_data.pop('is_superuser', None)
+            if is_superuser_requested is None:
+                is_superuser_requested = validated_data.pop('is_superuser', False)
+            
+            hotels_data = validated_data.pop('hotels', [])
+            enterprise_data = validated_data.pop('enterprise', None)
+            groups_ids = validated_data.pop('groups_ids', [])
+            
+            # Extraer campos de avatar para procesar
+            avatar_image_base64 = validated_data.pop('avatar_image_base64', None)
+            avatar_image_filename = validated_data.pop('avatar_image_filename', None)
+            
+            # Procesar enterprise: puede venir como objeto (con .id) o como ID directo
+            enterprise_id = None
+            if enterprise_data:
+                if isinstance(enterprise_data, dict):
+                    enterprise_id = enterprise_data.get('id')
+                elif hasattr(enterprise_data, 'id'):
+                    enterprise_id = enterprise_data.id
+                else:
+                    enterprise_id = enterprise_data
+            
+            # IMPORTANTE: Si no hay contraseña, no se puede crear el usuario
+            if not password:
+                raise serializers.ValidationError({'password': 'La contraseña es requerida para crear un usuario.'})
+            
+            # Verificar si ya existe un usuario con ese username o email
+            username = user_data.get('username')
+            email = user_data.get('email', '')
+            
+            if User.objects.filter(username=username).exists():
+                raise serializers.ValidationError({'username': 'Este nombre de usuario ya está en uso.'})
+            
+            if email and User.objects.filter(email=email).exists():
+                raise serializers.ValidationError({'email': 'Este email ya está registrado.'})
+            
+            # Crear el usuario sin password primero
+            # IMPORTANTE: Por defecto, los usuarios NO son superuser ni staff
+            # Solo los administradores de AlojaSys deberían ser superusers
+            print(f"🔐 CREANDO USUARIO: {username}")
+            print(f"   - is_superuser solicitado: {is_superuser_requested}")
+            
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                first_name=user_data.get('first_name', ''),
+                last_name=user_data.get('last_name', ''),
+                is_staff=is_superuser_requested,  # Staff solo si es superuser
+                is_superuser=is_superuser_requested,  # Superuser según lo solicitado
+            )
+            
+            # Establecer la contraseña de forma segura
+            user.set_password(password)
+            user.is_active = True
             user.save()
-            print(f"   ✅ Corregido: Ahora is_superuser={user.is_superuser}, is_staff={user.is_staff}")
-        
-        # Establecer la contraseña de forma segura
-        user.set_password(password)
-        user.is_active = True
-        user.save()
-        
-        # VERIFICAR nuevamente después de guardar (por si hay signals que cambien algo)
-        user.refresh_from_db()
-        print(f"   - Después de save: is_superuser={user.is_superuser}, is_staff={user.is_staff}")
-        if user.is_superuser != is_superuser_requested:
-            print(f"   ⚠️ ADVERTENCIA: El usuario cambió después de guardar!")
-            # Forzar al valor solicitado si por alguna razón cambió
-            user.is_superuser = is_superuser_requested
-            user.is_staff = is_superuser_requested
-            user.save()
-            print(f"   ✅ Corregido: Ahora is_superuser={user.is_superuser}, is_staff={user.is_staff}")
-        
-        # Asignar grupos si se proporcionaron (validar que existan)
-        if groups_ids:
-            groups = Group.objects.filter(id__in=groups_ids)
-            user.groups.set(groups)
-        
-        # Crear el perfil solo con campos que pertenecen a UserProfile
-        profile = UserProfile.objects.create(
-            user=user,
-            enterprise_id=enterprise_id,
-            phone=validated_data.get('phone', ''),
-            position=validated_data.get('position', ''),
-            avatar_image=validated_data.get('avatar_image', None),
-            is_active=validated_data.get('is_active', True)
-        )
-        
-        # Procesar avatar desde base64 si se proporcionó
-        if avatar_image_base64 and avatar_image_filename:
-            self._save_avatar_from_base64(profile, avatar_image_base64, avatar_image_filename)
-        
-        # Asignar hoteles
-        if hotels_data:
-            profile.hotels.set(hotels_data)
-        
-        return profile
+            
+            # Asignar grupos si se proporcionaron (validar que existan)
+            if groups_ids:
+                groups = Group.objects.filter(id__in=groups_ids)
+                user.groups.set(groups)
+            
+            # Verificar si ya existe un UserProfile para este user (por si hay datos inconsistentes)
+            # Si existe, eliminarlo antes de crear uno nuevo
+            try:
+                existing_profile = UserProfile.objects.get(user=user)
+                print(f"   ⚠️ ADVERTENCIA: Ya existe un UserProfile para este usuario. Eliminándolo...")
+                existing_profile.delete()
+            except UserProfile.DoesNotExist:
+                pass  # No existe, perfecto
+            
+            # Crear el perfil solo con campos que pertenecen a UserProfile
+            profile = UserProfile.objects.create(
+                user=user,
+                enterprise_id=enterprise_id,
+                phone=validated_data.get('phone', ''),
+                position=validated_data.get('position', ''),
+                avatar_image=validated_data.get('avatar_image', None),
+                is_active=validated_data.get('is_active', True),
+                is_housekeeping_staff=validated_data.get('is_housekeeping_staff', False)
+            )
+            
+            # Procesar avatar desde base64 si se proporcionó
+            if avatar_image_base64 and avatar_image_filename:
+                self._save_avatar_from_base64(profile, avatar_image_base64, avatar_image_filename)
+            
+            # Asignar hoteles (convertir IDs a objetos Hotel si es necesario)
+            if hotels_data:
+                from apps.core.models import Hotel
+                # Si hotels_data contiene IDs, convertirlos a objetos Hotel
+                if hotels_data and isinstance(hotels_data[0], (int, str)):
+                    hotel_ids = [int(h) if isinstance(h, str) else h for h in hotels_data]
+                    hotels = Hotel.objects.filter(id__in=hotel_ids)
+                    profile.hotels.set(hotels)
+                else:
+                    # Si ya son objetos Hotel, asignarlos directamente
+                    profile.hotels.set(hotels_data)
+
+            # Sincronizar registros de CleaningStaff si corresponde
+            try:
+                is_hk = bool(validated_data.get('is_housekeeping_staff', False))
+                if is_hk:
+                    from apps.housekeeping.models import CleaningStaff
+                    hotels_qs = profile.hotels.all()
+                    for h in hotels_qs:
+                        cs, _ = CleaningStaff.objects.get_or_create(
+                            hotel=h,
+                            user=user,
+                            defaults={
+                                "first_name": user.first_name or user.username,
+                                "last_name": user.last_name or "",
+                                "zone": "",
+                                "is_active": True,
+                            },
+                        )
+                        cs.first_name = user.first_name or cs.first_name
+                        cs.last_name = user.last_name or cs.last_name
+                        cs.is_active = True
+                        cs.save(update_fields=["first_name", "last_name", "is_active", "updated_at"])
+                    # Desactivar staff en hoteles no asignados
+                    CleaningStaff.objects.filter(user=user).exclude(hotel__in=hotels_qs).update(is_active=False)
+                else:
+                    from apps.housekeeping.models import CleaningStaff
+                    CleaningStaff.objects.filter(user=user).update(is_active=False)
+            except Exception:
+                # No bloquear creación por sincronización
+                pass
+            
+            return profile
     
     def update(self, instance, validated_data):
         """Actualiza el usuario y su perfil"""
@@ -368,7 +411,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             groups = Group.objects.filter(id__in=groups_ids)
             user.groups.set(groups)
         
-        # Actualizar solo campos del perfil (phone, position, avatar_image, is_active, enterprise)
+        # Actualizar solo campos del perfil (phone, position, avatar_image, is_active, enterprise, is_housekeeping_staff)
         if 'phone' in validated_data:
             instance.phone = validated_data['phone']
         if 'position' in validated_data:
@@ -377,6 +420,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             instance.avatar_image = validated_data['avatar_image']
         if 'is_active' in validated_data:
             instance.is_active = validated_data['is_active']
+        if 'is_housekeeping_staff' in validated_data:
+            instance.is_housekeeping_staff = validated_data['is_housekeeping_staff']
         if enterprise_id is not None:
             instance.enterprise_id = enterprise_id
         
@@ -386,9 +431,46 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if avatar_image_base64 and avatar_image_filename:
             self._save_avatar_from_base64(instance, avatar_image_base64, avatar_image_filename)
         
-        # Actualizar hoteles si se proporcionaron
+        # Actualizar hoteles si se proporcionaron (convertir IDs a objetos Hotel si es necesario)
         if hotels_data is not None:
-            instance.hotels.set(hotels_data)
+            from apps.core.models import Hotel
+            # Si hotels_data contiene IDs, convertirlos a objetos Hotel
+            if hotels_data and len(hotels_data) > 0 and isinstance(hotels_data[0], (int, str)):
+                hotel_ids = [int(h) if isinstance(h, str) else h for h in hotels_data]
+                hotels = Hotel.objects.filter(id__in=hotel_ids)
+                instance.hotels.set(hotels)
+            else:
+                # Si ya son objetos Hotel o está vacío, asignarlos directamente
+                instance.hotels.set(hotels_data)
+
+        # Sincronizar registros de CleaningStaff según flag y hoteles asignados
+        try:
+            is_hk = bool(validated_data.get('is_housekeeping_staff', instance.is_housekeeping_staff))
+            from apps.housekeeping.models import CleaningStaff
+            if is_hk:
+                hotels_qs = instance.hotels.all()
+                for h in hotels_qs:
+                    cs, _ = CleaningStaff.objects.get_or_create(
+                        hotel=h,
+                        user=user,
+                        defaults={
+                            "first_name": user.first_name or user.username,
+                            "last_name": user.last_name or "",
+                            "zone": "",
+                            "is_active": True,
+                        },
+                    )
+                    cs.first_name = user.first_name or cs.first_name
+                    cs.last_name = user.last_name or cs.last_name
+                    cs.is_active = True
+                    cs.save(update_fields=["first_name", "last_name", "is_active", "updated_at"])
+                # Desactivar staff en hoteles no asignados
+                CleaningStaff.objects.filter(user=user).exclude(hotel__in=hotels_qs).update(is_active=False)
+            else:
+                CleaningStaff.objects.filter(user=user).update(is_active=False)
+        except Exception:
+            # No bloquear actualización por sincronización
+            pass
         
         return instance
     

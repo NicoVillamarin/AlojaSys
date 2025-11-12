@@ -15,6 +15,7 @@ import CheckIcon from "src/assets/icons/CheckIcon";
 import ExclamationTriangleIcon from "src/assets/icons/ExclamationTriangleIcon";
 import Filter from "src/components/Filter";
 import UserIcon from "src/assets/icons/UserIcon";
+import XIcon from "src/assets/icons/Xicon";
 
 export default function Users() {
   const { t } = useTranslation();
@@ -30,7 +31,7 @@ export default function Users() {
         search: filters.search, 
         hotel: filters.hotel,
         is_active: filters.is_active
-      } 
+      }
     });
 
   const usersKpis = useMemo(() => {
@@ -216,7 +217,6 @@ export default function Users() {
           </div>
         </div>
       </Filter>
-
       <TableGeneric
         isLoading={isPending}
         data={displayResults}
@@ -245,6 +245,12 @@ export default function Users() {
             header: t('users.position'),
             sortable: true,
             accessor: (r) => r.position || "-",
+          },
+          {
+            key: "is_housekeeping_staff",
+            header: t('users_modal.is_housekeeping_staff'),
+            sortable: true,
+            render: (r) => r.is_housekeeping_staff ? <CheckIcon color="green" /> : <XIcon color="red" />,
           },
           {
             key: "phone",

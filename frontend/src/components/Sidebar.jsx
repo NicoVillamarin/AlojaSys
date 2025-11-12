@@ -20,6 +20,7 @@ import CalendarIcon from "src/assets/icons/CalendarIcon";
 import ReconciliationIcon from "src/assets/icons/ReconciliationIcon";
 import ChannelsIcon from "src/assets/icons/ChannelsIcon";
 import { useMe } from "src/hooks/useMe";
+import CleaningIcon from "src/assets/icons/CleaningIcon";
 
 const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
   <NavLink
@@ -113,7 +114,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const hasViewCancellationPolicies = usePermissions("payments.view_cancellationpolicy");
   const hasViewRefundPolicies = usePermissions("payments.view_refundpolicy");
   const hasAnyPolicy = useHasAnyPermission(["payments.view_paymentpolicy", "payments.view_cancellationpolicy", "payments.view_refundpolicy"]);
-  
+  const hasViewHousekeeping = usePermissions("housekeeping.access_housekeeping");
   // Verificar si tiene algún permiso de configuración
   const hasAnySettings = useHasAnyPermission([
     "enterprises.view_enterprise",
@@ -190,6 +191,9 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         )}
         {hasViewReservations && (
           <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
+        )}
+        {hasViewHousekeeping && (
+          <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile}><CleaningIcon size="20" /> {!isMini && <span>{t('sidebar.housekeeping')}</span>}</Item>
         )}
         {hasViewCalendar && (
           <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>

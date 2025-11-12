@@ -199,6 +199,12 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         hotel_id = self.request.query_params.get("hotel")
         if hotel_id:
             qs = qs.filter(hotels__id=hotel_id).distinct()
+
+        # Filtro por flag de housekeeping
+        hk = self.request.query_params.get("is_housekeeping_staff")
+        if hk is not None and hk != "":
+            val = hk.lower() in ["true", "1", "yes", "y"]
+            qs = qs.filter(is_housekeeping_staff=val)
         
         # Filtro por estado activo
         is_active = self.request.query_params.get("is_active")
@@ -213,7 +219,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """
-        Crea un nuevo usuario, manejando errores de integridad.
+        Crea un nuevo usuario, manejando errores de integridad y otros errores.
         """
         try:
             return super().create(request, *args, **kwargs)
@@ -230,10 +236,35 @@ class UserProfileViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             else:
+                # Log el error completo para debugging
+                import traceback
+                print(f"❌ IntegrityError al crear usuario: {error_message}")
+                print(traceback.format_exc())
                 return Response(
-                    {'detail': 'Error al crear el usuario. Por favor, verifica los datos.'},
+                    {'detail': f'Error de integridad al crear el usuario: {error_message}'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+        except Exception as e:
+            # Capturar cualquier otra excepción y dar un mensaje más específico
+            import traceback
+            error_message = str(e)
+            error_type = type(e).__name__
+            print(f"❌ Error al crear usuario ({error_type}): {error_message}")
+            print(traceback.format_exc())
+            
+            # Si es un ValidationError del serializer, devolverlo tal cual
+            from rest_framework.exceptions import ValidationError
+            if isinstance(e, ValidationError):
+                return Response(
+                    e.detail if hasattr(e, 'detail') else {'detail': error_message},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Para otros errores, dar un mensaje más descriptivo
+            return Response(
+                {'detail': f'Error al crear el usuario: {error_message}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def update(self, request, *args, **kwargs):
         """

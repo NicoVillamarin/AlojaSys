@@ -48,7 +48,8 @@
     "invoicing_receipts": "Comprobante de Pago",
     "otas": "OTAs",
     "channels": "Canales de Reservas",
-    "roles": "Roles"
+    "roles": "Roles",
+    "housekeeping": "Gestión de Limpieza"
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",
@@ -203,6 +204,47 @@
     "registered_in_system": "Registrados en el sistema",
     "no_system_access": "Sin acceso al sistema",
     "of_total": "De {{total}} totales"
+  },
+  "housekeeping": {
+    "title": "Gestión de Limpieza",
+    "new_task": "Nueva tarea",
+    "room": "Habitación",
+    "task_type": "Tipo de tarea",
+    "assigned_to": "Asignado a",
+    "priority": "Prioridad",
+    "priority_high": "Alta",
+    "priority_medium": "Media",
+    "priority_low": "Baja",
+    "zone": "Zona",
+    "zone_placeholder": "Ej. Piso 1, Ala A",
+    "notes": "Observaciones",
+    "notes_placeholder": "Notas adicionales…",
+    "start": "Iniciar",
+    "complete": "Completar",
+    "start_task": "Iniciar tarea",
+    "complete_task": "Completar tarea",
+    "types": {
+      "daily": "Diaria",
+      "checkout": "Salida",
+      "maintenance": "Mantenimiento"
+    },
+    "status": {
+      "title": "Estado",
+      "pending": "Pendiente",
+      "in_progress": "En proceso",
+      "completed": "Completada",
+      "cancelled": "Cancelada"
+    },
+    "modal": {
+      "create_title": "Crear tarea de limpieza",
+      "edit_title": "Editar tarea de limpieza"
+    },
+    "validations": {
+      "hotel_required": "Seleccione un hotel",
+      "room_required": "Seleccione una habitación",
+      "type_required": "Seleccione un tipo de tarea",
+      "assigned_to_user_required": "Seleccione un personal de limpieza"
+    }
   },
   "countries": {
     "title": "Gestión de Países",
@@ -924,6 +966,7 @@
     "description_placeholder": "Notas internas…"
   },
   "hotels_modal": {
+    "general": "General",
     "logo": "Logo del hotel ",
     "current_logo": "Logo actual",
     "edit_hotel": "Editar hotel",
@@ -959,7 +1002,29 @@
     "enabled_for_operation": "Habilitado para operar",
     "auto_check_in_enabled": "Auto check-in al llegar la fecha de entrada",
     "auto_check_out_enabled": "Auto check-out al pasar la fecha de salida",
-    "auto_no_show_enabled": "Auto no-show para reservas vencidas"
+    "auto_no_show_enabled": "Auto no-show para reservas vencidas",
+    "housekeeping": {
+      "title": "Limpieza (Housekeeping)",
+      "enable_auto_assign": "Asignación automática de tareas",
+      "create_daily_tasks": "Generar tareas diarias automáticamente",
+      "daily_generation_time": "Hora de generación diaria",
+      "skip_service_on_checkin": "Omitir servicio el día de check-in",
+      "skip_service_on_checkout": "Omitir servicio el día de check-out",
+      "linens_every": "Cambio de sábanas cada N noches",
+      "towels_every": "Cambio de toallas cada N noches",
+      "morning_window_start": "Ventana mañana (inicio)",
+      "morning_window_end": "Ventana mañana (fin)",
+      "afternoon_window_start": "Ventana tarde (inicio)",
+      "afternoon_window_end": "Ventana tarde (fin)",
+      "quiet_hours_start": "Horas silenciosas (inicio)",
+      "quiet_hours_end": "Horas silenciosas (fin)",
+      "prefer_by_zone": "Preferir asignación por zona/piso",
+      "rebalance_every_minutes": "Rebalanceo cada (min)",
+      "checkout_priority": "Prioridad de check‑out",
+      "daily_priority": "Prioridad de diaria",
+      "alert_checkout_unstarted_minutes": "Alerta si checkout no inicia en (min)",
+      "save_config": "Guardar configuración"
+    }
   },
   "users_modal": {
     "edit_user": "Editar usuario",
@@ -1002,7 +1067,9 @@
     "is_superuser": "Usuario Administrador del Sistema",
     "is_superuser_desc": "Marque esta opción solo para personal de AlojaSys. Los superusuarios tienen acceso completo a todas las funciones del sistema.",
     "password_note": "Nota:",
-    "password_note_text": "Si no deseas cambiar la contraseña, deja el campo en blanco."
+    "password_note_text": "Si no deseas cambiar la contraseña, deja el campo en blanco.",
+    "is_housekeeping_staff": "Personal de limpieza",
+    "is_housekeeping_staff_desc": "Marque esta opción para personal de limpieza."
   },
   "cities_modal": {
     "edit_city": "Editar ciudad",

@@ -47,7 +47,8 @@
     "invoicing_receipts": "Payment Receipts",
     "otas": "OTAs",
     "channels": "Booking Channels",
-    "roles": "Roles"
+    "roles": "Roles",
+    "housekeeping": "Housekeeping Management"
   },
   "vouchers_modal": {
     "create_voucher": "Create Voucher",
@@ -195,6 +196,46 @@
     "registered_in_system": "Registered in the system",
     "no_system_access": "No system access",
     "of_total": "Out of {{total}} total"
+  },
+  "housekeeping": {
+    "title": "Housekeeping Management",
+    "new_task": "New task",
+    "room": "Room",
+    "task_type": "Task type",
+    "assigned_to": "Assigned to",
+    "priority": "Priority",
+    "priority_high": "High",
+    "priority_medium": "Medium",
+    "priority_low": "Low",
+    "zone": "Zone",
+    "zone_placeholder": "E.g. Floor 1, Wing A",
+    "notes": "Notes",
+    "notes_placeholder": "Additional notes…",
+    "start": "Start",
+    "complete": "Complete",
+    "start_task": "Start task",
+    "complete_task": "Complete task",
+    "types": {
+      "daily": "Daily",
+      "checkout": "Checkout",
+      "maintenance": "Maintenance"
+    },
+    "status": {
+      "title": "Status",
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "modal": {
+      "create_title": "Create housekeeping task",
+      "edit_title": "Edit housekeeping task"
+    },
+    "validations": {
+      "hotel_required": "Select a hotel",
+      "room_required": "Select a room",
+      "type_required": "Select a task type"
+    }
   },
   "countries": {
     "title": "Countries Management",
@@ -912,6 +953,8 @@
     "description_placeholder": "Internal notes…"
   },
   "hotels_modal": {
+    "general": "General",
+    "housekeeping": "Housekeeping",
     "logo": "Hotel logo",
     "current_logo": "Current logo",
     "edit_hotel": "Edit hotel",
@@ -947,7 +990,29 @@
     "auto_check_out_enabled": "Auto check-out when check-out date passes",
     "auto_no_show_enabled": "Auto no-show for expired reservations",
     "active": "Active",
-    "enabled_for_operation": "Enabled for operation"
+    "enabled_for_operation": "Enabled for operation",
+    "housekeeping": {
+      "title": "Housekeeping",
+      "enable_auto_assign": "Automatic task assignment",
+      "create_daily_tasks": "Generate daily tasks automatically",
+      "daily_generation_time": "Daily generation time",
+      "skip_service_on_checkin": "Skip service on check‑in day",
+      "skip_service_on_checkout": "Skip service on check‑out day",
+      "linens_every": "Change linens every N nights",
+      "towels_every": "Change towels every N nights",
+      "morning_window_start": "Morning window (start)",
+      "morning_window_end": "Morning window (end)",
+      "afternoon_window_start": "Afternoon window (start)",
+      "afternoon_window_end": "Afternoon window (end)",
+      "quiet_hours_start": "Quiet hours (start)",
+      "quiet_hours_end": "Quiet hours (end)",
+      "prefer_by_zone": "Prefer assignment by zone/floor",
+      "rebalance_every_minutes": "Rebalance every (min)",
+      "checkout_priority": "Check‑out priority",
+      "daily_priority": "Daily priority",
+      "alert_checkout_unstarted_minutes": "Alert if check‑out not started in (min)",
+      "save_config": "Save configuration"
+    }
   },
   "users_modal": {
     "edit_user": "Edit user",
@@ -985,7 +1050,9 @@
     "assigned_roles": "Assigned Roles",
     "assigned_roles_placeholder": "Select roles (optional)…",
     "password_note": "Note:",
-    "password_note_text": "If you don't want to change the password, leave the field blank."
+    "password_note_text": "If you don't want to change the password, leave the field blank.",
+    "is_housekeeping_staff": "Housekeeping staff",
+    "is_housekeeping_staff_desc": "Mark this option for housekeeping staff."
   },
   "cities_modal": {
     "edit_city": "Edit city",

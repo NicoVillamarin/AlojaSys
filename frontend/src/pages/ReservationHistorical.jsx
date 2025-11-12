@@ -27,7 +27,14 @@ export default function ReservationHistorical() {
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'reservations',
-    params: { search: filters.search, hotel: filters.hotel || undefined, room: filters.room || undefined, status: filters.status || undefined },
+    params: { 
+      search: filters.search, 
+      hotel: filters.hotel || undefined, 
+      room: filters.room || undefined, 
+      status: filters.status || undefined,
+      ordering: '-id', // Ordenar por ID descendente (más recientes primero)
+      page_size: 100, // Cargar suficientes resultados para el histórico (puede usar "Cargar más" si necesita más)
+    },
   })
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ resource: 'reservations', onSuccess: () => refetch() })

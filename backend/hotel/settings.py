@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "django_extensions",
     "apps.rooms",
     "apps.reservations",
+    "apps.housekeeping",
     "apps.users",
     "apps.enterprises",
     "apps.core",

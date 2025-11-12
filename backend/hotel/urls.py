@@ -42,6 +42,7 @@ urlpatterns = [
     path("api/", include("apps.notifications.urls")),
     path("api/invoicing/", include("apps.invoicing.urls")),
     path("api/otas/", include("apps.otas.urls")),
+    path("api/", include("apps.housekeeping.urls")),
 ]
 
 # Servir archivos media en desarrollo

@@ -9,7 +9,7 @@ import ReservationsModal from 'src/components/modals/ReservationsModal'
 import Button from 'src/components/Button'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import { Formik } from 'formik'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, startOfDay, isAfter, isBefore, isSameDay } from 'date-fns'
 import { convertToDecimal, getStatusLabel, RES_STATUS } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
@@ -152,11 +152,42 @@ export default function ReservationsGestions() {
 
   const hasOverbooking = (r) => !!r.overbooking_flag
   const canCheckIn = (r) => r.status === 'confirmed' && !hasOverbooking(r)
-  const canCheckOut = (r) => r.status === 'check_in' && !hasOverbooking(r)
+  
+  // Check-out normal: solo disponible en o después de la fecha de check-out
+  const canCheckOut = (r) => {
+    if (r.status !== 'check_in' || hasOverbooking(r)) return false
+    if (!r.check_out) return false
+    
+    try {
+      const today = startOfDay(new Date())
+      const checkoutDate = startOfDay(parseISO(r.check_out))
+      // Solo disponible si hoy es >= fecha de check-out (mismo día o después)
+      return isSameDay(today, checkoutDate) || isAfter(today, checkoutDate)
+    } catch (error) {
+      console.error('Error comparando fechas en canCheckOut:', error)
+      return false
+    }
+  }
+  
+  // Salida anticipada: solo disponible antes de la fecha de check-out
+  const canEarlyCheckOut = (r) => {
+    if (r.status !== 'check_in' || hasOverbooking(r)) return false
+    if (!r.check_out) return false
+    
+    try {
+      const today = startOfDay(new Date())
+      const checkoutDate = startOfDay(parseISO(r.check_out))
+      // Solo disponible si hoy es < fecha de check-out (antes del día de salida)
+      return isBefore(today, checkoutDate)
+    } catch (error) {
+      console.error('Error comparando fechas en canEarlyCheckOut:', error)
+      return false
+    }
+  }
+  
   const canCancel = (r) => (r.status === 'pending' || r.status === 'confirmed') && !hasOverbooking(r)
   const canConfirm = (r) => r.status === 'pending' && !hasOverbooking(r)
   const canEdit = (r) => r.status === 'pending' || hasOverbooking(r) // Editar permitido si pendiente o si hay overbooking para resolver
-  const canEarlyCheckOut = (r) => r.status === 'check_in' && !hasOverbooking(r) // Early check-out solo si no hay overbooking
   
   // Función para determinar si se puede generar factura
   const canGenerateInvoice = (r) => {
@@ -403,8 +434,14 @@ export default function ReservationsGestions() {
 
       // Verificar si ya existe un comprobante generado
       if (lastDeposit.receipt_pdf_url) {
+        // Construir URL completa si es relativa
+        let pdfUrl = lastDeposit.receipt_pdf_url
+        if (pdfUrl.startsWith('/media/')) {
+          // Si es una URL relativa, construir la URL absoluta usando el backend
+          pdfUrl = `${getApiURL()}${pdfUrl}`
+        }
         // Abrir el PDF directamente
-        window.open(lastDeposit.receipt_pdf_url, '_blank');
+        window.open(pdfUrl, '_blank');
       } else {
         // Si no existe, solicitarlo y abrir después
         showInfoMessage(
@@ -418,9 +455,15 @@ export default function ReservationsGestions() {
         });
 
         if (resp?.receipt_pdf_url) {
+          // Construir URL completa si es relativa
+          let pdfUrl = resp.receipt_pdf_url
+          if (pdfUrl.startsWith('/media/')) {
+            // Si es una URL relativa, construir la URL absoluta usando el backend
+            pdfUrl = `${getApiURL()}${pdfUrl}`
+          }
           // Esperar un momento y abrir el PDF
           setTimeout(() => {
-            window.open(resp.receipt_pdf_url, '_blank');
+            window.open(pdfUrl, '_blank');
           }, 2000);
         } else {
           showInfoMessage(

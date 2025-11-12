@@ -191,6 +191,34 @@ class ReservationViewSet(viewsets.ModelViewSet):
             reservation.room.status = RoomStatus.AVAILABLE
             reservation.room.save(update_fields=["status"])
         reservation.save(update_fields=["status"]) 
+        # Crear tarea de limpieza de salida y marcar habitación como sucia
+        try:
+            from datetime import date as _date
+            from apps.housekeeping.models import HousekeepingTask, TaskType, TaskStatus
+            from apps.rooms.models import CleaningStatus
+            today_date = _date.today()
+            exists = HousekeepingTask.objects.filter(
+                hotel=reservation.hotel,
+                room=reservation.room,
+                task_type=TaskType.CHECKOUT,
+                created_at__date=today_date,
+            ).exclude(status=TaskStatus.CANCELLED).exists()
+            if not exists:
+                HousekeepingTask.objects.create(
+                    hotel=reservation.hotel,
+                    room=reservation.room,
+                    task_type=TaskType.CHECKOUT,
+                    status=TaskStatus.PENDING,
+                    zone=None,
+                    created_by=request.user if request.user.is_authenticated else None,
+                )
+            # Marcar estado de limpieza como sucia
+            if hasattr(reservation.room, "cleaning_status"):
+                reservation.room.cleaning_status = CleaningStatus.DIRTY
+                reservation.room.save(update_fields=["cleaning_status"])
+        except Exception:
+            # Evitar romper el flujo de checkout por errores de housekeeping
+            pass
         from apps.reservations.models import ReservationChangeLog, ReservationChangeEvent
         ReservationChangeLog.objects.create(
             reservation=reservation,

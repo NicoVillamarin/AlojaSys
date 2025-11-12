@@ -59,6 +59,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
     is_superuser: user?.is_superuser ?? false, // Campo para superuser
     avatar_image: null, // Archivo seleccionado
     existing_avatar_url: user?.avatar_image_url ?? null, // URL del avatar existente
+    is_housekeeping_staff: user?.is_housekeeping_staff ?? false,
   }
 
   // Función para convertir archivo a base64
@@ -119,6 +120,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
           hotels: values.hotels || [],
           groups_ids: values.groups_ids && values.groups_ids.length > 0 ? values.groups_ids : [], // Enviar array vacío si no hay grupos
           is_superuser: values.is_superuser || false, // Enviar si es superuser
+          is_housekeeping_staff: values.is_housekeeping_staff || false,
         }
         
         // Solo incluir password si se proporcionó
@@ -240,7 +242,7 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
                 <p className='mt-1 text-xs text-red-600'>{errors.groups_ids}</p>
               )}
             </div>
-            <div className='lg:col-span-2'>
+            <div className='lg:col-span-2 space-y-3'>
               <label className='flex items-center gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors'>
                 <input
                   type='checkbox'
@@ -255,6 +257,23 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
                   </span>
                   <p className='text-xs text-aloja-gray-600 mt-0.5'>
                     {t('users_modal.is_superuser_desc')}
+                  </p>
+                </div>
+              </label>
+              <label className='flex items-center gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors'>
+                <input
+                  type='checkbox'
+                  name='is_housekeeping_staff'
+                  checked={values.is_housekeeping_staff}
+                  onChange={handleChange}
+                  className='w-4 h-4 text-aloja-navy border-gray-300 rounded focus:ring-aloja-navy cursor-pointer'
+                />
+                <div className='flex-1'>
+                  <span className='text-sm font-medium text-aloja-gray-800'>
+                    {t('users_modal.is_housekeeping_staff')}
+                  </span>
+                  <p className='text-xs text-aloja-gray-600 mt-0.5'>
+                    {t('users_modal.is_housekeeping_staff_desc')}
                   </p>
                 </div>
               </label>

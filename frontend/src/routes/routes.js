@@ -32,6 +32,7 @@ import AfipConfig from "src/pages/invoicing/AfipConfig";
 import OtaConfig from "src/pages/configurations/OtaConfig";
 import Otas from "src/pages/configurations/Otas";
 import Roles from "src/pages/configurations/Roles";
+import Housekeeping from "src/pages/Housekeeping";
 
 
 export const appRoutes = [
@@ -71,6 +72,7 @@ export const appRoutes = [
       { path: "invoicing/receipts", element: React.createElement(PaymentReceiptsManagement) },
       { path: "settings/fiscal", element: React.createElement(AfipConfig) },
       { path: "settings/roles", element: React.createElement(Roles) },
+      { path: "housekeeping", element: React.createElement(Housekeeping) },
     ],
   },
 ];

@@ -36,36 +36,67 @@ class PaymentCollectionViewSet(viewsets.ReadOnlyModelViewSet):
         # Combinar todos los tipos de pagos
         payments = []
         
-        # 1. Pagos manuales (Payment)
+        # 1. Pagos online (PaymentIntent) - Primero para poder detectar duplicados
+        online_payments = PaymentIntent.objects.filter(
+            reservation_id__in=reservation_ids
+        ).select_related('reservation', 'reservation__hotel')
+        
+        # Crear un set de (reservation_id, amount, date) para PaymentIntents aprobados
+        # para detectar duplicados en Payments manuales
+        online_payment_keys = set()
+        for payment in online_payments:
+            if payment.status in ['approved', 'created']:  # Solo considerar aprobados o creados
+                # Usar monto y fecha para identificar duplicados
+                payment_date = payment.created_at.date()
+                online_payment_keys.add((
+                    payment.reservation_id,
+                    float(payment.amount),
+                    payment_date
+                ))
+        
+        # 2. Pagos manuales (Payment) - Excluir los que tienen PaymentIntent asociado
         manual_payments = Payment.objects.filter(
             reservation_id__in=reservation_ids
         ).select_related('reservation', 'reservation__hotel')
         
         for payment in manual_payments:
-            payments.append({
-                'id': f"manual_{payment.id}",
-                'type': 'manual',
-                'reservation_id': payment.reservation_id,
-                'hotel_id': payment.reservation.hotel_id,
-                'hotel_name': payment.reservation.hotel.name,
-                'amount': payment.amount,
-                'method': payment.method,
-                'status': 'approved',  # Los pagos manuales se consideran aprobados
-                'date': payment.date,
-                'created_at': payment.created_at,
-                'description': f"Pago {payment.method}",
-                'reference': None,
-                'currency': 'ARS',
-                'guest_name': payment.reservation.guest_name,
-                'room_name': payment.reservation.room.name,
-                'check_in': payment.reservation.check_in,
-                'check_out': payment.reservation.check_out,
-            })
-        
-        # 2. Pagos online (PaymentIntent)
-        online_payments = PaymentIntent.objects.filter(
-            reservation_id__in=reservation_ids
-        ).select_related('reservation', 'reservation__hotel')
+            # Verificar si hay un PaymentIntent duplicado
+            # Un Payment manual se considera duplicado si:
+            # - Hay un PaymentIntent aprobado para la misma reserva
+            # - Con el mismo monto (o muy similar, tolerancia de 0.01)
+            # - En la misma fecha (o fecha cercana, tolerancia de 1 día)
+            payment_date = payment.date
+            payment_amount = float(payment.amount)
+            
+            is_duplicate = False
+            for (res_id, amount, date) in online_payment_keys:
+                if (res_id == payment.reservation_id and
+                    abs(amount - payment_amount) < 0.01 and  # Mismo monto (tolerancia 0.01)
+                    abs((date - payment_date).days) <= 1):  # Misma fecha o 1 día de diferencia
+                    is_duplicate = True
+                    break
+            
+            # Solo agregar si no es duplicado
+            if not is_duplicate:
+                payments.append({
+                    'id': f"manual_{payment.id}",
+                    'type': 'manual',
+                    'reservation_id': payment.reservation_id,
+                    'hotel_id': payment.reservation.hotel_id,
+                    'hotel_name': payment.reservation.hotel.name,
+                    'amount': payment.amount,
+                    'method': payment.method,
+                    'status': 'approved',  # Los pagos manuales se consideran aprobados
+                    'date': payment.date,
+                    'created_at': payment.created_at,
+                    'description': f"Pago {payment.method}",
+                    'reference': None,
+                    'currency': 'ARS',
+                    'guest_name': payment.reservation.guest_name,
+                    'room_name': payment.reservation.room.name,
+                    'check_in': payment.reservation.check_in,
+                    'check_out': payment.reservation.check_out,
+                })
         
         for payment in online_payments:
             # Mapear estados de PaymentIntent a estados estándar

@@ -13,6 +13,11 @@ class RoomStatus(models.TextChoices):
     OUT_OF_SERVICE = "out_of_service", "Fuera de servicio"
     RESERVED = "reserved", "Reservada"
 
+class CleaningStatus(models.TextChoices):
+    DIRTY = "dirty", "Sucia"
+    IN_PROGRESS = "in_progress", "En proceso"
+    CLEAN = "clean", "Limpia"
+
 # Create your models here.
 class Room(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -26,6 +31,7 @@ class Room(models.Model):
     max_capacity = models.PositiveIntegerField(default=1)
     extra_guest_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=255, choices=RoomStatus.choices, default=RoomStatus.AVAILABLE)
+    cleaning_status = models.CharField(max_length=20, choices=CleaningStatus.choices, default=CleaningStatus.CLEAN)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
@@ -37,6 +43,7 @@ class Room(models.Model):
         indexes = [
             models.Index(fields=["room_type"]),
             models.Index(fields=["status"]),
+            models.Index(fields=["cleaning_status"]),
             models.Index(fields=["is_active"]),
         ]
         # Django crea automáticamente estos permisos:

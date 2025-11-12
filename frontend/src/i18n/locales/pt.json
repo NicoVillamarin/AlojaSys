@@ -46,7 +46,8 @@
     "invoicing_receipts": "Comprovante de Pagamento",
     "otas": "OTAs",
     "channels": "Canais de Reservas",
-    "roles": "Roles"
+    "roles": "Roles",
+    "housekeeping": "Gestão de Limpeza"
   },
   "vouchers_modal": {
     "create_voucher": "Criar Voucher",
@@ -187,6 +188,47 @@
     "registered_in_system": "Registrados no sistema",
     "no_system_access": "Sem acesso ao sistema",
     "of_total": "De {{total}} total"
+  },
+  "housekeeping": {
+    "title": "Gestão de Limpeza",
+    "new_task": "Nova tarefa",
+    "room": "Quarto",
+    "task_type": "Tipo de tarefa",
+    "assigned_to": "Atribuído a",
+    "priority": "Prioridade",
+    "priority_high": "Alta",
+    "priority_medium": "Média",
+    "priority_low": "Baixa",
+    "zone": "Zona",
+    "zone_placeholder": "Ex. Andar 1, Ala A",
+    "notes": "Observações",
+    "notes_placeholder": "Notas adicionais…",
+    "start": "Iniciar",
+    "complete": "Concluir",
+    "start_task": "Iniciar tarefa",
+    "complete_task": "Concluir tarefa",
+    "types": {
+      "daily": "Diária",
+      "checkout": "Saída",
+      "maintenance": "Manutenção"
+    },
+    "status": {
+      "title": "Status",
+      "pending": "Pendente",
+      "in_progress": "Em progresso",
+      "completed": "Concluída",
+      "cancelled": "Cancelada"
+    },
+    "modal": {
+      "create_title": "Criar tarefa de limpeza",
+      "edit_title": "Editar tarefa de limpeza"
+    },
+    "validations": {
+      "hotel_required": "Selecione um hotel",
+      "room_required": "Selecione um quarto",
+      "type_required": "Selecione um tipo de tarefa",
+      "assigned_to_user_required": "Selecione um personal de limpeza"
+    }
   },
   "countries": {
     "title": "Gestão de Países",
@@ -854,6 +896,7 @@
     "description_placeholder": "Notas internas…"
   },
   "hotels_modal": {
+    "general": "Geral",
     "logo": "Logo do hotel",
     "current_logo": "Logo atual",
     "edit_hotel": "Editar hotel",
@@ -889,8 +932,29 @@
     "enabled_for_operation": "Habilitado para operação",
     "auto_check_in_enabled": "Auto check-in ao chegar a data de entrada",
     "auto_check_out_enabled": "Auto check-out ao passar a data de saída",
-    "auto_no_show_enabled": "Auto no-show para reservas vencidas"
-
+    "auto_no_show_enabled": "Auto no-show para reservas vencidas",
+    "housekeeping": {
+      "title": "Limpeza (Housekeeping)",
+      "enable_auto_assign": "Atribuição automática de tarefas",
+      "create_daily_tasks": "Gerar tarefas diárias automaticamente",
+      "daily_generation_time": "Hora de geração diária",
+      "skip_service_on_checkin": "Pular serviço no dia do check‑in",
+      "skip_service_on_checkout": "Pular serviço no dia do check‑out",
+      "linens_every": "Troca de lençóis a cada N noites",
+      "towels_every": "Troca de toalhas a cada N noites",
+      "morning_window_start": "Janela manhã (início)",
+      "morning_window_end": "Janela manhã (fim)",
+      "afternoon_window_start": "Janela tarde (início)",
+      "afternoon_window_end": "Janela tarde (fim)",
+      "quiet_hours_start": "Horas silenciosas (início)",
+      "quiet_hours_end": "Horas silenciosas (fim)",
+      "prefer_by_zone": "Preferir atribuição por zona/andar",
+      "rebalance_every_minutes": "Rebalancear a cada (min)",
+      "checkout_priority": "Prioridade de check‑out",
+      "daily_priority": "Prioridade diária",
+      "alert_checkout_unstarted_minutes": "Alerta se check‑out não iniciar em (min)",
+      "save_config": "Salvar configuração"
+    }
   },
   "users_modal": {
     "edit_user": "Editar usuário",
@@ -928,7 +992,9 @@
     "assigned_roles": "Funções Atribuídas",
     "assigned_roles_placeholder": "Selecione as funções (opcional)…",
     "password_note": "Nota:",
-    "password_note_text": "Se não deseja alterar a senha, deixe o campo em branco."
+    "password_note_text": "Se não deseja alterar a senha, deixe o campo em branco.",
+    "is_housekeeping_staff": "Personal de limpieza",
+    "is_housekeeping_staff_desc": "Marque esta opción para personal de limpieza."
   },
   "cities_modal": {
     "edit_city": "Editar cidade",
