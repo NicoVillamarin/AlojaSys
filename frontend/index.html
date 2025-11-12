@@ -10,6 +10,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Inyecta variables en runtime usando envs de Vite en build
+      // Si ya están definidas, respeta su valor
+      window.__API_URL__ = window.__API_URL__ || "%VITE_API_URL%";
+      window.__MP_PUBLIC_KEY__ = window.__MP_PUBLIC_KEY__ || "%VITE_MP_PUBLIC_KEY%";
+    </script>
     <script src="/config.js"></script>
     <script type="module" src="/src/main.jsx"></script>
     <script src="https://sdk.mercadopago.com/js/v2"></script>
