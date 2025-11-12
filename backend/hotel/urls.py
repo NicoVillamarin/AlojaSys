@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.core.views import HotelViewSet, StatusSummaryView, GlobalSummaryView
@@ -46,6 +47,13 @@ urlpatterns = [
 ]
 
 # Servir archivos media
-# En desarrollo (DEBUG=True) o en producción con almacenamiento local
-if settings.DEBUG or not getattr(settings, 'USE_CLOUDINARY', False):
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# En desarrollo usa static(), en producción usa serve() para archivos locales
+if not getattr(settings, 'USE_CLOUDINARY', False):
+    if settings.DEBUG:
+        # Desarrollo: usar static() helper
+        urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    else:
+        # Producción: usar serve() para servir archivos media
+        urlpatterns += [
+            path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+        ]
