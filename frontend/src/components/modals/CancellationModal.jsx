@@ -46,6 +46,96 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
     }
   }, [isOpen, reservation])
 
+  // Helpers para humanizar mensajes y dar contexto
+  const getHoursUntilCheckIn = () => {
+    try {
+      if (!reservation?.check_in) return null
+
+      // Parseo seguro en horario local (evita retroceder un día por zona horaria)
+      const parseLocalYmd = (ymd) => {
+        // ymd esperado: 'YYYY-MM-DD'
+        const [y, m, d] = String(ymd).split('-').map((v) => parseInt(v, 10))
+        if (!y || !m || !d) return null
+        return new Date(y, m - 1, d) // fecha local a las 00:00
+      }
+
+      const today = new Date()
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+      const ciLocal = parseLocalYmd(reservation.check_in)
+      if (!ciLocal) return null
+      const checkInMs = new Date(ciLocal.getFullYear(), ciLocal.getMonth(), ciLocal.getDate()).getTime()
+      const diffMs = checkInMs - startOfToday
+      return Math.round(diffMs / (1000 * 60 * 60))
+    } catch {
+      return null
+    }
+  }
+
+  const formatDistanceToCheckin = () => {
+    let hours = getHoursUntilCheckIn()
+    if (hours === null) return null
+    // No mostrar negativos: si es pasado o hoy, mostrar "hoy"
+    if (hours <= 0) return 'hoy'
+    const abs = Math.abs(hours)
+    if (abs >= 24) {
+      const days = Math.round(hours / 24)
+      const label = Math.abs(days) === 1 ? 'día' : 'días'
+      return `${days} ${label}`
+    }
+    const label = abs === 1 ? 'hora' : 'horas'
+    return `${hours} ${label}`
+  }
+
+  const humanizePolicyMessage = (raw) => {
+    if (!raw || typeof raw !== 'string') return ''
+    // Localizar unidades básicas
+    let msg = raw
+      .replace(/\bhours\b/gi, 'horas')
+      .replace(/\bdays\b/gi, 'días')
+      .replace(/\bweeks\b/gi, 'semanas')
+
+    // Clarificar "sin devolución/cancelación" → "si faltan menos de ..."
+    msg = msg.replace(
+      /Sin (devoluci[oó]n|cancelaci[oó]n) despu[eé]s de (\d+)\s+(horas|días|semanas) antes del check-in/iu,
+      (_m, tipo, num, unidad) => {
+        const n = Number(num)
+        const addDias = unidad.startsWith('horas') && n % 24 === 0
+          ? ` (${n / 24} ${n / 24 === 1 ? 'día' : 'días'})`
+          : ''
+        const label = String(tipo).toLowerCase().startsWith('devol')
+          ? 'Sin devolución'
+          : 'Sin cancelación'
+        return `${label} si faltan menos de ${num} ${unidad}${addDias} para el check‑in`
+      }
+    )
+
+    // Clarificar cancelación gratuita
+    msg = msg.replace(
+      /Cancelaci[oó]n gratuita hasta (\d+)\s+(horas|días|semanas) antes del check-in/iu,
+      (_m, num, unidad) => {
+        const n = Number(num)
+        const addDias = unidad.startsWith('horas') && n % 24 === 0
+          ? ` (${n / 24} ${n / 24 === 1 ? 'día' : 'días'})`
+          : ''
+        return `Cancelación gratuita si faltan ${num} ${unidad}${addDias} o más para el check‑in`
+      }
+    )
+
+    // Clarificar cancelación con penalidad
+    msg = msg.replace(
+      /Cancelaci[oó]n con penalidad hasta (\d+)\s+(horas|días|semanas) antes del check-in/iu,
+      (_m, num, unidad) => {
+        const n = Number(num)
+        const addDias = unidad.startsWith('horas') && n % 24 === 0
+          ? ` (${n / 24} ${n / 24 === 1 ? 'día' : 'días'})`
+          : ''
+        return `Cancelación con penalidad si faltan hasta ${num} ${unidad}${addDias} para el check‑in`
+      }
+    )
+
+    return msg
+  }
+
   const fetchCancellationRules = async () => {
     if (!reservation) return
 
@@ -379,10 +469,15 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
             <div className="flex items-center justify-between p-4 bg-white border rounded-lg" role="region" aria-label="Política de cancelación aplicada">
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900">Política de Cancelación Aplicada</h4>
+                {formatDistanceToCheckin() !== null && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Estás a <span className="font-medium">{formatDistanceToCheckin()}</span> del check‑in.
+                  </p>
+                )}
                 <p className="text-sm text-gray-600 mt-1">
                   {(() => {
                     const message = cancellationData.cancellation_rules?.message || 'Evaluando políticas aplicables...'
-                    return message
+                    return humanizePolicyMessage(message)
                   })()}
                 </p>
                 {cancellationRules?.applied_cancellation_policy && (

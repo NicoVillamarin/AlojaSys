@@ -113,6 +113,7 @@ export default function ReservationHistorical() {
         <ReservationHistoricalModal
           reservationId={historyReservationId}
           displayName={historyReservation?.display_name}
+          reservationStatus={historyReservation?.status}
           onClose={() => { setHistoryReservationId(null); setHistoryReservation(null) }}
         />
       )}
@@ -195,7 +196,7 @@ export default function ReservationHistorical() {
           </div>
 
           <div className="ml-auto">
-            <button className="px-3 py-2 rounded-md border text-sm" onClick={() => setFilters({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })}>
+            <button className="px-3 py-2 rounded-md border" onClick={() => setFilters({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })}>
               {t('dashboard.reservations_management.clear_filters')}
             </button>
           </div>
@@ -208,12 +209,15 @@ export default function ReservationHistorical() {
         getRowId={(r) => r.id}
         columns={[
           { key: 'display_name', header: t('dashboard.reservations_management.table_headers.reservation'), sortable: true, render: (r) => (
-            <button
-              className="link"
-              onClick={() => { setHistoryReservation(r); setHistoryReservationId(r.id) }}
+            <span
+              role="button"
+              tabIndex={0}
+              className="link cursor-pointer"
+              onClick={() => { console.log('Abrir histórico de reserva', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { console.log('Abrir histórico (keyboard)', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) } }}
             >
               {r.display_name}
-            </button>
+            </span>
           ) },
           { key: 'guest_name', header: t('dashboard.reservations_management.table_headers.guest'), sortable: true },
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },

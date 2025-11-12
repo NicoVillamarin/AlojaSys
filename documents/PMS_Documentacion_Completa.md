@@ -611,6 +611,134 @@ class TimeUnit(models.TextChoices):
 - ✅ **Política por defecto** automática
 - ✅ **Validación de tiempos** progresivos (gratuita > parcial > sin cancelación)
 
+#### Lógica de Cálculo de Políticas de Cancelación
+
+**IMPORTANTE**: El sistema calcula las políticas de cancelación basándose en el tiempo restante hasta la **fecha de check-in**, NO desde la fecha de creación de la reserva.
+
+##### Orden de los Tiempos (Descendente)
+
+Los tiempos deben configurarse en orden **descendente** (de mayor a menor):
+```
+free_cancellation_time > partial_refund_time > no_refund_time
+```
+
+**Ejemplo de configuración correcta**:
+```python
+free_cancellation_time = 72   # horas (3 días)
+partial_refund_time = 24      # horas (1 día)
+no_refund_time = 24           # horas (1 día)
+```
+
+**Validación**: El sistema valida que `free_cancellation_time >= partial_refund_time >= no_refund_time`.
+
+##### Algoritmo de Decisión
+
+```python
+def get_cancellation_rules(check_in_date):
+    """
+    Calcula las reglas de cancelación aplicables para una reserva.
+    
+    Parámetros:
+    - check_in_date: Fecha de check-in de la reserva
+    
+    Retorna:
+    - dict con 'type', 'fee_type', 'fee_value', 'message'
+    """
+    from datetime import datetime
+    
+    # 1. Calcular tiempo hasta check-in (en segundos)
+    now = datetime.now().date()
+    time_until_checkin = (check_in_date - now).total_seconds()
+    
+    # 2. Convertir tiempos de política a segundos
+    free_seconds = convert_to_seconds(free_cancellation_time, free_cancellation_unit)
+    partial_seconds = convert_to_seconds(partial_refund_time, partial_refund_unit)
+    no_refund_seconds = convert_to_seconds(no_refund_time, no_refund_unit)
+    
+    # 3. Aplicar reglas en orden descendente
+    if time_until_checkin >= free_seconds:
+        # Cancelación gratuita: tiempo >= free_cancellation_time
+        return {
+            'type': 'free',
+            'fee_type': 'none',
+            'fee_value': 0,
+            'message': 'Cancelación gratuita'
+        }
+    elif time_until_checkin >= partial_seconds:
+        # Cancelación parcial: tiempo entre partial_refund_time y free_cancellation_time
+        return {
+            'type': 'partial',
+            'fee_type': cancellation_fee_type,
+            'fee_value': cancellation_fee_value,
+            'message': 'Cancelación con penalidad'
+        }
+    else:
+        # Sin cancelación: tiempo < partial_refund_time
+        return {
+            'type': 'no_cancellation',
+            'fee_type': cancellation_fee_type,
+            'fee_value': cancellation_fee_value,
+            'message': 'Sin cancelación'
+        }
+```
+
+##### Ejemplos de Cálculo
+
+**Ejemplo 1: Cancelación Gratuita**
+```
+Configuración:
+- free_cancellation_time: 72 horas
+- partial_refund_time: 24 horas
+- no_refund_time: 24 horas
+
+Escenario:
+- Check-in: 2025-11-15
+- Fecha actual: 2025-11-12 (3 días antes = 72 horas)
+- Tiempo hasta check-in: 72 horas
+
+Resultado: ✅ Cancelación gratuita (72 >= 72)
+```
+
+**Ejemplo 2: Cancelación Parcial**
+```
+Configuración:
+- free_cancellation_time: 72 horas
+- partial_refund_time: 24 horas
+- no_refund_time: 24 horas
+
+Escenario:
+- Check-in: 2025-11-15
+- Fecha actual: 2025-11-14 (1 día antes = 24 horas)
+- Tiempo hasta check-in: 24 horas
+
+Resultado: ⚠️ Cancelación parcial (24 >= 24 pero < 72)
+```
+
+**Ejemplo 3: Sin Cancelación**
+```
+Configuración:
+- free_cancellation_time: 72 horas
+- partial_refund_time: 24 horas
+- no_refund_time: 24 horas
+
+Escenario:
+- Check-in: 2025-11-15
+- Fecha actual: 2025-11-15 (mismo día = 0 horas)
+- Tiempo hasta check-in: 0 horas
+
+Resultado: ❌ Sin cancelación (0 < 24)
+```
+
+##### Notas Importantes
+
+1. **Cálculo desde check-in**: El sistema siempre calcula desde la fecha de check-in, no desde la fecha de creación de la reserva. Esto permite que una reserva creada hoy para dentro de 7 días pueda cancelarse gratuitamente si está dentro de la ventana de cancelación gratuita.
+
+2. **Snapshot histórico**: Al confirmar una reserva, se guarda un snapshot de la política vigente en ese momento. Esto garantiza que cambios futuros en la política no afecten reservas ya confirmadas.
+
+3. **Unidades de tiempo**: Los tiempos pueden configurarse en horas, días o semanas. El sistema convierte todo a segundos para comparación interna.
+
+4. **Mensajes personalizados**: Cada tipo de cancelación puede tener un mensaje personalizado. Si no se configura, el sistema genera uno automático basado en los tiempos configurados.
+
 #### Procesamiento de Pagos
 - ✅ **Integración con Mercado Pago** (tarjetas de crédito/débito)
 - ✅ **Pagos manuales** (efectivo, transferencia, POS)

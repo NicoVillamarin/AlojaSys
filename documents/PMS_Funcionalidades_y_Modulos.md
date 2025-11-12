@@ -1222,32 +1222,92 @@ Permite configurar reglas flexibles de cancelación para cada hotel, definiendo 
 
 ### ¿Cómo funciona?
 
+**IMPORTANTE**: El sistema calcula las políticas de cancelación basándose en el tiempo restante hasta la **fecha de check-in**, NO desde la fecha de creación de la reserva. Esto significa que si reservas hoy para dentro de 7 días, puedes cancelar gratuitamente si tu política lo permite.
+
 #### Configuración de Tiempos de Cancelación
+
+Los tiempos deben configurarse en orden **descendente** (de mayor a menor tiempo antes del check-in):
+
+```
+Cancelación Gratuita > Cancelación Parcial > Sin Cancelación
+```
+
+**Ejemplo de configuración correcta**:
+```
+- Cancelación Gratuita: 72 horas (3 días) antes del check-in
+- Cancelación Parcial: 24 horas (1 día) antes del check-in  
+- Sin Cancelación: 24 horas (1 día) antes del check-in
+```
+
+Esto significa:
+- **Si cancelas con 72 horas o más de anticipación**: Cancelación gratuita ✅
+- **Si cancelas entre 24 y 72 horas antes**: Cancelación parcial (con penalidad) ⚠️
+- **Si cancelas con menos de 24 horas**: Sin cancelación ❌
 
 ##### Cancelación Gratuita
 ```
 Política: "Cancelación sin penalidad"
-Tiempo: 24 horas antes del check-in
+Tiempo: 72 horas (3 días) antes del check-in
 Aplicación: Todas las habitaciones
-Resultado: Cliente puede cancelar sin costo adicional
+Resultado: Cliente puede cancelar sin costo adicional y recibe reembolso completo
+```
+
+**Ejemplo práctico**:
+```
+- Reserva creada: 1 de noviembre
+- Check-in: 15 de noviembre (14 días después)
+- Cancelación: 12 de noviembre (3 días antes del check-in)
+- Resultado: ✅ Cancelación gratuita, reembolso completo
 ```
 
 ##### Cancelación Parcial
 ```
 Política: "Cancelación con penalidad"
-Tiempo: 72 horas antes del check-in
+Tiempo: 24 horas (1 día) antes del check-in
 Penalidad: 50% del total de la reserva
-Aplicación: Suites solamente
-Resultado: Cliente paga 50% como penalidad
+Aplicación: Todas las habitaciones
+Resultado: Cliente paga 50% como penalidad, recibe 50% de reembolso
+```
+
+**Ejemplo práctico**:
+```
+- Reserva creada: 1 de noviembre
+- Check-in: 15 de noviembre
+- Cancelación: 14 de noviembre (1 día antes del check-in)
+- Total pagado: $100,000
+- Penalidad: $50,000 (50%)
+- Reembolso: $50,000 (50%)
+- Resultado: ⚠️ Cancelación parcial, reembolso del 50%
 ```
 
 ##### Sin Cancelación
 ```
 Política: "No se permite cancelación"
-Tiempo: 168 horas (7 días) antes del check-in
-Aplicación: Temporada alta
-Resultado: No se puede cancelar la reserva
+Tiempo: 24 horas (1 día) antes del check-in
+Aplicación: Todas las habitaciones
+Resultado: No se puede cancelar la reserva, no hay reembolso
 ```
+
+**Ejemplo práctico**:
+```
+- Reserva creada: 1 de noviembre
+- Check-in: 15 de noviembre
+- Cancelación: 15 de noviembre (mismo día del check-in)
+- Resultado: ❌ Sin cancelación, no hay reembolso
+```
+
+#### ¿Cómo se Calcula el Tiempo?
+
+El sistema calcula el tiempo desde **hoy** hasta la **fecha de check-in**:
+
+```
+Tiempo hasta check-in = Fecha de check-in - Fecha actual
+```
+
+**Ejemplos**:
+- Si hoy es 12 de noviembre y el check-in es 15 de noviembre: **3 días = 72 horas** ✅ Cancelación gratuita
+- Si hoy es 14 de noviembre y el check-in es 15 de noviembre: **1 día = 24 horas** ⚠️ Cancelación parcial
+- Si hoy es 15 de noviembre y el check-in es 15 de noviembre: **0 días = 0 horas** ❌ Sin cancelación
 
 #### Tipos de Penalidades
 

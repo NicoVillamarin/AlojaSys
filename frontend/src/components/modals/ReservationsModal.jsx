@@ -1,10 +1,11 @@
 import { Formik } from 'formik'
 import * as Yup from 'yup'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO, isValid, startOfDay, isAfter, isBefore, isSameDay, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
+import AlertSwal from 'src/components/AlertSwal'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import DatePickedRange from 'src/components/DatePickedRange'
@@ -82,27 +83,50 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   }
 
   // Función para extraer fechas ocupadas de los datos de la habitación
+  // Retorna: { reservationRanges: [], occupiedNights: [], arrivalDays: [] }
+  // - reservationRanges: rangos completos de reservas [check_in, check_out] para visualización
+  // - occupiedNights: noches ocupadas (check_in hasta check_out, sin incluir check_out) para lógica
+  // - arrivalDays: días que son check-in de reservas existentes (para permitir back-to-back)
   const getOccupiedDates = (roomData) => {
-    if (!roomData) return []
+    if (!roomData) return { reservationRanges: [], occupiedNights: [], arrivalDays: [] }
     
-    const occupiedDates = new Set()
+    const reservationRanges = []
+    const occupiedNights = new Set()
+    const arrivalDays = new Set()
     
     // Estados que SÍ ocupan la habitación (en minúsculas como vienen del backend)
     const occupyingStatuses = ['confirmed', 'check_in', 'pending']
+    
+    // Función helper para agregar una reserva
+    const addReservation = (checkIn, checkOut) => {
+      const startDate = new Date(checkIn)
+      const endDate = new Date(checkOut)
+      
+      // Agregar rango completo para visualización (check_in hasta check_out inclusive)
+      reservationRanges.push({
+        check_in: checkIn,
+        check_out: checkOut,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      })
+      
+      // Agregar el día de check-in como "llegada"
+      arrivalDays.add(startDate.toISOString().split('T')[0])
+      
+      // Agregar todas las noches entre check_in y check_out (SIN incluir check_out)
+      // Esto permite back-to-back: si hay reserva 13→14, el 13 es "llegada" pero el 14 está libre
+      let currentDate = new Date(startDate)
+      while (currentDate < endDate) {
+        occupiedNights.add(currentDate.toISOString().split('T')[0])
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+    }
     
     // Agregar reserva actual si existe y está ocupando
     if (roomData.current_reservation) {
       const { check_in, check_out, status } = roomData.current_reservation
       if (check_in && check_out && occupyingStatuses.includes(status)) {
-        const startDate = new Date(check_in)
-        const endDate = new Date(check_out)
-        
-        // Agregar todas las fechas entre check_in y check_out (incluyendo check_out)
-        let currentDate = new Date(startDate)
-        while (currentDate <= endDate) {
-          occupiedDates.add(currentDate.toISOString().split('T')[0])
-          currentDate.setDate(currentDate.getDate() + 1)
-        }
+        addReservation(check_in, check_out)
       }
     }
     
@@ -111,31 +135,77 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       roomData.future_reservations.forEach(reservation => {
         const { check_in, check_out, status } = reservation
         if (check_in && check_out && occupyingStatuses.includes(status)) {
-          const startDate = new Date(check_in)
-          const endDate = new Date(check_out)
-          
-          // Agregar todas las fechas entre check_in y check_out (incluyendo check_out)
-          let currentDate = new Date(startDate)
-          while (currentDate <= endDate) {
-            occupiedDates.add(currentDate.toISOString().split('T')[0])
-            currentDate.setDate(currentDate.getDate() + 1)
-          }
+          addReservation(check_in, check_out)
         }
       })
     }
     
-    return Array.from(occupiedDates).sort()
+    return {
+      reservationRanges,
+      occupiedNights: Array.from(occupiedNights).sort(),
+      arrivalDays: Array.from(arrivalDays).sort()
+    }
   }
 
   const { mutate: createReservation, isPending: creating } = useCreate({
     resource: 'reservations',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
+    onError: (error) => {
+      // Si el error está relacionado con fechas, limpiar el input
+      const errorMsg = error?.message || ''
+      if (errorMsg.toLowerCase().includes('fecha') || 
+          errorMsg.toLowerCase().includes('reserva') || 
+          errorMsg.toLowerCase().includes('ocupada') ||
+          errorMsg.toLowerCase().includes('conflicto')) {
+        if (formikRef.current) {
+          const { setFieldValue } = formikRef.current
+          setFieldValue('date_range', { startDate: '', endDate: '' })
+          setFieldValue('check_in', '')
+          setFieldValue('check_out', '')
+        }
+      }
+    },
   })
 
   const { mutate: updateReservation, isPending: updating } = useUpdate({
     resource: 'reservations',
     onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
+    onError: (error) => {
+      // Si el error está relacionado con fechas, limpiar el input
+      const errorMsg = error?.message || ''
+      if (errorMsg.toLowerCase().includes('fecha') || 
+          errorMsg.toLowerCase().includes('reserva') || 
+          errorMsg.toLowerCase().includes('ocupada') ||
+          errorMsg.toLowerCase().includes('conflicto')) {
+        if (formikRef.current) {
+          const { setFieldValue } = formikRef.current
+          setFieldValue('date_range', { startDate: '', endDate: '' })
+          setFieldValue('check_in', '')
+          setFieldValue('check_out', '')
+        }
+      }
+    },
   })
+
+  // Función para validar conflictos de fechas antes de enviar
+  const validateDateConflict = (checkIn, checkOut, roomData) => {
+    if (!checkIn || !checkOut || !roomData) return false
+    
+    const { occupiedNights } = getOccupiedDates(roomData)
+    const occupiedSet = new Set(occupiedNights || [])
+    const start = new Date(checkIn + 'T00:00:00')
+    const end = new Date(checkOut + 'T00:00:00')
+    const iter = new Date(start)
+    
+    while (iter < end) {
+      const iso = format(iter, 'yyyy-MM-dd')
+      if (occupiedSet.has(iso)) {
+        return true // Hay conflicto
+      }
+      iter.setDate(iter.getDate() + 1)
+    }
+    return false // No hay conflicto
+  }
 
   // Función para extraer datos del huésped principal
   const getPrimaryGuestData = (reservation) => {
@@ -254,6 +324,8 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
 
   // Estado para rastrear el número de huéspedes anterior
   const [previousGuests, setPreviousGuests] = useState(null)
+  const [dateAlertOpen, setDateAlertOpen] = useState(false)
+  const [dateAlertMsg, setDateAlertMsg] = useState('')
 
   const validationSchema = Yup.object({
     hotel: Yup.number().required(t('reservations_modal.hotel_required')),
@@ -475,7 +547,24 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
 
     const handleCreate = () => {
       if (!formikRef.current) return
-      const values = formikRef.current.values
+      const { values, setFieldValue } = formikRef.current
+
+      // Validar conflictos de fechas antes de enviar
+      const checkIn = values.date_range?.startDate || values.check_in
+      const checkOut = values.date_range?.endDate || values.check_out
+      
+      if (checkIn && checkOut && values.room_data) {
+        const hasConflict = validateDateConflict(checkIn, checkOut, values.room_data)
+        if (hasConflict) {
+          // Limpiar las fechas y mostrar alerta
+          setFieldValue('date_range', { startDate: '', endDate: '' })
+          setFieldValue('check_in', '')
+          setFieldValue('check_out', '')
+          setDateAlertMsg('La habitación ya tiene reservas en alguna(s) de las noches seleccionadas. Por favor elegí otro rango.')
+          setDateAlertOpen(true)
+          return // No enviar la reserva
+        }
+      }
 
       const guestsData = []
       if (values.guest_name) {
@@ -502,10 +591,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
           }
         })
       }
-
-      // Usar el rango de fechas si está disponible, sino usar los campos individuales
-      const checkIn = values.date_range?.startDate || values.check_in
-      const checkOut = values.date_range?.endDate || values.check_out
 
       const payload = {
         hotel: values.hotel ? Number(values.hotel) : undefined,
@@ -603,12 +688,58 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         formikRef.current = { values, setFieldValue, errors, touched }
 
         // Extraer fechas ocupadas de los datos de la habitación
-        const occupiedDates = getOccupiedDates(values.room_data)
+        const { reservationRanges, occupiedNights, arrivalDays } = getOccupiedDates(values.room_data)
+        
+        // Preparar lista de reservas para el panel lateral
+        const reservationsList = useMemo(() => {
+          if (!values.room_data) return []
+          
+          const list = []
+          const occupyingStatuses = ['confirmed', 'check_in', 'pending']
+          
+          // Agregar reserva actual si existe
+          if (values.room_data.current_reservation) {
+            const res = values.room_data.current_reservation
+            if (res.check_in && res.check_out && occupyingStatuses.includes(res.status)) {
+              list.push({
+                id: res.id,
+                check_in: res.check_in,
+                check_out: res.check_out,
+                guest_name: res.guest_name || null,
+                status: res.status
+              })
+            }
+          }
+          
+          // Agregar reservas futuras
+          if (values.room_data.future_reservations && Array.isArray(values.room_data.future_reservations)) {
+            values.room_data.future_reservations.forEach(res => {
+              if (res.check_in && res.check_out && occupyingStatuses.includes(res.status)) {
+                list.push({
+                  id: res.id,
+                  check_in: res.check_in,
+                  check_out: res.check_out,
+                  guest_name: res.guest_name || null,
+                  status: res.status
+                })
+              }
+            })
+          }
+          
+          // Ordenar por fecha de check-in
+          return list.sort((a, b) => {
+            const dateA = new Date(a.check_in)
+            const dateB = new Date(b.check_in)
+            return dateA - dateB
+          })
+        }, [values.room_data])
         
         // Debug: mostrar fechas ocupadas en consola
         console.log('=== DEBUG FECHAS OCUPADAS ===')
         console.log('Datos de la habitación:', values.room_data)
-        console.log('Fechas ocupadas extraídas:', occupiedDates)
+        console.log('Rangos de reservas (visualización):', reservationRanges)
+        console.log('Noches ocupadas (lógica):', occupiedNights)
+        console.log('Días de llegada:', arrivalDays)
         
         if (values.room_data) {
           console.log('current_reservation:', values.room_data.current_reservation)
@@ -899,21 +1030,53 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         startDate={values.date_range?.startDate || values.check_in}
                         endDate={values.date_range?.endDate || values.check_out}
                         minDate={format(new Date(), 'yyyy-MM-dd')}
+                        reservationsList={reservationsList}
+                        occupiedNights={occupiedNights}
                         onChange={(startDate, endDate) => {
                           // Actualizar tanto el rango como los campos individuales para compatibilidad
                           setFieldValue('date_range', { startDate, endDate })
                           setFieldValue('check_in', startDate)
                           setFieldValue('check_out', endDate)
                         }}
+                        onApply={(startISO, endISO) => {
+                          try {
+                            if (!startISO || !endISO) return
+                            const start = new Date(startISO + 'T00:00:00')
+                            const end = new Date(endISO + 'T00:00:00')
+                            // Chequear noches en [start, end)
+                            let conflict = false
+                            const occupiedSet = new Set(occupiedNights || [])
+                            const iter = new Date(start)
+                            while (iter < end) {
+                              const iso = format(iter, 'yyyy-MM-dd')
+                              if (occupiedSet.has(iso)) {
+                                conflict = true
+                                break
+                              }
+                              iter.setDate(iter.getDate() + 1)
+                            }
+                            if (conflict) {
+                              // Limpiar las fechas del input
+                              setFieldValue('date_range', { startDate: '', endDate: '' })
+                              setFieldValue('check_in', '')
+                              setFieldValue('check_out', '')
+                              setDateAlertMsg('La habitación ya tiene reservas en alguna(s) de las noches seleccionadas. Por favor elegí otro rango.')
+                              setDateAlertOpen(true)
+                              return false // no cerrar el calendario
+                            }
+                          } catch (e) {
+                            // Si algo falla, no bloquear
+                          }
+                          return true
+                        }}
                         placeholder="Check-in — Check-out"
                         inputClassName="w-full"
                         containerClassName=""
-                        occupiedDates={occupiedDates}
                       />
                       <div className="text-xs text-gray-500 mt-1">
                         💡 La primera fecha es el <strong>check-in</strong> y la segunda el <strong>check-out</strong>
-                        {values.room && occupiedDates.length > 0 && (
-                          <span className="text-red-600 ml-2">🚫 {occupiedDates.length} fecha(s) ocupada(s)</span>
+                        {values.room && occupiedNights.length > 0 && (
+                          <span className="text-red-600 ml-2">🚫 {occupiedNights.length} noche(s) ocupada(s)</span>
                         )}
                       </div>
                     </div>
@@ -977,6 +1140,16 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
               {activeTab === 'review' && <ReviewReservation />}
             </div>
           </ModalLayout>
+          <AlertSwal
+            isOpen={dateAlertOpen}
+            onClose={() => setDateAlertOpen(false)}
+            onConfirm={() => setDateAlertOpen(false)}
+            title="Rango no disponible"
+            description={dateAlertMsg || 'Las fechas seleccionadas se superponen con reservas existentes.'}
+            confirmText="Entendido"
+            cancelText="Cerrar"
+            tone="warning"
+          />
           {/* Modal de pago de diferencia */}
           {isEdit && reservation?.id && (
             <PaymentModal

@@ -7,7 +7,7 @@ import { updateResources } from "../services/updateResources";
  * useUpdate({ resource, onSuccess, method })
  * method: "PATCH" (default) o "PUT"
  */
-export const useUpdate = ({ resource, onSuccess, method = "PATCH" }) => {
+export const useUpdate = ({ resource, onSuccess, onError, method = "PATCH" }) => {
   const { mutate, isPending, isError, isSuccess } = useMutation({
     mutationFn: ({ id, body }) => updateResources(resource, id, body, { method }),
     onSuccess: (data) => {
@@ -18,6 +18,8 @@ export const useUpdate = ({ resource, onSuccess, method = "PATCH" }) => {
       // fetchWithAuth ya extrae el mensaje correctamente y lo pone en error.message
       const msg = error?.message || "Ocurrió un error";
       showErrorConfirm(msg);
+      // Llamar callback personalizado si existe
+      onError && onError(error);
     },
   });
 

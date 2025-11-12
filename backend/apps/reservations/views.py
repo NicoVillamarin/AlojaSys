@@ -1399,7 +1399,11 @@ def reservation_history(request, pk: int):
             "type": "status_change",
             "changed_at": sc.changed_at,
             "changed_by": serialize_user(sc.changed_by),
-            "detail": {"from": sc.from_status, "to": sc.to_status},
+            "detail": {
+                "from": sc.from_status,
+                "to": sc.to_status,
+                "notes": sc.notes,
+            },
         })
     for cl in changes_qs:
         timeline.append({
@@ -1410,6 +1414,7 @@ def reservation_history(request, pk: int):
                 "event_type": cl.event_type,
                 "fields_changed": cl.fields_changed,
                 "message": cl.message,
+                "snapshot": cl.snapshot,  # Incluir snapshot con información detallada de penalidades, reembolsos, etc.
             },
         })
     timeline.sort(key=lambda x: x["changed_at"], reverse=True)

@@ -44,7 +44,7 @@ import { showSuccess, showErrorConfirm } from "src/services/toast";
  * <Button onClick={handleCreate}>Create</Button>
  */
 
-export const useCreate = ({ resource, onSuccess }) => {
+export const useCreate = ({ resource, onSuccess, onError }) => {
   const { mutate, isPending, isError, isSuccess } = useMutation({
     mutationFn: (body) => createResource(resource, body),
     onSuccess: (data) => {
@@ -55,6 +55,8 @@ export const useCreate = ({ resource, onSuccess }) => {
       // fetchWithAuth ya extrae el mensaje correctamente y lo pone en error.message
       const msg = error?.message || "Ocurrió un error";
       showErrorConfirm(msg);
+      // Llamar callback personalizado si existe
+      onError && onError(error);
     },
   });
 
