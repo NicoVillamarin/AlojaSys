@@ -45,6 +45,7 @@ urlpatterns = [
     path("api/", include("apps.housekeeping.urls")),
 ]
 
-# Servir archivos media en desarrollo
-if settings.DEBUG:
+# Servir archivos media
+# En desarrollo (DEBUG=True) o en producción con almacenamiento local
+if settings.DEBUG or not getattr(settings, 'USE_CLOUDINARY', False):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
