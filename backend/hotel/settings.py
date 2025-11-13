@@ -403,11 +403,14 @@ if EMAIL_USE_SMTP:
     EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
     EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
     
-    # Log de configuración SMTP (sin mostrar password completo)
-    logger.info(f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3]}***")
+    # Log de configuración SMTP (print para asegurar que se vea)
+    print(f"[EMAIL] ✅ Configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***")
+    logger.info(f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***")
 else:
     # En producción sin SMTP, advertir
+    print(f"[EMAIL] ⚠️ EMAIL_USE_SMTP=False. Backend: {EMAIL_BACKEND}")
     if not DEBUG:
+        print("[EMAIL] ⚠️ ADVERTENCIA: En producción sin SMTP, los emails NO se enviarán, solo se imprimirán en logs.")
         logger.warning("⚠️ EMAIL_USE_SMTP=False en producción. Los emails NO se enviarán, solo se imprimirán en logs.")
     else:
         logger.info("EMAIL usando backend de consola (desarrollo)")

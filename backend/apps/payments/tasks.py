@@ -1455,6 +1455,11 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         )
         
         # Adjuntar PDF
+        logger.info(f"Adjuntando PDF: {pdf_path}")
+        if not os.path.exists(pdf_path):
+            logger.error(f"PDF no existe: {pdf_path}")
+            return {'status': 'error', 'message': f'PDF no encontrado: {pdf_path}'}
+        
         with open(pdf_path, 'rb') as pdf_file:
             email.attach(
                 filename=f"recibo_{payment_type}_{payment_id}.pdf",
@@ -1462,8 +1467,18 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                 mimetype='application/pdf'
             )
         
+        # Log de configuración antes de enviar
+        logger.info(f"📧 Configuración EMAIL antes de enviar:")
+        logger.info(f"   Backend: {settings.EMAIL_BACKEND}")
+        logger.info(f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', 'N/A')}")
+        logger.info(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
+        logger.info(f"   Port: {getattr(settings, 'EMAIL_PORT', 'N/A')}")
+        logger.info(f"   From: {settings.DEFAULT_FROM_EMAIL}")
+        logger.info(f"   To: {recipient_email}")
+        
         # Enviar email con manejo explícito de errores SMTP
         try:
+            logger.info(f"Intentando enviar email...")
             email.send(fail_silently=False)
             logger.info(f"✅ Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
         except Exception as smtp_error:
