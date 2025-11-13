@@ -1279,6 +1279,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         payment_type: 'payment' o 'refund'
         recipient_email: Email del destinatario (opcional)
     """
+    logger.info(f"🚀 [EMAIL TASK] Iniciando send_payment_receipt_email - payment_id={payment_id}, payment_type={payment_type}, recipient_email={recipient_email}")
     try:
         from django.core.mail import EmailMessage
         from django.conf import settings
@@ -1286,7 +1287,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         from .models import Refund
         from apps.reservations.models import Payment
         
-        logger.info(f"Enviando email con recibo para {payment_type} ID: {payment_id}")
+        logger.info(f"📧 [EMAIL TASK] Enviando email con recibo para {payment_type} ID: {payment_id}")
         
         # Obtener datos según el tipo
         if payment_type == 'refund':
@@ -1501,7 +1502,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         }
         
     except Exception as e:
-        logger.error(f"Error enviando email para {payment_type} {payment_id}: {str(e)}")
+        logger.error(f"❌ [EMAIL TASK] Error enviando email para {payment_type} {payment_id}: {str(e)}")
         import traceback
-        logger.error(traceback.format_exc())
+        logger.error(f"❌ [EMAIL TASK] Traceback completo:\n{traceback.format_exc()}")
         raise
