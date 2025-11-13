@@ -8,8 +8,10 @@ COPY . .
 # Soportamos ambas claves por compatibilidad con el código existente
 ARG VITE_API_URL
 ARG VITE_API_BASE_URL
+ARG VITE_MP_PUBLIC_KEY
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_MP_PUBLIC_KEY=${VITE_MP_PUBLIC_KEY}
 RUN npm run build
 
 FROM node:20-alpine
