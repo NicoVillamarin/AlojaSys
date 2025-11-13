@@ -1462,10 +1462,20 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                 mimetype='application/pdf'
             )
         
-        # Enviar email
-        email.send()
-        
-        logger.info(f"Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
+        # Enviar email con manejo explícito de errores SMTP
+        try:
+            email.send(fail_silently=False)
+            logger.info(f"✅ Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
+        except Exception as smtp_error:
+            # Capturar y loguear errores SMTP específicos
+            error_msg = str(smtp_error)
+            logger.error(f"❌ Error SMTP enviando email para {payment_type} {payment_id}: {error_msg}")
+            logger.error(f"   Backend: {settings.EMAIL_BACKEND}")
+            logger.error(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
+            logger.error(f"   From: {settings.DEFAULT_FROM_EMAIL}")
+            logger.error(f"   To: {recipient_email}")
+            logger.error(f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', False)}")
+            raise
         
         return {
             'status': 'success',
@@ -1477,4 +1487,6 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         
     except Exception as e:
         logger.error(f"Error enviando email para {payment_type} {payment_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise

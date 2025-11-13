@@ -386,11 +386,15 @@ else:
 # CONFIGURACIÓN DE EMAIL
 # =============================================================================
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Configuración de email para desarrollo (usando consola)
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 
 # Para producción, usar SMTP
-if config('EMAIL_USE_SMTP', default=False, cast=bool):
+EMAIL_USE_SMTP = config('EMAIL_USE_SMTP', default=False, cast=bool)
+if EMAIL_USE_SMTP:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
     EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
@@ -398,9 +402,19 @@ if config('EMAIL_USE_SMTP', default=False, cast=bool):
     EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
     EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
     EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+    
+    # Log de configuración SMTP (sin mostrar password completo)
+    logger.info(f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3]}***")
+else:
+    # En producción sin SMTP, advertir
+    if not DEBUG:
+        logger.warning("⚠️ EMAIL_USE_SMTP=False en producción. Los emails NO se enviarán, solo se imprimirán en logs.")
+    else:
+        logger.info("EMAIL usando backend de consola (desarrollo)")
 
 # Email del remitente por defecto
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@alojaSys.com')
+SERVER_EMAIL = config('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL)
 
 # Para desarrollo, también podemos usar archivo
 if config('EMAIL_USE_FILE', default=False, cast=bool):
