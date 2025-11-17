@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.conf import settings
+from django.core.mail import EmailMessage
 
 from .models import Refund, RefundStatus, PaymentGatewayConfig, PaymentIntent, BankReconciliation
 from apps.reservations.models import Payment
