@@ -1281,12 +1281,6 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
     """
     logger.info(f"🚀 [EMAIL TASK] Iniciando send_payment_receipt_email - payment_id={payment_id}, payment_type={payment_type}, recipient_email={recipient_email}")
     try:
-from django.core.mail import EmailMessage
-from django.conf import settings
-from .services.pdf_generator import ModernPDFGenerator
-from .models import Refund
-from apps.reservations.models import Payment
-        
         logger.info(f"📧 [EMAIL TASK] Enviando email con recibo para {payment_type} ID: {payment_id}")
         
         # Obtener datos según el tipo
