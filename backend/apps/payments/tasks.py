@@ -18,6 +18,7 @@ from .models import Refund, RefundStatus, PaymentGatewayConfig, PaymentIntent, B
 from apps.reservations.models import Payment
 from .services.refund_processor_v2 import RefundProcessorV2
 from .services.bank_reconciliation import BankReconciliationService
+from .services.pdf_generator import ModernPDFGenerator
 from apps.notifications.services import NotificationService
 
 logger = logging.getLogger(__name__)
