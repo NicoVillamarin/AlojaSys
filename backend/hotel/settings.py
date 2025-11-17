@@ -402,10 +402,16 @@ if EMAIL_USE_SMTP:
     EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
     EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
     EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+    # Timeout explícito para evitar que email.send() quede colgado indefinidamente
+    EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
     
     # Log de configuración SMTP (print para asegurar que se vea)
-    print(f"[EMAIL] ✅ Configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***")
-    logger.info(f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***")
+    print(f"[EMAIL] ✅ Configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, Timeout={EMAIL_TIMEOUT}s")
+    logger.info(
+        f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, "
+        f"TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, "
+        f"Timeout={EMAIL_TIMEOUT}s"
+    )
 else:
     # En producción sin SMTP, advertir
     print(f"[EMAIL] ⚠️ EMAIL_USE_SMTP=False. Backend: {EMAIL_BACKEND}")
