@@ -383,16 +383,20 @@ else:
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # =============================================================================
-# CONFIGURACIÓN DE EMAIL
+# CONFIGURACIÓN DE EMAIL / RESEND
 # =============================================================================
 
 import logging
 logger = logging.getLogger(__name__)
 
-# Configuración de email para desarrollo (usando consola)
+# Configuración básica: backend por defecto (consola en desarrollo)
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 
-# Para producción, usar SMTP
+# Clave para Resend HTTP API (recomendado en producción en Railway)
+RESEND_API_KEY = config('RESEND_API_KEY', default=None)
+USE_RESEND_API = config('USE_RESEND_API', default=False, cast=bool)
+
+# Para producción, usar SMTP solo si está permitido por la plataforma
 EMAIL_USE_SMTP = config('EMAIL_USE_SMTP', default=False, cast=bool)
 if EMAIL_USE_SMTP:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -405,19 +409,24 @@ if EMAIL_USE_SMTP:
     # Timeout explícito para evitar que email.send() quede colgado indefinidamente
     EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
     
-    # Log de configuración SMTP (print para asegurar que se vea)
-    print(f"[EMAIL] ✅ Configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, Timeout={EMAIL_TIMEOUT}s")
+    print(
+        f"[EMAIL] ✅ Configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, "
+        f"TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, "
+        f"Timeout={EMAIL_TIMEOUT}s"
+    )
     logger.info(
         f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, "
         f"TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, "
         f"Timeout={EMAIL_TIMEOUT}s"
     )
 else:
-    # En producción sin SMTP, advertir
     print(f"[EMAIL] ⚠️ EMAIL_USE_SMTP=False. Backend: {EMAIL_BACKEND}")
     if not DEBUG:
-        print("[EMAIL] ⚠️ ADVERTENCIA: En producción sin SMTP, los emails NO se enviarán, solo se imprimirán en logs.")
-        logger.warning("⚠️ EMAIL_USE_SMTP=False en producción. Los emails NO se enviarán, solo se imprimirán en logs.")
+        print("[EMAIL] ⚠️ ADVERTENCIA: En producción sin SMTP, los emails NO se enviarán a través de SMTP.")
+        logger.warning(
+            "⚠️ EMAIL_USE_SMTP=False en producción. Los emails NO se enviarán por SMTP; "
+            "usa Resend HTTP API (USE_RESEND_API=True) para envíos reales."
+        )
     else:
         logger.info("EMAIL usando backend de consola (desarrollo)")
 

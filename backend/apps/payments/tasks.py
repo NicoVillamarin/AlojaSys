@@ -1281,11 +1281,11 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
     """
     logger.info(f"🚀 [EMAIL TASK] Iniciando send_payment_receipt_email - payment_id={payment_id}, payment_type={payment_type}, recipient_email={recipient_email}")
     try:
-        from django.core.mail import EmailMessage
-        from django.conf import settings
-        from .services.pdf_generator import ModernPDFGenerator
-        from .models import Refund
-        from apps.reservations.models import Payment
+from django.core.mail import EmailMessage
+from django.conf import settings
+from .services.pdf_generator import ModernPDFGenerator
+from .models import Refund
+from apps.reservations.models import Payment
         
         logger.info(f"📧 [EMAIL TASK] Enviando email con recibo para {payment_type} ID: {payment_id}")
         
@@ -1445,68 +1445,132 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
             Equipo de {reservation.hotel.name}
             """
         
-        # Crear email con adjunto y Reply-To al hotel (si existe)
-        hotel_email = getattr(reservation.hotel, 'email', '') or None
-        email = EmailMessage(
-            subject=subject,
-            body=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[recipient_email],
-            reply_to=[hotel_email] if hotel_email else None,
-        )
-        
-        # Adjuntar PDF
-        logger.info(f"Adjuntando PDF: {pdf_path}")
-        if not os.path.exists(pdf_path):
-            logger.error(f"PDF no existe: {pdf_path}")
-            return {'status': 'error', 'message': f'PDF no encontrado: {pdf_path}'}
-        
-        with open(pdf_path, 'rb') as pdf_file:
-            email.attach(
-                filename=f"recibo_{payment_type}_{payment_id}.pdf",
-                content=pdf_file.read(),
-                mimetype='application/pdf'
+            # Crear email con adjunto y Reply-To al hotel (si existe)
+            hotel_email = getattr(reservation.hotel, 'email', '') or None
+            email = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[recipient_email],
+                reply_to=[hotel_email] if hotel_email else None,
             )
-        
-        # Log de configuración antes de enviar
-        logger.info(f"📧 Configuración EMAIL antes de enviar:")
-        logger.info(f"   Backend: {settings.EMAIL_BACKEND}")
-        logger.info(f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', 'N/A')}")
-        logger.info(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
-        logger.info(f"   Port: {getattr(settings, 'EMAIL_PORT', 'N/A')}")
-        
-        # Forzar flush de logs antes de continuar
-        import sys
-        sys.stdout.flush()
-        sys.stderr.flush()
-        
-        try:
-            from_email = settings.DEFAULT_FROM_EMAIL
-            logger.info(f"   From: {from_email}")
-        except Exception as e:
-            logger.error(f"   Error obteniendo DEFAULT_FROM_EMAIL: {e}")
-            from_email = "noreply@alojasys.com"
-        
-        logger.info(f"   To: {recipient_email}")
-        logger.info(f"📧 [EMAIL TASK] Listo para enviar, llamando email.send()...")
-        
-        # Enviar email con manejo explícito de errores SMTP
-        try:
-            logger.info(f"📧 [EMAIL TASK] Intentando enviar email...")
+            
+            # Adjuntar PDF
+            logger.info(f"Adjuntando PDF: {pdf_path}")
+            if not os.path.exists(pdf_path):
+                logger.error(f"PDF no existe: {pdf_path}")
+                return {'status': 'error', 'message': f'PDF no encontrado: {pdf_path}'}
+            
+            with open(pdf_path, 'rb') as pdf_file:
+                pdf_bytes = pdf_file.read()
+                email.attach(
+                    filename=f"recibo_{payment_type}_{payment_id}.pdf",
+                    content=pdf_bytes,
+                    mimetype='application/pdf'
+                )
+            
+            # Log de configuración antes de enviar
+            logger.info(f"📧 Configuración EMAIL antes de enviar:")
+            logger.info(f"   Backend: {settings.EMAIL_BACKEND}")
+            logger.info(f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', 'N/A')}")
+            logger.info(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
+            logger.info(f"   Port: {getattr(settings, 'EMAIL_PORT', 'N/A')}")
+            
+            # Forzar flush de logs antes de continuar
+            import sys
             sys.stdout.flush()
-            email.send(fail_silently=False)
-            logger.info(f"✅ [EMAIL TASK] Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
-            sys.stdout.flush()
-        except Exception as smtp_error:
-            # Capturar y loguear errores SMTP específicos
-            error_msg = str(smtp_error)
-            logger.error(f"❌ Error SMTP enviando email para {payment_type} {payment_id}: {error_msg}")
-            logger.error(f"   Backend: {settings.EMAIL_BACKEND}")
-            logger.error(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
-            logger.error(f"   From: {settings.DEFAULT_FROM_EMAIL}")
-            logger.error(f"   To: {recipient_email}")
-            logger.error(f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', False)}")
-            raise
+            sys.stderr.flush()
+            
+            try:
+                from_email = settings.DEFAULT_FROM_EMAIL
+                logger.info(f"   From: {from_email}")
+            except Exception as e:
+                logger.error(f"   Error obteniendo DEFAULT_FROM_EMAIL: {e}")
+                from_email = "noreply@alojasys.com"
+            
+            logger.info(f"   To: {recipient_email}")
+
+            # Decidir canal de envío: Resend HTTP API vs SMTP tradicional
+            use_resend_api = getattr(settings, "USE_RESEND_API", False) or bool(
+                getattr(settings, "RESEND_API_KEY", None)
+            )
+
+            if use_resend_api:
+                # Envío vía Resend HTTP API (recomendado en Railway)
+                try:
+                    import base64
+                    import requests
+
+                    logger.info("📧 [EMAIL TASK] Usando Resend HTTP API para enviar el email...")
+
+                    encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+                    api_key = getattr(settings, "RESEND_API_KEY", None)
+                    if not api_key:
+                        logger.error("RESEND_API_KEY no está configurada; no se puede usar Resend API.")
+                        return {
+                            "status": "error",
+                            "message": "RESEND_API_KEY no configurada para Resend API",
+                        }
+
+                    payload = {
+                        "from": from_email,
+                        "to": [recipient_email],
+                        "subject": subject,
+                        "html": body.replace("\n", "<br>"),
+                        "attachments": [
+                            {
+                                "filename": f"recibo_{payment_type}_{payment_id}.pdf",
+                                "content": encoded_pdf,
+                            }
+                        ],
+                    }
+                    headers = {
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    }
+
+                    response = requests.post(
+                        "https://api.resend.com/emails",
+                        json=payload,
+                        timeout=20,
+                    )
+                    logger.info(
+                        f"📧 [RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
+                    )
+                    response.raise_for_status()
+                    logger.info(
+                        f"✅ [EMAIL TASK] Email enviado vía Resend API a {recipient_email} para {payment_type} {payment_id}"
+                    )
+                except Exception as api_error:
+                    logger.error(
+                        f"❌ [RESEND] Error enviando email vía Resend API para {payment_type} {payment_id}: {api_error}"
+                    )
+                    raise
+            else:
+                logger.info("📧 [EMAIL TASK] Listo para enviar, llamando email.send() (SMTP)...")
+                # Enviar email con manejo explícito de errores SMTP
+                try:
+                    logger.info("📧 [EMAIL TASK] Intentando enviar email...")
+                    sys.stdout.flush()
+                    email.send(fail_silently=False)
+                    logger.info(
+                        f"✅ [EMAIL TASK] Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}"
+                    )
+                    sys.stdout.flush()
+                except Exception as smtp_error:
+                    # Capturar y loguear errores SMTP específicos
+                    error_msg = str(smtp_error)
+                    logger.error(
+                        f"❌ Error SMTP enviando email para {payment_type} {payment_id}: {error_msg}"
+                    )
+                    logger.error(f"   Backend: {settings.EMAIL_BACKEND}")
+                    logger.error(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
+                    logger.error(f"   From: {settings.DEFAULT_FROM_EMAIL}")
+                    logger.error(f"   To: {recipient_email}")
+                    logger.error(
+                        f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', False)}"
+                    )
+                    raise
         
         return {
             'status': 'success',
