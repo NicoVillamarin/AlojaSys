@@ -1474,14 +1474,29 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         logger.info(f"   EMAIL_USE_SMTP: {getattr(settings, 'EMAIL_USE_SMTP', 'N/A')}")
         logger.info(f"   Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}")
         logger.info(f"   Port: {getattr(settings, 'EMAIL_PORT', 'N/A')}")
-        logger.info(f"   From: {settings.DEFAULT_FROM_EMAIL}")
+        
+        # Forzar flush de logs antes de continuar
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        
+        try:
+            from_email = settings.DEFAULT_FROM_EMAIL
+            logger.info(f"   From: {from_email}")
+        except Exception as e:
+            logger.error(f"   Error obteniendo DEFAULT_FROM_EMAIL: {e}")
+            from_email = "noreply@alojasys.com"
+        
         logger.info(f"   To: {recipient_email}")
+        logger.info(f"📧 [EMAIL TASK] Listo para enviar, llamando email.send()...")
         
         # Enviar email con manejo explícito de errores SMTP
         try:
-            logger.info(f"Intentando enviar email...")
+            logger.info(f"📧 [EMAIL TASK] Intentando enviar email...")
+            sys.stdout.flush()
             email.send(fail_silently=False)
-            logger.info(f"✅ Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
+            logger.info(f"✅ [EMAIL TASK] Email enviado exitosamente a {recipient_email} para {payment_type} {payment_id}")
+            sys.stdout.flush()
         except Exception as smtp_error:
             # Capturar y loguear errores SMTP específicos
             error_msg = str(smtp_error)
