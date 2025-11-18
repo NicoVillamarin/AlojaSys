@@ -387,6 +387,27 @@ def auto_mark_no_show_daily(self):
                             print(f"  ℹ️ Sin penalidad para reserva {reservation.id}")
                     else:
                         print(f"  ⚠️ Error procesando penalidades para reserva {reservation.id}: {penalty_result.get('error', 'Error desconocido')}")
+                        # Crear notificación básica incluso si falla el procesamiento de penalidades
+                        try:
+                            from apps.notifications.services import NotificationService
+                            NotificationService.create(
+                                notification_type='no_show',
+                                title=f"🚨 NO_SHOW - Reserva #{reservation.id}",
+                                message=f"La reserva #{reservation.id} fue marcada automáticamente como NO_SHOW. Fecha de check-in vencida: {reservation.check_in}. Nota: No se pudieron procesar las penalidades automáticamente. Error: {penalty_result.get('error', 'Error desconocido')}",
+                                hotel_id=reservation.hotel.id,
+                                reservation_id=reservation.id,
+                                metadata={
+                                    'reservation_code': f"RES-{reservation.id}",
+                                    'hotel_name': reservation.hotel.name,
+                                    'check_in_date': str(reservation.check_in),
+                                    'check_out_date': str(reservation.check_out),
+                                    'error_processing_penalties': True,
+                                    'error_message': penalty_result.get('error', 'Error desconocido')
+                                }
+                            )
+                            print(f"  📬 Notificación básica creada para reserva {reservation.id}")
+                        except Exception as notif_error:
+                            print(f"  ❌ Error creando notificación básica para reserva {reservation.id}: {notif_error}")
                     
                     hotel_no_show += 1
                     no_show_count += 1
@@ -394,6 +415,24 @@ def auto_mark_no_show_daily(self):
                     
                 except Exception as e:
                     print(f"  ❌ Error procesando reserva {reservation.id} en hotel {hotel.name}: {e}")
+                    # Intentar crear notificación básica incluso si hay error general
+                    try:
+                        from apps.notifications.services import NotificationService
+                        NotificationService.create(
+                            notification_type='no_show',
+                            title=f"🚨 NO_SHOW - Reserva #{reservation.id} (Error en procesamiento)",
+                            message=f"La reserva #{reservation.id} fue marcada como NO_SHOW pero hubo un error durante el procesamiento automático: {str(e)}",
+                            hotel_id=reservation.hotel.id if reservation else None,
+                            reservation_id=reservation.id if reservation else None,
+                            metadata={
+                                'reservation_code': f"RES-{reservation.id}" if reservation else 'N/A',
+                                'error_processing': True,
+                                'error_message': str(e)
+                            }
+                        )
+                        print(f"  📬 Notificación de error creada para reserva {reservation.id if reservation else 'desconocida'}")
+                    except Exception as notif_error:
+                        print(f"  ❌ Error crítico creando notificación: {notif_error}")
                 
                 hotel_processed += 1
                 processed_count += 1

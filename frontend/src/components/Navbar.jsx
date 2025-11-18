@@ -23,7 +23,7 @@ const Navbar = ({ onToggleMobile, isMobile }) => {
   }
   
     return (
-        <div className='h-20 flex items-center justify-between px-4 bg-white shadow-sm'>
+        <div className='h-20 flex items-center justify-between px-4 bg-white shadow-sm relative z-40'>
             <div className='flex items-center gap-4'>
                 {/* Botón hamburguesa para móvil */}
                 {isMobile && (

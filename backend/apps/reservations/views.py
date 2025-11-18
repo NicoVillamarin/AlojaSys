@@ -478,10 +478,23 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 reason=cancellation_reason,
                 hotel_id=reservation.hotel.id,
                 reservation_id=reservation.id,
-                user_id=request.user.id  # Notificar al usuario que canceló
+                user_id=request.user.id  # Notificar al usuario que canceló (staff)
             )
         except Exception as e:
             print(f"⚠️ Error creando notificación de cancelación manual para reserva {reservation.id}: {e}")
+        
+        # Enviar email al huésped informando cancelación (con o sin devolución)
+        try:
+            from apps.reservations.services.email_service import ReservationEmailService
+            ReservationEmailService.send_cancellation_email(
+                reservation,
+                cancellation_reason=cancellation_reason,
+                total_paid=float(refund_result.get('total_paid', 0)) if refund_result else 0.0,
+                penalty_amount=float(refund_result.get('penalty_amount', 0)) if refund_result else 0.0,
+                refund_amount=float(refund_result.get('refund_amount', 0)) if refund_result else 0.0,
+            )
+        except Exception as e:
+            print(f"⚠️ Error enviando email de cancelación para reserva {reservation.id}: {e}")
         
         # Obtener información detallada del reembolso
         refund_details = None

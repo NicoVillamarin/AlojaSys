@@ -7,11 +7,14 @@ import fondo2 from "../assets/img/fondo_2.png";
 import fondo3 from "../assets/img/fondo_3.png";
 import logo from "../assets/img/logo_complet_black.png";
 import SpinnerLoading from "src/components/SpinnerLoading";
+import EyeIcon from "../assets/icons/EyeIcon";
+import EyeSlashIcon from "../assets/icons/EyeSlashIcon";
 
 export default function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
 
   const onSubmit = async (e) => {
@@ -63,13 +66,42 @@ export default function Login() {
               placeholder="Nombre de Usuario"
               autoFocus
             />
-            <input
-              type="password"
-              className="w-full border rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-aloja-navy"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder="Contraseña"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                className="w-full border rounded-md px-3 py-2 pr-10 outline-none focus:ring-2 focus:ring-aloja-navy"
+                value={form.password}
+                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                placeholder="Contraseña"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-aloja-gray-800/60 hover:text-aloja-navy transition-all duration-200 active:scale-90"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                <div className="relative w-5 h-5">
+                  <div
+                    className={`absolute inset-0 transition-all duration-300 ${
+                      showPassword
+                        ? "opacity-0 rotate-90 scale-0"
+                        : "opacity-100 rotate-0 scale-100"
+                    }`}
+                  >
+                    <EyeIcon size="20" />
+                  </div>
+                  <div
+                    className={`absolute inset-0 transition-all duration-300 ${
+                      showPassword
+                        ? "opacity-100 rotate-0 scale-100"
+                        : "opacity-0 -rotate-90 scale-0"
+                    }`}
+                  >
+                    <EyeSlashIcon size="20" />
+                  </div>
+                </div>
+              </button>
+            </div>
             <button
               type="submit"
               disabled={loading}

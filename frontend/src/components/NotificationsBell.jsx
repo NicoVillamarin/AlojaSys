@@ -206,13 +206,13 @@ const NotificationsBell = () => {
           <>
             {/* Overlay para cerrar al hacer click fuera */}
             <div
-              className="fixed inset-0 z-20"
+              className="fixed inset-0 z-[100]"
               onClick={() => setIsOpen(false)}
             />
             
             {/* Panel de notificaciones con diseño moderno */}
             <div 
-              className="absolute right-0 mt-2 w-100 bg-white rounded-xl shadow-2xl ring-1 ring-gray-200 z-30 overflow-hidden"
+              className="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white rounded-xl shadow-2xl ring-1 ring-gray-200 z-[101] overflow-hidden"
               style={{
                 animation: 'slideInDown 0.3s ease-out'
               }}

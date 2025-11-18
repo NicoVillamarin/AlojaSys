@@ -453,83 +453,116 @@ class NoShowProcessor:
     ):
         """Crea notificación detallada de NO_SHOW con información financiera completa"""
         
-        total_paid = NoShowProcessor._calculate_total_paid(reservation)
-        net_loss = penalty_amount - refund_amount
-        
-        # Notificación detallada para el hotel
-        hotel_title = f"🚨 NO_SHOW - Reserva #{reservation.id} - Pérdida: ${net_loss}"
-        hotel_message = NoShowProcessor._create_hotel_notification_message(
-            reservation, penalty_amount, refund_amount, total_paid, net_loss
-        )
-        
-        hotel_notification = NotificationService.create(
-            notification_type='no_show',
-            title=hotel_title,
-            message=hotel_message,
-            hotel_id=reservation.hotel.id,
-            reservation_id=reservation.id,
-            metadata={
-                'reservation_code': f"RES-{reservation.id}",
-                'hotel_name': reservation.hotel.name,
-                'check_in_date': str(reservation.check_in),
-                'check_out_date': str(reservation.check_out),
-                'penalty_amount': float(penalty_amount),
-                'refund_amount': float(refund_amount),
-                'total_paid': float(total_paid),
-                'net_loss': float(net_loss),
-                'guests_count': reservation.guests,
-                'room_name': reservation.room.name if reservation.room else 'N/A',
-                'is_hotel_notification': True,
-                'notification_level': 'high',
-                'requires_action': True
-            }
-        )
-        
-        # Notificación detallada para el huésped (si tiene usuario asociado)
-        if reservation.guest_user:
-            guest_title = f"❌ Su reserva #{reservation.id} fue marcada como NO_SHOW"
-            guest_message = NoShowProcessor._create_guest_notification_message(
-                reservation, penalty_amount, refund_amount, total_paid
+        try:
+            total_paid = NoShowProcessor._calculate_total_paid(reservation)
+            net_loss = penalty_amount - refund_amount
+            
+            # Notificación detallada para el hotel
+            hotel_title = f"🚨 NO_SHOW - Reserva #{reservation.id} - Pérdida: ${net_loss}"
+            hotel_message = NoShowProcessor._create_hotel_notification_message(
+                reservation, penalty_amount, refund_amount, total_paid, net_loss
             )
             
-            guest_notification = NotificationService.create(
-                notification_type='no_show',
-                title=guest_title,
-                message=guest_message,
-                user_id=reservation.guest_user.id,
-                hotel_id=reservation.hotel.id,
-                reservation_id=reservation.id,
-                metadata={
-                    'reservation_code': f"RES-{reservation.id}",
-                    'hotel_name': reservation.hotel.name,
-                    'check_in_date': str(reservation.check_in),
-                    'check_out_date': str(reservation.check_out),
-                    'penalty_amount': float(penalty_amount),
-                    'refund_amount': float(refund_amount),
-                    'total_paid': float(total_paid),
-                    'is_guest_notification': True,
-                    'notification_level': 'high',
-                    'requires_guest_action': refund_amount > 0
-                }
-            )
-        
-        # Notificación para administradores del sistema
-        admin_notification = NotificationService.create(
-            notification_type='no_show',
-            title=f"📊 NO_SHOW Report - Hotel: {reservation.hotel.name}",
-            message=f"Reserva #{reservation.id} marcada como NO_SHOW. Impacto financiero: ${net_loss}",
-            hotel_id=reservation.hotel.id,
-            reservation_id=reservation.id,
-            metadata={
-                'reservation_code': f"RES-{reservation.id}",
-                'hotel_name': reservation.hotel.name,
-                'penalty_amount': float(penalty_amount),
-                'refund_amount': float(refund_amount),
-                'net_loss': float(net_loss),
-                'is_admin_notification': True,
-                'notification_level': 'medium'
-            }
-        )
+            try:
+                hotel_notification = NotificationService.create(
+                    notification_type='no_show',
+                    title=hotel_title,
+                    message=hotel_message,
+                    hotel_id=reservation.hotel.id,
+                    reservation_id=reservation.id,
+                    metadata={
+                        'reservation_code': f"RES-{reservation.id}",
+                        'hotel_name': reservation.hotel.name,
+                        'check_in_date': str(reservation.check_in),
+                        'check_out_date': str(reservation.check_out),
+                        'penalty_amount': float(penalty_amount),
+                        'refund_amount': float(refund_amount),
+                        'total_paid': float(total_paid),
+                        'net_loss': float(net_loss),
+                        'guests_count': reservation.guests,
+                        'room_name': reservation.room.name if reservation.room else 'N/A',
+                        'is_hotel_notification': True,
+                        'notification_level': 'high',
+                        'requires_action': True
+                    }
+                )
+                print(f"  ✅ Notificación del hotel creada para reserva {reservation.id}")
+            except Exception as e:
+                print(f"  ⚠️ Error creando notificación del hotel para reserva {reservation.id}: {e}")
+            
+            # Notificación detallada para el huésped (si tiene usuario asociado)
+            if reservation.guest_user:
+                try:
+                    guest_title = f"❌ Su reserva #{reservation.id} fue marcada como NO_SHOW"
+                    guest_message = NoShowProcessor._create_guest_notification_message(
+                        reservation, penalty_amount, refund_amount, total_paid
+                    )
+                    
+                    guest_notification = NotificationService.create(
+                        notification_type='no_show',
+                        title=guest_title,
+                        message=guest_message,
+                        user_id=reservation.guest_user.id,
+                        hotel_id=reservation.hotel.id,
+                        reservation_id=reservation.id,
+                        metadata={
+                            'reservation_code': f"RES-{reservation.id}",
+                            'hotel_name': reservation.hotel.name,
+                            'check_in_date': str(reservation.check_in),
+                            'check_out_date': str(reservation.check_out),
+                            'penalty_amount': float(penalty_amount),
+                            'refund_amount': float(refund_amount),
+                            'total_paid': float(total_paid),
+                            'is_guest_notification': True,
+                            'notification_level': 'high',
+                            'requires_guest_action': refund_amount > 0
+                        }
+                    )
+                    print(f"  ✅ Notificación del huésped creada para reserva {reservation.id}")
+                except Exception as e:
+                    print(f"  ⚠️ Error creando notificación del huésped para reserva {reservation.id}: {e}")
+            
+            # Notificación para administradores del sistema
+            try:
+                admin_notification = NotificationService.create(
+                    notification_type='no_show',
+                    title=f"📊 NO_SHOW Report - Hotel: {reservation.hotel.name}",
+                    message=f"Reserva #{reservation.id} marcada como NO_SHOW. Impacto financiero: ${net_loss}",
+                    hotel_id=reservation.hotel.id,
+                    reservation_id=reservation.id,
+                    metadata={
+                        'reservation_code': f"RES-{reservation.id}",
+                        'hotel_name': reservation.hotel.name,
+                        'penalty_amount': float(penalty_amount),
+                        'refund_amount': float(refund_amount),
+                        'net_loss': float(net_loss),
+                        'is_admin_notification': True,
+                        'notification_level': 'medium'
+                    }
+                )
+                print(f"  ✅ Notificación de administrador creada para reserva {reservation.id}")
+            except Exception as e:
+                print(f"  ⚠️ Error creando notificación de administrador para reserva {reservation.id}: {e}")
+                
+        except Exception as e:
+            print(f"  ❌ Error general creando notificaciones NO_SHOW para reserva {reservation.id}: {e}")
+            # Crear notificación básica de respaldo
+            try:
+                NotificationService.create(
+                    notification_type='no_show',
+                    title=f"🚨 NO_SHOW - Reserva #{reservation.id}",
+                    message=f"La reserva #{reservation.id} fue marcada como NO_SHOW. Error al generar notificación detallada: {str(e)}",
+                    hotel_id=reservation.hotel.id if reservation else None,
+                    reservation_id=reservation.id if reservation else None,
+                    metadata={
+                        'reservation_code': f"RES-{reservation.id}" if reservation else 'N/A',
+                        'error_creating_detailed_notification': True,
+                        'error_message': str(e)
+                    }
+                )
+                print(f"  📬 Notificación básica de respaldo creada para reserva {reservation.id if reservation else 'desconocida'}")
+            except Exception as backup_error:
+                print(f"  ❌ Error crítico creando notificación de respaldo: {backup_error}")
     
     @staticmethod
     def _create_hotel_notification_message(

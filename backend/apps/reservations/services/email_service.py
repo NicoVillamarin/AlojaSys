@@ -14,6 +14,85 @@ logger = logging.getLogger(__name__)
 
 class ReservationEmailService:
     """Servicio para enviar emails de reservas con PDFs adjuntos"""
+
+    @staticmethod
+    def send_cancellation_email(
+        reservation,
+        cancellation_reason: str,
+        total_paid: float = 0.0,
+        penalty_amount: float = 0.0,
+        refund_amount: float = 0.0,
+    ) -> bool:
+        """Envía email al huésped informando cancelación (con o sin devolución)."""
+        try:
+            guest_email = getattr(reservation, "guest_email", None)
+            if not guest_email:
+                logger.warning(
+                    f"No se encontró email para reserva {getattr(reservation, 'id', 'N/A')} al enviar cancelación"
+                )
+                return False
+
+            guest_name = getattr(reservation, "guest_name", None) or "Huésped"
+            reservation_code = f"RES-{reservation.id}"
+            hotel_name = reservation.hotel.name
+            room_name = reservation.room.name if getattr(reservation, "room", None) else "N/A"
+
+            has_refund = (refund_amount or 0) > 0
+
+            financial_lines = [
+                f"- Total pagado: ${total_paid:,.2f}",
+                f"- Penalidad aplicada: ${penalty_amount:,.2f}",
+            ]
+            if has_refund:
+                financial_lines.append(
+                    f"- Monto a devolver (estimado): ${refund_amount:,.2f}"
+                )
+            else:
+                financial_lines.append(
+                    "- Devolución: No corresponde devolución según la política aplicada"
+                )
+
+            body = f"""
+Estimado/a {guest_name},
+
+Su reserva ha sido cancelada.
+
+Detalles de la reserva:
+- Código: {reservation_code}
+- Hotel: {hotel_name}
+- Habitación: {room_name}
+- Fechas: {reservation.check_in} - {reservation.check_out}
+
+Motivo de la cancelación:
+- {cancellation_reason or 'Sin detalle'}
+
+Detalle financiero:
+{chr(10).join(financial_lines)}
+
+Si tiene dudas sobre su cancelación o la política aplicada, por favor contacte al hotel.
+
+Equipo de {hotel_name}
+""".strip()
+
+            subject = f"Cancelación de Reserva - {reservation_code}"
+
+            email = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[guest_email],
+            )
+            email.send()
+            logger.info(
+                f"Email de cancelación enviado a {guest_email} para reserva {reservation.id} "
+                f"(refund_amount={refund_amount}, penalty_amount={penalty_amount})"
+            )
+            return True
+        except Exception as e:
+            logger.error(
+                f"Error enviando email de cancelación para reserva {getattr(reservation, 'id', 'N/A')}: {e}"
+            )
+            return False
     
     @staticmethod
     def send_reservation_confirmation(reservation, include_receipts: bool = True):
