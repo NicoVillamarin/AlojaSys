@@ -71,6 +71,10 @@ class ReservationEmailService:
         En producción (Railway Hobby) se envía vía Resend HTTP API.
         """
         try:
+            logger.info(
+                f"📧 [CANCEL EMAIL] Preparando email de cancelación para reserva {getattr(reservation, 'id', 'N/A')}"
+            )
+
             guest_email = getattr(reservation, "guest_email", None)
             if not guest_email:
                 logger.warning(
@@ -124,6 +128,9 @@ Equipo de {hotel_name}
 
             # En producción usamos Resend; si fallara o no hay API key, caemos a EmailMessage
             try:
+                logger.info(
+                    f"📧 [CANCEL EMAIL] Enviando vía Resend a {guest_email} para reserva {reservation.id}"
+                )
                 if ReservationEmailService._send_via_resend(guest_email, subject, body):
                     logger.info(
                         f"Email de cancelación enviado vía Resend a {guest_email} para reserva {reservation.id} "
