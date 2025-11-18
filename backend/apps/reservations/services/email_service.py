@@ -4,6 +4,8 @@ Servicio de emails para reservas con PDFs adjuntos
 import os
 import logging
 from typing import List, Optional, Dict, Any
+
+import requests
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
@@ -16,6 +18,47 @@ class ReservationEmailService:
     """Servicio para enviar emails de reservas con PDFs adjuntos"""
 
     @staticmethod
+    def _send_via_resend(to_email: str, subject: str, body: str) -> bool:
+        """
+        Envia un email de texto plano usando la API HTTP de Resend.
+        Pensado para funcionar en Railway Hobby (sin SMTP).
+        """
+        api_key = getattr(settings, "RESEND_API_KEY", None)
+        if not api_key:
+            logger.error("RESEND_API_KEY no configurada; no se puede enviar email vía Resend.")
+            return False
+
+        from_email = getattr(
+            settings,
+            "DEFAULT_FROM_EMAIL",
+            "AlojaSys <onboarding@resend.dev>",
+        )
+
+        payload = {
+            "from": from_email,
+            "to": [to_email],
+            "subject": subject,
+            # Convertimos saltos de línea a <br> para que se vea bien en HTML
+            "html": body.replace("\n", "<br>"),
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.post(
+            "https://api.resend.com/emails",
+            json=payload,
+            headers=headers,
+            timeout=20,
+        )
+        logger.info(
+            f"📧 [RESERVATION RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
+        )
+        response.raise_for_status()
+        return True
+
+    @staticmethod
     def send_cancellation_email(
         reservation,
         cancellation_reason: str,
@@ -23,7 +66,10 @@ class ReservationEmailService:
         penalty_amount: float = 0.0,
         refund_amount: float = 0.0,
     ) -> bool:
-        """Envía email al huésped informando cancelación (con o sin devolución)."""
+        """
+        Envía email al huésped informando cancelación (con o sin devolución).
+        En producción (Railway Hobby) se envía vía Resend HTTP API.
+        """
         try:
             guest_email = getattr(reservation, "guest_email", None)
             if not guest_email:
@@ -76,6 +122,20 @@ Equipo de {hotel_name}
 
             subject = f"Cancelación de Reserva - {reservation_code}"
 
+            # En producción usamos Resend; si fallara o no hay API key, caemos a EmailMessage
+            try:
+                if ReservationEmailService._send_via_resend(guest_email, subject, body):
+                    logger.info(
+                        f"Email de cancelación enviado vía Resend a {guest_email} para reserva {reservation.id} "
+                        f"(refund_amount={refund_amount}, penalty_amount={penalty_amount})"
+                    )
+                    return True
+            except Exception as resend_error:
+                logger.error(
+                    f"Error enviando email de cancelación vía Resend para reserva {getattr(reservation, 'id', 'N/A')}: {resend_error}"
+                )
+
+            # Fallback: backend de email de Django (útil en desarrollo)
             email = EmailMessage(
                 subject=subject,
                 body=body,
@@ -84,7 +144,7 @@ Equipo de {hotel_name}
             )
             email.send()
             logger.info(
-                f"Email de cancelación enviado a {guest_email} para reserva {reservation.id} "
+                f"Email de cancelación enviado (fallback Django) a {guest_email} para reserva {reservation.id} "
                 f"(refund_amount={refund_amount}, penalty_amount={penalty_amount})"
             )
             return True
