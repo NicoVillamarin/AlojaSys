@@ -1517,9 +1517,11 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                     "Content-Type": "application/json",
                 }
 
+                # Importante: enviar los headers para que Resend reciba la API key
                 response = requests.post(
                     "https://api.resend.com/emails",
                     json=payload,
+                    headers=headers,
                     timeout=20,
                 )
                 logger.info(
