@@ -1441,101 +1441,101 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
             Equipo de {reservation.hotel.name}
             """
         
-            # Crear email con adjunto y Reply-To al hotel (si existe)
-            hotel_email = getattr(reservation.hotel, 'email', '') or None
-            email = EmailMessage(
-                subject=subject,
-                body=body,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[recipient_email],
-                reply_to=[hotel_email] if hotel_email else None,
+        # Crear email con adjunto y Reply-To al hotel (si existe)
+        hotel_email = getattr(reservation.hotel, 'email', '') or None
+        email = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient_email],
+            reply_to=[hotel_email] if hotel_email else None,
+        )
+        
+        # Adjuntar PDF
+        logger.info(f"Adjuntando PDF: {pdf_path}")
+        if not os.path.exists(pdf_path):
+            logger.error(f"PDF no existe: {pdf_path}")
+            return {'status': 'error', 'message': f'PDF no encontrado: {pdf_path}'}
+        
+        with open(pdf_path, 'rb') as pdf_file:
+            pdf_bytes = pdf_file.read()
+            email.attach(
+                filename=f"recibo_{payment_type}_{payment_id}.pdf",
+                content=pdf_bytes,
+                mimetype='application/pdf'
             )
-            
-            # Adjuntar PDF
-            logger.info(f"Adjuntando PDF: {pdf_path}")
-            if not os.path.exists(pdf_path):
-                logger.error(f"PDF no existe: {pdf_path}")
-                return {'status': 'error', 'message': f'PDF no encontrado: {pdf_path}'}
-            
-            with open(pdf_path, 'rb') as pdf_file:
-                pdf_bytes = pdf_file.read()
-                email.attach(
-                    filename=f"recibo_{payment_type}_{payment_id}.pdf",
-                    content=pdf_bytes,
-                    mimetype='application/pdf'
-                )
-            
-            # Log de configuración antes de enviar
-            logger.info("📧 Configuración EMAIL antes de enviar (Resend API):")
-            logger.info(f"   USE_RESEND_API: {getattr(settings, 'USE_RESEND_API', 'N/A')}")
-            logger.info(f"   Tiene RESEND_API_KEY: {bool(getattr(settings, 'RESEND_API_KEY', None))}")
-            
-            # Forzar flush de logs antes de continuar
-            import sys
-            sys.stdout.flush()
-            sys.stderr.flush()
-            
-            try:
-                from_email = settings.DEFAULT_FROM_EMAIL
-                logger.info(f"   From: {from_email}")
-            except Exception as e:
-                logger.error(f"   Error obteniendo DEFAULT_FROM_EMAIL: {e}")
-                from_email = "noreply@alojasys.com"
-            
-            logger.info(f"   To: {recipient_email}")
+        
+        # Log de configuración antes de enviar
+        logger.info("📧 Configuración EMAIL antes de enviar (Resend API):")
+        logger.info(f"   USE_RESEND_API: {getattr(settings, 'USE_RESEND_API', 'N/A')}")
+        logger.info(f"   Tiene RESEND_API_KEY: {bool(getattr(settings, 'RESEND_API_KEY', None))}")
+        
+        # Forzar flush de logs antes de continuar
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        
+        try:
+            from_email = settings.DEFAULT_FROM_EMAIL
+            logger.info(f"   From: {from_email}")
+        except Exception as e:
+            logger.error(f"   Error obteniendo DEFAULT_FROM_EMAIL: {e}")
+            from_email = "noreply@alojasys.com"
+        
+        logger.info(f"   To: {recipient_email}")
 
-            # Enviar SIEMPRE vía Resend HTTP API (SMTP está bloqueado en Railway Hobby)
-            try:
-                import base64
-                import requests
+        # Enviar SIEMPRE vía Resend HTTP API (SMTP está bloqueado en Railway Hobby)
+        try:
+            import base64
+            import requests
 
-                logger.info("📧 [EMAIL TASK] Usando Resend HTTP API para enviar el email...")
+            logger.info("📧 [EMAIL TASK] Usando Resend HTTP API para enviar el email...")
 
-                encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-                api_key = getattr(settings, "RESEND_API_KEY", None)
-                if not api_key:
-                    logger.error("RESEND_API_KEY no está configurada; no se puede usar Resend API.")
-                    return {
-                        "status": "error",
-                        "message": "RESEND_API_KEY no configurada para Resend API",
+            encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+            api_key = getattr(settings, "RESEND_API_KEY", None)
+            if not api_key:
+                logger.error("RESEND_API_KEY no está configurada; no se puede usar Resend API.")
+                return {
+                    "status": "error",
+                    "message": "RESEND_API_KEY no configurada para Resend API",
+                }
+
+            payload = {
+                "from": from_email,
+                "to": [recipient_email],
+                "subject": subject,
+                "html": body.replace("\n", "<br>"),
+                "attachments": [
+                    {
+                        "filename": f"recibo_{payment_type}_{payment_id}.pdf",
+                        "content": encoded_pdf,
                     }
+                ],
+            }
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
 
-                payload = {
-                    "from": from_email,
-                    "to": [recipient_email],
-                    "subject": subject,
-                    "html": body.replace("\n", "<br>"),
-                    "attachments": [
-                        {
-                            "filename": f"recibo_{payment_type}_{payment_id}.pdf",
-                            "content": encoded_pdf,
-                        }
-                    ],
-                }
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                }
-
-                # Importante: enviar los headers para que Resend reciba la API key
-                response = requests.post(
-                    "https://api.resend.com/emails",
-                    json=payload,
-                    headers=headers,
-                    timeout=20,
-                )
-                logger.info(
-                    f"📧 [RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
-                )
-                response.raise_for_status()
-                logger.info(
-                    f"✅ [EMAIL TASK] Email enviado vía Resend API a {recipient_email} para {payment_type} {payment_id}"
-                )
-            except Exception as api_error:
-                logger.error(
-                    f"❌ [RESEND] Error enviando email vía Resend API para {payment_type} {payment_id}: {api_error}"
-                )
-                raise
+            # Importante: enviar los headers para que Resend reciba la API key
+            response = requests.post(
+                "https://api.resend.com/emails",
+                json=payload,
+                headers=headers,
+                timeout=20,
+            )
+            logger.info(
+                f"📧 [RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
+            )
+            response.raise_for_status()
+            logger.info(
+                f"✅ [EMAIL TASK] Email enviado vía Resend API a {recipient_email} para {payment_type} {payment_id}"
+            )
+        except Exception as api_error:
+            logger.error(
+                f"❌ [RESEND] Error enviando email vía Resend API para {payment_type} {payment_id}: {api_error}"
+            )
+            raise
         
         return {
             'status': 'success',
