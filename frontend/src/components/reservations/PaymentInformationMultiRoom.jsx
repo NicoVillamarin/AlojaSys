@@ -6,7 +6,8 @@ import { es } from 'date-fns/locale'
 import SpinnerData from '../SpinnerData'
 import WalletIcon from 'src/assets/icons/WalletIcon'
 import InputText from 'src/components/inputs/InputText'
-// import { useAction } from 'src/hooks/useAction'
+import fetchWithAuth from 'src/services/fetchWithAuth'
+import { getApiURL } from 'src/services/utils'
 
 /**
  * PaymentInformationMultiRoom
@@ -25,6 +26,8 @@ const PaymentInformationMultiRoom = () => {
   const [appliedPromo, setAppliedPromo] = useState(values.promotion_code || '')
   const [voucherDraft, setVoucherDraft] = useState(values.voucher_code || '')
   const [appliedVoucher, setAppliedVoucher] = useState(values.voucher_code || '')
+  const [pricingQuotes, setPricingQuotes] = useState({}) // { roomId: { total, nights } }
+  const [loadingQuotes, setLoadingQuotes] = useState(false)
 
   useEffect(() => {
     setPromoDraft(values.promotion_code || '')
@@ -34,27 +37,83 @@ const PaymentInformationMultiRoom = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Acción centralizada para calcular tarifas
+  // Función para obtener cotizaciones precisas del backend
   const fetchPricingQuotes = async () => {
+    if (!checkIn || !checkOut || validRooms.length === 0) return
+
     setAppliedPromo(promoDraft)
     setFieldValue('promotion_code', promoDraft)
     setAppliedVoucher(voucherDraft)
     setFieldValue('voucher_code', voucherDraft)
-    
-    // Por ahora, mostrar un mensaje de que se calculará al crear
-    // En el futuro, se pueden hacer llamadas individuales aquí
+
+    setLoadingQuotes(true)
+    const quotes = {}
+
+    try {
+      // Obtener cotización para cada habitación
+      await Promise.all(
+        validRooms.map(async (room) => {
+          if (!room.room || !room.guests) return
+
+          try {
+            const params = new URLSearchParams({
+              room_id: room.room.toString(),
+              check_in: checkIn,
+              check_out: checkOut,
+              guests: room.guests.toString(),
+              channel: 'direct',
+              ...(promoDraft ? { promotion_code: promoDraft } : {}),
+              ...(voucherDraft ? { voucher_code: voucherDraft } : {}),
+            })
+
+            const response = await fetchWithAuth(
+              `${getApiURL()}/api/reservations/quote-range/?${params.toString()}`
+            )
+
+            if (response && response.ok !== false) {
+              quotes[room.room] = {
+                total: response.total || 0,
+                nights: response.days || [],
+              }
+            }
+          } catch (error) {
+            console.error(`Error obteniendo cotización para habitación ${room.room}:`, error)
+          }
+        })
+      )
+
+      setPricingQuotes(quotes)
+    } catch (error) {
+      console.error('Error obteniendo cotizaciones:', error)
+    } finally {
+      setLoadingQuotes(false)
+    }
   }
+
+  // Auto-calcular cuando cambian fechas, habitaciones o códigos
+  useEffect(() => {
+    if (checkIn && checkOut && validRooms.length > 0) {
+      const timer = setTimeout(() => {
+        fetchPricingQuotes()
+      }, 500) // Debounce de 500ms
+
+      return () => clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkIn, checkOut, validRooms.length, appliedPromo, appliedVoucher])
 
   const clearPromotion = async () => {
     setPromoDraft('')
     setAppliedPromo('')
     setFieldValue('promotion_code', '')
+    await fetchPricingQuotes()
   }
 
   const clearVoucher = async () => {
     setVoucherDraft('')
     setAppliedVoucher('')
     setFieldValue('voucher_code', '')
+    await fetchPricingQuotes()
   }
 
   // Formatear fecha
@@ -76,8 +135,45 @@ const PaymentInformationMultiRoom = () => {
     }).format(amount)
   }
 
-  // Por ahora, simplificamos la UI
-  if (false) {
+  // Calcular total usando cotizaciones del backend si están disponibles, sino usar estimación simple
+  // IMPORTANTE: Este useMemo debe estar ANTES de cualquier return condicional
+  const totals = useMemo(() => {
+    if (!checkIn || !checkOut || validRooms.length === 0) {
+      return { totalEstimated: 0, hasQuotes: false }
+    }
+
+    // Si tenemos cotizaciones del backend, usarlas (más precisas)
+    const hasQuotes = Object.keys(pricingQuotes).length > 0
+    if (hasQuotes) {
+      const totalEstimated = validRooms.reduce((sum, room) => {
+        const quote = pricingQuotes[room.room]
+        if (quote && quote.total) {
+          return sum + parseFloat(quote.total)
+        }
+        // Fallback a estimación simple si no hay quote para esta habitación
+        const roomData = room.room_data || null
+        const basePrice = roomData?.base_price || 0
+        const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24))
+        return sum + (parseFloat(basePrice) * nights)
+      }, 0)
+      return { totalEstimated, hasQuotes: true }
+    }
+
+    // Fallback: estimación simple usando base_price
+    const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24))
+    const totalEstimated = validRooms.reduce((sum, room) => {
+      const roomData = room.room_data || null
+      const basePrice = roomData?.base_price || 0
+      return sum + (parseFloat(basePrice) * nights)
+    }, 0)
+    
+    return { totalEstimated, hasQuotes: false }
+  }, [checkIn, checkOut, validRooms, pricingQuotes])
+
+  const anyPromoApplied = !!(appliedPromo || appliedVoucher)
+
+  // Mostrar loading mientras se calculan las cotizaciones
+  if (loadingQuotes) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <SpinnerData />
@@ -101,25 +197,6 @@ const PaymentInformationMultiRoom = () => {
       </div>
     )
   }
-
-  // Calcular total estimado simple (usando room_data que trae base_price desde el select)
-  const totals = useMemo(() => {
-    if (!checkIn || !checkOut || validRooms.length === 0) {
-      return { totalEstimated: 0 }
-    }
-    
-    const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24))
-    const totalEstimated = validRooms.reduce((sum, room) => {
-      // En multi-room guardamos el objeto completo en room.room_data
-      const roomData = room.room_data || null
-      const basePrice = roomData?.base_price || 0
-      return sum + (parseFloat(basePrice) * nights)
-    }, 0)
-    
-    return { totalEstimated }
-  }, [checkIn, checkOut, validRooms])
-
-  const anyPromoApplied = !!(appliedPromo || appliedVoucher)
 
   return (
     <div className="space-y-6">
@@ -218,16 +295,26 @@ const PaymentInformationMultiRoom = () => {
         </p>
       </div>
 
-      {/* Resumen estimado simple */}
+      {/* Resumen estimado con cotizaciones del backend si están disponibles */}
       {validRooms.length > 0 && checkIn && checkOut && (
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 mb-3">Resumen estimado</h4>
+          <h4 className="font-semibold text-gray-900 mb-3">
+            {totals.hasQuotes ? 'Resumen de cotización' : 'Resumen estimado'}
+          </h4>
           <div className="space-y-2">
             {validRooms.map((room, idx) => {
               const roomData = room.room_data || null
-              const basePrice = roomData?.base_price || 0
+              const quote = pricingQuotes[room.room]
               const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24))
-              const estimatedPrice = parseFloat(basePrice) * nights
+              
+              // Usar cotización del backend si está disponible, sino estimación simple
+              let price = 0
+              if (quote && quote.total) {
+                price = parseFloat(quote.total)
+              } else {
+                const basePrice = roomData?.base_price || 0
+                price = parseFloat(basePrice) * nights
+              }
               
               return (
                 <div key={idx} className="flex items-center justify-between text-sm">
@@ -235,9 +322,12 @@ const PaymentInformationMultiRoom = () => {
                     {roomData?.name || `Habitación ${idx + 1}`} - {room.guests} huésped(es)
                   </span>
                   <span className="font-semibold text-gray-900">
-                    {formatCurrency(estimatedPrice)}
+                    {formatCurrency(price)}
                     <span className="text-xs text-gray-500 ml-1">
                       ({nights} {nights === 1 ? 'noche' : 'noches'})
+                      {quote && quote.total && (
+                        <span className="text-green-600 ml-1">✓</span>
+                      )}
                     </span>
                   </span>
                 </div>
@@ -259,7 +349,11 @@ const PaymentInformationMultiRoom = () => {
                 </span>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                💡 Este es un cálculo estimado. El precio final se calculará al crear la reserva aplicando descuentos, impuestos y reglas de tarifa.
+                {totals.hasQuotes ? (
+                  <>💡 Precio calculado con reglas de tarifa, impuestos y descuentos aplicados. El precio final puede variar ligeramente al crear la reserva.</>
+                ) : (
+                  <>💡 Este es un cálculo estimado. El precio final se calculará al crear la reserva aplicando descuentos, impuestos y reglas de tarifa.</>
+                )}
               </p>
             </div>
           </div>

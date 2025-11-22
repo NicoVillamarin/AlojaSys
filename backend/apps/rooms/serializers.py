@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Room
 from django.utils import timezone
+from apps.reservations.models import ReservationStatus
 
 class RoomSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(source="hotel.name", read_only=True)
@@ -46,8 +47,15 @@ class RoomSerializer(serializers.ModelSerializer):
         today = timezone.localdate()
         # Solo incluir reservas que NO están en current_reservation
         # (es decir, que no están activas hoy)
+        # Excluir reservas canceladas, no-show y check-out
+        excluded_statuses = [
+            ReservationStatus.CANCELLED,
+            ReservationStatus.NO_SHOW,
+            ReservationStatus.CHECK_OUT,
+        ]
         qs = (obj.reservations
               .filter(check_out__gt=today, check_in__gt=today)
+              .exclude(status__in=excluded_statuses)
               .order_by("check_in")
               .values("id", "status", "guests_data", "check_in", "check_out")
         )

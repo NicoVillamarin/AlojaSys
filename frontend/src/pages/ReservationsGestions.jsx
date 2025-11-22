@@ -75,6 +75,7 @@ export default function ReservationsGestions() {
   const [showMultiRoomDetail, setShowMultiRoomDetail] = useState(false);
   const [selectedMultiRoomGroup, setSelectedMultiRoomGroup] = useState(null);
   const [editMultiRoomGroup, setEditMultiRoomGroup] = useState(null);
+  const [multiRoomRefreshKey, setMultiRoomRefreshKey] = useState(0);
   const [filters, setFilters] = useState({
     search: "",
     hotel: "",
@@ -811,6 +812,7 @@ export default function ReservationsGestions() {
         isOpen={showMultiCreateModal}
         onClose={() => setShowMultiCreateModal(false)}
         onSuccess={refetch}
+        refreshKey={multiRoomRefreshKey}
       />
       <MultiRoomReservationsModal
         isOpen={!!editMultiRoomGroup}
@@ -819,6 +821,7 @@ export default function ReservationsGestions() {
         isEdit={true}
         groupCode={editMultiRoomGroup?.groupCode}
         groupReservations={editMultiRoomGroup?.groupReservations}
+        refreshKey={multiRoomRefreshKey}
       />
 
       <MultiRoomReservationDetailModal
@@ -899,6 +902,8 @@ export default function ReservationsGestions() {
           setCancelModalOpen(false);
           setCancelReservation(null);
           refetch();
+          // Refrescar datos de habitaciones en el modal multi-habitación si está abierto
+          setMultiRoomRefreshKey((prev) => prev + 1);
         }}
       />
 
@@ -1053,7 +1058,7 @@ export default function ReservationsGestions() {
                   r.rooms_count || (r.group_reservations?.length ?? 0) || 1;
                 return (
                   <div className="flex flex-col">
-                    <button
+                    <button 
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
