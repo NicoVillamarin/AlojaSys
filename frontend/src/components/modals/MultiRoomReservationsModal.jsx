@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Formik } from 'formik'
 import * as Yup from 'yup'
@@ -48,7 +48,7 @@ const buildGuestsDataFromRoom = (room) => {
   return guestsData
 }
 
-const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, groupCode, groupReservations = [] }) => {
+const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, groupCode, groupReservations = [], refreshKey = 0 }) => {
   const { t } = useTranslation()
   const { hotelIdsString, isSuperuser } = useUserHotels()
   const [alert, setAlert] = useState({ open: false, title: '', description: '' })
@@ -56,6 +56,7 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
   const [activeTab, setActiveTab] = useState('basic')
   const [dateAlertOpen, setDateAlertOpen] = useState(false)
   const [dateAlertMsg, setDateAlertMsg] = useState('')
+  const formikRef = useRef(null) // Referencia para acceder a Formik desde fuera
 
   const { mutate: createMultiReservation, isPending: creating } = useCreate({
     resource: 'reservations/multi-room',
@@ -153,6 +154,51 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
   }
 
   const initialValues = buildInitialValues()
+
+  // Refrescar datos de habitaciones cuando cambia refreshKey (ej: después de cancelar una reserva)
+  useEffect(() => {
+    if (refreshKey > 0 && isOpen && formikRef.current) {
+      const formikValues = formikRef.current.values
+      if (formikValues?.rooms && formikValues.rooms.length > 0) {
+        // Refrescar room_data para cada habitación seleccionada
+        const refreshRoomData = async () => {
+          const updatedRooms = await Promise.all(
+            formikValues.rooms.map(async (room) => {
+              if (!room.room) return room
+              
+              try {
+                // Obtener datos actualizados de la habitación
+                const roomData = await fetchWithAuth(
+                  `${getApiURL()}/api/rooms/${room.room}/`
+                )
+                if (roomData) {
+                  return {
+                    ...room,
+                    room_data: roomData, // Actualizar con datos frescos del backend
+                  }
+                }
+              } catch (error) {
+                console.error(`Error refrescando datos de habitación ${room.room}:`, error)
+              }
+              return room
+            })
+          )
+          
+          // Actualizar solo si hay cambios
+          const hasChanges = updatedRooms.some((updatedRoom, idx) => {
+            const originalRoom = formikValues.rooms[idx]
+            return JSON.stringify(updatedRoom.room_data) !== JSON.stringify(originalRoom.room_data)
+          })
+          
+          if (hasChanges && formikRef.current) {
+            formikRef.current.setFieldValue('rooms', updatedRooms)
+          }
+        }
+        
+        refreshRoomData()
+      }
+    }
+  }, [refreshKey, isOpen])
 
   const validationSchema = Yup.object({
     hotel: Yup.number().required('El hotel es obligatorio'),
@@ -544,11 +590,15 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
     <>
       <Formik
         enableReinitialize
+        key={`multi-room-${refreshKey}`}
         initialValues={initialValues}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
       >
         {({ values, setFieldValue, errors, touched }) => {
+          // Guardar referencia a Formik para poder acceder desde useEffect
+          formikRef.current = { values, setFieldValue, errors, touched }
+          
           const nights = calculateStayDuration(values.date_range?.startDate, values.date_range?.endDate)
           const roomsSummary = {
             totalRooms: (values.rooms || []).filter((r) => r.room).length,
@@ -559,8 +609,10 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
           const isBasicComplete = () => {
             const hasHotel = !!values.hotel
             const hasDates = !!(values.date_range?.startDate && values.date_range?.endDate)
-            const hasRooms = (values.rooms || []).some((r) => r.room)
-            return Boolean(hasHotel && hasDates && hasRooms)
+            // Verificar que haya al menos una habitación con room seleccionado Y con guest_name (requerido)
+            const validRooms = (values.rooms || []).filter((r) => r.room && r.guest_name && r.guest_name.trim())
+            const hasValidRooms = validRooms.length > 0
+            return Boolean(hasHotel && hasDates && hasValidRooms)
           }
 
           const isPaymentComplete = () => {
@@ -600,8 +652,11 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
 
           const goToNextStep = () => {
             const idx = tabs.findIndex((t) => t.id === activeTab)
-            if (idx < tabs.length - 1 && getStepStatus(tabs[idx].id)) {
-              setActiveTab(tabs[idx + 1].id)
+            const currentStepStatus = getStepStatus(tabs[idx].id)
+            if (idx < tabs.length - 1 && currentStepStatus) {
+              // Forzar actualización del estado de manera explícita
+              const nextTabId = tabs[idx + 1].id
+              setActiveTab(nextTabId)
             }
           }
 
@@ -694,14 +749,27 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
                             ))}
                       </Button>
                     ) : (
-                      <Button
-                        variant="primary"
-                        size="sm lg:size-md"
-                        disabled={!canNext}
-                        onClick={goToNextStep}
-                      >
-                        {t('reservations_modal.next', 'Siguiente')}
-                      </Button>
+                      <div className="flex flex-col items-end">
+                        <Button
+                          variant="primary"
+                          size="sm lg:size-md"
+                          disabled={!canNext}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            goToNextStep()
+                          }}
+                        >
+                          {t('reservations_modal.next', 'Siguiente')}
+                        </Button>
+                        {!canNext && (
+                          <div className="text-xs text-gray-500 mt-1 text-right max-w-[200px]">
+                            {!values.hotel && 'Seleccioná un hotel'}
+                            {values.hotel && !values.date_range?.startDate && 'Seleccioná las fechas'}
+                            {values.hotel && values.date_range?.startDate && !(values.rooms || []).some((r) => r.room && r.guest_name?.trim()) && 'Completá al menos una habitación con huésped'}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -982,6 +1050,9 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
                                   getOptionValue={(r) => r?.id}
                                   extraParams={{
                                     hotel: values.hotel || undefined,
+                                    // Incluir refreshKey para forzar refetch de habitaciones
+                                    // cuando se cancelan reservas y cambia la disponibilidad
+                                    refreshKey,
                                   }}
                                   value={room.room}
                                   onValueChange={(option, value) => {

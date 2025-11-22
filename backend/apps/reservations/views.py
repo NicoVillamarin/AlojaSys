@@ -538,11 +538,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
             external_ref = f"REF-{refund.id}-{int(django_timezone.now().timestamp())}"
             refund.mark_as_completed(external_reference=external_ref, user=request.user)
         
-        # Actualizar estado de la reserva
+        # Actualizar estado de la reserva principal
         reservation.status = ReservationStatus.CANCELLED
         reservation.save(update_fields=["status"])
         
-        # Actualizar estado de la habitación a disponible
+        # Actualizar estado de la habitación a disponible (reserva principal)
         if reservation.room:
             from apps.rooms.models import RoomStatus
             reservation.room.status = RoomStatus.AVAILABLE
@@ -563,6 +563,46 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'manual_cancellation': True
             }
         )
+
+        # Si la reserva forma parte de un grupo multi-habitación, cancelar también
+        # las demás reservas del mismo group_code (solo estados pendientes/confirmados)
+        if reservation.group_code:
+            from apps.rooms.models import RoomStatus
+            from .models import Reservation as ReservationModel
+            from apps.reservations.models import ReservationChangeLog as GroupChangeLog, ReservationChangeEvent as GroupChangeEvent
+
+            sibling_reservations = (
+                ReservationModel.objects
+                .filter(group_code=reservation.group_code)
+                .exclude(pk=reservation.pk)
+            )
+
+            for sibling in sibling_reservations:
+                if sibling.status not in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]:
+                    continue
+
+                # Marcar reserva del grupo como cancelada
+                sibling.status = ReservationStatus.CANCELLED
+                sibling.save(update_fields=["status"])
+
+                # Liberar habitación asociada
+                if sibling.room:
+                    sibling.room.status = RoomStatus.AVAILABLE
+                    sibling.room.save(update_fields=["status"])
+
+                # Registrar log de cancelación para la reserva del grupo
+                GroupChangeLog.objects.create(
+                    reservation=sibling,
+                    event_type=GroupChangeEvent.CANCEL,
+                    changed_by=request.user,
+                    message=f"Reserva cancelada como parte de un grupo multi-habitación (grupo {reservation.group_code}). Motivo: {cancellation_reason}",
+                    fields_changed={
+                        'cancellation_reason': cancellation_reason,
+                        'manual_cancellation': True,
+                        'group_code': reservation.group_code,
+                        'cancelled_with_reservation_id': reservation.id,
+                    }
+                )
         
         # Crear notificación de cancelación manual
         try:
