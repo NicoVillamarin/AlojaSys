@@ -34,6 +34,13 @@ class Reservation(models.Model):
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="reservations")
     guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
     guests_data = models.JSONField(default=list, help_text="Información de todos los huéspedes")
+    group_code = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Identificador de grupo para reservas multi-habitación (misma estancia con varias habitaciones)"
+    )
     channel = models.CharField(max_length=20, choices=ReservationChannel.choices, default=ReservationChannel.DIRECT)
     external_id = models.CharField(max_length=255, blank=True, null=True, help_text="ID externo de la reserva (ej: UID de iCal, ID de OTA)")
     promotion_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de promoción aplicado")

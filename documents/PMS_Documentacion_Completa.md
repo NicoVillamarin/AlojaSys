@@ -141,8 +141,11 @@ class Reservation(models.Model):
     room = ForeignKey(Room)
     guests = PositiveIntegerField        # Número de huéspedes
     guests_data = JSONField             # Datos de todos los huéspedes
+    group_code = CharField(64, blank=True, null=True, db_index=True)
+    # Identificador de grupo para reservas multi-habitación (misma estancia con varias habitaciones)
     channel = CharField(20)             # Canal de reserva
     promotion_code = CharField(50)      # Código promocional
+    voucher_code = CharField(50)        # Código de voucher
     check_in = DateField                # Fecha de llegada
     check_out = DateField               # Fecha de salida
     status = CharField(20)              # Estado de la reserva
@@ -257,6 +260,127 @@ class Payment(models.Model):
 - `GET /api/reservations/pricing_quote/` - Cotizar precio por rango
 - `GET /api/reservations/can_book/` - Validar si se puede reservar
 - `POST /api/reservations/quote/` - Cotización completa con validaciones
+
+#### Reservas Multi-Habitación (v2.6)
+
+**Propósito**: Permitir crear múltiples reservas vinculadas para la misma estancia (mismo check-in y check-out) en diferentes habitaciones.
+
+**Concepto**: Un grupo de reservas multi-habitación comparte:
+- Mismo `group_code` (identificador único del grupo)
+- Mismas fechas de check-in y check-out
+- Mismo hotel
+- Pueden tener diferentes habitaciones, huéspedes y precios
+
+**Modelo de Datos**:
+- Campo `group_code` en `Reservation`: Identificador único que vincula múltiples reservas
+- Cada reserva del grupo mantiene su propia instancia con su habitación, huéspedes y precio
+- El `group_code` está indexado para búsquedas rápidas
+
+**Endpoint de Creación**:
+```
+POST /api/reservations/multi-room/
+```
+
+**Payload**:
+```json
+{
+  "hotel": 1,
+  "check_in": "2024-01-15",
+  "check_out": "2024-01-18",
+  "status": "pending",
+  "channel": "direct",
+  "notes": "Reserva familiar",
+  "promotion_code": "FAMILIA2024",  // Opcional: código a nivel de grupo
+  "voucher_code": "VOUCHER123",      // Opcional: voucher a nivel de grupo
+  "rooms": [
+    {
+      "room": 1,
+      "guests": 2,
+      "guests_data": [
+        {
+          "name": "Juan Pérez",
+          "email": "juan@email.com",
+          "phone": "+54 9 11 1234-5678",
+          "document": "12345678",
+          "address": "Calle 123",
+          "is_primary": true
+        }
+      ],
+      "promotion_code": "HAB1",      // Opcional: código específico de esta habitación
+      "voucher_code": null,           // Opcional: voucher específico de esta habitación
+      "notes": "Habitación principal"
+    },
+    {
+      "room": 2,
+      "guests": 1,
+      "guests_data": [
+        {
+          "name": "María Pérez",
+          "email": "maria@email.com",
+          "phone": "+54 9 11 8765-4321",
+          "document": "87654321",
+          "is_primary": true
+        }
+      ],
+      "notes": "Habitación adicional"
+    }
+  ]
+}
+```
+
+**Proceso de Creación**:
+1. **Validación de fechas**: Verifica que todas las habitaciones estén disponibles en el rango de fechas
+2. **Generación de group_code**: Crea un identificador único (UUID) para el grupo
+3. **Creación de reservas**: Crea una instancia de `Reservation` por cada habitación
+4. **Aplicación de códigos**: Aplica códigos de promoción/voucher a nivel de grupo o individual
+5. **Cálculo de precios**: Calcula el precio de cada reserva usando el motor de tarifas
+6. **Generación de noches**: Crea `ReservationNight` para cada noche de cada reserva
+7. **Envío de emails**: Envía un email consolidado por huésped principal con todas sus habitaciones
+
+**Validaciones**:
+- ✅ **Disponibilidad por habitación**: Verifica que cada habitación esté disponible en las fechas
+- ✅ **Sin duplicados**: Previene seleccionar la misma habitación dos veces
+- ✅ **Capacidad**: Valida que el número de huéspedes no exceda la capacidad de cada habitación
+- ✅ **Fechas válidas**: Check-in debe ser anterior a check-out
+- ✅ **Huésped principal**: Cada habitación debe tener al menos un huésped principal
+
+**Cálculo de Precios**:
+- Cada reserva del grupo calcula su precio independientemente
+- Se aplican códigos de promoción/voucher a nivel de grupo si no hay códigos específicos por habitación
+- El precio total del grupo es la suma de todas las reservas individuales
+
+**Gestión de Pagos**:
+- Los pagos se pueden registrar en cualquier reserva del grupo
+- El cálculo de `balance_due` considera todos los pagos de todas las reservas del grupo
+- La seña se calcula sobre el total del grupo (suma de todas las reservas)
+- El modal de pago muestra el total consolidado del grupo
+
+**Emails Consolidados**:
+- El sistema agrupa las reservas por email del huésped principal
+- Envía un solo email por huésped con todas sus habitaciones
+- Incluye detalles de cada habitación, precios individuales y total del grupo
+- Adjunta PDFs de recibos para cada reserva del grupo
+
+**Filtrado y Búsqueda**:
+- `GET /api/reservations/?group_code=ABC123` - Obtener todas las reservas de un grupo
+- El frontend agrupa automáticamente las reservas con `group_code` en la tabla
+- Las reservas con 2+ habitaciones se muestran como una sola fila con badge "Multi-habitación · N hab."
+
+**Frontend**:
+- Modal dedicado `MultiRoomReservationsModal` para crear/editar reservas multi-habitación
+- Tabla agrupa automáticamente reservas con el mismo `group_code`
+- Modal de detalle `MultiRoomReservationDetailModal` para ver todas las habitaciones del grupo
+- Validación de ocupación en tiempo real para cada habitación seleccionada
+- Prevención de selección de habitaciones duplicadas
+
+**Serializers**:
+- `MultiRoomReservationRoomSerializer`: Valida datos de cada habitación del grupo
+- `MultiRoomReservationCreateSerializer`: Valida el payload completo del grupo
+- `ReservationSerializer`: Expone `group_code` en las respuestas
+
+**Servicios**:
+- `ReservationEmailService.send_multi_room_confirmation()`: Envía emails consolidados
+- `payment_calculator.calculate_balance_due()`: Calcula balance considerando el grupo completo
 
 ---
 

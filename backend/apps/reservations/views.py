@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
@@ -7,26 +7,25 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone as django_timezone
 from apps.rooms.models import Room, RoomStatus
 from apps.rooms.serializers import RoomSerializer
-from .models import Reservation, ReservationStatus, RoomBlock, ReservationNight
+from .models import Reservation, ReservationStatus, ReservationChannel, RoomBlock, ReservationNight
 from .serializers import (
     ReservationSerializer,
     PaymentSerializer,
     ChannelCommissionSerializer,
     ReservationChargeSerializer,
+    MultiRoomReservationCreateSerializer,
 )
 from rest_framework.decorators import action, api_view
 from decimal import Decimal
-from django.db import models
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 from .services.pricing import compute_nightly_rate, recalc_reservation_totals, generate_nights_for_reservation
-from django.shortcuts import get_object_or_404
-from .middleware import get_current_user
-from apps.rates.models import RatePlan
-from apps.rates.services.engine import get_applicable_rule
-from apps.rates.services.engine import compute_rate_for_date
-from apps.rates.models import DiscountType
-from apps.rates.models import PromoRule
+from apps.rates.models import RatePlan, DiscountType, PromoRule
+from apps.rates.services.engine import get_applicable_rule, compute_rate_for_date
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -38,6 +37,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         hotel_id = self.request.query_params.get("hotel")
         room_id = self.request.query_params.get("room")
         status_param = self.request.query_params.get("status")
+        group_code = self.request.query_params.get("group_code")
         ordering = self.request.query_params.get("ordering", "-check_in")  # Por defecto ordenar por check-in descendente
         
         if hotel_id and hotel_id.isdigit():
@@ -46,6 +46,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(room_id=room_id)
         if status_param:
             qs = qs.filter(status=status_param)
+        if group_code:
+            qs = qs.filter(group_code=group_code)
         
         # Validar que el campo de ordenamiento sea válido
         valid_orderings = ['created_at', '-created_at', 'check_in', '-check_in', 'check_out', '-check_out', 'id', '-id']
@@ -115,6 +117,99 @@ class ReservationViewSet(viewsets.ModelViewSet):
             else:
                 # Error simple
                 return Response({'__all__': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["post"], url_path="multi-room")
+    def create_multi_room(self, request, *args, **kwargs):
+        """
+        Crea una reserva multi-habitación.
+
+        A nivel de base de datos se generan varias instancias de `Reservation`,
+        una por habitación, todas compartiendo:
+        - hotel
+        - rango de fechas (check_in / check_out)
+        - canal / status / external_id (si aplica)
+        - un mismo `group_code` para poder agruparlas en el frontend.
+
+        La lógica de validación y pricing reutiliza el `ReservationSerializer`
+        estándar, por lo que se respetan todas las reglas actuales:
+        solapamientos, capacidad, CTA/CTD, min/max stay, políticas, etc.
+        """
+        serializer = MultiRoomReservationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        if not data.get("rooms"):
+            return Response(
+                {"detail": "Debe indicar al menos una habitación en 'rooms'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        group_code = data.get("group_code") or str(uuid.uuid4())
+
+        created_reservations = []
+        try:
+            with transaction.atomic():
+                for room_payload in data["rooms"]:
+                    single_payload = {
+                        "hotel": data["hotel"].id if hasattr(data["hotel"], "id") else data["hotel"],
+                        "room": room_payload["room"].id if hasattr(room_payload["room"], "id") else room_payload["room"],
+                        "guests": room_payload["guests"],
+                        "guests_data": room_payload.get("guests_data", []),
+                        "check_in": data["check_in"],
+                        "check_out": data["check_out"],
+                        "status": data.get("status", ReservationStatus.PENDING),
+                        "channel": data.get("channel", ReservationChannel.DIRECT),
+                        "external_id": data.get("external_id"),
+                        "notes": room_payload.get("notes") or data.get("notes"),
+                        # Si la habitación tiene su propio código, usarlo; sino usar el del grupo
+                        "promotion_code": room_payload.get("promotion_code") or data.get("promotion_code"),
+                        "voucher_code": room_payload.get("voucher_code") or data.get("voucher_code"),
+                        "group_code": group_code,
+                    }
+                    res_serializer = ReservationSerializer(data=single_payload)
+                    res_serializer.is_valid(raise_exception=True)
+                    instance = res_serializer.save()
+                    created_reservations.append(instance)
+
+                # Regenerar noches y totales para todas las reservas creadas
+                for instance in created_reservations:
+                    if instance.check_in and instance.check_out and instance.room_id:
+                        generate_nights_for_reservation(instance)
+                        recalc_reservation_totals(instance)
+                        try:
+                            instance.refresh_from_db(fields=["total_price"])
+                        except Exception:
+                            pass
+        except ValidationError as e:
+            if hasattr(e, 'message_dict'):
+                return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+            elif hasattr(e, 'messages'):
+                return Response({'__all__': list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'__all__': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+        output = ReservationSerializer(created_reservations, many=True)
+        
+        # Enviar emails consolidados para reservas multi-habitación
+        # Solo si hay más de una reserva (es realmente multi-habitación)
+        if len(created_reservations) > 1:
+            try:
+                from apps.reservations.services.email_service import ReservationEmailService
+                email_results = ReservationEmailService.send_multi_room_confirmation(
+                    created_reservations,
+                    include_receipts=True
+                )
+                logger.info(f"📧 Emails consolidados enviados para grupo {group_code}: {email_results}")
+            except Exception as email_error:
+                # No fallar la creación de la reserva si el email falla
+                logger.error(f"⚠️ Error enviando emails consolidados para grupo {group_code}: {email_error}")
+        
+        return Response(
+            {
+                "group_code": group_code,
+                "reservations": output.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"])
     def check_in(self, request, pk=None):

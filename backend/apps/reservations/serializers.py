@@ -5,7 +5,8 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from datetime import date
 from .models import Reservation, ReservationStatus, ReservationCharge, Payment, ChannelCommission, ReservationChannel
-from apps.rooms.models import RoomStatus
+from apps.rooms.models import RoomStatus, Room
+from apps.core.models import Hotel
 
 class ReservationSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(source="hotel.name", read_only=True)
@@ -31,6 +32,7 @@ class ReservationSerializer(serializers.ModelSerializer):
         fields = [
             "id", "hotel", "hotel_name", "room", "room_name", "room_data",
             "guest_name", "guest_email", "guests", "guests_data",
+            "group_code",
             "check_in", "check_out", "status", "total_price", "balance_due", "total_paid", "notes",
             "channel", "channel_display", "is_ota", "paid_by", "overbooking_flag",
             "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
@@ -206,6 +208,42 @@ class ReservationSerializer(serializers.ModelSerializer):
         from apps.payments.services.payment_calculator import calculate_balance_due
         balance_info = calculate_balance_due(obj)
         return float(balance_info['total_paid'])
+
+
+class MultiRoomReservationRoomSerializer(serializers.Serializer):
+    """
+    Datos específicos de cada habitación dentro de una reserva multi-habitación.
+    """
+    room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
+    guests = serializers.IntegerField(min_value=1)
+    guests_data = serializers.ListField(
+        child=serializers.DictField(),
+        required=False
+    )
+    promotion_code = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    voucher_code = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class MultiRoomReservationCreateSerializer(serializers.Serializer):
+    """
+    Serializer de entrada para crear una reserva multi-habitación.
+
+    Crea internamente varias instancias de `Reservation`, una por habitación,
+    compartiendo hotel, fechas y canal, y reutilizando toda la lógica de
+    validación/pricing existente del serializer de una sola reserva.
+    """
+    hotel = serializers.PrimaryKeyRelatedField(queryset=Hotel.objects.all())
+    check_in = serializers.DateField()
+    check_out = serializers.DateField()
+    status = serializers.ChoiceField(choices=ReservationStatus.choices, required=False)
+    channel = serializers.ChoiceField(choices=ReservationChannel.choices, required=False)
+    external_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    promotion_code = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text="Código de promoción a nivel de grupo (se aplica a todas las habitaciones si no tienen uno específico)")
+    voucher_code = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text="Código de voucher a nivel de grupo (se aplica a todas las habitaciones si no tienen uno específico)")
+    group_code = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    rooms = MultiRoomReservationRoomSerializer(many=True)
 
 class ReservationChargeSerializer(serializers.ModelSerializer):
     class Meta:

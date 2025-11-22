@@ -245,11 +245,107 @@ Datos de la reserva:
 - **Estadía mínima/máxima**: Valida según las reglas del hotel
 - **🛡️ Verificación con OTAs**: Antes de confirmar una reserva, el sistema verifica automáticamente si la habitación está ocupada en Booking.com o Airbnb para evitar overbooking (ver detalles más abajo)
 
+### 🏨 Reservas Multi-Habitación (v2.6)
+
+#### ¿Qué son las reservas multi-habitación?
+Permiten reservar múltiples habitaciones para la misma estancia (mismas fechas de entrada y salida) en una sola operación. Ideal para familias, grupos o eventos que necesitan varias habitaciones.
+
+#### ¿Cómo funciona?
+
+##### 1. Creación de Reserva Multi-Habitación
+```
+Cliente necesita:
+- 2 habitaciones
+- Mismas fechas: 15/01/2024 - 18/01/2024
+- Diferentes huéspedes en cada habitación
+
+Sistema permite:
+- Seleccionar múltiples habitaciones
+- Asignar huéspedes específicos a cada habitación
+- Aplicar códigos de descuento a nivel de grupo o por habitación
+- Ver el precio total consolidado
+```
+
+##### 2. Proceso Simplificado
+1. **Seleccionar hotel y fechas**: Mismas fechas para todas las habitaciones
+2. **Agregar habitaciones**: Seleccionar cada habitación y número de huéspedes
+3. **Datos de huéspedes**: Completar información de cada habitación
+4. **Códigos de descuento**: Aplicar promociones o vouchers (opcional)
+5. **Revisar y confirmar**: Ver resumen completo antes de crear
+6. **Crear reserva**: Sistema crea todas las habitaciones vinculadas
+
+##### 3. Visualización en el Sistema
+- **En la tabla**: Las reservas multi-habitación aparecen agrupadas como una sola fila
+- **Badge identificador**: Muestra "Multi-habitación · 2 hab." (o el número correspondiente)
+- **Nombre clickeable**: Al hacer click en el nombre, se abre el detalle completo
+- **Precio total**: Muestra la suma de todas las habitaciones del grupo
+
+##### 4. Gestión de Pagos
+- **Precio consolidado**: El sistema calcula el total sumando todas las habitaciones
+- **Seña del grupo**: Si hay política de seña, se calcula sobre el total del grupo
+- **Pagos flexibles**: Se pueden registrar pagos en cualquier reserva del grupo
+- **Balance consolidado**: El sistema considera todos los pagos de todas las habitaciones
+
+##### 5. Emails Automáticos
+- **Email consolidado**: El huésped recibe un solo email con todas sus habitaciones
+- **Detalles completos**: Incluye información de cada habitación, precios y total
+- **Recibos adjuntos**: PDFs de recibos para cada habitación del grupo
+
+#### Características Principales
+- ✅ **Múltiples habitaciones**: Reserva 2, 3 o más habitaciones en una sola operación
+- ✅ **Mismos check-in/check-out**: Todas las habitaciones comparten las mismas fechas
+- ✅ **Huéspedes independientes**: Cada habitación puede tener diferentes huéspedes
+- ✅ **Precios individuales**: Cada habitación calcula su precio según tarifas
+- ✅ **Códigos de descuento**: Aplicar promociones a nivel de grupo o por habitación
+- ✅ **Validación automática**: Verifica disponibilidad de cada habitación antes de confirmar
+- ✅ **Prevención de duplicados**: No permite seleccionar la misma habitación dos veces
+- ✅ **Visualización agrupada**: Se muestran como una sola reserva en las tablas
+- ✅ **Emails consolidados**: Un solo email por huésped con todas sus habitaciones
+
+#### Ejemplo Práctico
+```
+Familia Pérez necesita:
+- Suite 101 para padres (2 personas)
+- Habitación 205 para hijos (1 persona)
+- Fechas: 15/01/2024 - 18/01/2024 (3 noches)
+
+Proceso:
+1. Seleccionar "Reserva multi-habitaciones"
+2. Elegir hotel y fechas
+3. Agregar Suite 101 → 2 huéspedes → Datos de padres
+4. Agregar Habitación 205 → 1 huésped → Datos de hijo
+5. Aplicar código promocional "FAMILIA2024" (descuento del 10%)
+6. Revisar: Total Suite 101: $90,000 | Habitación 205: $60,000 | Total: $150,000
+7. Confirmar reserva
+
+Resultado:
+- Se crean 2 reservas vinculadas con el mismo código de grupo
+- Ambas comparten las mismas fechas
+- Cada una tiene su precio y huéspedes
+- El sistema envía un email consolidado a los padres
+- En la tabla aparece como "Reserva N° 42 · Multi-habitación · 2 hab."
+```
+
+#### Beneficios para el Hotel
+- ✅ **Proceso más rápido**: Crear múltiples reservas en una sola operación
+- ✅ **Menos errores**: Validación automática de disponibilidad para todas las habitaciones
+- ✅ **Mejor organización**: Reservas vinculadas se gestionan como un grupo
+- ✅ **Pagos consolidados**: Facilita el cálculo de señas y saldos pendientes
+- ✅ **Comunicación clara**: Emails consolidados mejoran la experiencia del huésped
+
+#### Beneficios para el Huésped
+- ✅ **Proceso simplificado**: Reserva todas sus habitaciones de una vez
+- ✅ **Un solo email**: Recibe toda la información en un solo correo
+- ✅ **Precio claro**: Ve el total consolidado desde el inicio
+- ✅ **Flexibilidad**: Puede tener diferentes huéspedes en cada habitación
+- ✅ **Descuentos**: Aplica códigos promocionales a todo el grupo
+
 ### Beneficios
 - ✅ **Reservas sin errores** gracias a las validaciones
 - ✅ **Control de disponibilidad** en tiempo real
 - ✅ **Gestión completa** del ciclo de vida
 - ✅ **Datos organizados** de huéspedes
+- ✅ **Reservas multi-habitación** para grupos y familias
 
 ---
 

@@ -768,7 +768,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
 
         const titleNode = (
           <div className="flex flex-col">
-            <span className="text-base sm:text-lg">{isEdit ? t('reservations_modal.edit_reservation') : t('reservations_modal.create_reservation')}</span>
+            <span className="text-base sm:text-lg">
+              {isEdit ? t('reservations_modal.edit_reservation') : t('reservations_modal.create_reservation')}
+            </span>
             {(() => {
               // Usar el rango de fechas si está disponible, sino usar los campos individuales
               const checkIn = values.date_range?.startDate || values.check_in

@@ -5,6 +5,7 @@ import es from 'date-fns/locale/es'
 import 'react-date-range/dist/styles.css'
 import 'react-date-range/dist/theme/default.css'
 import Button from './Button'
+import LabelsContainer from './inputs/LabelsContainer'
 
 function toDate(value) {
   if (!value) return new Date()
@@ -86,9 +87,9 @@ const DatePickedRange = ({
 
   return (
     <div className={containerClassName} ref={wrapperRef}>
-      <div className="text-sm font-medium text-gray-700 mb-2">{label}</div>
       <div className="relative">
-        <div className="flex items-center">
+          <LabelsContainer title={label} />
+        <div className="flex items-center pt-1">
           <input
             readOnly
             value={display}

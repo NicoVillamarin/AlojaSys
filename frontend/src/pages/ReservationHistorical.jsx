@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import ReservationHistoricalModal from 'src/components/modals/ReservationHistoricalModal'
+import MultiRoomReservationDetailModal from 'src/components/modals/MultiRoomReservationDetailModal'
 import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
@@ -13,6 +14,8 @@ import { convertToDecimal, getStatusLabel, getResStatusList } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import Badge from 'src/components/Badge'
+import fetchWithAuth from 'src/services/fetchWithAuth'
+import { getApiURL } from 'src/services/utils'
 
 
 
@@ -22,6 +25,8 @@ export default function ReservationHistorical() {
   const [editReservation, setEditReservation] = useState(null)
   const [historyReservationId, setHistoryReservationId] = useState(null)
   const [historyReservation, setHistoryReservation] = useState(null)
+  const [showMultiRoomDetail, setShowMultiRoomDetail] = useState(false)
+  const [selectedMultiRoomGroup, setSelectedMultiRoomGroup] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
@@ -44,15 +49,18 @@ export default function ReservationHistorical() {
     const from = filters.dateFrom ? new Date(filters.dateFrom) : null
     const to = filters.dateTo ? new Date(filters.dateTo) : null
     let arr = results || []
+    
     if (q) {
       arr = arr.filter((r) => {
         const guest = String(r.guest_name ?? '').toLowerCase()
         const hotel = String(r.hotel_name ?? '').toLowerCase()
         const room = String(r.room_name ?? '').toLowerCase()
         const status = String(r.status ?? '').toLowerCase()
-        return guest.includes(q) || hotel.includes(q) || room.includes(q) || status.includes(q)
+        const group = String(r.group_code ?? '').toLowerCase()
+        return guest.includes(q) || hotel.includes(q) || room.includes(q) || status.includes(q) || group.includes(q)
       })
     }
+    
     if (from || to) {
       arr = arr.filter((r) => {
         const ci = new Date(r.check_in)
@@ -62,7 +70,54 @@ export default function ReservationHistorical() {
         return true
       })
     }
-    return arr
+
+    // Agrupar por group_code para reservas multi-habitación (igual que en ReservationsGestions)
+    const groupedByCode = {}
+    const singles = []
+    for (const r of arr) {
+      if (r.group_code) {
+        if (!groupedByCode[r.group_code]) groupedByCode[r.group_code] = []
+        groupedByCode[r.group_code].push(r)
+      } else {
+        singles.push(r)
+      }
+    }
+
+    const groupRows = []
+    Object.values(groupedByCode).forEach((group) => {
+      if (group.length === 1) {
+        // Grupo de una sola habitación: se muestra como reserva normal
+        singles.push(group[0])
+        return
+      }
+      const first = group[0]
+      const roomsCount = group.length
+      const totalPrice = group.reduce(
+        (sum, item) => sum + (parseFloat(item.total_price) || 0),
+        0
+      )
+      const totalGuests = group.reduce(
+        (sum, item) => sum + (parseInt(item.guests) || 0),
+        0
+      )
+
+      groupRows.push({
+        ...first,
+        // Meta para UI
+        is_group: true,
+        group_reservations: group,
+        rooms_count: roomsCount,
+        // Sobrescribir campos que queremos mostrar agregados
+        total_price: totalPrice,
+        guests: totalGuests,
+      })
+    })
+
+    const finalArr = [...singles, ...groupRows]
+
+    // Ordenar por ID descendente por defecto (más recientes primero)
+    finalArr.sort((a, b) => (b.id || 0) - (a.id || 0))
+    return finalArr
   }, [results, filters.search, filters.dateFrom, filters.dateTo])
 
   useEffect(() => {
@@ -117,6 +172,15 @@ export default function ReservationHistorical() {
           onClose={() => { setHistoryReservationId(null); setHistoryReservation(null) }}
         />
       )}
+      <MultiRoomReservationDetailModal
+        isOpen={showMultiRoomDetail}
+        onClose={() => {
+          setShowMultiRoomDetail(false);
+          setSelectedMultiRoomGroup(null);
+        }}
+        groupCode={selectedMultiRoomGroup?.groupCode}
+        groupReservations={selectedMultiRoomGroup?.groupReservations}
+      />
 
      <Filter>
         <div className="flex flex-wrap items-end gap-3">
@@ -208,20 +272,71 @@ export default function ReservationHistorical() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
-          { key: 'display_name', header: t('dashboard.reservations_management.table_headers.reservation'), sortable: true, render: (r) => (
-            <span
-              role="button"
-              tabIndex={0}
-              className="link cursor-pointer"
-              onClick={() => { console.log('Abrir histórico de reserva', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { console.log('Abrir histórico (keyboard)', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) } }}
-            >
-              {r.display_name}
-            </span>
-          ) },
+          { 
+            key: 'display_name', 
+            header: t('dashboard.reservations_management.table_headers.reservation'), 
+            sortable: true, 
+            render: (r) => {
+              if (r.is_group && r.group_code) {
+                const roomsCount =
+                  r.rooms_count || (r.group_reservations?.length ?? 0) || 1;
+                return (
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMultiRoomGroup({
+                          groupCode: r.group_code,
+                          groupReservations: r.group_reservations || [],
+                        });
+                        setShowMultiRoomDetail(true);
+                      }}
+                      className="text-left text-blue-600 hover:text-blue-800 hover:underline"
+                      title="Click para ver detalle de todas las habitaciones"
+                    >
+                      {r.display_name}
+                    </button>
+                    <span className="text-[11px] text-blue-700 font-semibold">
+                      Multi-habitación · {roomsCount} hab.
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="link cursor-pointer"
+                  onClick={() => { console.log('Abrir histórico de reserva', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { console.log('Abrir histórico (keyboard)', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) } }}
+                >
+                  {r.display_name}
+                </span>
+              );
+            }
+          },
           { key: 'guest_name', header: t('dashboard.reservations_management.table_headers.guest'), sortable: true },
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
-          { key: 'room_name', header: t('dashboard.reservations_management.table_headers.room'), sortable: true },
+          { 
+            key: 'room_name', 
+            header: t('dashboard.reservations_management.table_headers.room'), 
+            sortable: true,
+            render: (r) => {
+              if (r.is_group && r.group_code) {
+                const roomsCount =
+                  r.rooms_count || (r.group_reservations?.length ?? 0) || 1;
+                return (
+                  <span>
+                    {roomsCount === 1
+                      ? r.room_name || ''
+                      : `${roomsCount} habitaciones`}
+                  </span>
+                );
+              }
+              return r.room_name;
+            }
+          },
           {
             key: 'channel',
             header: t('dashboard.reservations_management.table_headers.channel'),

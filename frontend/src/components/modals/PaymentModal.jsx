@@ -342,15 +342,38 @@ export default function PaymentModal({
                     // Para confirmación inicial, cargar datos normalmente
                     const res = await fetchWithAuth(`${getApiURL()}/api/reservations/${reservationId}/`);
                     if (cancelled) return;
-                    setReservationData({ hotel: res?.hotel, total_price: res?.total_price });
+                    
+                    // Si es una reserva multi-habitación, calcular el total del grupo
+                    let totalPrice = res?.total_price || 0;
+                    if (res?.group_code) {
+                        try {
+                            // Buscar todas las reservas del grupo
+                            const groupReservations = await fetchWithAuth(
+                                `${getApiURL()}/api/reservations/?group_code=${res.group_code}`
+                            );
+                            if (groupReservations?.results && Array.isArray(groupReservations.results)) {
+                                // Sumar todos los total_price de las reservas del grupo
+                                totalPrice = groupReservations.results.reduce(
+                                    (sum, reservation) => sum + (parseFloat(reservation.total_price) || 0),
+                                    0
+                                );
+                            }
+                        } catch (error) {
+                            console.error('Error cargando reservas del grupo para pago:', error);
+                            // Si falla, usar el total de la reserva individual
+                        }
+                    }
+                    
+                    setReservationData({ hotel: res?.hotel, total_price: totalPrice });
                     
                     // Obtener política activa
                     if (res?.hotel) {
                         const pol = await paymentPolicyService.getActivePolicyForHotel(res.hotel);
                         if (cancelled) return;
                         setPolicy(pol);
-                        if (pol && res?.total_price != null) {
-                            const dep = paymentPolicyService.calculateDeposit(pol, Number(res.total_price));
+                        // Usar totalPrice (que ya incluye el total del grupo si es multi-habitación)
+                        if (pol && totalPrice != null && totalPrice > 0) {
+                            const dep = paymentPolicyService.calculateDeposit(pol, Number(totalPrice));
                             setDepositInfo(dep);
                             // Si no hay depósito requerido, ir directo a selección de método
                             if (!dep?.required || pol?.allow_deposit === false) {

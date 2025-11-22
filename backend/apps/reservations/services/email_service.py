@@ -470,3 +470,128 @@ Equipo de {email_data['hotel_name']}
         except Exception as e:
             logger.error(f"Error obteniendo path de PDF para refund {refund.id}: {e}")
             return None
+    
+    @staticmethod
+    def send_multi_room_confirmation(reservations: List, include_receipts: bool = True) -> Dict[str, bool]:
+        """
+        Envía emails consolidados de confirmación para reservas multi-habitación.
+        
+        Agrupa las reservas por email del huésped principal y envía un solo email
+        por huésped con todas sus habitaciones.
+        
+        Args:
+            reservations: Lista de instancias de Reservation con el mismo group_code
+            include_receipts: Si incluir PDFs de recibos (default: True)
+            
+        Returns:
+            Dict[str, bool]: Diccionario con {email: success} para cada email enviado
+        """
+        if not reservations:
+            return {}
+        
+        # Agrupar reservas por email del huésped principal
+        reservations_by_email = {}
+        for reservation in reservations:
+            guest_email = reservation.guest_email
+            if not guest_email:
+                logger.warning(f"No se encontró email para reserva {reservation.id}, se omite del email consolidado")
+                continue
+            
+            if guest_email not in reservations_by_email:
+                reservations_by_email[guest_email] = []
+            reservations_by_email[guest_email].append(reservation)
+        
+        results = {}
+        
+        # Enviar un email consolidado por cada huésped
+        for guest_email, guest_reservations in reservations_by_email.items():
+            try:
+                if not guest_reservations:
+                    continue
+                
+                # Usar el primer huésped como referencia (todos deberían tener el mismo hotel y fechas)
+                first_reservation = guest_reservations[0]
+                guest_name = first_reservation.guest_name or 'Huésped'
+                hotel_name = first_reservation.hotel.name
+                check_in = first_reservation.check_in
+                check_out = first_reservation.check_out
+                group_code = first_reservation.group_code
+                
+                # Calcular total del grupo para este huésped
+                total_price = sum(float(r.total_price) for r in guest_reservations)
+                
+                # Construir lista de habitaciones
+                rooms_list = []
+                for res in guest_reservations:
+                    room_name = res.room.name if res.room else f'Habitación {res.room_id}'
+                    rooms_list.append(f"  • {room_name} - {res.guests} huésped(es) - ${res.total_price:,.2f} (RES-{res.id})")
+                
+                # Crear email consolidado
+                subject = f"Confirmación de Reserva Multi-Habitación - Grupo {group_code}"
+                
+                body = f"""
+Estimado/a {guest_name},
+
+Su reserva multi-habitación ha sido confirmada exitosamente.
+
+Detalles del grupo de reservas:
+- Código de grupo: {group_code}
+- Hotel: {hotel_name}
+- Fechas: {check_in} - {check_out}
+- Total del grupo: ${total_price:,.2f}
+
+Habitaciones incluidas en esta reserva:
+{chr(10).join(rooms_list)}
+
+Total de habitaciones: {len(guest_reservations)}
+Total de huéspedes: {sum(r.guests for r in guest_reservations)}
+
+Gracias por elegirnos. Esperamos brindarle una excelente estadía.
+
+Equipo de {hotel_name}
+                """.strip()
+                
+                # Crear mensaje de email
+                email = EmailMessage(
+                    subject=subject,
+                    body=body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[guest_email],
+                )
+                
+                # Adjuntar PDFs de recibos de todas las reservas del huésped
+                if include_receipts:
+                    for reservation in guest_reservations:
+                        pdf_attachments = ReservationEmailService._get_payment_receipts(reservation)
+                        for pdf_path, filename in pdf_attachments:
+                            if os.path.exists(pdf_path):
+                                try:
+                                    with open(pdf_path, 'rb') as pdf_file:
+                                        email.attach(
+                                            filename=filename,
+                                            content=pdf_file.read(),
+                                            mimetype='application/pdf'
+                                        )
+                                    logger.info(f"PDF adjunto en email consolidado: {filename}")
+                                except Exception as e:
+                                    logger.error(f"Error adjuntando PDF {filename} en email consolidado: {e}")
+                
+                # Intentar enviar vía Resend primero
+                try:
+                    if ReservationEmailService._send_via_resend(guest_email, subject, body):
+                        logger.info(f"Email consolidado enviado vía Resend a {guest_email} para grupo {group_code} ({len(guest_reservations)} habitaciones)")
+                        results[guest_email] = True
+                        continue
+                except Exception as resend_error:
+                    logger.warning(f"Error enviando email consolidado vía Resend: {resend_error}, usando fallback Django")
+                
+                # Fallback: enviar con Django EmailMessage
+                email.send()
+                logger.info(f"Email consolidado enviado (fallback Django) a {guest_email} para grupo {group_code} ({len(guest_reservations)} habitaciones)")
+                results[guest_email] = True
+                
+            except Exception as e:
+                logger.error(f"Error enviando email consolidado a {guest_email} para grupo {group_code}: {e}")
+                results[guest_email] = False
+        
+        return results

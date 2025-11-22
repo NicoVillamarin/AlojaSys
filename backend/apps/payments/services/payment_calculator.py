@@ -41,7 +41,8 @@ def calculate_deposit(policy, total_amount):
 
 def calculate_balance_due(reservation, policy=None):
     """
-    Calcula el saldo pendiente de pago de una reserva
+    Calcula el saldo pendiente de pago de una reserva.
+    Si la reserva tiene group_code (multi-habitación), calcula el balance del grupo completo.
     
     Args:
         reservation: Reservation instance
@@ -50,19 +51,35 @@ def calculate_balance_due(reservation, policy=None):
     Returns:
         dict: Información del saldo pendiente
     """
-    from apps.reservations.models import Payment
+    from apps.reservations.models import Payment, Reservation
     
     # Obtener política si no se proporciona
     if not policy:
         policy = PaymentPolicy.resolve_for_hotel(reservation.hotel)
     
-    # Calcular total pagado
-    total_paid = reservation.payments.aggregate(
-        total=models.Sum('amount')
-    )['total'] or Decimal('0.00')
-    
-    # Calcular total de la reserva
-    total_reservation = reservation.total_price or Decimal('0.00')
+    # Si es una reserva multi-habitación, calcular el balance del grupo completo
+    if reservation.group_code:
+        # Buscar todas las reservas del grupo
+        group_reservations = Reservation.objects.filter(group_code=reservation.group_code)
+        
+        # Sumar todos los total_price de las reservas del grupo
+        total_reservation = group_reservations.aggregate(
+            total=models.Sum('total_price')
+        )['total'] or Decimal('0.00')
+        
+        # Sumar todos los pagos de todas las reservas del grupo
+        total_paid = Payment.objects.filter(
+            reservation__group_code=reservation.group_code
+        ).aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0.00')
+    else:
+        # Reserva simple: calcular normalmente
+        total_paid = reservation.payments.aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0.00')
+        
+        total_reservation = reservation.total_price or Decimal('0.00')
     
     # Calcular saldo pendiente
     balance_due = total_reservation - total_paid
