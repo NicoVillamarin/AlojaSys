@@ -9,6 +9,8 @@ db.sqlite3
 staticfiles/
 media/
 *.log
+celerybeat-schedule
+celerybeat.pid
 
 # Node / Vite
 frontend/node_modules/
