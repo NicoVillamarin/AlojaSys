@@ -456,7 +456,7 @@ class Invoice(models.Model):
         self.save(update_fields=['status', 'sent_to_afip_at', 'updated_at'])
     
     def mark_as_approved(self, cae: str, cae_expiration: str):
-        """Marca la factura como aprobada por AFIP"""
+        """Marca la factura como aprobada por AFIP y envía email automáticamente"""
         from datetime import datetime
         
         self.status = InvoiceStatus.APPROVED
@@ -468,6 +468,16 @@ class Invoice(models.Model):
             'status', 'cae', 'cae_expiration', 'approved_at', 
             'last_error', 'updated_at'
         ])
+        
+        # Enviar email con factura aprobada
+        try:
+            from .services.email_service import InvoiceEmailService
+            InvoiceEmailService.send_invoice_email(self)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error enviando email de factura aprobada {self.id}: {e}")
+            # No fallar el proceso si hay error en el email
     
     def mark_as_error(self, error_message: str):
         """Marca la factura como error y registra el mensaje"""

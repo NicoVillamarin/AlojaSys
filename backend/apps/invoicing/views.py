@@ -733,6 +733,16 @@ class CreateInvoiceFromReservationView(APIView):
                 # Actualizar número de factura en configuración al último usado
                 afip_config.update_invoice_number(next_number)
                 
+                # Si la factura se crea ya aprobada (caso raro), enviar email
+                if invoice.status == 'approved' and invoice.cae:
+                    try:
+                        from .services.email_service import InvoiceEmailService
+                        InvoiceEmailService.send_invoice_email(invoice)
+                        logger.info(f"📧 [INVOICE VIEW] Email enviado para factura {invoice.number} creada ya aprobada")
+                    except Exception as e:
+                        logger.error(f"Error enviando email de factura {invoice.id}: {e}")
+                        # No fallar la creación si hay error en el email
+                
                 # Serializar respuesta
                 invoice_serializer = InvoiceSerializer(invoice)
                 return Response(invoice_serializer.data, status=status.HTTP_201_CREATED)

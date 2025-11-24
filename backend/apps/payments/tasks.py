@@ -1424,22 +1424,54 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
             Equipo de {reservation.hotel.name}
             """
         else:
-            subject = f"Recibo de Pago - Reserva RES-{reservation.id}"
+            # Obtener información del pago para determinar si es seña o pago completo
+            payment = Payment.objects.get(id=payment_id)
+            is_full_payment = not payment.is_deposit
+            
             guest_info = _get_primary_guest_info(reservation.guests_data)
-            body = f"""
-            Estimado/a {guest_info.get('name', 'Huésped')},
             
-            Se adjunta el recibo de pago por ${amount:,.2f} para su reserva RES-{reservation.id}.
-            
-            Método de pago: {method}
-            
-            Hotel: {reservation.hotel.name}
-            Fechas: {reservation.check_in} - {reservation.check_out}
-            
-            Gracias por su confianza.
-            
-            Equipo de {reservation.hotel.name}
-            """
+            if is_full_payment:
+                # Email para pago completo
+                subject = f"Confirmación de Pago Completo - Reserva RES-{reservation.id}"
+                body = f"""
+Estimado/a {guest_info.get('name', 'Huésped')},
+
+Su pago completo ha sido procesado exitosamente.
+
+Detalles del pago:
+- Código de reserva: RES-{reservation.id}
+- Monto pagado: ${amount:,.2f}
+- Método de pago: {method}
+- Fecha: {payment.created_at.strftime('%d/%m/%Y %H:%M')}
+
+Hotel: {reservation.hotel.name}
+Fechas: {reservation.check_in} - {reservation.check_out}
+
+Se adjunta el recibo del pago para sus registros.
+
+IMPORTANTE: La factura electrónica será enviada por email en breve una vez que sea validada por AFIP.
+
+Gracias por su confianza.
+
+Equipo de {reservation.hotel.name}
+                """.strip()
+            else:
+                # Email para seña/depósito
+                subject = f"Recibo de Seña - Reserva RES-{reservation.id}"
+                body = f"""
+Estimado/a {guest_info.get('name', 'Huésped')},
+
+Se adjunta el recibo de seña por ${amount:,.2f} para su reserva RES-{reservation.id}.
+
+Método de pago: {method}
+
+Hotel: {reservation.hotel.name}
+Fechas: {reservation.check_in} - {reservation.check_out}
+
+Gracias por su confianza.
+
+Equipo de {reservation.hotel.name}
+                """.strip()
         
         # Crear email con adjunto y Reply-To al hotel (si existe)
         hotel_email = getattr(reservation.hotel, 'email', '') or None
@@ -1484,58 +1516,87 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
         
         logger.info(f"   To: {recipient_email}")
 
-        # Enviar SIEMPRE vía Resend HTTP API (SMTP está bloqueado en Railway Hobby)
-        try:
-            import base64
-            import requests
+        # PRODUCCIÓN (DEBUG=False): mantener comportamiento actual, SIEMPRE vía Resend HTTP API.
+        # Desarrollo (DEBUG=True): permitir usar Resend si está habilitado, o SMTP/console según EMAIL_BACKEND.
+        use_resend_api = getattr(settings, "USE_RESEND_API", False)
+        api_key = getattr(settings, "RESEND_API_KEY", None)
 
-            logger.info("📧 [EMAIL TASK] Usando Resend HTTP API para enviar el email...")
+        # En producción ignoramos USE_RESEND_API y forzamos Resend (SMTP está bloqueado en Railway).
+        force_resend = not getattr(settings, "DEBUG", False)
 
-            encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-            api_key = getattr(settings, "RESEND_API_KEY", None)
-            if not api_key:
-                logger.error("RESEND_API_KEY no está configurada; no se puede usar Resend API.")
-                return {
-                    "status": "error",
-                    "message": "RESEND_API_KEY no configurada para Resend API",
+        if force_resend or (use_resend_api and api_key):
+            # Usar Resend HTTP API
+            try:
+                import base64
+                import requests
+
+                logger.info("📧 [EMAIL TASK] Usando Resend HTTP API para enviar el email...")
+
+                encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+                payload = {
+                    "from": from_email,
+                    "to": [recipient_email],
+                    "subject": subject,
+                    "html": body.replace("\n", "<br>"),
+                    "attachments": [
+                        {
+                            "filename": f"recibo_{payment_type}_{payment_id}.pdf",
+                            "content": encoded_pdf,
+                        }
+                    ],
+                }
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
                 }
 
-            payload = {
-                "from": from_email,
-                "to": [recipient_email],
-                "subject": subject,
-                "html": body.replace("\n", "<br>"),
-                "attachments": [
-                    {
-                        "filename": f"recibo_{payment_type}_{payment_id}.pdf",
-                        "content": encoded_pdf,
-                    }
-                ],
-            }
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            }
-
-            # Importante: enviar los headers para que Resend reciba la API key
-            response = requests.post(
-                "https://api.resend.com/emails",
-                json=payload,
-                headers=headers,
-                timeout=20,
-            )
-            logger.info(
-                f"📧 [RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
-            )
-            response.raise_for_status()
-            logger.info(
-                f"✅ [EMAIL TASK] Email enviado vía Resend API a {recipient_email} para {payment_type} {payment_id}"
-            )
-        except Exception as api_error:
-            logger.error(
-                f"❌ [RESEND] Error enviando email vía Resend API para {payment_type} {payment_id}: {api_error}"
-            )
-            raise
+                response = requests.post(
+                    "https://api.resend.com/emails",
+                    json=payload,
+                    headers=headers,
+                    timeout=20,
+                )
+                logger.info(
+                    f"📧 [RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
+                )
+                response.raise_for_status()
+                logger.info(
+                    f"✅ [EMAIL TASK] Email enviado vía Resend API a {recipient_email} para {payment_type} {payment_id}"
+                )
+            except Exception as api_error:
+                logger.error(
+                    f"❌ [RESEND] Error enviando email vía Resend API para {payment_type} {payment_id}: {api_error}"
+                )
+                # En desarrollo podemos intentar fallback al backend de Django; en producción no usamos SMTP.
+                if getattr(settings, "DEBUG", False):
+                    logger.warning("⚠️ [EMAIL TASK] (DEBUG) Fallando back a backend de Django...")
+                    try:
+                        email.send()
+                        logger.info(
+                            f"✅ [EMAIL TASK] Email enviado vía Django backend a {recipient_email} para {payment_type} {payment_id}"
+                        )
+                    except Exception as django_error:
+                        logger.error(
+                            f"❌ [EMAIL TASK] Error también con Django backend: {django_error}"
+                        )
+                        raise api_error
+                else:
+                    # Producción: no intentamos SMTP porque la plataforma lo bloquea
+                    raise api_error
+        else:
+            # Solo en desarrollo o entornos donde no se usa Resend: usar backend de Django
+            logger.info("📧 [EMAIL TASK] Usando backend de Django (SMTP/console/archivo) para enviar el email...")
+            try:
+                email.send()
+                logger.info(
+                    f"✅ [EMAIL TASK] Email enviado vía Django backend a {recipient_email} para {payment_type} {payment_id}"
+                )
+            except Exception as django_error:
+                logger.error(
+                    f"❌ [EMAIL TASK] Error enviando email vía Django backend para {payment_type} {payment_id}: {django_error}"
+                )
+                raise
         
         return {
             'status': 'success',

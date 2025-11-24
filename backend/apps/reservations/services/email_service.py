@@ -9,7 +9,6 @@ import requests
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
-from apps.payments.services.pdf_generator import PDFReceiptGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +20,13 @@ class ReservationEmailService:
     def _send_via_resend(to_email: str, subject: str, body: str) -> bool:
         """
         Envia un email de texto plano usando la API HTTP de Resend.
-        Pensado para funcionar en Railway Hobby (sin SMTP).
+        Funciona en local y producción con HTTPS.
         """
+        use_resend_api = getattr(settings, "USE_RESEND_API", False)
         api_key = getattr(settings, "RESEND_API_KEY", None)
-        if not api_key:
-            logger.error("RESEND_API_KEY no configurada; no se puede enviar email vía Resend.")
+        
+        if not use_resend_api or not api_key:
+            logger.debug("Resend API no configurado o deshabilitado (USE_RESEND_API=False o sin API key)")
             return False
 
         from_email = getattr(
@@ -46,17 +47,21 @@ class ReservationEmailService:
             "Content-Type": "application/json",
         }
 
-        response = requests.post(
-            "https://api.resend.com/emails",
-            json=payload,
-            headers=headers,
-            timeout=20,
-        )
-        logger.info(
-            f"📧 [RESERVATION RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
-        )
-        response.raise_for_status()
-        return True
+        try:
+            response = requests.post(
+                "https://api.resend.com/emails",
+                json=payload,
+                headers=headers,
+                timeout=20,
+            )
+            logger.info(
+                f"📧 [RESERVATION RESEND] Respuesta HTTP {response.status_code}: {response.text[:300]}"
+            )
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Error enviando email vía Resend: {e}")
+            return False
 
     @staticmethod
     def send_cancellation_email(
@@ -126,23 +131,36 @@ Equipo de {hotel_name}
 
             subject = f"Cancelación de Reserva - {reservation_code}"
 
-            # En producción usamos Resend; si fallara o no hay API key, caemos a EmailMessage
-            try:
-                logger.info(
-                    f"📧 [CANCEL EMAIL] Enviando vía Resend a {guest_email} para reserva {reservation.id}"
-                )
-                if ReservationEmailService._send_via_resend(guest_email, subject, body):
+            # Intentar usar Resend HTTP API si está configurado (funciona en local y producción)
+            use_resend_api = getattr(settings, "USE_RESEND_API", False)
+            api_key = getattr(settings, "RESEND_API_KEY", None)
+            
+            if use_resend_api and api_key:
+                # Usar Resend HTTP API (funciona en local y producción con HTTPS)
+                try:
                     logger.info(
-                        f"Email de cancelación enviado vía Resend a {guest_email} para reserva {reservation.id} "
-                        f"(refund_amount={refund_amount}, penalty_amount={penalty_amount})"
+                        f"📧 [CANCEL EMAIL] Enviando vía Resend HTTP API a {guest_email} para reserva {reservation.id}"
                     )
-                    return True
-            except Exception as resend_error:
-                logger.error(
-                    f"Error enviando email de cancelación vía Resend para reserva {getattr(reservation, 'id', 'N/A')}: {resend_error}"
-                )
+                    if ReservationEmailService._send_via_resend(guest_email, subject, body):
+                        logger.info(
+                            f"✅ [CANCEL EMAIL] Email de cancelación enviado vía Resend API a {guest_email} para reserva {reservation.id} "
+                            f"(refund_amount={refund_amount}, penalty_amount={penalty_amount})"
+                        )
+                        return True
+                    else:
+                        logger.warning(
+                            f"⚠️ [CANCEL EMAIL] Resend API retornó False, intentando con backend de Django..."
+                        )
+                except Exception as resend_error:
+                    logger.error(
+                        f"❌ [CANCEL EMAIL] Error enviando email de cancelación vía Resend para reserva {getattr(reservation, 'id', 'N/A')}: {resend_error}"
+                    )
+                    logger.warning("⚠️ [CANCEL EMAIL] Fallando back a backend de Django...")
 
-            # Fallback: backend de email de Django (útil en desarrollo)
+            # Usar backend de Django (consola en desarrollo, SMTP si está configurado)
+            logger.info(
+                f"📧 [CANCEL EMAIL] Usando backend de Django para enviar email a {guest_email} para reserva {reservation.id}"
+            )
             email = EmailMessage(
                 subject=subject,
                 body=body,
@@ -151,7 +169,7 @@ Equipo de {hotel_name}
             )
             email.send()
             logger.info(
-                f"Email de cancelación enviado (fallback Django) a {guest_email} para reserva {reservation.id} "
+                f"✅ [CANCEL EMAIL] Email de cancelación enviado vía Django backend a {guest_email} para reserva {reservation.id} "
                 f"(refund_amount={refund_amount}, penalty_amount={penalty_amount})"
             )
             return True
@@ -451,10 +469,10 @@ Equipo de {email_data['hotel_name']}
     def _get_payment_receipt_path(payment) -> Optional[str]:
         """Obtiene la ruta del PDF de recibo de un pago"""
         try:
-            generator = PDFReceiptGenerator()
-            pdf_path = generator.get_receipt_path(payment.id, is_refund=False)
-            full_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
-            return full_path if os.path.exists(full_path) else None
+            # Los PDFs se guardan en documents/payment_{id}.pdf según tasks.py
+            filename = f"payment_{payment.id}.pdf"
+            pdf_path = os.path.join(settings.MEDIA_ROOT, "documents", filename)
+            return pdf_path if os.path.exists(pdf_path) else None
         except Exception as e:
             logger.error(f"Error obteniendo path de PDF para pago {payment.id}: {e}")
             return None
@@ -463,10 +481,10 @@ Equipo de {email_data['hotel_name']}
     def _get_refund_receipt_path(refund) -> Optional[str]:
         """Obtiene la ruta del PDF de recibo de un refund"""
         try:
-            generator = PDFReceiptGenerator()
-            pdf_path = generator.get_receipt_path(refund.id, is_refund=True)
-            full_path = os.path.join(settings.MEDIA_ROOT, pdf_path)
-            return full_path if os.path.exists(full_path) else None
+            # Los PDFs se guardan en documents/refund_{id}.pdf según tasks.py
+            filename = f"refund_{refund.id}.pdf"
+            pdf_path = os.path.join(settings.MEDIA_ROOT, "documents", filename)
+            return pdf_path if os.path.exists(pdf_path) else None
         except Exception as e:
             logger.error(f"Error obteniendo path de PDF para refund {refund.id}: {e}")
             return None

@@ -6,6 +6,7 @@ from .afip_service import AfipService, AfipServiceError
 from .afip_mock_service import AfipMockService, MockAfipAuthService, MockAfipInvoiceService
 from .invoice_generator import InvoiceGeneratorService
 from .invoice_pdf_service import InvoicePDFService, InvoicePDFError
+from .email_service import InvoiceEmailService
 
 __all__ = [
     'AfipService',
@@ -22,4 +23,5 @@ __all__ = [
     'InvoiceGeneratorService',
     'InvoicePDFService',
     'InvoicePDFError',
+    'InvoiceEmailService',
 ]

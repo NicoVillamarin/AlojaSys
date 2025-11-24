@@ -699,44 +699,11 @@ class Refund(models.Model):
         super().save(*args, **kwargs)
         
         # Si es un nuevo refund, crear log de creación
+        # NOTA: La generación del PDF y envío de email se hace automáticamente vía signal (apps/payments/signals.py)
+        # para evitar duplicación de emails
         if is_new:
             from .services.refund_audit_service import RefundAuditService
             RefundAuditService.log_refund_created(self, self.created_by)
-            
-            # Si el refund se crea ya completado, generar automáticamente el PDF del comprobante
-            if self.status == RefundStatus.COMPLETED and not self.receipt_pdf_url:
-                try:
-                    from .tasks import generate_payment_receipt_pdf
-                    # Generar el PDF de forma asíncrona
-                    generate_payment_receipt_pdf.delay(self.id, 'refund')
-                    
-                    # Enviar notificación sobre el comprobante generado
-                    try:
-                        from apps.notifications.services import NotificationService
-                        
-                        user_id = self.created_by_id if self.created_by_id else None
-                        
-                        NotificationService.create_receipt_generated_notification(
-                            receipt_type='refund',
-                            receipt_number=self.receipt_number or f'D-{self.id}',
-                            reservation_code=f"RES-{self.reservation.id}",
-                            hotel_name=self.reservation.hotel.name,
-                            amount=str(self.amount),
-                            hotel_id=self.reservation.hotel.id,
-                            reservation_id=self.reservation.id,
-                            user_id=user_id
-                        )
-                    except Exception as notif_error:
-                        # No fallar si hay error en notificación
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.error(f"Error creando notificación para refund {self.id}: {notif_error}")
-                        
-                except Exception as e:
-                    # Si hay error generando el PDF, no fallar la creación del refund
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.error(f"Error generando PDF automáticamente para refund {self.id}: {e}")
 
     def mark_as_processing(self, user=None):
         """Marca el reembolso como en procesamiento"""
@@ -767,8 +734,12 @@ class Refund(models.Model):
         RefundAuditService.log_processing_completed(self, external_reference, user)
         
         # Generar PDF de recibo de reembolso
+        # NOTA: generate_payment_receipt_pdf ya encadena automáticamente el envío de email,
+        # por lo que NO debemos llamar directamente a send_payment_receipt_email para evitar duplicación
         try:
-            from .tasks import generate_payment_receipt_pdf, send_payment_receipt_email
+            from .tasks import generate_payment_receipt_pdf
+            
+            # Solo generar el PDF; el email se enviará automáticamente cuando se complete la tarea
             generate_payment_receipt_pdf.delay(self.id, 'refund')
             
             # Enviar notificación sobre el comprobante generado
@@ -792,23 +763,6 @@ class Refund(models.Model):
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.error(f"Error creando notificación para reembolso {self.id}: {notif_error}")
-            
-            # Enviar email con recibo si hay email del huésped
-            if self.reservation.guests_data:
-                # guests_data es una lista, buscar el huésped principal
-                primary_guest = next(
-                    (guest for guest in self.reservation.guests_data if guest.get('is_primary', False)), 
-                    None
-                )
-                if not primary_guest and self.reservation.guests_data:
-                    primary_guest = self.reservation.guests_data[0]
-                
-                if primary_guest and primary_guest.get('email'):
-                    send_payment_receipt_email.delay(
-                        self.id, 
-                        'refund', 
-                        primary_guest['email']
-                    )
         except Exception as e:
             # No fallar el proceso si hay error generando PDF
             import logging

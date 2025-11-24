@@ -621,15 +621,29 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # Enviar email al huésped informando cancelación (con o sin devolución)
         try:
             from apps.reservations.services.email_service import ReservationEmailService
-            ReservationEmailService.send_cancellation_email(
-                reservation,
-                cancellation_reason=cancellation_reason,
-                total_paid=float(refund_result.get('total_paid', 0)) if refund_result else 0.0,
-                penalty_amount=float(refund_result.get('penalty_amount', 0)) if refund_result else 0.0,
-                refund_amount=float(refund_result.get('refund_amount', 0)) if refund_result else 0.0,
-            )
+            logger.info(f"📧 [CANCEL VIEW] Intentando enviar email de cancelación para reserva {reservation.id}")
+            
+            # Verificar que haya email del huésped
+            guest_email = reservation.guest_email
+            if not guest_email:
+                logger.warning(f"⚠️ [CANCEL VIEW] No se encontró email del huésped para reserva {reservation.id}. No se enviará email de cancelación.")
+            else:
+                logger.info(f"📧 [CANCEL VIEW] Email del huésped encontrado: {guest_email}")
+                email_result = ReservationEmailService.send_cancellation_email(
+                    reservation,
+                    cancellation_reason=cancellation_reason,
+                    total_paid=float(refund_result.get('total_paid', 0)) if refund_result else 0.0,
+                    penalty_amount=float(refund_result.get('penalty_amount', 0)) if refund_result else 0.0,
+                    refund_amount=float(refund_result.get('refund_amount', 0)) if refund_result else 0.0,
+                )
+                if email_result:
+                    logger.info(f"✅ [CANCEL VIEW] Email de cancelación enviado exitosamente para reserva {reservation.id}")
+                else:
+                    logger.warning(f"⚠️ [CANCEL VIEW] No se pudo enviar email de cancelación para reserva {reservation.id} (send_cancellation_email retornó False)")
         except Exception as e:
-            print(f"⚠️ Error enviando email de cancelación para reserva {reservation.id}: {e}")
+            logger.error(f"❌ [CANCEL VIEW] Error enviando email de cancelación para reserva {reservation.id}: {e}")
+            import traceback
+            logger.error(f"❌ [CANCEL VIEW] Traceback completo:\n{traceback.format_exc()}")
         
         # Obtener información detallada del reembolso
         refund_details = None

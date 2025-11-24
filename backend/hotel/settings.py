@@ -392,9 +392,23 @@ logger = logging.getLogger(__name__)
 # Configuración básica: backend por defecto (consola en desarrollo)
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 
-# Clave para Resend HTTP API (recomendado en producción en Railway)
+# Clave para Resend HTTP API (recomendado en producción y funciona en local con HTTPS)
 RESEND_API_KEY = config('RESEND_API_KEY', default=None)
-USE_RESEND_API = config('USE_RESEND_API', default=False, cast=bool)
+# Si tiene API key, activar Resend API por defecto (se puede desactivar con USE_RESEND_API=False)
+# Si no se especifica USE_RESEND_API, se activa automáticamente si hay RESEND_API_KEY
+use_resend_default = bool(RESEND_API_KEY) if RESEND_API_KEY else False
+USE_RESEND_API = config('USE_RESEND_API', default=use_resend_default, cast=bool)
+
+# Log informativo sobre configuración de email
+if USE_RESEND_API and RESEND_API_KEY:
+    print(f"[EMAIL] ✅ Resend API habilitado (funciona en local y producción)")
+    logger.info("Resend API habilitado para envío de emails")
+elif RESEND_API_KEY and not USE_RESEND_API:
+    print(f"[EMAIL] ⚠️ RESEND_API_KEY configurada pero USE_RESEND_API=False")
+    logger.warning("RESEND_API_KEY configurada pero USE_RESEND_API=False")
+elif not RESEND_API_KEY:
+    print(f"[EMAIL] ℹ️ Resend API no configurado, usando backend de Django")
+    logger.info("Resend API no configurado, usando backend de Django")
 
 # Para producción, usar SMTP solo si está permitido por la plataforma
 EMAIL_USE_SMTP = config('EMAIL_USE_SMTP', default=False, cast=bool)
