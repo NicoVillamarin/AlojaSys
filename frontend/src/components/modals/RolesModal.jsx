@@ -189,29 +189,73 @@ const RolesModal = ({ isOpen, onClose, isEdit = false, role, onSuccess }) => {
           })
           .map(p => p.id)
       },
-      housekeeping: {
-        name: 'Housekeeping',
-        description: 'Estado de habitaciones, mantenimiento y bloqueos',
+      personal_limpieza: {
+        name: 'Personal de Limpieza',
+        description: 'Solo ver tareas de limpieza (sin crear, editar, eliminar ni acceder a configuraciones)',
         permissions: permissions
           .filter(p => {
             if (!p || !p.permission || !p.codename) return false
             
             const appLabel = (p.permission || '').split('.')[0]?.toLowerCase() || ''
             const codename = (p.codename || '').toLowerCase()
-            const permission = (p.permission || '').toLowerCase()
             
-            // Habitaciones: ver y modificar estado
+            // Housekeeping: solo acceso al módulo y ver tareas
+            if (appLabel === 'housekeeping') {
+              // Solo acceso al módulo (permite ver la página principal)
+              if (codename === 'access_housekeeping') {
+                return true
+              }
+              // Solo view de tareas (housekeepingtask), NO add, change, delete
+              // Excluir: tasktemplate, checklist, cleaningzone, cleaningstaff, housekeepingconfig
+              if (codename === 'view_housekeepingtask') {
+                return true
+              }
+              // Excluir todos los demás permisos de housekeeping (add, change, delete, configuraciones)
+              return false
+            }
+            // Habitaciones: solo ver estado (para saber qué limpiar)
+            if (appLabel === 'rooms' && codename === 'view_room') {
+              return true
+            }
+            return false
+          })
+          .map(p => p.id)
+      },
+      comandanta: {
+        name: 'Comandanta',
+        description: 'Gestión completa de tareas: ver, crear, editar, eliminar (sin acceder a configuraciones)',
+        permissions: permissions
+          .filter(p => {
+            if (!p || !p.permission || !p.codename) return false
+            
+            const appLabel = (p.permission || '').split('.')[0]?.toLowerCase() || ''
+            const codename = (p.codename || '').toLowerCase()
+            
+            // Housekeeping: solo permisos de tareas (add, change, delete, view, access, manage_all)
+            // NO incluir permisos de configuraciones (tasktemplate, checklist, cleaningzone, cleaningstaff, housekeepingconfig)
+            if (appLabel === 'housekeeping') {
+              // Acceso al módulo
+              if (codename === 'access_housekeeping') {
+                return true
+              }
+              // Permisos de tareas (housekeepingtask)
+              if (codename === 'view_housekeepingtask' || 
+                  codename === 'add_housekeepingtask' ||
+                  codename === 'change_housekeepingtask' ||
+                  codename === 'delete_housekeepingtask' ||
+                  codename === 'manage_all_tasks') {
+                return true
+              }
+              // Excluir permisos de configuraciones
+              return false
+            }
+            // Habitaciones: ver y modificar estado (para marcar como limpias)
             if (appLabel === 'rooms') {
               return codename.includes('view') || codename.includes('change')
             }
-            // Calendario: ver y gestionar mantenimientos
-            if (appLabel === 'calendar') {
-              return permission.includes('maintenance') || codename.includes('maintenance') || codename.includes('view')
-            }
-            // Reservas: ver para conocer ocupación (reservation y roomblock)
+            // Reservas: ver para conocer ocupación y check-outs
             if (appLabel === 'reservations' && codename.includes('view')) {
-              return permission.includes('reservation') || permission.includes('roomblock') || 
-                     codename.includes('reservation') || codename.includes('roomblock')
+              return true
             }
             return false
           })

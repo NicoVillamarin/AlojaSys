@@ -318,3 +318,57 @@ class NotificationService:
             notifications.append(notification)
         
         return notifications
+    
+    @staticmethod
+    def create_housekeeping_task_notification(
+        task_type: str,
+        room_name: str,
+        staff_name: str,
+        hotel_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        task_id: Optional[int] = None
+    ) -> Notification:
+        """
+        Crea una notificación cuando se crea automáticamente una tarea de limpieza.
+        
+        Args:
+            task_type: Tipo de tarea (checkout, daily, maintenance)
+            room_name: Nombre de la habitación
+            staff_name: Nombre del personal asignado
+            hotel_id: ID del hotel relacionado
+            user_id: ID del usuario destinatario (personal asignado)
+            task_id: ID de la tarea creada
+        
+        Returns:
+            Notification: Instancia de la notificación creada
+        """
+        # Mapear tipos de tarea a nombres legibles
+        task_type_names = {
+            'checkout': 'Limpieza de Salida',
+            'daily': 'Limpieza Diaria',
+            'maintenance': 'Mantenimiento',
+        }
+        task_type_display = task_type_names.get(task_type, task_type.title())
+        
+        title = f"Nueva Tarea de Limpieza: {task_type_display}"
+        message = f"Se creó la tarea '{task_type_display}' para la habitación {room_name}."
+        
+        if staff_name:
+            message += f" Se le asignó a {staff_name}."
+        else:
+            message += " No se asignó personal automáticamente."
+        
+        notification = NotificationService.create(
+            notification_type=NotificationType.HOUSEKEEPING_TASK_CREATED,
+            title=title,
+            message=message,
+            user_id=user_id,
+            hotel_id=hotel_id,
+            metadata={
+                'task_type': task_type,
+                'room_name': room_name,
+                'staff_name': staff_name,
+                'task_id': task_id
+            }
+        )
+        return notification

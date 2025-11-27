@@ -49,7 +49,9 @@
     "otas": "OTAs",
     "channels": "Canales de Reservas",
     "roles": "Roles",
-    "housekeeping": "Gestión de Limpieza"
+    "housekeeping": "Gestión de Limpieza",
+    "housekeeping_config": "Limpieza",
+    "housekeeping_historical": "Histórico de Limpieza"
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",
@@ -84,6 +86,7 @@
     "common": {
       "save": "Guardar",
       "cancel": "Cancelar",
+      "close": "Cerrar",
       "edit": "Editar",
       "refresh": "Actualizar",
       "all_status": "Todos los Estados",
@@ -97,6 +100,7 @@
     "error": "Error",
     "success": "Éxito",
     "all": "Todos",
+    "none": "Ninguno",
     "status": "Estado",
     "active": "Activo",
     "inactive": "Inactivo",
@@ -177,6 +181,11 @@
       "cleaning": "Limpieza",
       "blocked": "Bloqueada",
       "out_of_service": "Fuera de servicio"
+    },
+    "cleaning_status": {
+      "dirty": "Requiere limpieza",
+      "in_progress": "En limpieza",
+      "clean": "Limpia"
     }
   },
   "rates": {
@@ -219,10 +228,13 @@
     "zone_placeholder": "Ej. Piso 1, Ala A",
     "notes": "Observaciones",
     "notes_placeholder": "Notas adicionales…",
+    "checklist": "Checklist",
+    "checklist_placeholder": "Seleccione un checklist (opcional)",
     "start": "Iniciar",
     "complete": "Completar",
     "start_task": "Iniciar tarea",
     "complete_task": "Completar tarea",
+    "cancel_task": "Cancelar tarea",
     "types": {
       "daily": "Diaria",
       "checkout": "Salida",
@@ -233,7 +245,23 @@
       "pending": "Pendiente",
       "in_progress": "En proceso",
       "completed": "Completada",
-      "cancelled": "Cancelada"
+      "cancelled": "Cancelada",
+      "overdue": "Vencida"
+    },
+    "filters": {
+      "room": "Habitación",
+      "task_type": "Tipo de tarea",
+      "priority": "Prioridad",
+      "created_from": "Creada desde",
+      "created_to": "Creada hasta",
+      "completed_from": "Finalizada desde",
+      "completed_to": "Finalizada hasta"
+    },
+    "history": {
+      "title": "Histórico de tareas de limpieza",
+      "description": "Consulta, filtra y audita todas las tareas generadas en housekeeping.",
+      "started_at": "Iniciada",
+      "completed_at": "Finalizada"
     },
     "modal": {
       "create_title": "Crear tarea de limpieza",
@@ -244,6 +272,130 @@
       "room_required": "Seleccione una habitación",
       "type_required": "Seleccione un tipo de tarea",
       "assigned_to_user_required": "Seleccione un personal de limpieza"
+    },
+    "zones": {
+      "title": "Zonas de Limpieza",
+      "new_zone": "Nueva zona",
+      "create_zone": "Crear zona",
+      "name": "Nombre",
+      "name_placeholder": "Ej. Piso 1, Ala A",
+      "floor": "Piso",
+      "floor_placeholder": "Número de piso",
+      "description": "Descripción",
+      "description_placeholder": "Descripción de la zona",
+      "modal": {
+        "create_title": "Crear zona de limpieza",
+        "edit_title": "Editar zona de limpieza"
+      },
+      "validations": {
+        "hotel_required": "Seleccione un hotel",
+        "name_required": "El nombre es requerido"
+      }
+    },
+    "staff": {
+      "title": "Personal de Limpieza",
+      "new_staff": "Nuevo personal",
+      "create_staff": "Crear personal",
+      "first_name": "Nombre",
+      "first_name_placeholder": "Ej. Juan",
+      "last_name": "Apellido",
+      "last_name_placeholder": "Ej. Pérez",
+      "shift": "Turno",
+      "work_start_time": "Hora de inicio",
+      "work_end_time": "Hora de fin",
+      "work_hours": "Horario de trabajo",
+      "zone": "Zona",
+      "zone_placeholder": "Ej. Piso 1",
+      "cleaning_zones": "Zonas asignadas",
+      "cleaning_zones_placeholder": "Seleccionar zonas",
+      "user": "Usuario del sistema",
+      "user_placeholder": "Asignar usuario (opcional)",
+      "modal": {
+        "create_title": "Crear Personal de Limpieza",
+        "edit_title": "Editar Personal de Limpieza"
+      },
+      "validations": {
+        "hotel_required": "Seleccione un hotel",
+        "first_name_required": "El nombre es requerido"
+      }
+    },
+    "templates": {
+      "title": "Plantillas de Tareas",
+      "new_template": "Nueva plantilla",
+      "room_type": "Tipo de habitación",
+      "name": "Nombre",
+      "name_placeholder": "Ej. Cambio de sábanas",
+      "description": "Descripción",
+      "description_placeholder": "Descripción de la tarea",
+      "estimated_minutes": "Duración estimada (min)",
+      "order": "Orden",
+      "order_help": "Orden de ejecución (1 = primero, 2 = segundo, etc.)",
+      "is_required": "Requerida",
+      "modal": {
+        "create_title": "Crear plantilla de tarea",
+        "edit_title": "Editar plantilla de tarea"
+      },
+      "validations": {
+        "hotel_required": "Seleccione un hotel",
+        "room_type_required": "Seleccione un tipo de habitación",
+        "task_type_required": "Seleccione un tipo de tarea",
+        "name_required": "El nombre es requerido",
+        "estimated_minutes_required": "La duración estimada es requerida"
+      }
+    },
+    "checklists": {
+      "title": "Checklists",
+      "new_checklist": "Nuevo checklist",
+      "name": "Nombre",
+      "name_placeholder": "Ej. Checklist de limpieza estándar",
+      "description": "Descripción",
+      "description_placeholder": "Descripción del checklist",
+      "room_type": "Tipo de habitación",
+      "is_default": "Por defecto",
+      "items": "Items del checklist",
+      "items_count": "Items",
+      "add_item": "Agregar item",
+      "item_name": "Nombre del item",
+      "item_name_placeholder": "Ej. Limpiar baño",
+      "item_description": "Descripción",
+      "item_description_placeholder": "Descripción del item",
+      "item_order": "Orden",
+      "item_is_required": "Requerido",
+      "no_items": "No hay items. Agregue items al checklist.",
+      "modal": {
+        "create_title": "Crear checklist",
+        "edit_title": "Editar checklist"
+      },
+      "validations": {
+        "hotel_required": "Seleccione un hotel",
+        "name_required": "El nombre es requerido"
+      }
+    },
+    "checklist": {
+      "detail_title": "Detalle del Checklist",
+      "no_checklist": "No hay checklist asignado",
+      "items": "Items del Checklist",
+      "required": "Requerido",
+      "view_details": "Ver detalles del checklist"
+    },
+    "shift": {
+      "morning": "Mañana",
+      "afternoon": "Tarde",
+      "night": "Noche"
+    },
+    "config": {
+      "title": "Horarios y Configuración",
+      "settings": "Configuración del Hotel",
+      "manage_resources": "Gestionar Recursos",
+      "manage_zones_desc": "Configurar zonas y pisos",
+      "manage_templates_desc": "Crear plantillas de tareas",
+      "manage_checklists_desc": "Gestionar checklists",
+      "automation": "Automatización",
+      "service_rules": "Reglas de Servicio",
+      "time_windows": "Ventanas de Tiempo",
+      "assignment_priorities": "Asignación y Prioridades",
+      "task_timeout": "Vencimiento de Tareas",
+      "no_config": "Seleccione un hotel para ver su configuración"
     }
   },
   "countries": {
@@ -1005,6 +1157,7 @@
     "auto_no_show_enabled": "Auto no-show para reservas vencidas",
     "housekeeping": {
       "title": "Limpieza (Housekeeping)",
+      "config_note": "Para configurar las opciones de housekeeping, zonas, plantillas y checklists, ve a Configuración > Housekeeping.",
       "enable_auto_assign": "Asignación automática de tareas",
       "create_daily_tasks": "Generar tareas diarias automáticamente",
       "daily_generation_time": "Hora de generación diaria",
@@ -1023,7 +1176,15 @@
       "checkout_priority": "Prioridad de check‑out",
       "daily_priority": "Prioridad de diaria",
       "alert_checkout_unstarted_minutes": "Alerta si checkout no inicia en (min)",
+      "max_task_duration_minutes": "Tiempo máximo de tarea (minutos)",
+      "max_task_duration_help": "Tiempo máximo permitido para una tarea en progreso antes de marcarla como vencida",
+      "auto_complete_overdue": "Auto-completar tareas vencidas",
+      "overdue_grace_minutes": "Tiempo de gracia para auto-completar (minutos)",
+      "overdue_grace_help": "Minutos adicionales después del tiempo máximo antes de auto-completar la tarea",
       "save_config": "Guardar configuración"
+    },
+    "config": {
+      "task_timeout": "Vencimiento de Tareas"
     }
   },
   "users_modal": {

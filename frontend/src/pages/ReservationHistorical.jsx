@@ -133,23 +133,18 @@ export default function ReservationHistorical() {
   const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
 
   const onCheckIn = (r) => {
-    console.log('Check-in para reserva:', r.id, 'estado actual:', r.status)
     doAction({ action: `${r.id}/check_in`, body: {}, method: 'POST' })
   }
   const onCheckOut = (r) => {
-    console.log('Check-out para reserva:', r.id, 'estado actual:', r.status)
     doAction({ action: `${r.id}/check_out`, body: {}, method: 'POST' })
   }
   const onCancel = (r) => {
-    console.log('Cancelar para reserva:', r.id, 'estado actual:', r.status)
     doAction({ action: `${r.id}/cancel`, body: {}, method: 'POST' })
   }
   const onConfirm = (r) => {
-    console.log('Confirmar para reserva:', r.id, 'estado actual:', r.status)
     doAction({ action: `${r.id}`, body: { status: 'confirmed' }, method: 'PATCH' })
   }
   const onEdit = (r) => {
-    console.log('Editar reserva:', r.id, 'estado actual:', r.status)
     setEditReservation(r)
   }
 
@@ -308,8 +303,8 @@ export default function ReservationHistorical() {
                   role="button"
                   tabIndex={0}
                   className="link cursor-pointer"
-                  onClick={() => { console.log('Abrir histórico de reserva', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { console.log('Abrir histórico (keyboard)', r.id); setHistoryReservation(r); setHistoryReservationId(r.id) } }}
+                  onClick={() => { setHistoryReservation(r); setHistoryReservationId(r.id) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { setHistoryReservation(r); setHistoryReservationId(r.id) } }}
                 >
                   {r.display_name}
                 </span>

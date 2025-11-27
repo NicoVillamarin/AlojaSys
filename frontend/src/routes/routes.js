@@ -33,6 +33,12 @@ import OtaConfig from "src/pages/configurations/OtaConfig";
 import Otas from "src/pages/configurations/Otas";
 import Roles from "src/pages/configurations/Roles";
 import Housekeeping from "src/pages/Housekeeping";
+import CleaningZones from "src/pages/configurations/housekeeping/CleaningZones";
+import CleaningStaff from "src/pages/configurations/housekeeping/CleaningStaff";
+import TaskTemplates from "src/pages/configurations/housekeeping/TaskTemplates";
+import Checklists from "src/pages/configurations/housekeeping/Checklists";
+import HousekeepingConfig from "src/pages/configurations/housekeeping/HousekeepingConfig";
+import HousekeepingHistorical from "src/pages/HousekeepingHistorical";
 
 
 export const appRoutes = [
@@ -73,6 +79,12 @@ export const appRoutes = [
       { path: "settings/fiscal", element: React.createElement(AfipConfig) },
       { path: "settings/roles", element: React.createElement(Roles) },
       { path: "housekeeping", element: React.createElement(Housekeeping) },
+      { path: "settings/housekeeping", element: React.createElement(HousekeepingConfig) },
+      { path: "settings/housekeeping/zones", element: React.createElement(CleaningZones) },
+      { path: "settings/housekeeping/staff", element: React.createElement(CleaningStaff) },
+      { path: "settings/housekeeping/templates", element: React.createElement(TaskTemplates) },
+      { path: "settings/housekeeping/checklists", element: React.createElement(Checklists) },
+      { path: "housekeeping/historical", element: React.createElement(HousekeepingHistorical) },
     ],
   },
 ];

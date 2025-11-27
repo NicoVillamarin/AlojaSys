@@ -359,12 +359,6 @@ export default function ReservationsGestions() {
   };
 
   const onCheckIn = async (r) => {
-    console.log(
-      t("dashboard.reservations_management.console_messages.check_in_for"),
-      r.id,
-      t("dashboard.reservations_management.console_messages.current_status"),
-      r.status
-    );
 
     try {
       const token = useAuthStore.getState().accessToken;
@@ -410,12 +404,6 @@ export default function ReservationsGestions() {
   };
 
   const onCheckOut = async (r) => {
-    console.log(
-      t("dashboard.reservations_management.console_messages.check_out_for"),
-      r.id,
-      t("dashboard.reservations_management.console_messages.current_status"),
-      r.status
-    );
 
     try {
       const token = useAuthStore.getState().accessToken;
@@ -460,33 +448,15 @@ export default function ReservationsGestions() {
     }
   };
   const onCancel = (r) => {
-    console.log(
-      t("dashboard.reservations_management.console_messages.cancel_for"),
-      r.id,
-      t("dashboard.reservations_management.console_messages.current_status"),
-      r.status
-    );
     setCancelReservation(r);
     setCancelModalOpen(true);
   };
   const onConfirm = (r) => {
-    console.log(
-      t("dashboard.reservations_management.console_messages.confirm_for"),
-      r.id,
-      t("dashboard.reservations_management.console_messages.current_status"),
-      r.status
-    );
     // Abrir modal de pago antes de confirmar
     setPayReservationId(r.id);
     setPayOpen(true);
   };
   const onEdit = async (r) => {
-    console.log(
-      t("dashboard.reservations_management.console_messages.edit_reservation"),
-      r.id,
-      t("dashboard.reservations_management.console_messages.current_status"),
-      r.status
-    );
     
     // Detectar si es una reserva multi-habitación
     if (r.is_group && r.group_code && r.group_reservations && r.group_reservations.length > 1) {
@@ -522,22 +492,12 @@ export default function ReservationsGestions() {
   };
 
   const onEarlyCheckOut = (r) => {
-    console.log(
-      t(
-        "dashboard.reservations_management.console_messages.early_check_out_for"
-      ),
-      r.id,
-      t("dashboard.reservations_management.console_messages.current_status"),
-      r.status
-    );
-
     // Guardar la reserva y mostrar el modal de confirmación
     setEarlyCheckOutReservation(r);
     setShowEarlyCheckOutAlert(true);
   };
 
   const onGenerateInvoice = async (r) => {
-    console.log("Generando factura para reserva:", r.id);
 
     // Verificar si ya existe una factura para esta reserva
     try {
@@ -551,13 +511,6 @@ export default function ReservationsGestions() {
         }
       );
 
-      console.log(
-        "Facturas existentes para reserva",
-        r.id,
-        ":",
-        existingInvoices
-      );
-
       // Verificar si hay facturas en la respuesta
       const invoices = existingInvoices || [];
       if (invoices && invoices.length > 0) {
@@ -569,7 +522,6 @@ export default function ReservationsGestions() {
         return;
       }
     } catch (error) {
-      console.log("No se pudo verificar facturas existentes:", error);
       // Si hay error en la verificación, continuar con la creación
     }
 
@@ -582,7 +534,6 @@ export default function ReservationsGestions() {
   };
 
   const onGenerateReceipt = async (r) => {
-    console.log("Abriendo comprobante para reserva:", r.id);
 
     try {
       // Obtener los pagos de la reserva
@@ -870,9 +821,6 @@ export default function ReservationsGestions() {
                   method: "POST",
                 }
               );
-              console.log(
-                `${action} realizado automáticamente después del pago`
-              );
 
               // Mostrar mensaje de éxito después de la acción automática
               const actionText =
@@ -919,9 +867,7 @@ export default function ReservationsGestions() {
                 "dashboard.reservations_management.search_placeholder"
               )}
               value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
           </div>
 

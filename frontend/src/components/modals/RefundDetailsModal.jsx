@@ -14,12 +14,8 @@ const RefundDetailsModal = ({ isOpen, onClose, refund, onSuccess }) => {
   const { mutate: updateRefund, isPending: updating } = useUpdate({
     resource: 'payments/refunds',
     onSuccess: (data) => {
-      console.log('Refund updated successfully:', data)
       onSuccess && onSuccess(data)
       onClose && onClose()
-    },
-    onError: (error) => {
-      console.error('Error updating refund status:', error)
     }
   })
 
@@ -79,7 +75,6 @@ const RefundDetailsModal = ({ isOpen, onClose, refund, onSuccess }) => {
   }
 
   const handleStatusUpdate = (newStatus) => {
-    console.log('Updating refund status:', { id: refund.id, newStatus, currentStatus: refund.status })
     updateRefund({ id: refund.id, body: { status: newStatus } })
   }
 
@@ -162,12 +157,6 @@ const RefundDetailsModal = ({ isOpen, onClose, refund, onSuccess }) => {
                   </h4>
                   <p className="text-sm text-red-700 mt-1">
                     {(() => {
-                      console.log('Debug notas del reembolso:', {
-                        notes: refund.notes,
-                        includesMotivo: refund.notes && refund.notes.includes('Motivo:'),
-                        splitResult: refund.notes ? refund.notes.split('Motivo: ') : null
-                      })
-                      
                       if (refund.notes && refund.notes.includes('Motivo:')) {
                         return refund.notes.split('Motivo: ')[1]
                       }

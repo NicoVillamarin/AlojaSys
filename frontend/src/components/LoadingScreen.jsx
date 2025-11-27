@@ -34,23 +34,17 @@ const LoadingScreen = ({ onComplete }) => {
         setShowDocument(true);
         clearInterval(loadingInterval);
         
-        console.log('Progreso llegó al 100%, iniciando secuencia de transición...');
-        
         // Agregar delay de 2 segundos adicionales después de llegar al 100%
         setTimeout(() => {
-          console.log('Iniciando transición a pantalla blanca...');
-          
           // Primero fade out de la pantalla de carga
           setIsFadingOut(true);
           
           // Después de 1.5 segundos, mostrar pantalla blanca
           setTimeout(() => {
             setShowWhiteScreen(true);
-            console.log('Mostrando pantalla blanca...');
             
             // Después de 1 segundo en pantalla blanca, ir al login
             setTimeout(() => {
-              console.log('Yendo al login...');
               onComplete();
             }, 1000);
           }, 1500);
@@ -74,8 +68,6 @@ const LoadingScreen = ({ onComplete }) => {
     };
   }, [onComplete, showDocument]);
 
-
-  console.log('Estado actual:', { isVisible, isFadingOut, progress });
 
   return (
     <>

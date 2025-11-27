@@ -157,7 +157,6 @@ export default function RefundsManagement() {
         onClose={() => setShowModal(false)} 
         refund={selectedRefund}
         onSuccess={(data) => {
-          console.log('RefundDetailsModal onSuccess called:', data)
           // Invalidar el cache de reembolsos para forzar la actualización
           queryClient.invalidateQueries({ queryKey: ['payments/refunds'] })
           refetch()

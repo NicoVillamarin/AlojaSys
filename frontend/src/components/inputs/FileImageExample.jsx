@@ -11,20 +11,16 @@ const FileImageExample = () => {
   }
 
   const handleSubmit = (values) => {
-    console.log('Valores del formulario:', values)
     
     // Aquí puedes enviar los archivos al backend
     // Por ejemplo, usando FormData:
     const formData = new FormData()
-    if (values.logo) {
+    if (values.logo) {  
       formData.append('logo', values.logo)
     }
     if (values.profileImage) {
       formData.append('profileImage', values.profileImage)
     }
-    
-    // Enviar al backend...
-    console.log('FormData preparado para envío')
   }
 
   return (

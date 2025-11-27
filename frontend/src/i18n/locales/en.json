@@ -48,7 +48,9 @@
     "otas": "OTAs",
     "channels": "Booking Channels",
     "roles": "Roles",
-    "housekeeping": "Housekeeping Management"
+    "housekeeping": "Housekeeping Management",
+    "housekeeping_config": "Housekeeping",
+    "housekeeping_historical": "Housekeeping Historical"
   },
   "vouchers_modal": {
     "create_voucher": "Create Voucher",
@@ -215,6 +217,7 @@
     "complete": "Complete",
     "start_task": "Start task",
     "complete_task": "Complete task",
+    "cancel_task": "Cancel task",
     "types": {
       "daily": "Daily",
       "checkout": "Checkout",
@@ -225,7 +228,23 @@
       "pending": "Pending",
       "in_progress": "In progress",
       "completed": "Completed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "overdue": "Overdue"
+    },
+    "filters": {
+      "room": "Room",
+      "task_type": "Task type",
+      "priority": "Priority",
+      "created_from": "Created from",
+      "created_to": "Created to",
+      "completed_from": "Completed from",
+      "completed_to": "Completed to"
+    },
+    "history": {
+      "title": "Housekeeping history",
+      "description": "Review and audit every housekeeping task with advanced filters.",
+      "started_at": "Started",
+      "completed_at": "Completed"
     },
     "modal": {
       "create_title": "Create housekeeping task",

@@ -8,15 +8,12 @@ const ConfirmActionExamples = () => {
   const { t } = useTranslation()
 
   const handleDelete = () => {
-    console.log('Eliminando...')
   }
 
   const handleArchive = () => {
-    console.log('Archivando...')
   }
 
   const handlePublish = () => {
-    console.log('Publicando...')
   }
 
   return (

@@ -12,6 +12,7 @@ class NotificationType(models.TextChoices):
     REFUND_FAILED = "refund_failed", "Reembolso Fallido"
     RECEIPT_GENERATED = "receipt_generated", "Comprobante Generado"
     OTA_RESERVATION_RECEIVED = "ota_reservation_received", "Nueva Reserva OTA"
+    HOUSEKEEPING_TASK_CREATED = "housekeeping_task_created", "Tarea de Limpieza Creada"
 
 
 class Notification(models.Model):

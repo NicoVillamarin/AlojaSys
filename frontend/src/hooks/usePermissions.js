@@ -46,12 +46,6 @@ export const usePermissions = (permission) => {
       "rates.view_rateplan",
       "payments.view_paymentpolicy"
     ];
-    
-    if (configPermissions.includes(permission) && hasIt && user.username === "Agostina") {
-      console.warn(`⚠️ Agostina tiene permiso que no debería: ${permission}`);
-      console.log(`   Permisos totales: ${userPermissions.length}`);
-      console.log(`   ¿Es superuser?: ${user.is_superuser}`);
-    }
 
     return hasIt;
   }, [user, permission, isPending, isError]);

@@ -251,11 +251,6 @@ export default function RoomsGestion() {
 
   // Lista de estados traducida - simple
   const statusList = useMemo(() => {
-    console.log('StatusList - Current language:', i18n.language);
-    console.log('StatusList - Available translation:', t('rooms.status.available'));
-    console.log('StatusList - Occupied translation:', t('rooms.status.occupied'));
-    console.log('StatusList - Sidebar test:', t('sidebar.dashboard'));
-    
     return [
       { value: "available", label: t('rooms.status.available') || 'Disponible' },
       { value: "occupied", label: t('rooms.status.occupied') || 'Ocupada' },
@@ -453,10 +448,24 @@ export default function RoomsGestion() {
             accessor: (r) => (r.status || "").toLowerCase(),
             render: (r) => {
               const meta = getStatusMeta(r.status, t);
+              const cleaningStatus = r.cleaning_status;
+              
               return (
-                <Badge variant={`room-${r.status}`} size="sm">
-                  {meta.label}
-                </Badge>
+                <div className="inline-flex items-center gap-2 flex-wrap">
+                  <Badge variant={`room-${r.status}`} size="sm">
+                    {meta.label}
+                  </Badge>
+                  {cleaningStatus === 'in_progress' && (
+                    <Badge variant="info" size="sm" className="bg-blue-100 text-blue-700">
+                      {t('rooms.cleaning_status.in_progress') || 'En limpieza'}
+                    </Badge>
+                  )}
+                  {cleaningStatus === 'dirty' && (
+                    <Badge variant="warning" size="sm" className="bg-amber-100 text-amber-700">
+                      {t('rooms.cleaning_status.dirty') || 'Requiere limpieza'}
+                    </Badge>
+                  )}
+                </div>
               );
             },
           },

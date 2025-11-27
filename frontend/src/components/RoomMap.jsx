@@ -102,6 +102,11 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
     return statusColors[effectiveStatus] || 'bg-gradient-to-br from-gray-300 to-gray-500';
   };
 
+  // Función para verificar si está en limpieza
+  const isCleaning = (room) => {
+    return room.cleaning_status === 'in_progress';
+  };
+
   // Función para obtener el texto del estado efectivo
   const getEffectiveStatusLabel = (room) => {
     const effectiveStatus = getEffectiveStatus(room);
@@ -154,6 +159,7 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
           {rooms.map((room) => {
             const effectiveStatus = getEffectiveStatus(room);
             const isHovered = hoveredRoom?.id === room.id;
+            const cleaning = isCleaning(room);
 
             return (
               <div
@@ -161,6 +167,7 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
                 className={`
                   w-16 h-16 md:w-28 md:h-28 rounded-xl md:rounded-2xl cursor-pointer transition-all duration-300
                   flex flex-col items-center justify-center text-white font-medium
+                  relative overflow-hidden
                   ${getStatusColor(room)}
                   ${isHovered ? getStatusShadowColor(effectiveStatus) : 'shadow-lg'}
                   hover:scale-105 md:hover:scale-110 hover:shadow-2xl hover:rotate-1
@@ -175,27 +182,41 @@ const RoomMap = ({ rooms = [], loading = false, onRoomClick, selectedHotel, hote
                   hotel: hotels.find(h => h.id === selectedHotel),
                   selectedHotel
                 })}
-                title={`${room.name || `Habitación #${room.number || room.id}`} - ${getEffectiveStatusLabel(room)}`}
+                title={`${room.name || `Habitación #${room.number || room.id}`} - ${getEffectiveStatusLabel(room)}${cleaning ? ' (En limpieza)' : ''}`}
               >
-                {/* Número de habitación principal */}
-                <div className="text-xs md:text-md font-bold drop-shadow-sm">
-                  {room.name || `#${room.id}`}
-                </div>
-                
-                {/* Piso si está disponible - solo en desktop */}
-                {room.floor && (
-                  <div className="hidden md:block text-xs opacity-80 mt-1 font-medium drop-shadow-sm">
-                    Piso: {room.floor}
-                  </div>
+                {/* Overlay diagonal para estado de limpieza - mitad inferior derecha */}
+                {cleaning && (
+                  <div 
+                    className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-700"
+                    style={{
+                      clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
+                      zIndex: 1
+                    }}
+                  />
                 )}
                 
-                {/* Tipo de habitación - solo en desktop */}
-                <div className="hidden md:block text-xs opacity-90 mt-1 font-medium drop-shadow-sm text-center px-1">
-                  {room.room_type || 'N/A'}
+                {/* Contenido con z-index para estar sobre el overlay */}
+                <div className="relative z-10 flex flex-col items-center justify-center">
+                  {/* Número de habitación principal */}
+                  <div className="text-xs md:text-md font-bold drop-shadow-sm">
+                    {room.name || `#${room.id}`}
+                  </div>
+                  
+                  {/* Piso si está disponible - solo en desktop */}
+                  {room.floor && (
+                    <div className="hidden md:block text-xs opacity-80 mt-1 font-medium drop-shadow-sm">
+                      Piso: {room.floor}
+                    </div>
+                  )}
+                  
+                  {/* Tipo de habitación - solo en desktop */}
+                  <div className="hidden md:block text-xs opacity-90 mt-1 font-medium drop-shadow-sm text-center px-1">
+                    {room.room_type || 'N/A'}
+                  </div>
+                  
+                  {/* Indicador de estado */}
+                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-white/40 mt-1"></div>
                 </div>
-                
-                {/* Indicador de estado */}
-                <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-white/40 mt-1"></div>
               </div>
             );
           })}

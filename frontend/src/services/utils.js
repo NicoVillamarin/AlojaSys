@@ -35,7 +35,6 @@ export const getMercadoPagoPublicKey = () => {
   const envMpKey = import.meta.env.VITE_MP_PUBLIC_KEY || "";
   
   const finalKey = runtimeMpKey || envMpKey;
-  console.log('MercadoPago Public Key:', finalKey ? 'Found' : 'Not found', { runtimeMpKey, envMpKey, finalKey });
   
   return finalKey;
 };

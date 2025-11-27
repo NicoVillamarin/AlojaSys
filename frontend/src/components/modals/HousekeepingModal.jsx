@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { Formik } from 'formik'
 import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +9,9 @@ import SelectBasic from 'src/components/selects/SelectBasic'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 import { useUserHotels } from 'src/hooks/useUserHotels'
+import { useGet } from 'src/hooks/useGet'
+import { useAction } from 'src/hooks/useAction'
+import SelectStandalone from 'src/components/selects/SelectStandalone'
 
 const validationSchema = (t) => Yup.object().shape({
   hotel: Yup.number().required(t('housekeeping.validations.hotel_required')),
@@ -24,7 +27,12 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
   const { hasSingleHotel, singleHotelId } = useUserHotels()
   const [instanceKey, setInstanceKey] = useState(0)
 
-  const initialValues = {
+  // Estado para trackear los valores del formulario que necesitamos para el checklist
+  const [formHotel, setFormHotel] = useState(task?.hotel ?? (hasSingleHotel ? singleHotelId : ''))
+  const [formTaskType, setFormTaskType] = useState(task?.task_type ?? 'daily')
+  const [selectedRoom, setSelectedRoom] = useState(null)
+
+  const initialValues = useMemo(() => ({
     hotel: task?.hotel ?? (hasSingleHotel ? singleHotelId : ''),
     room: task?.room ?? '',
     task_type: task?.task_type ?? 'daily',
@@ -33,7 +41,56 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
     notes: task?.notes ?? '',
     priority: typeof task?.priority === 'number' ? String(task.priority) : (task?.priority ?? '1'),
     zone: task?.zone ?? '',
-  }
+    checklist: task?.checklist ?? '',
+  }), [task, hasSingleHotel, singleHotelId])
+
+  // Si estamos editando, obtener los datos de la habitación para tener el room_type
+  const { results: roomData } = useGet({
+    resource: 'rooms',
+    id: isEdit && task?.room ? task.room : null,
+    enabled: isEdit && !!task?.room,
+  })
+
+  // Actualizar selectedRoom cuando se carga roomData
+  useEffect(() => {
+    if (roomData && isEdit) {
+      setSelectedRoom(roomData)
+    }
+  }, [roomData, isEdit])
+
+  // Sincronizar formHotel y formTaskType cuando cambia task
+  useEffect(() => {
+    if (task) {
+      setFormHotel(task.hotel ?? '')
+      setFormTaskType(task.task_type ?? 'daily')
+    } else {
+      setFormHotel(hasSingleHotel ? singleHotelId : '')
+      setFormTaskType('daily')
+    }
+  }, [task, hasSingleHotel, singleHotelId])
+
+  // Obtener checklists relevantes - FUERA del render prop de Formik
+  const currentRoomType = selectedRoom?.room_type || roomData?.room_type
+  
+  const actionParams = useMemo(() => ({
+    hotel: formHotel || undefined,
+    room_type: currentRoomType || undefined,
+    task_type: formTaskType || undefined,
+  }), [formHotel, currentRoomType, formTaskType])
+
+  const { results: relevantChecklistsRaw } = useAction({
+    resource: 'housekeeping/checklists',
+    action: 'relevant',
+    params: actionParams,
+    enabled: !!formHotel && !!currentRoomType && !!formTaskType,
+  })
+
+  // Asegurar que relevantChecklists sea un array
+  const relevantChecklists = useMemo(() => {
+    if (Array.isArray(relevantChecklistsRaw)) return relevantChecklistsRaw
+    if (relevantChecklistsRaw) return [relevantChecklistsRaw]
+    return []
+  }, [relevantChecklistsRaw])
 
   const { mutate: createTask, isPending: creating } = useCreate({
     resource: 'housekeeping/tasks',
@@ -51,6 +108,7 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
   useEffect(() => {
     if (isOpen && !isEdit) {
       setInstanceKey((k) => k + 1)
+      setSelectedRoom(null)
     }
   }, [isOpen, isEdit])
 
@@ -70,6 +128,7 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
           notes: values.notes || undefined,
           priority: values.priority != null ? parseInt(values.priority, 10) : 0,
           zone: values.zone || undefined,
+          checklist: values.checklist || undefined,
         }
         if (isEdit && task?.id) {
           updateTask({ id: task.id, body: payload })
@@ -101,6 +160,8 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
               onValueChange={(opt, val) => {
                 setFieldValue('hotel', val)
                 setFieldValue('room', '')
+                setFieldValue('checklist', '')
+                setFormHotel(val)
               }}
             />
             <SelectAsync
@@ -109,8 +170,14 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
               resource='rooms'
               placeholder={t('common.select_placeholder')}
               extraParams={{ hotel: values.hotel || undefined }}
-              getOptionLabel={(r) => `${r.number ? `#${r.number} - ` : ''}${r.name}`}
               getOptionValue={(r) => r.id}
+              onValueChange={(opt, val) => {
+                setFieldValue('room', val)
+                setFieldValue('checklist', '')
+                if (opt) {
+                  setSelectedRoom(opt)
+                }
+              }}
             />
             <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 lg:col-span-2'>
               <SelectBasic
@@ -122,6 +189,11 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
                   { value: 'maintenance', label: t('housekeeping.types.maintenance') },
                 ]}
                 placeholder={t('common.select_placeholder')}
+                onValueChange={(opt, val) => {
+                  setFieldValue('task_type', val)
+                  setFieldValue('checklist', '')
+                  setFormTaskType(val)
+                }}
               />
               <SelectBasic
                 title={t('housekeeping.status.title')}
@@ -141,8 +213,13 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
               resource='users'
               placeholder={t('common.select_placeholder')}
               extraParams={{ hotel: values.hotel || undefined, is_housekeeping_staff: true, is_active: true }}
-              getOptionLabel={(s) => `${s.first_name}${s.last_name ? ' ' + s.last_name : ''}`}
-              getOptionValue={(s) => s.user_id ?? s.id}
+              getOptionLabel={(s) => {
+                if (s.full_name) return s.full_name
+                const first = s.first_name || s.user?.first_name || ''
+                const last = s.last_name || s.user?.last_name || ''
+                return `${first}${last ? ' ' + last : ''}`.trim() || s.username || s.user?.username || ''
+              }}
+              getOptionValue={(s) => s.id}
             />
             <SelectBasic
               title={t('housekeeping.priority')}
@@ -159,6 +236,23 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
               name='zone'
               placeholder={t('housekeeping.zone_placeholder')}
             />
+            {formHotel && currentRoomType && formTaskType && (
+              <SelectStandalone
+                title={t('housekeeping.checklist')}
+                value={
+                  values.checklist
+                    ? relevantChecklists.find((c) => c.id === values.checklist) || null
+                    : null
+                }
+                onChange={(opt) => setFieldValue('checklist', opt ? opt.id : '')}
+                options={relevantChecklists}
+                getOptionLabel={(c) => c.name}
+                getOptionValue={(c) => c.id}
+                placeholder={t('housekeeping.checklist_placeholder')}
+                isClearable
+                isSearchable
+              />
+            )}
             <div className='lg:col-span-2'>
               <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('housekeeping.notes')}</label>
               <textarea

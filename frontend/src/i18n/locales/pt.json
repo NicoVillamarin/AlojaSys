@@ -47,7 +47,9 @@
     "otas": "OTAs",
     "channels": "Canais de Reservas",
     "roles": "Roles",
-    "housekeeping": "Gestão de Limpeza"
+    "housekeeping": "Gestão de Limpeza",
+    "housekeeping_config": "Limpeza",
+    "housekeeping_historical": "Histórico de Limpeza"
   },
   "vouchers_modal": {
     "create_voucher": "Criar Voucher",
@@ -207,6 +209,7 @@
     "complete": "Concluir",
     "start_task": "Iniciar tarefa",
     "complete_task": "Concluir tarefa",
+    "cancel_task": "Cancelar tarefa",
     "types": {
       "daily": "Diária",
       "checkout": "Saída",
@@ -217,7 +220,23 @@
       "pending": "Pendente",
       "in_progress": "Em progresso",
       "completed": "Concluída",
-      "cancelled": "Cancelada"
+      "cancelled": "Cancelada",
+      "overdue": "Vencida"
+    },
+    "filters": {
+      "room": "Quarto",
+      "task_type": "Tipo de tarefa",
+      "priority": "Prioridade",
+      "created_from": "Criada em",
+      "created_to": "Criada até",
+      "completed_from": "Finalizada em",
+      "completed_to": "Finalizada até"
+    },
+    "history": {
+      "title": "Histórico de tarefas de limpeza",
+      "description": "Consulte e audite todas as tarefas de housekeeping com filtros avançados.",
+      "started_at": "Iniciada",
+      "completed_at": "Finalizada"
     },
     "modal": {
       "create_title": "Criar tarefa de limpeza",

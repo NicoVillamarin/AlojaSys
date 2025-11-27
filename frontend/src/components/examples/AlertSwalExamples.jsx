@@ -9,13 +9,11 @@ const AlertSwalExamples = () => {
   const { t } = useTranslation()
 
   const handleDelete = async () => {
-    console.log('Eliminando...')
     // Simular resultado
     return { updated_count: 5 }
   }
 
   const handleArchive = async () => {
-    console.log('Archivando...')
     return { updated_count: 1 }
   }
 

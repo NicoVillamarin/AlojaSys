@@ -36,7 +36,6 @@ export default function InvoiceStatus({ reservationId, paymentId }) {
   const { mutate: getPDF, isPending: loadingPDF } = useDispatchAction({
     resource: 'invoicing/invoices',
     onSuccess: (data) => {
-      console.log('Respuesta del PDF:', data)
       // Si data es un string (contenido del PDF), crear blob
       if (typeof data === 'string' && data.startsWith('%PDF')) {
         const blob = new Blob([data], { type: 'application/pdf' })
@@ -48,7 +47,6 @@ export default function InvoiceStatus({ reservationId, paymentId }) {
         const fullPdfUrl = data.pdf_url.startsWith('http') 
           ? data.pdf_url 
           : `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${data.pdf_url}`
-        console.log('URL completa del PDF:', fullPdfUrl)
         setPdfUrl(fullPdfUrl)
         setShowPDFViewer(true)
       } else {

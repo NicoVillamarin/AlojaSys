@@ -8,6 +8,30 @@
    - [3.2 Gestión de Habitaciones](#32-gestión-de-habitaciones)
    - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
    - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
+   - [3.4.1 Sistema de Vouchers de Crédito](#341-sistema-de-vouchers-de-crédito)
+   - [3.5 Políticas de Cancelación](#35-políticas-de-cancelación)
+   - [3.6 Políticas de Devolución](#36-políticas-de-devolución)
+   - [3.7 Gestión de Tarifas](#37-gestión-de-tarifas)
+   - [3.8 Dashboard y Reportes](#38-dashboard-y-reportes)
+   - [3.9 Calendario de Reservas](#39-calendario-de-reservas)
+   - [3.10 Gestión de Usuarios](#310-gestión-de-usuarios)
+   - [3.11 Gestión de Empresas](#311-gestión-de-empresas)
+   - [3.12 Sistema de Notificaciones](#312-sistema-de-notificaciones)
+   - [3.13 Facturación Electrónica Argentina](#313-facturación-electrónica-argentina)
+   - [3.14 Facturación Electrónica Argentina](#314-facturación-electrónica-argentina)
+   - [3.15 Comprobantes de Señas y Devoluciones](#315-comprobantes-de-señas-y-devoluciones)
+   - [3.16 Integraciones con OTAs (Channel Manager)](#316-integraciones-con-otas-channel-manager)
+   - [3.17 Gestión de Limpieza (Housekeeping)](#317-gestión-de-limpieza-housekeeping)
+4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
+5. [Casos de Uso Reales](#casos-de-uso-reales)
+6. [Beneficios del Sistema](#beneficios-del-sistema)
+1. [¿Qué es AlojaSys?](#qué-es-alojasys)
+2. [¿Cómo Funciona el Sistema?](#cómo-funciona-el-sistema)
+3. [Módulos y Funcionalidades](#módulos-y-funcionalidades)
+   - [3.1 Gestión de Hoteles](#31-gestión-de-hoteles)
+   - [3.2 Gestión de Habitaciones](#32-gestión-de-habitaciones)
+   - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
+   - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
    - [3.4.1 Transferencias Bancarias con OCR](#341-transferencias-bancarias-con-ocr-v22)
    - [3.4.2 Módulo de Cobros](#342-módulo-de-cobros-v22)
    - [3.4.3 Conciliación Bancaria Automática](#343-conciliación-bancaria-automática-v23)
@@ -23,6 +47,7 @@
    - [3.14 Facturación Electrónica Argentina](#314-facturación-electrónica-argentina)
    - [3.15 Comprobantes de Señas y Pagos Parciales](#315-comprobantes-de-señas-y-pagos-parciales)
    - [3.16 Integraciones con OTAs (Channel Manager)](#316-integraciones-con-otas-channel-manager)
+   - [3.17 Gestión de Limpieza (Housekeeping)](#317-gestión-de-limpieza-housekeeping)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
 5. [Casos de Uso Reales](#casos-de-uso-reales)
 6. [Beneficios del Sistema](#beneficios-del-sistema)
@@ -6684,6 +6709,335 @@ Cada mapeo de habitación permite configurar la dirección de sincronización:
 - **Solo Exportar**: Útil cuando quieres compartir disponibilidad sin importar reservas externas
 
 **Ejemplo práctico**: Si tienes una habitación que solo se vende por tu sitio web, pero quieres que Booking.com vea que está ocupada → usa "Solo Exportar". Así, Booking.com bloqueará esas fechas, pero no recibirás reservas desde Booking para esa habitación.
+
+---
+
+## 3.17 Gestión de Limpieza (Housekeeping)
+
+El módulo de Gestión de Limpieza permite gestionar de manera integral todas las tareas de limpieza y mantenimiento de las habitaciones del hotel, con asignación automática de personal, seguimiento de tareas y control de calidad mediante checklists.
+
+### ¿Qué es el Módulo de Housekeeping?
+
+El módulo de Housekeeping es un sistema completo que automatiza y organiza todas las actividades de limpieza del hotel, desde la creación de tareas hasta el seguimiento de su completado, asegurando que todas las habitaciones estén en perfecto estado para los huéspedes.
+
+### Características Principales
+
+- ✅ **Gestión completa de tareas de limpieza**: Creación, asignación, seguimiento y completado
+- ✅ **Asignación automática de personal**: El sistema asigna automáticamente el mejor personal disponible
+- ✅ **Generación automática de tareas**: Tareas diarias y de checkout generadas automáticamente
+- ✅ **Checklists personalizables**: Listas de verificación por tipo de habitación y tipo de tarea
+- ✅ **Seguimiento en tiempo real**: Estado de cada tarea visible en tiempo real
+- ✅ **Control de vencimientos**: Alertas y auto-completado de tareas vencidas
+- ✅ **Gestión de zonas**: Organización del hotel en zonas para mejor distribución del trabajo
+- ✅ **Horarios y turnos**: Configuración de horarios de trabajo y turnos del personal
+- ✅ **Notificaciones automáticas**: Alertas al personal cuando se les asigna una tarea
+- ✅ **Historial completo**: Registro de todas las tareas realizadas
+
+### Tipos de Tareas
+
+El sistema maneja tres tipos principales de tareas:
+
+#### 1. Tareas de Salida (Checkout)
+- Se crean automáticamente cuando un huésped hace checkout
+- Prioridad alta (configurable)
+- Incluyen limpieza profunda de la habitación
+- Checklist específico para salidas
+
+#### 2. Tareas Diarias
+- Se generan automáticamente cada día para habitaciones ocupadas
+- Prioridad media (configurable)
+- Incluyen limpieza básica y reposición de amenities
+- Respetan reglas como "no servicio en día de check-in/checkout"
+
+#### 3. Tareas de Mantenimiento
+- Se crean manualmente cuando se requiere mantenimiento especial
+- Pueden incluir reparaciones o limpieza profunda
+- Checklist específico según el tipo de mantenimiento
+
+### Estados de las Tareas
+
+Cada tarea puede estar en uno de los siguientes estados:
+
+- **Pendiente**: Tarea creada pero aún no iniciada
+- **En Proceso**: Personal ha iniciado la tarea
+- **Completada**: Tarea finalizada exitosamente
+- **Cancelada**: Tarea cancelada (no se completó)
+
+### Gestión de Personal
+
+#### Registro de Personal de Limpieza
+
+Puedes registrar todo tu personal de limpieza con la siguiente información:
+
+- **Datos básicos**: Nombre, apellido
+- **Horarios de trabajo**: Hora de inicio y fin del turno
+- **Turno**: Mañana, Tarde o Noche
+- **Zonas asignadas**: Áreas del hotel donde trabaja
+- **Usuario del sistema**: Opcional, para que puedan acceder y ver sus tareas
+
+#### Asignación Automática
+
+El sistema asigna automáticamente el mejor personal disponible basándose en:
+
+1. **Disponibilidad horaria**: Solo asigna a personal que está en su horario de trabajo
+2. **Turno actual**: Considera si es turno mañana, tarde o noche
+3. **Zonas asignadas**: Prioriza personal asignado a la zona de la habitación
+4. **Carga de trabajo**: Distribuye las tareas equitativamente
+
+**Ejemplo**: Si una habitación del Piso 2 necesita limpieza a las 10:00 AM:
+- El sistema busca personal activo
+- Verifica que esté en su horario (ej: 09:00 - 17:00)
+- Prioriza personal asignado al "Piso 2"
+- Elige quien tenga menos tareas pendientes
+
+### Checklists Personalizables
+
+#### ¿Qué son los Checklists?
+
+Los checklists son listas de verificación que definen todos los pasos que debe seguir el personal al limpiar una habitación. Puedes crear diferentes checklists para:
+
+- **Tipos de habitación**: Single, Double, Triple, Suite
+- **Tipos de tarea**: Salida, Diaria, Mantenimiento
+- **Checklist general**: Para usar cuando no hay uno específico
+
+#### Creación de Checklists
+
+1. **Nombre y descripción**: Identifica claramente el checklist
+2. **Tipo de habitación**: Opcional, para aplicar solo a ciertos tipos
+3. **Tipo de tarea**: Opcional, para aplicar solo a ciertos tipos de tarea
+4. **Marcar como predeterminado**: Para usar cuando no hay checklist específico
+
+#### Items del Checklist
+
+Cada checklist puede tener múltiples items:
+
+- **Nombre del item**: Descripción clara (ej: "Cambiar sábanas", "Limpiar baño")
+- **Descripción**: Detalles adicionales (opcional)
+- **Orden**: Secuencia en que debe completarse
+- **Requerido**: Si es obligatorio o opcional
+
+**Ejemplo de Checklist de Salida**:
+1. ✅ Retirar ropa de cama usada (Requerido)
+2. ✅ Colocar ropa de cama nueva (Requerido)
+3. ✅ Limpiar baño completo (Requerido)
+4. ✅ Reponer amenities (Requerido)
+5. ✅ Aspirar alfombra (Requerido)
+6. ✅ Verificar funcionamiento de TV (Opcional)
+7. ✅ Verificar minibar (Opcional)
+
+### Zonas de Limpieza
+
+#### Organización por Zonas
+
+Las zonas te permiten organizar tu hotel en áreas lógicas:
+
+- **Por piso**: Piso 1, Piso 2, Piso 3
+- **Por ala**: Ala A, Ala B
+- **Por sector**: Sector Norte, Sector Sur
+
+**Ventajas**:
+- Mejor distribución del trabajo
+- Personal especializado por zona
+- Más eficiencia en la limpieza
+
+### Configuración del Sistema
+
+#### Generación Automática de Tareas
+
+**Tareas Diarias**:
+- ✅ Activar/desactivar generación automática
+- ⏰ Hora de generación (ej: 07:00 AM)
+- 📅 Se generan para habitaciones ocupadas
+
+**Reglas de Servicio**:
+- ⏭️ Omitir servicio en día de check-in
+- ⏭️ Omitir servicio en día de checkout
+- 🛏️ Cambiar sábanas cada N noches (ej: cada 3 noches)
+- 🧺 Cambiar toallas cada N noches (ej: cada noche)
+
+#### Ventanas de Tiempo
+
+Define las ventanas de tiempo para cada turno:
+
+- **Turno Mañana**: Inicio y fin (ej: 09:00 - 13:00)
+- **Turno Tarde**: Inicio y fin (ej: 13:00 - 18:00)
+- **Horas de silencio**: Período donde no se debe limpiar (opcional)
+
+#### Prioridades
+
+Configura la prioridad por defecto para cada tipo de tarea:
+
+- **Tareas de Salida**: Prioridad alta (2)
+- **Tareas Diarias**: Prioridad media (1)
+
+#### Control de Vencimientos
+
+**Duración Máxima de Tareas**:
+- ⏱️ Tiempo máximo en minutos (ej: 120 minutos)
+- ⚠️ Marca automáticamente como vencida si se excede
+
+**Auto-completado**:
+- ✅ Activar/desactivar auto-completado de tareas vencidas
+- ⏰ Minutos de gracia adicionales antes de auto-completar
+
+### Flujos de Trabajo
+
+#### Flujo de Checkout
+
+1. **Huésped hace checkout** → Sistema crea automáticamente tarea de limpieza
+2. **Sistema asigna personal** → Busca el mejor personal disponible
+3. **Notificación al personal** → Recibe notificación de nueva tarea
+4. **Personal inicia tarea** → Marca como "En Proceso"
+5. **Personal completa checklist** → Verifica cada item
+6. **Personal completa tarea** → Marca como "Completada"
+7. **Habitación disponible** → Estado cambia a "Disponible"
+
+#### Flujo de Limpieza Diaria
+
+1. **Sistema genera tareas** → Cada día a la hora configurada
+2. **Filtra habitaciones ocupadas** → Solo crea para habitaciones con huéspedes
+3. **Aplica reglas** → Omite si es día de check-in/checkout
+4. **Asigna personal** → Distribuye equitativamente
+5. **Personal completa** → Sigue el mismo proceso que checkout
+
+#### Flujo de Tarea Vencida
+
+1. **Tarea en progreso** → Personal inició pero no completó
+2. **Sistema verifica** → Cada 15 minutos verifica tareas vencidas
+3. **Marca como vencida** → Si excede tiempo máximo
+4. **Auto-completa** → Si está configurado y pasa tiempo de gracia
+5. **Notificación** → Alerta a supervisores si es necesario
+
+### Permisos y Roles
+
+#### Personal de Limpieza
+
+**Permisos**:
+- ✅ Ver sus tareas asignadas
+- ✅ Iniciar tareas
+- ✅ Completar tareas
+- ✅ Ver detalles de checklists
+- ❌ No puede crear, editar o eliminar tareas
+- ❌ No puede acceder a configuraciones
+
+**Interfaz**:
+- Solo ve "Gestión de Limpieza" en el menú
+- Redirección automática desde Dashboard
+- Vista simplificada enfocada en sus tareas
+
+#### Comandanta (Supervisora)
+
+**Permisos**:
+- ✅ Ver todas las tareas
+- ✅ Crear nuevas tareas
+- ✅ Editar tareas pendientes
+- ✅ Eliminar tareas pendientes
+- ✅ Cancelar tareas
+- ✅ Gestionar personal
+- ❌ No puede acceder a configuraciones avanzadas
+
+**Interfaz**:
+- Acceso completo a gestión de tareas
+- Puede reasignar tareas
+- Puede crear tareas manuales
+
+#### Administrador
+
+**Permisos**:
+- ✅ Todo lo de Comandanta
+- ✅ Configurar el sistema
+- ✅ Gestionar zonas
+- ✅ Gestionar plantillas
+- ✅ Gestionar checklists
+- ✅ Gestionar personal
+- ✅ Configurar reglas y horarios
+
+### Casos de Uso Reales
+
+#### Caso 1: Checkout Matutino
+
+**Situación**: Huésped hace checkout a las 10:00 AM
+
+**Proceso Automático**:
+1. Sistema crea tarea de limpieza de salida
+2. Asigna a personal de turno mañana disponible
+3. Personal recibe notificación
+4. Personal inicia tarea a las 10:15 AM
+5. Completa checklist de salida
+6. Marca como completada a las 11:00 AM
+7. Habitación queda disponible para nuevo huésped
+
+#### Caso 2: Limpieza Diaria
+
+**Situación**: Habitación ocupada por 3 días
+
+**Proceso Automático**:
+1. Día 1: Sistema genera tarea diaria (omite por ser check-in)
+2. Día 2: Sistema genera tarea diaria, personal limpia
+3. Día 3: Sistema genera tarea diaria, personal cambia sábanas (cada 3 noches)
+4. Día 4: Sistema genera tarea diaria (omite por ser checkout)
+
+#### Caso 3: Tarea Vencida
+
+**Situación**: Personal inició tarea pero se olvidó de completarla
+
+**Proceso Automático**:
+1. Tarea iniciada a las 10:00 AM (duración estimada: 60 min)
+2. A las 11:15 AM: Sistema marca como vencida (is_overdue=True)
+3. A las 11:45 AM: Si auto-completado está activo, completa automáticamente
+4. Sistema actualiza estado de habitación
+
+#### Caso 4: Personal con Horarios Específicos
+
+**Situación**: Personal trabaja de 09:00 a 17:00
+
+**Proceso Automático**:
+1. Tarea creada a las 08:00 AM → No se asigna (fuera de horario)
+2. Tarea creada a las 10:00 AM → Se asigna (dentro de horario)
+3. Tarea creada a las 18:00 AM → Se asigna a personal de turno tarde
+
+### Beneficios del Sistema
+
+#### Para el Hotel
+
+- ✅ **Eficiencia mejorada**: Asignación automática optimiza el trabajo
+- ✅ **Control de calidad**: Checklists aseguran estándares
+- ✅ **Trazabilidad**: Historial completo de todas las tareas
+- ✅ **Reducción de errores**: Sistema previene olvidos
+- ✅ **Optimización de recursos**: Mejor distribución del personal
+
+#### Para el Personal
+
+- ✅ **Claridad**: Sabe exactamente qué hacer y cuándo
+- ✅ **Organización**: Tareas organizadas por prioridad
+- ✅ **Notificaciones**: Recibe alertas de nuevas tareas
+- ✅ **Checklists**: Guía paso a paso para cada tarea
+
+#### Para los Huéspedes
+
+- ✅ **Habitaciones siempre limpias**: Sistema asegura limpieza regular
+- ✅ **Checkout rápido**: Limpieza inmediata después de salida
+- ✅ **Calidad consistente**: Checklists garantizan estándares
+
+### Preguntas Frecuentes
+
+**¿Puedo crear tareas manualmente?**
+Sí, los usuarios con permisos de Comandanta o Administrador pueden crear tareas manuales desde el botón "Nueva tarea".
+
+**¿Qué pasa si no hay personal disponible?**
+La tarea se crea sin asignar. Un supervisor puede asignarla manualmente más tarde.
+
+**¿Puedo personalizar los checklists?**
+Sí, puedes crear checklists específicos por tipo de habitación y tipo de tarea.
+
+**¿Cómo funciona la asignación automática?**
+El sistema considera horarios, turnos, zonas y carga de trabajo para asignar al mejor personal disponible.
+
+**¿Qué pasa con las tareas vencidas?**
+El sistema las marca automáticamente y puede auto-completarlas si está configurado.
+
+**¿Puedo ver el historial de tareas?**
+Sí, hay una página de "Histórico de Limpieza" con todas las tareas pasadas y filtros avanzados.
 
 ---
 

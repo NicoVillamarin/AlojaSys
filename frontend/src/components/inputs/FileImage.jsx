@@ -74,24 +74,17 @@ const FileImage = ({
   }
 
   const handleFileSelect = async (file) => {
-    console.log('📁 FileImage: Archivo seleccionado:', {
-      name: file?.name,
-      size: file?.size,
-      type: file?.type
-    })
     
     if (!file) return
 
     // Validar tipo de archivo
     if (!file.type.startsWith('image/')) {
-      console.log('❌ FileImage: Tipo de archivo inválido:', file.type)
       helpers.setError('Solo se permiten archivos de imagen')
       return
     }
 
     // Validar tamaño inicial
     if (file.size > maxSize) {
-      console.log('❌ FileImage: Archivo demasiado grande:', file.size, 'bytes')
       helpers.setError(`El archivo es demasiado grande. Máximo ${Math.round(maxSize / (1024 * 1024))}MB`)
       return
     }
@@ -101,19 +94,12 @@ const FileImage = ({
 
       // Comprimir imagen si está habilitado
       if (compress) {
-        console.log('🗜️ FileImage: Comprimiendo imagen...')
         setIsCompressing(true)
         processedFile = await compressImage(file)
         setIsCompressing(false)
-        console.log('✅ FileImage: Imagen comprimida:', {
-          originalSize: file.size,
-          compressedSize: processedFile.size,
-          reduction: `${Math.round((1 - processedFile.size / file.size) * 100)}%`
-        })
 
         // Verificar tamaño después de la compresión
         if (processedFile.size > maxSize) {
-          console.log('❌ FileImage: Archivo sigue siendo demasiado grande después de compresión')
           helpers.setError(`El archivo sigue siendo demasiado grande después de la compresión. Máximo ${Math.round(maxSize / (1024 * 1024))}MB`)
           return
         }
@@ -124,15 +110,9 @@ const FileImage = ({
       setPreviewUrl(url)
       
       // Actualizar Formik
-      console.log('✅ FileImage: Archivo procesado y asignado a Formik:', {
-        name: processedFile.name,
-        size: processedFile.size,
-        type: processedFile.type
-      })
       helpers.setValue(processedFile)
       helpers.setError(undefined)
     } catch (error) {
-      console.log('❌ FileImage: Error al procesar imagen:', error)
       setIsCompressing(false)
       helpers.setError(`Error al procesar la imagen: ${error.message}`)
     }

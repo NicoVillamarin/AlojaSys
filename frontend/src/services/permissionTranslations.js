@@ -22,6 +22,7 @@ const APP_LABEL_TRANSLATIONS = {
   'calendar': 'Calendario',
   'dashboard': 'Dashboard',
   'users': 'Usuarios',
+  'housekeeping': 'Limpieza',
 }
 
 /**
@@ -120,6 +121,13 @@ export const PERMISSION_CATEGORIES = {
     description: 'Sistema de notificaciones',
     keywords: ['notification', 'notificación'],
     appLabels: ['notifications'],
+  },
+  HOUSEKEEPING: {
+    id: 'housekeeping',
+    name: 'Limpieza',
+    description: 'Gestión de tareas de limpieza y mantenimiento',
+    keywords: ['housekeeping', 'limpieza', 'cleaning', 'task', 'tarea', 'checklist', 'staff', 'personal'],
+    appLabels: ['housekeeping'],
   },
 }
 
@@ -382,6 +390,29 @@ const MODEL_TRANSLATIONS = {
   // Notificaciones
   'notification': 'notificación',
   
+  // Housekeeping
+  'Housekeeping Task': 'Tarea de Limpieza',
+  'Tarea de Limpieza': 'Tarea de Limpieza',
+  'tarea de limpieza': 'tarea de limpieza',
+  'Cleaning Staff': 'Personal de Limpieza',
+  'Personal de Limpieza': 'Personal de Limpieza',
+  'personal de limpieza': 'personal de limpieza',
+  'Cleaning Zone': 'Zona de Limpieza',
+  'Zona de Limpieza': 'Zona de Limpieza',
+  'zona de limpieza': 'zona de limpieza',
+  'Task Template': 'Plantilla de Tarea',
+  'Plantilla de Tarea': 'Plantilla de Tarea',
+  'plantilla de tarea': 'plantilla de tarea',
+  'Checklist': 'Lista de Verificación',
+  'Lista de Verificación': 'Lista de Verificación',
+  'lista de verificación': 'lista de verificación',
+  'Checklist Item': 'Item de Lista de Verificación',
+  'Item de Lista de Verificación': 'Item de Lista de Verificación',
+  'item de lista de verificación': 'item de lista de verificación',
+  'Housekeeping Config': 'Configuración de Limpieza',
+  'Configuración de Limpieza': 'Configuración de Limpieza',
+  'configuración de limpieza': 'configuración de limpieza',
+  
   // Términos técnicos
   'permission': 'permiso',
   'user': 'usuario',
@@ -573,6 +604,36 @@ const EXACT_TRANSLATIONS = {
   'Can change notification': 'Puede modificar notificación',
   'Can delete notification': 'Puede eliminar notificación',
   'Can view notification': 'Puede ver notificación',
+  
+  // Housekeeping
+  'Can add Tarea de Limpieza': 'Puede agregar Tarea de Limpieza',
+  'Can change Tarea de Limpieza': 'Puede modificar Tarea de Limpieza',
+  'Can delete Tarea de Limpieza': 'Puede eliminar Tarea de Limpieza',
+  'Can view Tarea de Limpieza': 'Puede ver Tarea de Limpieza',
+  'Can add Personal de Limpieza': 'Puede agregar Personal de Limpieza',
+  'Can change Personal de Limpieza': 'Puede modificar Personal de Limpieza',
+  'Can delete Personal de Limpieza': 'Puede eliminar Personal de Limpieza',
+  'Can view Personal de Limpieza': 'Puede ver Personal de Limpieza',
+  'Can add Zona de Limpieza': 'Puede agregar Zona de Limpieza',
+  'Can change Zona de Limpieza': 'Puede modificar Zona de Limpieza',
+  'Can delete Zona de Limpieza': 'Puede eliminar Zona de Limpieza',
+  'Can view Zona de Limpieza': 'Puede ver Zona de Limpieza',
+  'Can add Plantilla de Tarea': 'Puede agregar Plantilla de Tarea',
+  'Can change Plantilla de Tarea': 'Puede modificar Plantilla de Tarea',
+  'Can delete Plantilla de Tarea': 'Puede eliminar Plantilla de Tarea',
+  'Can view Plantilla de Tarea': 'Puede ver Plantilla de Tarea',
+  'Can add Lista de Verificación': 'Puede agregar Lista de Verificación',
+  'Can change Lista de Verificación': 'Puede modificar Lista de Verificación',
+  'Can delete Lista de Verificación': 'Puede eliminar Lista de Verificación',
+  'Can view Lista de Verificación': 'Puede ver Lista de Verificación',
+  'Can add Item de Lista de Verificación': 'Puede agregar Item de Lista de Verificación',
+  'Can change Item de Lista de Verificación': 'Puede modificar Item de Lista de Verificación',
+  'Can delete Item de Lista de Verificación': 'Puede eliminar Item de Lista de Verificación',
+  'Can view Item de Lista de Verificación': 'Puede ver Item de Lista de Verificación',
+  'Can add Configuración de Limpieza': 'Puede agregar Configuración de Limpieza',
+  'Can change Configuración de Limpieza': 'Puede modificar Configuración de Limpieza',
+  'Can delete Configuración de Limpieza': 'Puede eliminar Configuración de Limpieza',
+  'Can view Configuración de Limpieza': 'Puede ver Configuración de Limpieza',
   
   // OTAs
   'Can add ota config': 'Puede agregar configuración OTA',

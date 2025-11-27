@@ -6,7 +6,6 @@ export const login = async (username, password) => {
   // Esto asegura que no haya conflictos con sesiones previas
   const authStore = useAuthStore.getState();
   if (authStore.accessToken || authStore.refreshToken) {
-    console.log("🧹 Limpiando sesión anterior antes de login...");
     authStore.logout();
   }
   
@@ -25,7 +24,6 @@ export const login = async (username, password) => {
   if (!resp.ok) throw new Error("Credenciales incorrectas");
   const tokens = await resp.json(); // { access, refresh }
   
-  console.log(`🔑 Tokens obtenidos para usuario: ${username}`);
 
   // Traer datos del usuario CON EL NUEVO TOKEN
   const meResp = await fetch(`${getApiURL()}/api/me/`, {
@@ -33,10 +31,6 @@ export const login = async (username, password) => {
   });
   if (!meResp.ok) throw new Error("No se pudo obtener el usuario");
   const me = await meResp.json();
-  
-  console.log(`✅ Usuario obtenido: ${me.username} (ID: ${me.user_id})`);
-  console.log(`   - is_superuser: ${me.is_superuser}`);
-  console.log(`   - Total permisos: ${me.permissions?.length || 0}`);
 
   // Guardar en store con los nuevos datos
   useAuthStore.getState().login(me, tokens.access, tokens.refresh, me.user_id);

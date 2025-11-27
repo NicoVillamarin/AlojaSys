@@ -369,7 +369,6 @@ const ReservationsCalendar = () => {
   const fullCalendarEvents = useMemo(() => {
     if (!reservations) return []
     
-    console.log('🔍 Datos de reservas recibidos:', reservations)
     
     const events = []
     
@@ -378,18 +377,6 @@ const ReservationsCalendar = () => {
         // Para FullCalendar con allDay, la fecha de fin debe ser el día después del último día
         const endDate = parseISO(reservation.check_out)
         endDate.setDate(endDate.getDate() + 1)
-        
-      console.log(`Reserva ${reservation.id} (${reservation.guest_name}):`, {
-          check_in: reservation.check_in,
-          check_out: reservation.check_out,
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0],
-        room: reservation.room,
-        room_name: reservation.room_name,
-        room_id: reservation.room_id,
-        status: reservation.status,
-        full_reservation: reservation
-        })
         
         const resourceId = String(
           (reservation.room && typeof reservation.room === 'object' ? reservation.room.id : reservation.room) ??
@@ -413,16 +400,6 @@ const ReservationsCalendar = () => {
         }
       })
     })
-    
-    console.log(`📊 Total de eventos generados: ${events.length}`)
-    console.log('📋 Lista de eventos:', events.map(e => ({
-      id: e.id,
-      title: e.title,
-      start: e.start,
-      end: e.end,
-      resourceId: e.resourceId,
-      status: e.extendedProps.reservation.status
-    })))
     
     return events
   }, [reservations, getStatusColor])
@@ -615,10 +592,7 @@ const ReservationsCalendar = () => {
 
   // Manejar clic en evento
   const handleEventClick = (clickInfo) => {
-    console.log('🔍 Evento clickeado:', clickInfo.event)
-    console.log('🔍 ExtendedProps:', clickInfo.event.extendedProps)
-    console.log('🔍 Reservation data:', clickInfo.event.extendedProps?.reservation)
-    setSelectedEvent(clickInfo.event)
+      setSelectedEvent(clickInfo.event)
     // Forzar re-render al hacer click para arreglar cualquier problema visual
     forceCalendarRender()
   }

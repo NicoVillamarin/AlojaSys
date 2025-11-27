@@ -130,23 +130,14 @@ const UsersModal = ({ isOpen, onClose, isEdit = false, user, onSuccess }) => {
 
         // Agregar avatar como base64 si se seleccionó uno nuevo
         if (values.avatar_image) {
-          console.log('📎 Convirtiendo avatar a base64:', {
-            name: values.avatar_image.name,
-            size: values.avatar_image.size,
-            type: values.avatar_image.type
-          })
           
           // Convertir archivo a base64
           const avatarBase64 = await convertFileToBase64(values.avatar_image)
           payload.avatar_image_base64 = avatarBase64
           payload.avatar_image_filename = values.avatar_image.name
           
-          console.log('✅ Avatar convertido a base64, tamaño:', avatarBase64.length, 'caracteres')
-        } else {
-          console.log('⚠️ No se seleccionó avatar')
         }
         
-        console.log('📋 Payload final:', payload)
         
         if (isEdit && user?.id) {
           updateUser({ id: user.id, body: payload })

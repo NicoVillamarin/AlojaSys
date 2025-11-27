@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePermissions, useHasAnyPermission } from "src/hooks/usePermissions";
 import logo from "../assets/img/logo_new_alone_white.png";
@@ -61,7 +61,7 @@ const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
 export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggleMini, onResetWidth, onForceOpen, isMobile = false, onMobileClose }) {
   const { t } = useTranslation();
   const location = useLocation();
-  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false, rates: false, policies: false });
+  const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false, rates: false, policies: false, housekeeping: false });
   const {data: me } = useMe();
   
   // Permisos para el menú principal
@@ -115,6 +115,21 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const hasViewRefundPolicies = usePermissions("payments.view_refundpolicy");
   const hasAnyPolicy = useHasAnyPermission(["payments.view_paymentpolicy", "payments.view_cancellationpolicy", "payments.view_refundpolicy"]);
   const hasViewHousekeeping = usePermissions("housekeeping.access_housekeeping");
+  
+  // Verificar si tiene permisos para acceder a configuraciones de housekeeping
+  const hasHousekeepingConfig = useHasAnyPermission([
+    "housekeeping.view_tasktemplate",
+    "housekeeping.add_tasktemplate",
+    "housekeeping.view_checklist",
+    "housekeeping.add_checklist",
+    "housekeeping.view_cleaningzone",
+    "housekeeping.add_cleaningzone",
+    "housekeeping.view_cleaningstaff",
+    "housekeeping.add_cleaningstaff",
+    "housekeeping.view_housekeepingconfig",
+    "housekeeping.change_housekeepingconfig",
+  ]);
+  
   // Verificar si tiene algún permiso de configuración
   const hasAnySettings = useHasAnyPermission([
     "enterprises.view_enterprise",
@@ -134,9 +149,33 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     "payments.view_cancellationpolicy",
     "payments.view_refundpolicy"
   ]);
+  
+  // Verificar si es solo personal de limpieza (sin otros permisos importantes)
+  const isOnlyHousekeepingStaff = useMemo(() => {
+    if (!me || !me.profile) return false;
+    const isHKStaff = me.profile.is_housekeeping_staff === true;
+    if (!isHKStaff) return false;
+    
+    // Si es personal de limpieza, verificar si tiene otros permisos importantes
+    const hasOtherPermissions = 
+      hasViewDashboard || 
+      hasReception || 
+      hasViewReservations || 
+      hasViewCalendar || 
+      hasViewRooms || 
+      hasViewOTAs ||
+      hasAnyHistory ||
+      hasAnyFinancial ||
+      hasAnySettings;
+    
+    // Si es personal de limpieza pero NO tiene otros permisos, es "solo" personal de limpieza
+    return !hasOtherPermissions;
+  }, [me, hasViewDashboard, hasReception, hasViewReservations, hasViewCalendar, hasViewRooms, hasViewOTAs, hasAnyHistory, hasAnyFinancial, hasAnySettings]);
+  
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
     const isLocations = location.pathname.startsWith("/settings/locations");
+    const isHousekeeping = location.pathname.startsWith("/settings/housekeeping");
     // Excluir /payments de isFinancial ya que pertenece a Histories
     const isFinancial = location.pathname === "/refunds" || 
                        (location.pathname.startsWith("/payments") && location.pathname !== "/payments") || 
@@ -147,7 +186,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                        location.pathname === "/payments" || 
                        location.pathname === "/refunds/history";
     const isInvoicing = location.pathname.startsWith("/invoicing");
-    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, financial: isFinancial, histories: isHistories, invoicing: isInvoicing }));
+    setOpenGroups((s) => ({ ...s, settings: isSettings, locations: isLocations, housekeeping: isHousekeeping, financial: isFinancial, histories: isHistories, invoicing: isInvoicing }));
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
@@ -183,28 +222,39 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         </div>
       </div>
       <nav className="mt-2 flex flex-col gap-1">
-        {hasViewDashboard && (
-          <Item to="/" onMobileClose={onMobileClose} isMobile={isMobile}><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
+        {/* Si es solo personal de limpieza, mostrar solo housekeeping */}
+        {isOnlyHousekeepingStaff ? (
+          <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>
+            <CleaningIcon size="20" /> {!isMini && <span>{t('sidebar.housekeeping')}</span>}
+          </Item>
+        ) : (
+          <>
+            {hasViewDashboard && (
+              <Item to="/" onMobileClose={onMobileClose} isMobile={isMobile}><DashboardIcon size="20" /> {!isMini && <span>{t('sidebar.dashboard')}</span>}</Item>
+            )}
+            {hasReception && (
+              <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
+            )}
+            {hasViewReservations && (
+              <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
+            )}
+            {hasViewCalendar && (
+              <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
+            )}
+            {hasViewHousekeeping && (
+              <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>
+                <CleaningIcon size="20" /> {!isMini && <span>{t('sidebar.housekeeping')}</span>}
+              </Item>
+            )}
+            {hasViewRooms && (
+              <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
+            )}
+            {hasViewOTAs && (
+              <Item to="/otas" onMobileClose={onMobileClose} isMobile={isMobile}><ChannelsIcon size="20" /> {!isMini && <span>{t('sidebar.channels')}</span>}</Item>
+            )}
+          </>
         )}
-        {hasReception && (
-          <Item to="/reception" onMobileClose={onMobileClose} isMobile={isMobile}><ReceptionIcon size="20" /> {!isMini && <span>{t('sidebar.reception')}</span>}</Item>
-        )}
-        {hasViewReservations && (
-          <Item to="/reservations-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><BellIcon size="20" /> {!isMini && <span>{t('sidebar.reservations_management')}</span>}</Item>
-        )}
-        {hasViewHousekeeping && (
-          <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile}><CleaningIcon size="20" /> {!isMini && <span>{t('sidebar.housekeeping')}</span>}</Item>
-        )}
-        {hasViewCalendar && (
-          <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
-        )}
-        {hasViewRooms && (
-          <Item to="/rooms-gestion" onMobileClose={onMobileClose} isMobile={isMobile}><RoomsIcon size="20" /> {!isMini && <span>{t('sidebar.rooms_management')}</span>}</Item>
-        )}
-        {hasViewOTAs && (
-          <Item to="/otas" onMobileClose={onMobileClose} isMobile={isMobile}><ChannelsIcon size="20" /> {!isMini && <span>{t('sidebar.channels')}</span>}</Item>
-        )}
-        {!isMini && hasAnyHistory && (
+        {!isOnlyHousekeepingStaff && !isMini && hasAnyHistory && (
           <div className="mt-1">
             <button
               type="button"
@@ -232,10 +282,13 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               {hasViewRefunds && (
                 <Item to="/refunds/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds_history')}</Item>
               )}
+              {hasViewHousekeeping && (
+                <Item to="/housekeeping/historical" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.housekeeping_historical')}</Item>
+              )}
             </div>
           </div>
         )}
-        {!isMini && hasAnyFinancial && (
+        {!isOnlyHousekeepingStaff && !isMini && hasAnyFinancial && (
           <div className="mt-1">
             <button
               type="button"
@@ -295,7 +348,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}
         {/*<Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>*/}
-        {!isMini && hasAnySettings && (
+        {!isOnlyHousekeepingStaff && !isMini && hasAnySettings && (
           <div className="mt-1">
             <button
               type="button"
@@ -334,6 +387,30 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               )}
               {/* Fiscal - por ahora sin permiso específico, se puede agregar después */}
               <Item to="/settings/fiscal" onMobileClose={onMobileClose} isMobile={isMobile}>Configuración Fiscal</Item>
+              {hasViewHousekeeping && hasHousekeepingConfig && (
+                <div className="mt-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup("housekeeping")}
+                    className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${openGroups.housekeeping ? "text-white bg-white/5" : "text-white/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    aria-expanded={openGroups.housekeeping}
+                  >
+                    <span>{t('sidebar.housekeeping_config')}</span>
+                    <Chevron open={openGroups.housekeeping} />
+                  </button>
+                  <div
+                    className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${openGroups.housekeeping ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                  >
+                    <Item to="/settings/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>{t('housekeeping.config.title')}</Item>
+                    <Item to="/settings/housekeeping/zones" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.zones.title')}</Item>
+                    <Item to="/settings/housekeeping/staff" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.staff.title')}</Item>
+                    <Item to="/settings/housekeeping/templates" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.templates.title')}</Item>
+                    <Item to="/settings/housekeeping/checklists" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.checklists.title')}</Item>
+                  </div>
+                </div>
+              )}
               {hasAnyLocation && (
                 <div className="mt-1 ml-2">
                   <button

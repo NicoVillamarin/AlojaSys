@@ -60,7 +60,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       const date = new Date(dateString + 'T00:00:00')
       return isValid(date) ? format(date, formatStr, { locale: es }) : ''
     } catch (error) {
-      console.error('Error formatting date:', error)
       return ''
     }
   }
@@ -77,7 +76,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       const diffTime = checkOutDate - checkInDate
       return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     } catch (error) {
-      console.error('Error calculating stay duration:', error)
       return 0
     }
   }
@@ -261,13 +259,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   const primaryGuestData = getPrimaryGuestData(reservation)
   const otherGuestsData = getOtherGuestsData(reservation)
 
-  // Debug: mostrar datos de la reserva
-  if (isEdit && reservation) {
-    console.log('Datos de la reserva para editar:', reservation)
-    console.log('Datos del huésped principal extraídos:', primaryGuestData)
-    console.log('Otros huéspedes extraídos:', otherGuestsData)
-  }
-
   const initialValues = {
     hotel: reservation?.hotel ?? '',
     ...primaryGuestData,
@@ -298,16 +289,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       setModalKey(prev => prev + 1)
     }
   }, [isOpen, isEdit])
-
-  // Cargar datos de la habitación cuando se edita
-  useEffect(() => {
-    if (isEdit && reservation?.room && !reservation?.room_data) {
-      // Si tenemos el ID de la habitación pero no los datos completos,
-      // podríamos hacer una llamada para obtener los datos de la habitación
-      // Por ahora, asumimos que room_data viene del backend
-      console.log('Reserva para editar - ID de habitación:', reservation.room)
-    }
-  }, [isEdit, reservation])
 
   // Limpiar selección de habitación cuando cambie el hotel
   useEffect(() => {
@@ -734,16 +715,8 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
           })
         }, [values.room_data])
         
-        // Debug: mostrar fechas ocupadas en consola
-        console.log('=== DEBUG FECHAS OCUPADAS ===')
-        console.log('Datos de la habitación:', values.room_data)
-        console.log('Rangos de reservas (visualización):', reservationRanges)
-        console.log('Noches ocupadas (lógica):', occupiedNights)
-        console.log('Días de llegada:', arrivalDays)
         
         if (values.room_data) {
-          console.log('current_reservation:', values.room_data.current_reservation)
-          console.log('future_reservations:', values.room_data.future_reservations)
           
           // Mostrar qué reservas se están considerando
           const allReservations = [
@@ -753,9 +726,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
           const occupyingReservations = allReservations.filter(r => 
             ['confirmed', 'check_in', 'pending'].includes(r.status)
           )
-          console.log('Reservas que ocupan la habitación:', occupyingReservations)
         }
-        console.log('=== FIN DEBUG ===')
 
         // Limpiar habitación si cambió el número de huéspedes y la habitación actual no tiene capacidad suficiente
         if (values.guests !== previousGuests) {

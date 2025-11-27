@@ -274,6 +274,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reservations.tasks.process_automatic_checkouts",
         "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
     },
+    "generate_daily_housekeeping_tasks_hourly": {
+        "task": "apps.housekeeping.tasks.generate_daily_tasks",
+        "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
+    },
+    "check_overdue_housekeeping_tasks": {
+        "task": "apps.housekeeping.tasks.check_overdue_tasks",
+        "schedule": crontab(minute=15),  # Cada hora a los 15 minutos
+    },
     "auto_cancel_expired_reservations_daily": {
         "task": "apps.reservations.tasks.auto_cancel_expired_reservations",
         "schedule": crontab(hour=8, minute=0),  # Diario a las 8:00 AM

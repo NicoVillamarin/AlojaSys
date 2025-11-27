@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAction } from 'src/hooks/useAction'
 import { useList } from 'src/hooks/useList'
 import usePeriod from 'src/hooks/usePeriod'
 import { useDashboardMetrics, useGlobalDashboardMetrics } from 'src/hooks/useDashboardMetrics'
+import { useMe } from 'src/hooks/useMe'
+import { usePermissions, useHasAnyPermission } from 'src/hooks/usePermissions'
 import Kpis from 'src/components/Kpis'
 import SpinnerLoading from 'src/components/SpinnerLoading'
 import Tabs from 'src/components/Tabs'
@@ -33,8 +36,60 @@ import Tooltip from 'src/components/Tooltip'
 
 const Dashboard = () => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { data: me } = useMe()
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
-
+  
+  // Verificar permisos
+  const hasViewDashboard = usePermissions("dashboard.view_dashboardmetrics")
+  const hasReception = useHasAnyPermission(["reservations.view_reservation", "reservations.add_reservation", "reservations.change_reservation"])
+  const hasViewReservations = usePermissions("reservations.view_reservation")
+  const hasViewCalendar = usePermissions("calendar.view_calendarview")
+  const hasViewRooms = usePermissions("rooms.view_room")
+  const hasViewOTAs = usePermissions("otas.view_otaconfig")
+  const hasAnyHistory = useHasAnyPermission(["reservations.view_reservation", "payments.view_payment", "payments.view_refund"])
+  const hasAnyFinancial = useHasAnyPermission(["payments.view_refund", "payments.view_refundvoucher", "invoicing.view_invoice", "invoicing.view_receipt", "payments.view_bankreconciliation"])
+  const hasAnySettings = useHasAnyPermission([
+    "enterprises.view_enterprise",
+    "otas.view_otaconfig",
+    "rooms.view_room",
+    "core.view_hotel",
+    "users.view_userprofile",
+    "auth.view_group",
+    "locations.view_country",
+    "locations.view_state",
+    "locations.view_city",
+    "rates.view_rateplan",
+    "rates.view_raterule",
+    "rates.view_promorule",
+    "rates.view_taxrule",
+    "payments.view_paymentpolicy",
+    "payments.view_cancellationpolicy",
+    "payments.view_refundpolicy"
+  ])
+  
+  // Verificar si es solo personal de limpieza
+  const isOnlyHousekeepingStaff = React.useMemo(() => {
+    if (!me || !me.profile) return false
+    const isHKStaff = me.profile.is_housekeeping_staff === true
+    if (!isHKStaff) return false
+    
+    // Si es personal de limpieza, verificar si tiene otros permisos importantes
+    const hasOtherPermissions = 
+      hasViewDashboard || 
+      hasReception || 
+      hasViewReservations || 
+      hasViewCalendar || 
+      hasViewRooms || 
+      hasViewOTAs ||
+      hasAnyHistory ||
+      hasAnyFinancial ||
+      hasAnySettings
+    
+    // Si es personal de limpieza pero NO tiene otros permisos, es "solo" personal de limpieza
+    return !hasOtherPermissions
+  }, [me, hasViewDashboard, hasReception, hasViewReservations, hasViewCalendar, hasViewRooms, hasViewOTAs, hasAnyHistory, hasAnyFinancial, hasAnySettings])
+  
   // Si el usuario solo tiene 1 hotel, iniciamos directamente en ese hotel
   const [selectedHotel, setSelectedHotel] = useState(hasSingleHotel ? singleHotelId : null) // null = todos los hoteles
   const [activeTab, setActiveTab] = useState(hasSingleHotel ? singleHotelId?.toString() : 'global') // global o hotel_id
@@ -289,6 +344,18 @@ const Dashboard = () => {
   useEffect(() => {
     try { localStorage.setItem('dashboard_view_mode', viewMode) } catch {}
   }, [viewMode])
+
+  // Redirigir a housekeeping si es solo personal de limpieza (después de todos los hooks)
+  useEffect(() => {
+    if (isOnlyHousekeepingStaff) {
+      navigate('/housekeeping', { replace: true })
+    }
+  }, [isOnlyHousekeepingStaff, navigate])
+  
+  // Si es solo personal de limpieza, no renderizar nada (se redirige)
+  if (isOnlyHousekeepingStaff) {
+    return null
+  }
 
   // Datos actuales según el tab activo
   // Para gráficos, usar chartReservations que están filtradas por el período correcto

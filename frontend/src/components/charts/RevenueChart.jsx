@@ -14,33 +14,13 @@ const RevenueChart = ({
   const { t } = useTranslation()
   // Procesar datos para gráfico de ingresos
   const getRevenueData = () => {
-    // Debug temporal
-    console.log('💰 RevenueChart - Datos recibidos:', {
-      reservations: reservations?.length || 0,
-      dateRange,
-      revenueAnalysis: !!revenueAnalysis,
-      metric
-    })
-
-    // TEMPORAL: Forzar uso de datos del frontend para debug
-    console.log('💰 Forzando uso de datos del frontend (reservas)')
-    
-    // Debug de datos del backend (sin usar)
     if (revenueAnalysis && Array.isArray(revenueAnalysis.daily_revenue) && revenueAnalysis.daily_revenue.length > 0) {
       const categories = revenueAnalysis.daily_revenue.map(d => d.date)
       const data = revenueAnalysis.daily_revenue.map(d => parseFloat((metric === 'net' ? (d.net ?? d.revenue) : d.revenue) || 0))
       
-      console.log('💰 Datos del backend (NO USADOS):', {
-        categories,
-        data,
-        hasRealData: data.some(value => value > 0),
-        totalRevenue: data.reduce((a, b) => a + b, 0),
-        rawData: revenueAnalysis.daily_revenue
-      })
     }
 
     if (!reservations || reservations.length === 0) {
-      console.log('No hay reservas para calcular ingresos')
       return { series: [], categories: [] }
     }
 
@@ -52,17 +32,6 @@ const RevenueChart = ({
       
       // Incluir reservas que hicieron check-in dentro del período
       return checkInDate >= startDate && checkInDate <= endDate
-    })
-
-    console.log('💰 Reservas filtradas para ingresos:', {
-      total: reservations.length,
-      filtered: filteredReservations.length,
-      sample: filteredReservations.slice(0, 3).map(r => ({
-        id: r.id,
-        check_in: r.check_in,
-        total_price: r.total_price,
-        status: r.status
-      }))
     })
 
     // Calcular la diferencia en días para decidir si agrupar por día o por mes
@@ -118,13 +87,6 @@ const RevenueChart = ({
       allPeriods.push(...periods)
       allRevenues.push(...revenues)
     }
-
-    console.log('💰 Períodos generados:', {
-      total: allPeriods.length,
-      periods: allPeriods,
-      revenues: allRevenues,
-      totalRevenue: allRevenues.reduce((a, b) => a + b, 0)
-    })
 
     return {
       series: [{

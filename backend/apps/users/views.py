@@ -102,6 +102,7 @@ def me_view(request):
                 "phone": profile.phone or "",
                 "position": profile.position or "",
                 "is_active": profile.is_active,
+                "is_housekeeping_staff": profile.is_housekeeping_staff,
                 "avatar_image_url": avatar_image_url,
             },
             "enterprise_ids": [enterprise.id for enterprise in enterprises],

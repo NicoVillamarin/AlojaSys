@@ -11,11 +11,8 @@ const FutureReservationsChart = ({
 }) => {
   // Procesar datos para gráfico de reservas futuras
   const getFutureReservationsData = () => {
-    console.log('📅 Reservas Futuras - Procesando datos')
-    console.log('Total de futureReservations recibidas:', futureReservations?.length || 0)
     
     if (!futureReservations || futureReservations.length === 0) {
-      console.log('⚠️ No hay reservas futuras disponibles')
       return { series: [], categories: [] }
     }
 
@@ -23,7 +20,6 @@ const FutureReservationsChart = ({
     const today = new Date()
     today.setHours(0, 0, 0, 0) // Resetear a medianoche
     
-    console.log('Fecha de hoy para filtrar:', format(today, 'yyyy-MM-dd'))
 
     // FILTRAR EN EL FRONTEND: Reservas que aún no han terminado (check_out >= hoy)
     const filteredReservations = futureReservations.filter(reservation => {
@@ -31,25 +27,14 @@ const FutureReservationsChart = ({
       const isActive = checkOutDate >= today
       
       if (!isActive) {
-        console.log('❌ Descartando reserva terminada:', reservation.check_in, 'check_out:', reservation.check_out, 'status:', reservation.status)
       }
       
       return isActive
     })
 
-    console.log('✅ Reservas activas (check_out >= hoy):', filteredReservations.length, 'de', futureReservations.length)
-
     if (filteredReservations.length === 0) {
-      console.log('⚠️ No hay reservas activas (todas han terminado)')
       return { series: [], categories: [] }
     }
-
-    // Mostrar primeras 5 reservas filtradas
-    console.log('Primeras 5 reservas filtradas:', filteredReservations.slice(0, 5).map(r => ({
-      check_in: r.check_in,
-      status: r.status,
-      guest: r.guests_data?.[0]?.name || 'N/A'
-    })))
 
     // Agrupar reservas filtradas por fecha
     const reservationsByDate = {}
@@ -61,8 +46,6 @@ const FutureReservationsChart = ({
       reservationsByDate[date]++
     })
 
-    console.log('Reservas agrupadas por fecha:', reservationsByDate)
-
     // Crear arrays para el gráfico - ordenar fechas correctamente
     const dates = Object.keys(reservationsByDate).sort((a, b) => new Date(a) - new Date(b))
     const counts = dates.map(date => reservationsByDate[date])
@@ -73,12 +56,9 @@ const FutureReservationsChart = ({
         const parsedDate = parseISO(date)
         return format(parsedDate, 'dd-MM-yyyy')
       } catch (error) {
-        console.error('Error formateando fecha:', date, error)
         return date
       }
     })
-
-    console.log('✅ Gráfico con', dates.length, 'fechas, total reservas:', counts.reduce((a, b) => a + b, 0))
 
     return {
       series: [{

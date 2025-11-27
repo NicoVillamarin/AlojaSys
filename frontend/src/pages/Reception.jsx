@@ -119,13 +119,11 @@ const Reception = () => {
   };
 
   const handleRoomClick = (data) => {
-    console.log(t('reception.room_clicked'), data);
     setSelectedRoomData(data);
     setShowReservationModal(true);
   };
 
   const handleReservationSuccess = (reservation) => {
-    console.log(t('reception.reservation_created_successfully'), reservation);
     // Aquí puedes agregar lógica adicional si es necesario
     // Por ejemplo, actualizar la lista de habitaciones o mostrar una notificación
   };

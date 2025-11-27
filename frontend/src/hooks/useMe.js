@@ -10,10 +10,8 @@ export const useMe = () => {
     const meUrl = `${getApiURL()}/api/me/`;
     const currentToken = accessToken || sessionStorage.getItem("accessToken");
     
-    console.log(`🔍 useMe: Obteniendo datos del usuario con token...`);
-    
     if (!currentToken) {
-      console.error("❌ No hay access token disponible");
+      console.error("❌ No hay access token disponible"); 
       throw new Error("No hay token de acceso");
     }
     
@@ -23,9 +21,8 @@ export const useMe = () => {
       if (!refreshToken) {
         console.error("❌ No hay refresh token - sesión expirada");
         logout();
-        throw new Error("Sesión expirada");
+        throw new Error("Sesión expirada"); 
       }
-      console.log("🔄 Token expirado, refrescando...");
       const newAccess = await refreshAccessToken(refreshToken);
       resp = await fetch(meUrl, { headers: { Authorization: `Bearer ${newAccess}` } });
       if (!resp.ok) {
@@ -33,8 +30,7 @@ export const useMe = () => {
         logout();
         throw new Error("Sesión expirada");
       }
-      const me = await resp.json();
-      console.log(`✅ Usuario obtenido después de refresh: ${me.username} (ID: ${me.user_id})`);
+      const me = await resp.json(); 
       login(me, newAccess, refreshToken, me.user_id);
       return me;
     }
@@ -43,12 +39,6 @@ export const useMe = () => {
       throw new Error("Error al obtener usuario");
     }
     const me = await resp.json();
-    
-    // DEBUG: Verificar que el usuario devuelto coincide con el token
-    console.log(`✅ Usuario obtenido: ${me.username} (ID: ${me.user_id})`);
-    console.log(`   - is_superuser: ${me.is_superuser}`);
-    console.log(`   - Total permisos: ${me.permissions?.length || 0}`);
-    
     // Actualizar el store con los datos actuales
     login(me, currentToken, sessionStorage.getItem("refreshToken"), me.user_id);
     return me;

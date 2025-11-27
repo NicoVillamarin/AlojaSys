@@ -66,9 +66,6 @@ const DepositPaymentModal = ({
       type: 'deposit'
     }
 
-    console.log('Enviando pago de depósito:', paymentData)
-    console.log('Depósito esperado:', expectedAmount)
-
     // Procesar el pago de depósito
     createPayment(paymentData)
   }
