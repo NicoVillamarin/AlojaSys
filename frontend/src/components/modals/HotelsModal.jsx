@@ -61,6 +61,13 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
     auto_no_show_enabled: currentHotel?.auto_no_show_enabled ?? false,
     logo: null, // Archivo seleccionado
     existing_logo_url: currentHotel?.logo_url ?? null, // URL del logo existente
+    // WhatsApp
+    whatsapp_enabled: currentHotel?.whatsapp_enabled ?? false,
+    whatsapp_phone: currentHotel?.whatsapp_phone ?? '',
+    whatsapp_provider: currentHotel?.whatsapp_provider ?? '',
+    whatsapp_business_id: currentHotel?.whatsapp_business_id ?? '',
+    whatsapp_phone_number_id: currentHotel?.whatsapp_phone_number_id ?? '',
+    whatsapp_api_token: '', // nunca mostramos el valor actual por seguridad
   }
 
   const validationSchema = Yup.object().shape({
@@ -96,6 +103,13 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             auto_check_in_enabled: values.auto_check_in_enabled || false,
             auto_check_out_enabled: values.auto_check_out_enabled !== undefined ? values.auto_check_out_enabled : true,
             auto_no_show_enabled: values.auto_no_show_enabled || false,
+            // WhatsApp config
+            whatsapp_enabled: !!values.whatsapp_enabled,
+            whatsapp_phone: values.whatsapp_phone || '',
+            whatsapp_provider: values.whatsapp_provider || '',
+            whatsapp_business_id: values.whatsapp_business_id || '',
+            whatsapp_phone_number_id: values.whatsapp_phone_number_id || '',
+            whatsapp_api_token: values.whatsapp_api_token || '',
           }
           
           // Agregar logo como base64 si se seleccionó uno nuevo
@@ -140,6 +154,13 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             auto_check_in_enabled: values.auto_check_in_enabled || false,
             auto_check_out_enabled: values.auto_check_out_enabled !== undefined ? values.auto_check_out_enabled : true,
             auto_no_show_enabled: values.auto_no_show_enabled || false,
+            // WhatsApp config
+            whatsapp_enabled: !!values.whatsapp_enabled,
+            whatsapp_phone: values.whatsapp_phone || '',
+            whatsapp_provider: values.whatsapp_provider || '',
+            whatsapp_business_id: values.whatsapp_business_id || '',
+            whatsapp_phone_number_id: values.whatsapp_phone_number_id || '',
+            whatsapp_api_token: values.whatsapp_api_token || '',
           }
           
           if (isEditMode && currentHotel?.id) {
@@ -251,6 +272,57 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                     />
                     <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.auto_no_show_enabled')}</span>
                   </label>
+                </div>
+              </div>
+              <div>
+                <label className='text-xs text-aloja-gray-800/70'>{t('hotels_modal.whatsapp_settings')}</label>
+                <div className='space-y-3 mt-2'>
+                  <label htmlFor='whatsapp_enabled' className='flex items-center gap-2 cursor-pointer'>
+                    <input
+                      id='whatsapp_enabled'
+                      name='whatsapp_enabled'
+                      type='checkbox'
+                      className='rounded border-gray-300'
+                      checked={!!values.whatsapp_enabled}
+                      onChange={(e) => setFieldValue('whatsapp_enabled', e.target.checked)}
+                    />
+                    <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.whatsapp_enabled')}</span>
+                  </label>
+                  {values.whatsapp_enabled && (
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                      <InputText
+                        title={t('hotels_modal.whatsapp_phone')}
+                        name='whatsapp_phone'
+                        placeholder='+54911...'
+                      />
+                      <SelectBasic
+                        title={t('hotels_modal.whatsapp_provider')}
+                        name='whatsapp_provider'
+                        options={[
+                          { value: '', label: t('common.none') },
+                          { value: 'meta_cloud', label: 'Meta WhatsApp Cloud API' },
+                          { value: 'twilio', label: 'Twilio' },
+                          { value: 'other', label: t('common.other') },
+                        ]}
+                      />
+                      <InputText
+                        title={t('hotels_modal.whatsapp_business_id')}
+                        name='whatsapp_business_id'
+                        placeholder='Business ID (Meta)'
+                      />
+                      <InputText
+                        title={t('hotels_modal.whatsapp_phone_number_id')}
+                        name='whatsapp_phone_number_id'
+                        placeholder='Phone Number ID'
+                      />
+                      <InputText
+                        title={t('hotels_modal.whatsapp_api_token')}
+                        name='whatsapp_api_token'
+                        type='password'
+                        placeholder={t('hotels_modal.whatsapp_api_token_placeholder')}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
               <div>

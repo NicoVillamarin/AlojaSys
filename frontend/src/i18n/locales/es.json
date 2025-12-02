@@ -1183,6 +1183,14 @@
       "overdue_grace_help": "Minutos adicionales después del tiempo máximo antes de auto-completar la tarea",
       "save_config": "Guardar configuración"
     },
+    "whatsapp_settings": "Configuración de WhatsApp",
+    "whatsapp_enabled": "Habilitar chatbot de WhatsApp",
+    "whatsapp_phone": "Número de WhatsApp",
+    "whatsapp_provider": "Proveedor",
+    "whatsapp_business_id": "Business ID",
+    "whatsapp_phone_number_id": "Phone Number ID",
+    "whatsapp_api_token": "Token de API",
+    "whatsapp_api_token_placeholder": "Ingrese el token de API (solo al actualizar)",
     "config": {
       "task_timeout": "Vencimiento de Tareas"
     }

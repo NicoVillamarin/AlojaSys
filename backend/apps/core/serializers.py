@@ -12,10 +12,48 @@ class HotelSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Hotel
-        fields = ["id", "enterprise", "enterprise_name", "name", "legal_name", "tax_id", "check_in_time", "check_out_time", "auto_check_in_enabled", "auto_check_out_enabled", "auto_no_show_enabled", "email", "phone",
-                  "address", "country", "state", "city", "city_name", "state_name", "country_code2",
-                  "logo", "logo_url", "logo_base64", "logo_filename", "is_active", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "enterprise",
+            "enterprise_name",
+            "name",
+            "legal_name",
+            "tax_id",
+            "check_in_time",
+            "check_out_time",
+            "auto_check_in_enabled",
+            "auto_check_out_enabled",
+            "auto_no_show_enabled",
+            "email",
+            "phone",
+            "address",
+            "country",
+            "state",
+            "city",
+            "city_name",
+            "state_name",
+            "country_code2",
+            # WhatsApp config
+            "whatsapp_enabled",
+            "whatsapp_phone",
+            "whatsapp_provider",
+            "whatsapp_business_id",
+            "whatsapp_phone_number_id",
+            "whatsapp_api_token",
+            "whatsapp_provider_account",
+            # Logo / estado
+            "logo",
+            "logo_url",
+            "logo_base64",
+            "logo_filename",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
+        extra_kwargs = {
+            "whatsapp_api_token": {"write_only": True, "required": False, "allow_blank": True},
+        }
     
     def get_logo_url(self, obj):
         """Obtiene la URL completa del logo"""

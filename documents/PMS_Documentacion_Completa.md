@@ -20,6 +20,7 @@
    - [3.14 Módulo Comprobantes de Pagos](#314-módulo-comprobantes-de-pagos-payment-receipts)
    - [3.15 Módulo OTAs (Channel Manager)](#315-módulo-otas-channel-manager)
    - [3.16 Módulo Housekeeping (Gestión de Limpieza)](#316-módulo-housekeeping-gestión-de-limpieza)
+   - [3.17 Módulo Chatbot & WhatsApp](#317-módulo-chatbot--whatsapp)
 4. [Flujos de Trabajo Principales](#flujos-de-trabajo-principales)
 5. [APIs y Endpoints](#apis-y-endpoints)
 6. [Configuraciones y Políticas](#configuraciones-y-políticas)
@@ -180,6 +181,7 @@ class ReservationStatus(models.TextChoices):
 ```python
 class ReservationChannel(models.TextChoices):
     DIRECT = "direct", "Directo"
+    WHATSAPP = "whatsapp", "WhatsApp"
     BOOKING = "booking", "Booking"
     EXPEDIA = "expedia", "Expedia"
     OTHER = "other", "Otro"

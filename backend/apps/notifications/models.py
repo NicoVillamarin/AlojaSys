@@ -13,6 +13,7 @@ class NotificationType(models.TextChoices):
     RECEIPT_GENERATED = "receipt_generated", "Comprobante Generado"
     OTA_RESERVATION_RECEIVED = "ota_reservation_received", "Nueva Reserva OTA"
     HOUSEKEEPING_TASK_CREATED = "housekeeping_task_created", "Tarea de Limpieza Creada"
+    WHATSAPP_RESERVATION_RECEIVED = "whatsapp_reservation_received", "Reserva vía WhatsApp"
 
 
 class Notification(models.Model):

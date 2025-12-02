@@ -973,7 +973,15 @@
       "daily_priority": "Prioridade diária",
       "alert_checkout_unstarted_minutes": "Alerta se check‑out não iniciar em (min)",
       "save_config": "Salvar configuração"
-    }
+    },
+    "whatsapp_settings": "Configuração do WhatsApp",
+    "whatsapp_enabled": "Habilitar chatbot do WhatsApp",
+    "whatsapp_phone": "Número do WhatsApp",
+    "whatsapp_provider": "Provedor",
+    "whatsapp_business_id": "Business ID",
+    "whatsapp_phone_number_id": "Phone Number ID",
+    "whatsapp_api_token": "Token da API",
+    "whatsapp_api_token_placeholder": "Digite o token da API (apenas ao atualizar)"
   },
   "users_modal": {
     "edit_user": "Editar usuário",

@@ -25,6 +25,7 @@ import { useUserHotels } from "src/hooks/useUserHotels";
 import PaymentModal from "src/components/modals/PaymentModal";
 import CancellationModal from "src/components/modals/CancellationModal";
 import Badge from "src/components/Badge";
+import WhatsappIcon from "src/assets/icons/WhatsappIcon";
 import { useAuthStore } from "src/stores/useAuthStore";
 import AutoNoShowButton from "src/components/AutoNoShowButton";
 import AlertSwal from "src/components/AlertSwal";
@@ -1071,6 +1072,14 @@ export default function ReservationsGestions() {
               // Colores según el canal
               const getChannelBadge = () => {
                 if (!isOta) {
+                  // Reservas directas (sin OTA)
+                  if (channelValue === "whatsapp") {
+                    return (
+                      <Badge variant="warning" size="sm" icon={WhatsappIcon}>
+                        WhatsApp
+                      </Badge>
+                    );
+                  }
                   return (
                     <Badge variant="directo" size="sm">
                       Directo

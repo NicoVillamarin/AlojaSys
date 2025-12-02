@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.invoicing",
     "apps.otas",
+    "apps.chatbot",
 ]
 
 MIDDLEWARE = [
@@ -347,6 +348,7 @@ CELERY_IMPORTS = (
 
 CHANNEL_COMMISSION_RATES = {
     "direct": 0,
+    "whatsapp": 0,
     "booking": 15,     # %
     "expedia": 18,     # %
     "other": 0,

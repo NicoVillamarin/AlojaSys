@@ -74,8 +74,11 @@ class ReservationSerializer(serializers.ModelSerializer):
             instance = Reservation(**validated_data)
 
             # Normalización de canal/origen
+            # - Si no hay external_id y el payload NO especificó canal, usar DIRECT
+            # - Si hay external_id y el canal viene como DIRECT, forzar OTHER (reservas OTA)
             if not instance.external_id:
-                instance.channel = ReservationChannel.DIRECT
+                if "channel" not in validated_data:
+                    instance.channel = ReservationChannel.DIRECT
             else:
                 if instance.channel == ReservationChannel.DIRECT:
                     instance.channel = ReservationChannel.OTHER

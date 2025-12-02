@@ -24,6 +24,7 @@ class RoomBlockType(models.TextChoices):
 
 class ReservationChannel(models.TextChoices):
     DIRECT = "direct", "Directo"
+    WHATSAPP = "whatsapp", "WhatsApp"
     BOOKING = "booking", "Booking"
     EXPEDIA = "expedia", "Expedia"
     AIRBNB = "airbnb", "Airbnb"

@@ -15,6 +15,49 @@ class Hotel(models.Model):
     country = models.ForeignKey("locations.Country", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
     state = models.ForeignKey("locations.State", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
     city = models.ForeignKey("locations.City", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
+    class WhatsappProvider(models.TextChoices):
+        META_CLOUD = "meta_cloud", "Meta WhatsApp Cloud API"
+        TWILIO = "twilio", "Twilio"
+        OTHER = "other", "Otro"
+
+    whatsapp_enabled = models.BooleanField(
+        default=False,
+        help_text="Habilita la captura automática de reservas vía WhatsApp"
+    )
+    whatsapp_phone = models.CharField(
+        max_length=30,
+        blank=True,
+        help_text="Número oficial de WhatsApp del hotel (formato E.164)"
+    )
+    whatsapp_provider = models.CharField(
+        max_length=30,
+        choices=WhatsappProvider.choices,
+        blank=True,
+        help_text="Proveedor directo si el hotel trae su propia cuenta"
+    )
+    whatsapp_business_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Business ID (Meta) u otro identificador requerido por el proveedor"
+    )
+    whatsapp_phone_number_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Phone Number ID (Meta) u otro ID interno del número"
+    )
+    whatsapp_api_token = models.CharField(
+        max_length=512,
+        blank=True,
+        help_text="Token/API Key del proveedor (almacenamiento básico, considerar cifrado)"
+    )
+    whatsapp_provider_account = models.ForeignKey(
+        "chatbot.ChatbotProviderAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hotels",
+        help_text="Cuenta administrada por AlojaSys para usar un número compartido"
+    )
     timezone = models.CharField(max_length=60, default="America/Argentina/Buenos_Aires")
     check_in_time = models.TimeField(default=time(15, 0))
     check_out_time = models.TimeField(default=time(11, 0))
@@ -53,6 +96,21 @@ class Hotel(models.Model):
     def clean(self):
         if self.check_in_time == self.check_out_time:
             raise ValidationError("check_in_time y check_out_time no pueden ser iguales.")
+        if self.whatsapp_enabled and not self.whatsapp_phone:
+            raise ValidationError({
+                "whatsapp_phone": "Debes configurar el número de WhatsApp si habilitás este canal."
+            })
+        if self.whatsapp_enabled:
+            has_shared_account = bool(self.whatsapp_provider_account_id)
+            has_custom_credentials = all([
+                self.whatsapp_provider,
+                self.whatsapp_api_token,
+                self.whatsapp_phone_number_id,
+            ])
+            if not (has_shared_account or has_custom_credentials):
+                raise ValidationError(
+                    "Configura una cuenta compartida o provee proveedor/token/phone_number_id para WhatsApp."
+                )
 
     def save(self, *args, **kwargs):
         # Si el hotel tiene país definido y no tiene timezone/horarios seteados explícitamente,
