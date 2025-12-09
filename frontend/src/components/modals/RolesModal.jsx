@@ -90,6 +90,50 @@ const RolesModal = ({ isOpen, onClose, isEdit = false, role, onSuccess }) => {
     if (!permissions || permissions.length === 0) return {}
     
     return {
+      // Presets alineados con los planes comerciales
+      plan_basico: {
+        name: 'Plan Básico',
+        description: 'Permisos sugeridos para empresas con Plan Básico (sin OTAs ni facturación avanzada).',
+        permissions: permissions
+          .filter(p => {
+            if (!p || !p.permission || !p.codename) return false
+            const cat = getPermissionCategory(p)
+            // Excluir administración técnica y OTAs / Facturación
+            if (cat === PERMISSION_CATEGORIES.ADMINISTRATION.id) return false
+            if (cat === PERMISSION_CATEGORIES.OTAS.id) return false
+            if (cat === PERMISSION_CATEGORIES.INVOICING.id) return false
+            return true
+          })
+          .map(p => p.id),
+      },
+      plan_medio: {
+        name: 'Plan Medio',
+        description: 'Permisos sugeridos para Plan Medio (incluye facturación y pagos online, sin OTAs).',
+        permissions: permissions
+          .filter(p => {
+            if (!p || !p.permission || !p.codename) return false
+            const cat = getPermissionCategory(p)
+            // Excluir solo administración técnica y OTAs
+            if (cat === PERMISSION_CATEGORIES.ADMINISTRATION.id) return false
+            if (cat === PERMISSION_CATEGORIES.OTAS.id) return false
+            return true
+          })
+          .map(p => p.id),
+      },
+      plan_full: {
+        name: 'Plan Full',
+        description: 'Permisos sugeridos para Plan Full (todas las operaciones del PMS, sin administración técnica del sistema).',
+        permissions: permissions
+          .filter(p => {
+            if (!p || !p.permission || !p.codename) return false
+            const cat = getPermissionCategory(p)
+            // Excluir solo administración técnica interna (grupos, sesiones, etc.)
+            if (cat === PERMISSION_CATEGORIES.ADMINISTRATION.id) return false
+            return true
+          })
+          .map(p => p.id),
+      },
+      // Presets operativos por rol de personas
       recepcionista: {
         name: 'Recepcionista',
         description: 'Atención al cliente, check-in, check-out y reservas',
@@ -354,6 +398,11 @@ const RolesModal = ({ isOpen, onClose, isEdit = false, role, onSuccess }) => {
             
             // Aplicar los permisos
             setFieldValue('permissions', permissionIds, false) // false = no validar inmediatamente
+
+            // Si estamos creando un rol nuevo y no hay nombre aún, sugerir el nombre del preset
+            if (!isEdit && !values.name && preset.name) {
+              setFieldValue('name', preset.name)
+            }
           } else {
             console.warn(`Preset ${presetKey} no encontrado o sin permisos`, preset)
           }

@@ -44,9 +44,18 @@ import PaymentStatusBadge from "src/components/reservations/PaymentStatusBadge";
 import Tooltip from "src/components/Tooltip";
 import { Chevron } from "src/assets/icons/Chevron";
 import { useEffectOnce } from "src/hooks/useEffectOnce";
+import { usePermissions, useHasAnyPermission } from "src/hooks/usePermissions";
 
 export default function ReservationsGestions() {
   const { t, i18n } = useTranslation();
+  
+  // Verificar permisos CRUD para reservas
+  const canViewReservation = usePermissions("reservations.view_reservation");
+  const canAddReservation = usePermissions("reservations.add_reservation");
+  const canChangeReservation = usePermissions("reservations.change_reservation");
+  const canDeleteReservation = usePermissions("reservations.delete_reservation");
+  const canAddPayment = usePermissions("reservations.add_payment");
+  const canAddInvoice = usePermissions("invoicing.add_invoice");
   const [showModal, setShowModal] = useState(false);
   const [showMultiCreateModal, setShowMultiCreateModal] = useState(false);
   const [showCreateTypeMenu, setShowCreateTypeMenu] = useState(false);
@@ -103,6 +112,7 @@ export default function ReservationsGestions() {
       ordering: "-id", // Ordenar por ID descendente (más recientes primero), con ordenamiento secundario por check_in en backend
       page_size: 1000, // Cargar más resultados para evitar problemas de paginación
     },
+    enabled: canViewReservation, // Solo cargar datos si tiene permiso para ver reservas
   });
 
   // Obtener lista de hoteles para verificar configuración
@@ -251,10 +261,14 @@ export default function ReservationsGestions() {
   }, [filters.hotel, refetch]);
 
   const hasOverbooking = (r) => !!r.overbooking_flag;
-  const canCheckIn = (r) => r.status === "confirmed" && !hasOverbooking(r);
+  const canCheckIn = (r) => 
+    canChangeReservation && 
+    r.status === "confirmed" && 
+    !hasOverbooking(r);
 
   // Check-out normal: solo disponible en o después de la fecha de check-out
   const canCheckOut = (r) => {
+    if (!canChangeReservation) return false;
     if (r.status !== "check_in" || hasOverbooking(r)) return false;
     if (!r.check_out) return false;
 
@@ -271,6 +285,7 @@ export default function ReservationsGestions() {
 
   // Salida anticipada: solo disponible antes de la fecha de check-out
   const canEarlyCheckOut = (r) => {
+    if (!canChangeReservation) return false;
     if (r.status !== "check_in" || hasOverbooking(r)) return false;
     if (!r.check_out) return false;
 
@@ -286,17 +301,26 @@ export default function ReservationsGestions() {
   };
 
   const canCancel = (r) =>
-    (r.status === "pending" || r.status === "confirmed") && !hasOverbooking(r);
-  const canConfirm = (r) => r.status === "pending" && !hasOverbooking(r);
-  const canEdit = (r) => r.status === "pending" || hasOverbooking(r); // Editar permitido si pendiente o si hay overbooking para resolver
+    canDeleteReservation &&
+    (r.status === "pending" || r.status === "confirmed") && 
+    !hasOverbooking(r);
+  const canConfirm = (r) => 
+    canAddPayment && 
+    r.status === "pending" && 
+    !hasOverbooking(r);
+  const canEdit = (r) => 
+    canChangeReservation && 
+    (r.status === "pending" || hasOverbooking(r)); // Editar permitido si pendiente o si hay overbooking para resolver
 
   // Función para determinar si se puede generar factura
   const canGenerateInvoice = (r) => {
     // Solo se puede generar factura si:
-    // 1. La reserva está confirmada o en check-in/check-out
-    // 2. Tiene precio total > 0
-    // 3. No tiene facturas existentes (esto se verifica en el componente InvoiceStatus)
+    // 1. Tiene permiso para crear facturas
+    // 2. La reserva está confirmada o en check-in/check-out
+    // 3. Tiene precio total > 0
+    // 4. No tiene facturas existentes (esto se verifica en el componente InvoiceStatus)
     return (
+      canAddInvoice &&
       (r.status === "confirmed" ||
         r.status === "check_in" ||
         r.status === "check_out") &&
@@ -699,52 +723,54 @@ export default function ReservationsGestions() {
             hasAutoNoShowEnabled={hasAutoNoShowEnabled}
             onSuccess={refetch}
           />
-          <div className="relative">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => setShowCreateTypeMenu((prev) => !prev)}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-white">
-                  <Chevron open={showCreateTypeMenu} />
-                </span>
-                <span>
-                  {t("dashboard.reservations_management.create_reservation")}
-                </span>
-              </div>
-            </Button>
-            {showCreateTypeMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                <button
-                  type="button"
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 cursor-pointer"
-                  onClick={() => {
-                    setShowCreateTypeMenu(false);
-                    setShowModal(true);
-                  }}
-                >
-                  {t(
-                    "dashboard.reservations_management.create_simple_reservation",
-                    "Reserva simple"
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-t border-gray-100 cursor-pointer"
-                  onClick={() => {
-                    setShowCreateTypeMenu(false);
-                    setShowMultiCreateModal(true);
-                  }}
-                >
-                  {t(
-                    "dashboard.reservations_management.create_multi_room_reservation",
-                    "Reserva multi-habitaciones"
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
+          {canAddReservation && (
+            <div className="relative">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setShowCreateTypeMenu((prev) => !prev)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-white">
+                    <Chevron open={showCreateTypeMenu} />
+                  </span>
+                  <span>
+                    {t("dashboard.reservations_management.create_reservation")}
+                  </span>
+                </div>
+              </Button>
+              {showCreateTypeMenu && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      setShowCreateTypeMenu(false);
+                      setShowModal(true);
+                    }}
+                  >
+                    {t(
+                      "dashboard.reservations_management.create_simple_reservation",
+                      "Reserva simple"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-t border-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setShowCreateTypeMenu(false);
+                      setShowMultiCreateModal(true);
+                    }}
+                  >
+                    {t(
+                      "dashboard.reservations_management.create_multi_room_reservation",
+                      "Reserva multi-habitaciones"
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -987,12 +1013,17 @@ export default function ReservationsGestions() {
         </div>
       </Filter>
 
-      <TableGeneric
-        isLoading={isPending}
-        data={displayResults}
-        getRowId={(r) => r.id}
-        defaultSort={{ key: "id", direction: "desc" }}
-        columns={[
+      {!canViewReservation ? (
+        <div className="text-center py-8 text-gray-500">
+          {t("dashboard.reservations_management.no_permission_view", "No tienes permiso para ver reservas")}
+        </div>
+      ) : (
+        <TableGeneric
+          isLoading={isPending}
+          data={displayResults}
+          getRowId={(r) => r.id}
+          defaultSort={{ key: "id", direction: "desc" }}
+          columns={[
           {
             key: "display_name",
             header: t(
@@ -1383,9 +1414,10 @@ export default function ReservationsGestions() {
             ),
           },
         ]}
-      />
+        />
+      )}
 
-      {hasNextPage && displayResults?.length >= 50 && (
+      {canViewReservation && hasNextPage && displayResults?.length >= 50 && (
         <div>
           <button
             className="px-3 py-2 rounded-md border"

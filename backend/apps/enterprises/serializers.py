@@ -1,11 +1,14 @@
 from rest_framework import serializers
+
 from .models import Enterprise
+from .features import get_effective_features
 
 
 class EnterpriseSerializer(serializers.ModelSerializer):
     city_name = serializers.SerializerMethodField(read_only=True)
     state_name = serializers.SerializerMethodField(read_only=True)
     country_code2 = serializers.SerializerMethodField(read_only=True)
+    plan_features = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Enterprise
@@ -23,6 +26,9 @@ class EnterpriseSerializer(serializers.ModelSerializer):
             "city_name",
             "state_name",
             "country_code2",
+            "plan_type",
+            "enabled_features",
+            "plan_features",
             "is_active",
             "created_at",
             "updated_at",
@@ -58,6 +64,13 @@ class EnterpriseSerializer(serializers.ModelSerializer):
             except Exception:
                 pass
         return attrs
+
+    def get_plan_features(self, obj: Enterprise):
+        """
+        Devuelve los features efectivos que tiene la empresa según su plan
+        y overrides. Útil para que el frontend pueda ocultar/mostrar módulos.
+        """
+        return get_effective_features(obj)
 
     def get_city_name(self, obj):
         try:

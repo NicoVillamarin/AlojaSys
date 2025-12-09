@@ -2,7 +2,7 @@
 Servicios para la generación automática de tareas de housekeeping.
 """
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
@@ -547,20 +547,39 @@ class TaskGeneratorService:
                 logger.info(f"Generación automática de tareas diarias deshabilitada para hotel {hotel.id}")
                 return stats
 
-            # Obtener habitaciones ocupadas
+            # Obtener habitaciones objetivo según configuración
             from apps.rooms.models import RoomStatus
-            occupied_rooms = Room.objects.filter(
-                hotel=hotel,
-                status=RoomStatus.OCCUPIED
-            ).select_related('hotel')
 
-            stats['total_rooms'] = occupied_rooms.count()
+            if getattr(config, "daily_for_all_rooms", False):
+                # Todas las habitaciones activas que no estén fuera de servicio/mantenimiento duro
+                rooms_qs = Room.objects.filter(
+                    hotel=hotel,
+                    is_active=True,
+                    status__in=[
+                        RoomStatus.AVAILABLE,
+                        RoomStatus.OCCUPIED,
+                        RoomStatus.RESERVED,
+                    ],
+                ).select_related("hotel")
+            else:
+                # Comportamiento actual: solo habitaciones ocupadas
+                rooms_qs = Room.objects.filter(
+                    hotel=hotel,
+                    status=RoomStatus.OCCUPIED,
+                ).select_related("hotel")
+
+            stats["total_rooms"] = rooms_qs.count()
+
+            # Llevar registro de usuarios que recibieron una notificación
+            # individual por tareas asignadas, para NO incluirlos en la
+            # notificación general/resumen.
+            assigned_user_ids = set()
 
             # Verificar reglas de servicio
             skip_on_checkin = config.skip_service_on_checkin
             skip_on_checkout = config.skip_service_on_checkout
 
-            for room in occupied_rooms:
+            for room in rooms_qs:
                 try:
                     # Verificar si debe saltarse el servicio
                     should_skip = False
@@ -597,6 +616,11 @@ class TaskGeneratorService:
 
                     if task:
                         stats['tasks_created'] += 1
+                        # Si la tarea quedó asignada a un staff que tiene usuario,
+                        # guardamos ese user_id para excluirlo luego de la
+                        # notificación general/resumen.
+                        if task.assigned_to and getattr(task.assigned_to, "user_id", None):
+                            assigned_user_ids.add(task.assigned_to.user_id)
                     else:
                         stats['tasks_skipped'] += 1
 
@@ -609,9 +633,176 @@ class TaskGeneratorService:
                 f"{stats['tasks_created']} creadas, {stats['tasks_skipped']} omitidas, {stats['errors']} errores"
             )
 
+            # Notificación general/resumen para usuarios del hotel
+            # (excepto quienes ya recibieron notificación individual por
+            # tener tareas asignadas directamente).
+            if stats["tasks_created"] > 0:
+                try:
+                    from apps.notifications.services import NotificationService
+                    from apps.notifications.models import NotificationType
+                    from django.contrib.auth import get_user_model
+
+                    User = get_user_model()
+
+                    # Usuarios asociados al hotel vía perfil (y superusuarios)
+                    hotel_users_qs = User.objects.filter(
+                        profile__hotels=hotel
+                    ).distinct()
+
+                    # Incluir también superusuarios aunque no tengan perfil ligado al hotel
+                    superusers_qs = User.objects.filter(is_superuser=True)
+                    hotel_users_qs = (hotel_users_qs | superusers_qs).distinct()
+
+                    # Excluir usuarios que ya recibieron notificación individual
+                    if assigned_user_ids:
+                        hotel_users_qs = hotel_users_qs.exclude(id__in=assigned_user_ids)
+
+                    user_ids = list(hotel_users_qs.values_list("id", flat=True))
+
+                    # Si hay usuarios concretos, crear notificación para ellos;
+                    # si no, crear una notificación general (user_id=None) para el hotel.
+                    title = "Tareas de limpieza generadas"
+                    message_template = (
+                        "Se generaron automáticamente {tasks_created} tareas de limpieza "
+                        "para el hotel {hotel_name} en la fecha {date}."
+                    )
+                    common_kwargs = dict(
+                        notification_type=NotificationType.HOUSEKEEPING_TASK_CREATED,
+                        title=title,
+                        message_template=message_template,
+                        hotel_id=hotel.id,
+                        tasks_created=stats["tasks_created"],
+                        hotel_name=getattr(hotel, "name", f"Hotel #{hotel.id}"),
+                        date=target_date.isoformat(),
+                    )
+
+                    if user_ids:
+                        NotificationService.create_bulk_notification(
+                            user_ids=user_ids,
+                            **common_kwargs,
+                        )
+                    else:
+                        # Notificación general visible para todos (user null)
+                        NotificationService.create_bulk_notification(
+                            user_ids=None,
+                            **common_kwargs,
+                        )
+                except Exception as notif_error:
+                    logger.warning(
+                        "Error creando notificación general de housekeeping para hotel %s: %s",
+                        hotel.id,
+                        notif_error,
+                    )
+
         except Exception as e:
             logger.error(f"Error en generación de tareas diarias para hotel {hotel.id}: {e}", exc_info=True)
             stats['errors'] += 1
 
         return stats
+
+    @classmethod
+    def calculate_staff_workload(cls, hotel) -> Dict[int, int]:
+        """
+        Calcula la carga de trabajo de cada miembro del staff (tareas pending + in_progress).
+
+        Returns:
+            dict {staff_id: pending_count}
+        """
+        try:
+            from apps.housekeeping.models import CleaningStaff, TaskStatus
+            from django.db.models import Count, Q
+
+            staff_qs = CleaningStaff.objects.filter(
+                hotel=hotel,
+                is_active=True,
+            ).annotate(
+                pending_tasks_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS]),
+                )
+            )
+
+            return {staff.id: staff.pending_tasks_count for staff in staff_qs}
+        except Exception as e:
+            logger.error(f"Error calculando carga de trabajo para hotel {hotel.id}: {e}", exc_info=True)
+            return {}
+
+    @classmethod
+    def rebalance_workload_for_hotel(cls, hotel) -> Dict[str, Any]:
+        """
+        Rebalancea la carga de trabajo entre el personal de limpieza de un hotel.
+
+        Estrategia:
+            - Obtiene staff activo y su carga actual (pending + in_progress).
+            - Si la diferencia entre el más cargado y el menos cargado es grande,
+              intenta mover algunas tareas pendientes del más cargado al menos cargado,
+              respetando zona y hotel.
+        """
+        from apps.housekeeping.models import CleaningStaff, HousekeepingTask, TaskStatus
+
+        stats = {
+            "hotel_id": hotel.id,
+            "tasks_moved": 0,
+            "staff_involved": 0,
+        }
+
+        try:
+            staff_qs = CleaningStaff.objects.filter(
+                hotel=hotel,
+                is_active=True,
+            )
+
+            if not staff_qs.exists():
+                return stats
+
+            # Construir mapa de cargas
+            workload = cls.calculate_staff_workload(hotel)
+            if not workload:
+                return stats
+
+            # Ordenar por carga
+            sorted_staff = sorted(workload.items(), key=lambda x: x[1])  # (staff_id, count)
+            least_loaded_id, least_count = sorted_staff[0]
+            most_loaded_id, most_count = sorted_staff[-1]
+
+            # Si la diferencia no es significativa, no hacer nada
+            if most_count - least_count <= 1:
+                return stats
+
+            least_staff = staff_qs.filter(id=least_loaded_id).first()
+            most_staff = staff_qs.filter(id=most_loaded_id).first()
+            if not least_staff or not most_staff:
+                return stats
+
+            # Buscar tareas pendientes reasignables del staff más cargado
+            movable_tasks = (
+                HousekeepingTask.objects.filter(
+                    hotel=hotel,
+                    assigned_to=most_staff,
+                    status=TaskStatus.PENDING,
+                )
+                .select_related("room")
+                .order_by("-priority", "created_at")[:5]
+            )
+
+            moved = 0
+            for task in movable_tasks:
+                # Respetar zona si es posible: si el staff destino tiene zona o cleaning_zones,
+                # podríamos filtrar, pero por ahora solo nos aseguramos de mismo hotel (ya filtrado).
+                task.assigned_to = least_staff
+                task.save(update_fields=["assigned_to", "updated_at"])
+                moved += 1
+
+            if moved > 0:
+                stats["tasks_moved"] = moved
+                stats["staff_involved"] = 2
+                logger.info(
+                    f"Rebalanceo housekeeping hotel {hotel.id}: movidas {moved} tareas "
+                    f"de staff {most_staff.id} (carga {most_count}) a staff {least_staff.id} (carga {least_count})"
+                )
+
+            return stats
+        except Exception as e:
+            logger.error(f"Error rebalanceando carga de housekeeping para hotel {hotel.id}: {e}", exc_info=True)
+            return stats
 

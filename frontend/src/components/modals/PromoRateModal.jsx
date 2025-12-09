@@ -6,6 +6,7 @@ import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import SelectBasic from 'src/components/selects/SelectBasic'
 import DatePickedRange from 'src/components/DatePickedRange'
+import HelpTooltip from 'src/components/HelpTooltip'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -137,6 +138,9 @@ const PromoRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
           submitLoading={creating || updating}
           size='lg'
         >
+          <div className='mb-4 flex items-center gap-2'>
+            <HelpTooltip text={t('promo_rate_modal.help')} />
+          </div>
           <div className='grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-5'>
             <SelectAsync
               title={`${t('promo_rate_modal.hotel')} *`}

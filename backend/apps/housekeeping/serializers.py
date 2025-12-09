@@ -150,6 +150,7 @@ class HousekeepingConfigSerializer(serializers.ModelSerializer):
             "enable_auto_assign",
             "create_daily_tasks",
             "daily_generation_time",
+            "daily_for_all_rooms",
             "skip_service_on_checkin",
             "skip_service_on_checkout",
             "linens_every_n_nights",

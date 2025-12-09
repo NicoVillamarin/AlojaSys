@@ -9,6 +9,7 @@ import SelectAsync from 'src/components/selects/SelectAsync'
 import SelectStandalone from 'src/components/selects/SelectStandalone'
 import ChecklistDetailModal from 'src/components/modals/ChecklistDetailModal'
 import Badge from 'src/components/Badge'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 const TASK_STATUS = {
   pending: { labelKey: 'housekeeping.status.pending', variant: 'warning' },
@@ -43,6 +44,7 @@ const formatDateTime = (value, locale) => {
 export default function HousekeepingHistorical() {
   const { t, i18n } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
+  const canViewHousekeeping = usePermissions("housekeeping.access_housekeeping")
   const [filters, setFilters] = useState({
     hotel: hasSingleHotel ? String(singleHotelId) : '',
     status: '',
@@ -78,12 +80,21 @@ export default function HousekeepingHistorical() {
   const { results, isPending, hasNextPage, fetchNextPage } = useList({
     resource: 'housekeeping/tasks',
     params: listParams,
+    enabled: canViewHousekeeping,
   })
 
   const displayResults = useMemo(() => results || [], [results])
 
   const handleDateChange = (field) => (event) => {
     setFilters((prev) => ({ ...prev, [field]: event.target.value }))
+  }
+
+  if (!canViewHousekeeping) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.no_permission_history', 'No tenés permiso para ver el histórico de housekeeping.')}
+      </div>
+    )
   }
 
   return (

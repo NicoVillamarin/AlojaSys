@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectAsync from 'src/components/selects/SelectAsync'
+import HelpTooltip from 'src/components/HelpTooltip'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -63,6 +64,9 @@ const PlansRateModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => 
                     submitLoading={creating || updating}
                     size='md'
                 >
+                    <div className='mb-4 flex items-center gap-2'>
+                        <HelpTooltip text={t('plans_rate_modal.help')} />
+                    </div>
                     <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
                         <SelectAsync
                             title={`${t('plans_rate_modal.hotel')} *`}

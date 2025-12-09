@@ -5,6 +5,7 @@ import ModalLayout from 'src/layouts/ModalLayout'
 import InputText from 'src/components/inputs/InputText'
 import SelectBasic from 'src/components/selects/SelectBasic'
 import Checkbox from 'src/components/Checkbox'
+import HelpTooltip from 'src/components/HelpTooltip'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -163,9 +164,12 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
                   </div>
 
             <div className="border-t pt-4">
-              <h5 className="text-sm font-medium text-gray-700 mb-3">
-                {t('payments.policies.deposit_section')}
-              </h5>
+              <div className="flex items-center gap-2 mb-3">
+                <h5 className="text-sm font-medium text-gray-700">
+                  {t('payments.policies.deposit_section')}
+                </h5>
+                <HelpTooltip text={t('payments.policies.deposit_section_help')} />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <SelectBasic
                   title={t('payments.policies.deposit_type')}
@@ -206,9 +210,12 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
 
             {values.deposit_type !== 'none' && (
               <div className="border-t pt-4">
-                <h5 className="text-sm font-medium text-gray-700 mb-3">
-                  {t('payments.policies.balance_section')}
-                </h5>
+                <div className="flex items-center gap-2 mb-3">
+                  <h5 className="text-sm font-medium text-gray-700">
+                    {t('payments.policies.balance_section')}
+                  </h5>
+                  <HelpTooltip text={t('payments.policies.balance_section_help')} />
+                </div>
                 <SelectBasic
                   title={t('payments.policies.balance_due_title')}
                   name="balance_due"
@@ -218,9 +225,12 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
             )}
 
             <div className="border-t pt-4">
-              <h5 className="text-sm font-medium text-gray-700 mb-3">
-                {t('payments.policies.auto_cancel_section')}
-              </h5>
+              <div className="flex items-center gap-2 mb-3">
+                <h5 className="text-sm font-medium text-gray-700">
+                  {t('payments.policies.auto_cancel_section')}
+                </h5>
+                <HelpTooltip text={t('payments.policies.auto_cancel_section_help')} />
+              </div>
               <div className="space-y-4">
                 <Checkbox
                   name="auto_cancel_enabled"

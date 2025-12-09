@@ -13,9 +13,13 @@ import Badge from 'src/components/Badge'
 import { useGet } from 'src/hooks/useGet'
 import Tabs from 'src/components/Tabs'
 import Button from 'src/components/Button'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 export default function Payments() {
   const { t } = useTranslation()
+
+  // Permisos de pagos (solo lectura de cobros)
+  const canViewPayments = usePermissions('payments.view_payment')
   const [paymentDetailOpen, setPaymentDetailOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState(null)
   const [stats, setStats] = useState(null)
@@ -293,12 +297,13 @@ export default function Payments() {
       min_amount: filters.minAmount || undefined,
       max_amount: filters.maxAmount || undefined,
     },
+    enabled: canViewPayments,
   })
 
   // Cargar estadísticas usando useGet
   const { data: statsData, isLoading: statsLoading } = useGet({
     resource: 'payments/collections/stats',
-    enabled: true
+    enabled: canViewPayments
   })
 
   useEffect(() => {
@@ -383,6 +388,14 @@ export default function Payments() {
     } catch (error) {
       console.error('Error exportando cobros:', error)
     }
+  }
+
+  if (!canViewPayments) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('payments.no_permission', 'No tenés permiso para ver los cobros.')}
+      </div>
+    )
   }
 
   return (

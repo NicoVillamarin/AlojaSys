@@ -6790,6 +6790,20 @@ El sistema asigna automáticamente el mejor personal disponible basándose en:
 - Prioriza personal asignado al "Piso 2"
 - Elige quien tenga menos tareas pendientes
 
+#### Rebalanceo Automático de Carga
+
+**Nueva funcionalidad**: El sistema rebalancea automáticamente la carga de trabajo cada 15 minutos:
+
+- 🔄 **Distribución equitativa**: Si un miembro del personal tiene muchas más tareas que otro, el sistema mueve tareas automáticamente
+- ⚖️ **Balance inteligente**: Solo mueve tareas pendientes (no las que ya están en progreso)
+- 🎯 **Respeta asignaciones**: Mantiene las zonas y turnos del personal
+- 📊 **Transparente**: Todo el rebalanceo se registra en los logs del sistema
+
+**Ejemplo práctico**:
+- Personal A tiene 8 tareas pendientes
+- Personal B tiene 2 tareas pendientes
+- El sistema mueve automáticamente hasta 5 tareas de A a B para equilibrar la carga
+
 ### Checklists Personalizables
 
 #### ¿Qué son los Checklists?
@@ -6846,8 +6860,12 @@ Las zonas te permiten organizar tu hotel en áreas lógicas:
 
 **Tareas Diarias**:
 - ✅ Activar/desactivar generación automática
-- ⏰ Hora de generación (ej: 07:00 AM)
-- 📅 Se generan para habitaciones ocupadas
+- ⏰ Hora de generación (ej: 07:00 AM) - El sistema respeta la zona horaria de tu hotel
+- 📅 Se generan para habitaciones ocupadas (comportamiento por defecto)
+- 🏨 **Nueva opción**: Generar limpieza diaria para todas las habitaciones (ocupadas y vacías)
+  - Útil para mantenimiento preventivo diario de habitaciones disponibles
+  - Asegura que todas las habitaciones reciban limpieza básica regularmente
+  - Las habitaciones en mantenimiento o fuera de servicio se excluyen automáticamente
 
 **Reglas de Servicio**:
 - ⏭️ Omitir servicio en día de check-in
@@ -6894,19 +6912,56 @@ Configura la prioridad por defecto para cada tipo de tarea:
 
 #### Flujo de Limpieza Diaria
 
-1. **Sistema genera tareas** → Cada día a la hora configurada
-2. **Filtra habitaciones ocupadas** → Solo crea para habitaciones con huéspedes
-3. **Aplica reglas** → Omite si es día de check-in/checkout
-4. **Asigna personal** → Distribuye equitativamente
-5. **Personal completa** → Sigue el mismo proceso que checkout
+1. **Sistema verifica hora** → Cada 10 minutos, verifica si es la hora configurada según la zona horaria de tu hotel
+2. **Genera tareas** → Cuando coincide la hora, crea tareas diarias automáticamente
+3. **Filtra habitaciones** → 
+   - Si "Generar para todas las habitaciones" está activo: crea para todas las habitaciones activas (ocupadas y vacías)
+   - Si está desactivado: solo crea para habitaciones ocupadas
+4. **Aplica reglas** → Omite si es día de check-in/checkout (según configuración)
+5. **Asigna personal** → Distribuye equitativamente usando el algoritmo inteligente
+6. **Rebalanceo automático** → Cada 15 minutos, ajusta la carga si hay desequilibrios
+7. **Personal completa** → Sigue el mismo proceso que checkout
 
 #### Flujo de Tarea Vencida
 
 1. **Tarea en progreso** → Personal inició pero no completó
-2. **Sistema verifica** → Cada 15 minutos verifica tareas vencidas
-3. **Marca como vencida** → Si excede tiempo máximo
+2. **Sistema verifica** → Cada hora verifica tareas vencidas
+3. **Marca como vencida** → Si excede tiempo máximo configurado
 4. **Auto-completa** → Si está configurado y pasa tiempo de gracia
 5. **Notificación** → Alerta a supervisores si es necesario
+
+### Mejoras de Automatización
+
+#### Scheduler Inteligente con Zona Horaria
+
+El sistema ahora respeta completamente la zona horaria de tu hotel:
+
+- 🌍 **Multi-zona horaria**: Si tienes hoteles en diferentes zonas horarias, cada uno genera sus tareas a la hora local correcta
+- ⏰ **Precisión horaria**: El sistema verifica cada 10 minutos si es la hora configurada según tu zona horaria
+- 🎯 **Sin duplicados**: Aunque el sistema verifique frecuentemente, nunca crea tareas duplicadas para el mismo día
+
+**Ejemplo**:
+- Hotel en Buenos Aires (UTC-3): Configurado para generar tareas a las 07:00 AM
+- Hotel en Madrid (UTC+1): Configurado para generar tareas a las 08:00 AM
+- El sistema genera las tareas de cada hotel exactamente a su hora local, no a una hora global
+
+#### Limpieza Preventiva para Todas las Habitaciones
+
+**Nueva opción disponible**: "Generar limpieza diaria para todas las habitaciones (ocupadas y vacías)"
+
+**¿Cuándo usar esta opción?**
+- ✅ Quieres asegurar que todas las habitaciones reciban limpieza básica diaria, incluso si están vacías
+- ✅ Prefieres un mantenimiento preventivo constante
+- ✅ Tienes personal suficiente para cubrir todas las habitaciones
+
+**¿Cuándo NO usar esta opción?**
+- ❌ Solo quieres limpiar habitaciones ocupadas (comportamiento estándar)
+- ❌ Tienes personal limitado y prefieres enfocarte en habitaciones con huéspedes
+
+**Comportamiento**:
+- Si está **activada**: Crea tareas diarias para habitaciones disponibles, ocupadas y reservadas
+- Si está **desactivada**: Solo crea tareas para habitaciones ocupadas (comportamiento tradicional)
+- En ambos casos: Excluye automáticamente habitaciones en mantenimiento o fuera de servicio
 
 ### Permisos y Roles
 

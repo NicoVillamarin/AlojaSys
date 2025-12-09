@@ -6,9 +6,11 @@ import ReconciliationList from 'src/components/reconciliation/ReconciliationList
 import ReconciliationDetail from 'src/components/reconciliation/ReconciliationDetail'
 import SpinnerLoading from 'src/components/SpinnerLoading'
 import Button from 'src/components/Button'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 const BankReconciliation = () => {
   const { t } = useTranslation()
+  const canViewBankReconciliation = usePermissions('payments.view_bankreconciliation')
   const [currentView, setCurrentView] = useState('list') // 'list', 'upload', 'detail'
   const [selectedReconciliation, setSelectedReconciliation] = useState(null)
   const [hotelId, setHotelId] = useState(null)
@@ -52,6 +54,14 @@ const BankReconciliation = () => {
 
   const handleBackToUpload = () => {
     setCurrentView('upload')
+  }
+
+  if (!canViewBankReconciliation) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('bank_reconciliation.no_permission', 'No tenés permiso para ver la conciliación bancaria.')}
+      </div>
+    )
   }
 
   if (loading) {

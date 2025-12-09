@@ -117,7 +117,9 @@
     "min_value_1": "Minimum value is 1",
     "max_value_365": "Maximum value is 365",
     "code_help": "Only lowercase letters and underscores (e.g: credit_card)",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "created_at": "Created date",
+    "select_placeholder": "Select..."
   },
   "reservations": {
     "title": "Reservations Management",
@@ -254,6 +256,25 @@
       "hotel_required": "Select a hotel",
       "room_required": "Select a room",
       "type_required": "Select a task type"
+    },
+    "config": {
+      "title": "Schedules and Configuration",
+      "settings": "Hotel Configuration",
+      "manage_resources": "Manage Resources",
+      "manage_zones_desc": "Configure zones and floors",
+      "manage_templates_desc": "Create task templates",
+      "manage_checklists_desc": "Manage checklists",
+      "automation": "Automation",
+      "automation_help": "Configure how the system automatically generates and assigns tasks.\n\n• Automatic assignment: The system finds the best available staff based on schedules, shifts, and workload.\n• Generate for all rooms: Creates daily tasks even for vacant rooms (useful for preventive maintenance).\n• Generation time: The system respects your hotel's timezone to generate tasks at the correct local time.",
+      "service_rules": "Service Rules",
+      "service_rules_help": "Define when cleaning service should or should not be performed.\n\n• Skip on check-in/check-out: Avoids creating tasks on the exact day of guest arrival or departure.\n• Linen/towel changes: Configure how many nights between changes (e.g., linens every 3 nights, towels every night).",
+      "time_windows": "Time Windows",
+      "time_windows_help": "Define work schedules for each shift.\n\n• Morning/afternoon windows: Hours when staff from each shift are available.\n• Quiet hours: Period when cleaning should not be performed (optional, to respect guest rest).",
+      "assignment_priorities": "Assignment and Priorities",
+      "assignment_priorities_help": "Controls how tasks are distributed among staff.\n\n• Prefer by zone: Prioritizes assigning tasks to staff from the same zone/floor as the room.\n• Rebalancing: The system automatically redistributes tasks every X minutes to balance workload.\n• Priorities: Define which task types have higher urgency (checkout > daily).",
+      "task_timeout": "Task Timeout",
+      "task_timeout_help": "Manages what to do when a task takes longer than expected.\n\n• Maximum duration: Time in minutes before marking a task as overdue.\n• Auto-complete: If enabled, automatically completes overdue tasks after grace period.\n• Grace period: Additional minutes before auto-completing (only if auto-complete is enabled).",
+      "no_config": "Select a hotel to view its configuration"
     }
   },
   "countries": {
@@ -1014,6 +1035,7 @@
       "title": "Housekeeping",
       "enable_auto_assign": "Automatic task assignment",
       "create_daily_tasks": "Generate daily tasks automatically",
+      "daily_for_all_rooms": "Generate daily cleaning for all rooms (occupied and vacant)",
       "daily_generation_time": "Daily generation time",
       "skip_service_on_checkin": "Skip service on check‑in day",
       "skip_service_on_checkout": "Skip service on check‑out day",
@@ -1189,7 +1211,8 @@
     "priority_number": "Must be a number",
     "priority_placeholder": "100",
     "active": "Active",
-    "enabled_for_operation": "Enabled for operation"
+    "enabled_for_operation": "Enabled for operation",
+    "help": "Rate Plans are base templates for defining rates.\n\n• Name: Descriptive name of the plan (e.g., BAR, Best Available Rate).\n• Code: Unique code for the plan, used for OTA integrations.\n• Priority: Number that determines which plan is used when there are multiple plans (higher = more priority).\n• Enabled for operation: If active, the plan can be used in reservations.\n\nRate Rules are created within these plans to define specific prices by dates, rooms, channels, etc."
   },
   "taxes_rate_modal": {
     "edit_tax": "Edit tax",
@@ -1220,7 +1243,8 @@
     "priority_required": "Required",
     "priority_number": "Must be a number",
     "priority_placeholder": "100",
-    "active": "Active"
+    "active": "Active",
+    "help": "Taxes are automatically applied to reservations.\n\n• Hotel: Hotel the tax belongs to.\n• Name: Tax name (e.g., VAT, Tourist tax).\n• Channel: Specific channel where it applies (optional, if empty applies to all).\n• Amount type: Percentage (e.g., 21%) or fixed amount (e.g., $10).\n• Percentage/Fixed amount: Tax value according to selected type.\n• Scope: Defines how it's calculated:\n  - Per night: Applied each night of the reservation.\n  - Per reservation: Applied once per reservation.\n  - Per guest per night: Multiplied by number of guests and nights.\n• Priority: If there are multiple taxes, determines application order (higher = more priority)."
   },
   "promo_rate_modal": {
     "edit_promo": "Edit promotion",
@@ -1279,7 +1303,8 @@
     "combinable": "Combinable",
     "active": "Active",
     "at_least_one_day": "Select at least one day of the week",
-    "xor_room_type": "Choose room or room type (not both)"
+    "xor_room_type": "Choose room or room type (not both)",
+    "help": "Promotions are discounts applied to reservations.\n\n• Hotel and Plan: Defines where the promotion applies (plan optional).\n• Code: Promotional code guests can use (optional).\n• Date range: Dates when the promotion is active.\n• Weekdays: Specific days when it applies.\n• Room/Type: Applies to specific room or room type (not both).\n• Channel: Specific sales channel.\n• Priority: Determines which promotion applies if there are multiple.\n• Scope: Per night (applied each night) or per reservation (once).\n• Discount type: Percentage (e.g., 10%) or fixed amount (e.g., $50).\n• Combinable: If active, can be combined with other promotions."
   },
   "rules_rate_modal": {
     "edit_rule": "Edit rule",
@@ -1342,6 +1367,7 @@
     "remove": "Remove",
     "at_least_one_day": "Select at least one day of the week",
     "xor_room_type": "Choose room or room type (not both)",
+    "help": "Rate Rules define specific prices within a Rate Plan.\n\n• Plan: The rate plan this rule belongs to.\n• Date range: Dates when this rule applies.\n• Weekdays: Specific days when it applies (e.g., weekends only).\n• Room/Type: Applies to specific room or room type (not both).\n• Channel: Specific sales channel (Booking, website, etc.).\n• Priority: Determines which rule applies if there are multiple (higher = more priority).\n• Price mode: Absolute (fixed price) or Delta (adjustment over base price).\n• Base/Delta: Base price or adjustment (e.g., 100.00 or +20.00).\n• Occupancy prices: Defines different prices based on number of guests.\n• Restrictions: CTA (closed to arrival), CTD (closed to departure), or completely closed.",
     "deposit_section": "Deposits / Advances",
     "deposit_type": "Deposit type",
     "deposit_value": "Value (% or amount)",
@@ -1467,7 +1493,10 @@
       "auto_cancel_enabled_desc": "Automatically cancel pending reservations without payment",
       "auto_cancel": "Auto-cancellation",
       "auto_cancel_days": "Days for Auto-cancellation",
-      "auto_cancel_days_desc": "Days after creating the reservation to automatically cancel if no payments"
+      "auto_cancel_days_desc": "Days after creating the reservation to automatically cancel if no payments",
+      "deposit_section_help": "Configure how and when deposits/advances are charged for reservations.\n\n• Deposit type: Percentage of total (e.g., 30%) or fixed amount (e.g., $500).\n• Value: If percentage, enter the % (e.g., 30). If fixed amount, enter the value (e.g., 500.00).\n• When to charge: At reservation confirmation, X days before check-in, or at check-in.\n• Days before: Only applies if you selected \"Days Before Check-in\".",
+      "balance_section_help": "Define when the remaining balance of the reservation is charged.\n\n• At check-in: Charged when the guest checks in.\n• At check-out: Charged when the guest checks out.\n\nNote: This section only appears if you configured a deposit.",
+      "auto_cancel_section_help": "Configure automatic cancellation of pending reservations without payment.\n\n• Enable auto-cancellation: If active, the system automatically cancels reservations that haven't paid the deposit.\n• Days for auto-cancellation: Days after creating the reservation to cancel it if there are no payments.\n\nExample: If you set 7 days, a reservation created on January 1st will be automatically cancelled on January 8th if it has no payments."
     },
     "cancellation": {
       "policies": {
@@ -1535,7 +1564,11 @@
         "voucher_minimum_amount": "Voucher Minimum Amount",
         "apply_to_all_room_types": "Apply to all room types",
         "apply_to_all_channels": "Apply to all channels",
-        "apply_to_all_seasons": "Apply to all seasons"
+        "apply_to_all_seasons": "Apply to all seasons",
+        "times_tab_help": "Define time limits for different types of cancellation.\n\n• Free cancellation: Time before check-in to cancel without penalty (e.g., 24 hours).\n• Partial refund: Time before check-in to receive partial refund (e.g., 72 hours, 50% refund).\n• No refund: Time before check-in where there is no refund (e.g., 7 days).\n\nThe system evaluates backwards from check-in to determine which rule applies.",
+        "restrictions_tab_help": "Configure cancellation penalties and restrictions.\n\n• Penalty type: Percentage of total, fixed amount, first night, or percentage per night.\n• Penalty value: The amount or percentage to charge.\n• Allow cancellation after: Defines if cancellation is allowed after check-in, check-out, in no-show cases, or early checkout.",
+        "messages_tab_help": "Custom messages that guests will see based on cancellation type.\n\n• Free cancellation message: Shown when cancellation is free.\n• Partial cancellation message: Shown when there is partial refund.\n• No cancellation message: Shown when cancellation is not allowed.\n• Penalty message: Shown when a penalty is applied.\n\nThese messages appear in confirmations and communications with guests.",
+        "advanced_tab_help": "Advanced configuration to apply the policy selectively.\n\n• Apply to all room types: If disabled, you can select specific types.\n• Apply to all channels: If disabled, you can select specific channels (Booking, website, etc.).\n• Apply to all seasons: If disabled, you can create rules by season (high, low, etc.)."
       }
     },
     "refund": {
@@ -1596,7 +1629,12 @@
         "apply_to_all_channels": "Apply to all channels",
         "channels": "Specific channels",
         "apply_to_all_seasons": "Apply to all seasons",
-        "seasonal_rules": "Specific seasonal rules"
+        "seasonal_rules": "Specific seasonal rules",
+        "times_tab_help": "Define time limits for different types of refund.\n\n• Full refund: Time before check-in to receive full refund (e.g., 24 hours).\n• Partial refund: Time before check-in to receive partial refund with percentage (e.g., 72 hours, 50% refund).\n• No refund: Time before check-in where there is no refund (e.g., 7 days).\n\nThe system evaluates backwards from check-in to determine which type of refund applies.",
+        "methods_tab_help": "Configure how money refunds are processed.\n\n• Refund method: Defines how money is refunded (cash, transfer, card, voucher, or original payment method).\n• Processing days: Estimated time in days for refund processing.\n\nExample: If you selected \"Bank Transfer\" and 7 days, the system will indicate that the refund will be processed in 7 business days.",
+        "voucher_tab_help": "Configuration for refunds via credit vouchers.\n\n• Validity days: How many days the voucher is valid for use (e.g., 365 days = 1 year).\n• Minimum amount: Minimum amount the voucher must have to be valid (e.g., $100).\n\nVouchers allow guests to use credit for future reservations instead of receiving money.",
+        "messages_tab_help": "Custom messages that guests will see based on refund type.\n\n• Full refund message: Shown when there is full refund.\n• Partial refund message: Shown when there is partial refund.\n• No refund message: Shown when there is no refund.\n• Voucher message: Shown when a credit voucher is issued.\n\nThese messages appear in confirmations and communications with guests.",
+        "advanced_tab_help": "Advanced configuration to apply the refund policy selectively.\n\n• Apply to all room types: If disabled, you can select specific types.\n• Apply to all channels: If disabled, you can select specific channels (Booking, website, etc.).\n• Apply to all seasons: If disabled, you can create rules by season (high, low, etc.)."
       }
     },
     "refunds": {

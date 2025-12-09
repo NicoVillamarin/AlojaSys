@@ -34,10 +34,15 @@ def main():
     print("=== Chat CLI con WhatsApp Bot (sandbox HTTP) ===")
     print("Escribe 'salir' para terminar.\n")
 
-    from_number = input("Teléfono del huésped (ej +5492222222222): ").strip() or "+5492222222222"
+    # Número del huésped (quien envía el mensaje)
+    from_number = input("Teléfono del huésped (ej +5492222222222): ").strip()
+    if not from_number:
+        print("Debes indicar un número de teléfono del huésped.")
+        return
 
+    # Número del hotel (destinatario, se obtiene automáticamente si está configurado)
     default_to = get_default_hotel_number()
-    prompt_to = "Número de WhatsApp del hotel configurado (+54...)"
+    prompt_to = "Número de WhatsApp del hotel"
     if default_to:
         prompt_to += f" [{default_to}]"
     prompt_to += ": "

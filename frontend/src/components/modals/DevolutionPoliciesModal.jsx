@@ -6,6 +6,7 @@ import InputText from 'src/components/inputs/InputText'
 import SelectBasic from 'src/components/selects/SelectBasic'
 import Checkbox from 'src/components/Checkbox'
 import InputTextTarea from '../inputs/InputTextTarea'
+import HelpTooltip from 'src/components/HelpTooltip'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -239,6 +240,9 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
             {activeTab === 'times' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.refund.policies.times_tab_help')} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <InputText
@@ -314,6 +318,9 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
             {activeTab === 'methods' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.refund.policies.methods_tab_help')} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <SelectBasic
                     title={t('payments.refund.policies.refund_method')}
@@ -335,6 +342,9 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
             {activeTab === 'voucher' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.refund.policies.voucher_tab_help')} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InputText
                     title={t('payments.refund.policies.voucher_expiry_days')}
@@ -361,6 +371,9 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
             {activeTab === 'messages' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.refund.policies.messages_tab_help')} />
+                </div>
                 <InputTextTarea
                   title={t('payments.refund.policies.full_refund_message')}
                   name="full_refund_message"
@@ -402,6 +415,9 @@ const DevolutionPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSu
 
             {activeTab === 'advanced' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.refund.policies.advanced_tab_help')} />
+                </div>
                 <div className="space-y-3">
                   <Checkbox
                     label={t('payments.refund.policies.apply_to_all_room_types')}

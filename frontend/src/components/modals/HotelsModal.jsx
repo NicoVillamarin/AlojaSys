@@ -111,6 +111,12 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             whatsapp_phone_number_id: values.whatsapp_phone_number_id || '',
             whatsapp_api_token: values.whatsapp_api_token || '',
           }
+
+          // Importante: en modo edición, si el token viene vacío NO debemos
+          // sobreescribir el token existente en backend.
+          if (isEditMode && !values.whatsapp_api_token) {
+            delete payload.whatsapp_api_token
+          }
           
           // Agregar logo como base64 si se seleccionó uno nuevo
           if (values.logo) {
@@ -161,6 +167,10 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             whatsapp_business_id: values.whatsapp_business_id || '',
             whatsapp_phone_number_id: values.whatsapp_phone_number_id || '',
             whatsapp_api_token: values.whatsapp_api_token || '',
+          }
+
+          if (isEditMode && !values.whatsapp_api_token) {
+            delete payload.whatsapp_api_token
           }
           
           if (isEditMode && currentHotel?.id) {

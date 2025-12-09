@@ -63,6 +63,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false, rates: false, policies: false, housekeeping: false });
   const {data: me } = useMe();
+  const isSuperuser = me?.is_superuser || false;
   
   // Permisos para el menú principal
   const hasViewDashboard = usePermissions("dashboard.view_dashboardmetrics");
@@ -348,7 +349,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         {/* Link genérico: si querés, reemplazar por un link contextual desde el detalle de una reserva */}
         {/*<Item to="/clients"><ClientsIcon size="20" /> {!isMini && <span>Clientes</span>}</Item>*/}
         {/*<Item to="/rates"><CurrencyIcon size="20" /> {!isMini && <span>Gestión de Tarifas</span>}</Item>*/}
-        {!isOnlyHousekeepingStaff && !isMini && hasAnySettings && (
+        {!isOnlyHousekeepingStaff && !isMini && hasAnySettings && isSuperuser && (
           <div className="mt-1">
             <button
               type="button"

@@ -127,7 +127,9 @@
     "copy": "Copiar",
     "copied": "Copiado",
     "verified": "Verificado",
-    "not_verified": "No Verificado"
+    "not_verified": "No Verificado",
+    "created_at": "Fecha de creación",
+    "select_placeholder": "Seleccionar..."
   },
   "reservations": {
     "title": "Gestión de Reservas",
@@ -155,7 +157,8 @@
     "address": "Dirección",
     "country": "País",
     "state": "Provincia",
-    "city": "Ciudad"
+    "city": "Ciudad",
+    "plan": "Plan"
   },
   "hotels": {
     "search_placeholder": "Buscar hoteles…"
@@ -391,10 +394,15 @@
       "manage_templates_desc": "Crear plantillas de tareas",
       "manage_checklists_desc": "Gestionar checklists",
       "automation": "Automatización",
+      "automation_help": "Configura cómo el sistema genera y asigna tareas automáticamente.\n\n• Asignación automática: El sistema busca el mejor personal disponible según horarios, turnos y carga de trabajo.\n• Generar para todas las habitaciones: Crea tareas diarias incluso para habitaciones vacías (útil para mantenimiento preventivo).\n• Hora de generación: El sistema respeta la zona horaria de tu hotel para generar tareas a la hora local correcta.",
       "service_rules": "Reglas de Servicio",
+      "service_rules_help": "Define cuándo se debe o no realizar servicio de limpieza.\n\n• Omitir en check-in/check-out: Evita crear tareas el día exacto de entrada o salida del huésped.\n• Cambio de sábanas/toallas: Configura cada cuántas noches se deben cambiar (ej: sábanas cada 3 noches, toallas cada noche).",
       "time_windows": "Ventanas de Tiempo",
+      "time_windows_help": "Define los horarios de trabajo para cada turno.\n\n• Ventana mañana/tarde: Horarios en que el personal de cada turno está disponible.\n• Horas silenciosas: Período donde no se debe realizar limpieza (opcional, para respetar descanso de huéspedes).",
       "assignment_priorities": "Asignación y Prioridades",
+      "assignment_priorities_help": "Controla cómo se distribuyen las tareas entre el personal.\n\n• Preferir por zona: Prioriza asignar tareas a personal de la misma zona/piso de la habitación.\n• Rebalanceo: El sistema redistribuye automáticamente tareas cada X minutos para equilibrar la carga de trabajo.\n• Prioridades: Define qué tipo de tareas tienen mayor urgencia (checkout > diaria).",
       "task_timeout": "Vencimiento de Tareas",
+      "task_timeout_help": "Gestiona qué hacer cuando una tarea tarda más de lo esperado.\n\n• Duración máxima: Tiempo en minutos antes de marcar una tarea como vencida.\n• Auto-completar: Si está activo, completa automáticamente tareas vencidas después del tiempo de gracia.\n• Tiempo de gracia: Minutos adicionales antes de auto-completar (solo si auto-completar está activo).",
       "no_config": "Seleccione un hotel para ver su configuración"
     }
   },
@@ -1059,7 +1067,21 @@
     "city": "Ciudad",
     "city_placeholder": "Buscar ciudad…",
     "active": "Activo",
-    "enabled": "Habilitada"
+    "enabled": "Habilitada",
+    "plan_type": "Plan contratado",
+    "plan_basic": "Básico",
+    "plan_medium": "Medio",
+    "plan_full": "Full",
+    "plan_custom": "Custom (a medida)",
+    "plan_help": "El plan define el conjunto base de módulos disponibles para la empresa. En modo Custom podés ajustar módulos específicos.",
+    "features_title": "Módulos / funcionalidades",
+    "feature_afip": "Facturación AFIP",
+    "feature_mp": "Pagos online (Mercado Pago)",
+    "feature_whatsapp": "Chatbot de WhatsApp",
+    "feature_otas": "Integración OTAs / Channel Manager",
+    "feature_housekeeping": "Housekeeping avanzado",
+    "feature_bank_reconciliation": "Conciliación bancaria",
+    "features_readonly_info": "En planes Básico/Medio/Full las funcionalidades se determinan por el plan. Para ajustes finos usar el plan Custom."
   },
   "rooms_modal": {
     "edit_room": "Editar habitación",
@@ -1160,6 +1182,7 @@
       "config_note": "Para configurar las opciones de housekeeping, zonas, plantillas y checklists, ve a Configuración > Housekeeping.",
       "enable_auto_assign": "Asignación automática de tareas",
       "create_daily_tasks": "Generar tareas diarias automáticamente",
+      "daily_for_all_rooms": "Generar limpieza diaria para todas las habitaciones (ocupadas y vacías)",
       "daily_generation_time": "Hora de generación diaria",
       "skip_service_on_checkin": "Omitir servicio el día de check-in",
       "skip_service_on_checkout": "Omitir servicio el día de check-out",
@@ -1348,7 +1371,8 @@
     "priority_number": "Debe ser número",
     "priority_placeholder": "100",
     "active": "Activo",
-    "enabled_for_operation": "Habilitado para operar"
+    "enabled_for_operation": "Habilitado para operar",
+    "help": "Los Planes de Tarifa son plantillas base para definir tarifas.\n\n• Nombre: Nombre descriptivo del plan (ej: BAR, Best Available Rate).\n• Código: Código único del plan, usado para integraciones con OTAs.\n• Prioridad: Número que determina qué plan se usa cuando hay múltiples planes (mayor = más prioridad).\n• Habilitado para operar: Si está activo, el plan puede usarse en reservas.\n\nLas Reglas de Tarifa se crean dentro de estos planes para definir precios específicos por fechas, habitaciones, canales, etc."
   },
   "taxes_rate_modal": {
     "edit_tax": "Editar impuesto",
@@ -1379,7 +1403,8 @@
     "priority_required": "Requerido",
     "priority_number": "Debe ser número",
     "priority_placeholder": "100",
-    "active": "Activo"
+    "active": "Activo",
+    "help": "Los Impuestos se aplican automáticamente a las reservas.\n\n• Hotel: Hotel al que pertenece el impuesto.\n• Nombre: Nombre del impuesto (ej: IVA, Tasa turística).\n• Canal: Canal específico donde aplica (opcional, si está vacío aplica a todos).\n• Tipo de monto: Porcentaje (ej: 21%) o monto fijo (ej: $10).\n• Porcentaje/Monto fijo: Valor del impuesto según el tipo seleccionado.\n• Alcance: Define cómo se calcula:\n  - Por noche: Se aplica cada noche de la reserva.\n  - Por reserva: Se aplica una vez por reserva.\n  - Por huésped por noche: Se multiplica por cantidad de huéspedes y noches.\n• Prioridad: Si hay múltiples impuestos, determina el orden de aplicación (mayor = más prioridad)."
   },
   "promo_rate_modal": {
     "edit_promo": "Editar promoción",
@@ -1438,7 +1463,8 @@
     "combinable": "Combinable",
     "active": "Activa",
     "at_least_one_day": "Selecciona al menos un día de la semana",
-    "xor_room_type": "Elegí habitación o tipo de habitación (no ambos)"
+    "xor_room_type": "Elegí habitación o tipo de habitación (no ambos)",
+    "help": "Las Promociones son descuentos que se aplican a las reservas.\n\n• Hotel y Plan: Define dónde aplica la promoción (plan opcional).\n• Código: Código promocional que los huéspedes pueden usar (opcional).\n• Rango de fechas: Fechas en que la promoción está activa.\n• Días de la semana: Días específicos en que aplica.\n• Habitación/Tipo: Aplica a habitación o tipo específico (no ambos).\n• Canal: Canal de venta específico.\n• Prioridad: Determina qué promoción se aplica si hay múltiples.\n• Alcance: Por noche (se aplica cada noche) o por reserva (una vez).\n• Tipo de descuento: Porcentaje (ej: 10%) o monto fijo (ej: $50).\n• Combinable: Si está activo, puede combinarse con otras promociones."
   },
   "rules_rate_modal": {
     "edit_rule": "Editar regla",
@@ -1501,6 +1527,7 @@
     "remove": "Quitar",
     "at_least_one_day": "Selecciona al menos un día de la semana",
     "xor_room_type": "Elegí habitación o tipo de habitación (no ambos)",
+    "help": "Las Reglas de Tarifa definen precios específicos dentro de un Plan de Tarifa.\n\n• Plan: El plan de tarifa al que pertenece esta regla.\n• Rango de fechas: Fechas en que aplica esta regla.\n• Días de la semana: Días específicos en que aplica (ej: solo fines de semana).\n• Habitación/Tipo: Aplica a una habitación específica o tipo de habitación (no ambos).\n• Canal: Canal de venta específico (Booking, sitio web, etc.).\n• Prioridad: Determina qué regla se aplica si hay múltiples (mayor = más prioridad).\n• Modo de precio: Absoluto (precio fijo) o Delta (ajuste sobre precio base).\n• Base/Delta: Precio base o ajuste (ej: 100.00 o +20.00).\n• Precios por ocupación: Define precios diferentes según cantidad de huéspedes.\n• Restricciones: CTA (cerrado a llegada), CTD (cerrado a salida), o cerrado completamente.",
     "deposit_section": "Adelantos / Depósitos",
     "deposit_type": "Tipo de adelanto",
     "deposit_value": "Valor (\u0025 o monto)",
@@ -1645,7 +1672,10 @@
       "auto_cancel": "Auto-cancelación",
       "auto_cancel_enabled_desc": "Cancelar automáticamente reservas pendientes sin pago",
       "auto_cancel_days": "Días para Auto-cancelación",
-      "auto_cancel_days_desc": "Días después de crear la reserva para cancelar automáticamente si no hay pagos"
+      "auto_cancel_days_desc": "Días después de crear la reserva para cancelar automáticamente si no hay pagos",
+      "deposit_section_help": "Configura cómo y cuándo se cobra el adelanto/depósito de las reservas.\n\n• Tipo de adelanto: Porcentaje del total (ej: 30%) o monto fijo (ej: $500).\n• Valor: Si es porcentaje, ingresa el % (ej: 30). Si es monto fijo, ingresa el valor (ej: 500.00).\n• Cuándo cobrar: Al confirmar la reserva, X días antes del check-in, o al hacer check-in.\n• Días antes: Solo aplica si elegiste \"Días antes del check-in\".",
+      "balance_section_help": "Define cuándo se cobra el saldo restante de la reserva.\n\n• Al check-in: Se cobra cuando el huésped hace check-in.\n• Al check-out: Se cobra cuando el huésped hace check-out.\n\nNota: Esta sección solo aparece si configuraste un adelanto (depósito).",
+      "auto_cancel_section_help": "Configura la cancelación automática de reservas pendientes sin pago.\n\n• Habilitar auto-cancelación: Si está activo, el sistema cancela automáticamente reservas que no pagaron el adelanto.\n• Días para auto-cancelación: Días después de crear la reserva para cancelarla si no hay pagos.\n\nEjemplo: Si configurás 7 días, una reserva creada el 1 de enero se cancelará automáticamente el 8 de enero si no tiene pagos."
     },
     "cancellation": {
       "policies": {
@@ -1713,7 +1743,11 @@
         "voucher_minimum_amount": "Monto Mínimo para Voucher",
         "apply_to_all_room_types": "Aplicar a todos los tipos de habitación",
         "apply_to_all_channels": "Aplicar a todos los canales",
-        "apply_to_all_seasons": "Aplicar a todas las temporadas"
+        "apply_to_all_seasons": "Aplicar a todas las temporadas",
+        "times_tab_help": "Define los tiempos límite para diferentes tipos de cancelación.\n\n• Cancelación gratuita: Tiempo antes del check-in para cancelar sin penalidad (ej: 24 horas).\n• Devolución parcial: Tiempo antes del check-in para recibir devolución parcial (ej: 72 horas, 50% de devolución).\n• Sin devolución: Tiempo antes del check-in donde ya no hay devolución (ej: 7 días).\n\nEl sistema evalúa desde el check-in hacia atrás para determinar qué regla aplica.",
+        "restrictions_tab_help": "Configura penalidades y restricciones de cancelación.\n\n• Tipo de penalidad: Porcentaje del total, monto fijo, primera noche, o porcentaje por noche.\n• Valor de penalidad: El monto o porcentaje a cobrar.\n• Permitir cancelación después de: Define si se puede cancelar después del check-in, check-out, en casos de no-show, o salida anticipada.",
+        "messages_tab_help": "Mensajes personalizados que verán los huéspedes según el tipo de cancelación.\n\n• Mensaje de cancelación gratuita: Se muestra cuando la cancelación es gratuita.\n• Mensaje de cancelación parcial: Se muestra cuando hay devolución parcial.\n• Mensaje sin cancelación: Se muestra cuando no se permite cancelar.\n• Mensaje de penalidad: Se muestra cuando se aplica una penalidad.\n\nEstos mensajes aparecen en confirmaciones y comunicaciones con huéspedes.",
+        "advanced_tab_help": "Configuración avanzada para aplicar la política de forma selectiva.\n\n• Aplicar a todos los tipos de habitación: Si está desactivado, podés seleccionar tipos específicos.\n• Aplicar a todos los canales: Si está desactivado, podés seleccionar canales específicos (Booking, sitio web, etc.).\n• Aplicar a todas las temporadas: Si está desactivado, podés crear reglas por temporada (alta, baja, etc.)."
       }
     },
     "refund": {
@@ -1774,7 +1808,12 @@
         "apply_to_all_channels": "Aplicar a todos los canales",
         "channels": "Canales específicos",
         "apply_to_all_seasons": "Aplicar a todas las temporadas",
-        "seasonal_rules": "Reglas específicas por temporada"
+        "seasonal_rules": "Reglas específicas por temporada",
+        "times_tab_help": "Define los tiempos límite para diferentes tipos de devolución.\n\n• Devolución completa: Tiempo antes del check-in para recibir devolución completa (ej: 24 horas).\n• Devolución parcial: Tiempo antes del check-in para recibir devolución parcial con porcentaje (ej: 72 horas, 50% de devolución).\n• Sin devolución: Tiempo antes del check-in donde ya no hay devolución (ej: 7 días).\n\nEl sistema evalúa desde el check-in hacia atrás para determinar qué tipo de devolución aplica.",
+        "methods_tab_help": "Configura cómo se procesan las devoluciones de dinero.\n\n• Método de devolución: Define cómo se devuelve el dinero (efectivo, transferencia, tarjeta, voucher, o método original de pago).\n• Días para procesar: Tiempo estimado en días que tarda el procesamiento de la devolución.\n\nEjemplo: Si elegiste \"Transferencia bancaria\" y 7 días, el sistema indicará que la devolución se procesará en 7 días hábiles.",
+        "voucher_tab_help": "Configuración para devoluciones mediante vouchers de crédito.\n\n• Días de validez: Cuántos días tiene el voucher para ser usado (ej: 365 días = 1 año).\n• Monto mínimo: Monto mínimo que debe tener el voucher para ser válido (ej: $100).\n\nLos vouchers permiten que el huésped use el crédito en futuras reservas en lugar de recibir dinero.",
+        "messages_tab_help": "Mensajes personalizados que verán los huéspedes según el tipo de devolución.\n\n• Mensaje de devolución completa: Se muestra cuando hay devolución total.\n• Mensaje de devolución parcial: Se muestra cuando hay devolución parcial.\n• Mensaje sin devolución: Se muestra cuando no hay devolución.\n• Mensaje de voucher: Se muestra cuando se emite un voucher de crédito.\n\nEstos mensajes aparecen en confirmaciones y comunicaciones con huéspedes.",
+        "advanced_tab_help": "Configuración avanzada para aplicar la política de devolución de forma selectiva.\n\n• Aplicar a todos los tipos de habitación: Si está desactivado, podés seleccionar tipos específicos.\n• Aplicar a todos los canales: Si está desactivado, podés seleccionar canales específicos (Booking, sitio web, etc.).\n• Aplicar a todas las temporadas: Si está desactivado, podés crear reglas por temporada (alta, baja, etc.)."
       }
     },
     "refunds": {

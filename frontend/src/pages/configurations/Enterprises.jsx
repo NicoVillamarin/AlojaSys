@@ -79,6 +79,21 @@ export default function Enterprises() {
     return () => clearTimeout(id)
   }, [filters.search, refetch])
 
+  const getPlanLabel = (planType) => {
+    switch (planType) {
+      case 'basic':
+        return t('enterprise_modal.plan_basic')
+      case 'medium':
+        return t('enterprise_modal.plan_medium')
+      case 'full':
+        return t('enterprise_modal.plan_full')
+      case 'custom':
+        return t('enterprise_modal.plan_custom')
+      default:
+        return planType || '-'
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -133,6 +148,16 @@ export default function Enterprises() {
           { key: 'email', header: t('enterprises.email'), sortable: true },
           { key: 'phone', header: t('enterprises.phone'), sortable: true },
           { key: 'address', header: t('enterprises.address'), sortable: true },
+          {
+            key: 'plan_type',
+            header: t('enterprises.plan'),
+            sortable: true,
+            render: (e) => (
+              <span className="inline-flex items-center rounded-full bg-aloja-navy/5 px-2 py-0.5 text-xs font-medium text-aloja-navy">
+                {getPlanLabel(e.plan_type)}
+              </span>
+            ),
+          },
           {
             key: 'country',
             header: t('enterprises.country'),

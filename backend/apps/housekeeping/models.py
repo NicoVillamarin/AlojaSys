@@ -163,6 +163,10 @@ class HousekeepingConfig(models.Model):
     enable_auto_assign = models.BooleanField(default=True)
     create_daily_tasks = models.BooleanField(default=True)
     daily_generation_time = models.TimeField(default=timezone.datetime(2000, 1, 1, 7, 0).time())
+    daily_for_all_rooms = models.BooleanField(
+        default=False,
+        help_text="Si está activo, genera tareas diarias para todas las habitaciones activas del hotel (no solo ocupadas).",
+    )
     # Reglas de servicio
     skip_service_on_checkin = models.BooleanField(default=True)
     skip_service_on_checkout = models.BooleanField(default=True)

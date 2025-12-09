@@ -6,6 +6,7 @@ import InputText from 'src/components/inputs/InputText'
 import SelectBasic from 'src/components/selects/SelectBasic'
 import Checkbox from 'src/components/Checkbox'
 import InputTextTarea from '../inputs/InputTextTarea'
+import HelpTooltip from 'src/components/HelpTooltip'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
@@ -240,6 +241,9 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
 
             {activeTab === 'times' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.cancellation.policies.times_tab_help')} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <InputText
@@ -315,6 +319,9 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
 
             {activeTab === 'restrictions' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.cancellation.policies.restrictions_tab_help')} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <SelectBasic
                     title={t('payments.cancellation.policies.fee_type')}
@@ -361,6 +368,9 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
 
             {activeTab === 'messages' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.cancellation.policies.messages_tab_help')} />
+                </div>
                 <InputTextTarea
                   title={t('payments.cancellation.policies.free_cancellation_message')}
                   name="free_cancellation_message"
@@ -402,6 +412,9 @@ const CancellationPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, on
 
             {activeTab === 'advanced' && (
               <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpTooltip text={t('payments.cancellation.policies.advanced_tab_help')} />
+                </div>
                 <div className="space-y-3">
                   <Checkbox
                     label={t('payments.cancellation.policies.apply_to_all_room_types')}

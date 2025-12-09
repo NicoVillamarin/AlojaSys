@@ -26,9 +26,15 @@ import ToggleButton from 'src/components/ToggleButton'
 import EyeIcon from 'src/assets/icons/EyeIcon'
 import EyeSlashIcon from 'src/assets/icons/EyeSlashIcon'
 import InfoIcon from 'src/assets/icons/InfoIcon'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 const Reception = () => {
   const { t, i18n } = useTranslation()
+
+  // Permisos relacionados a reservas para recepción
+  const canViewReservation = usePermissions('reservations.view_reservation')
+  const canAddReservation = usePermissions('reservations.add_reservation')
+
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   const [activeTab, setActiveTab] = useState(null)
   const [selectedHotel, setSelectedHotel] = useState(null)
@@ -54,7 +60,9 @@ const Reception = () => {
       hotel: selectedHotel,
       search: filters.search,
       status: filters.status
-    }
+    },
+    // Cargar el mapa de habitaciones solo si puede ver reservas
+    enabled: canViewReservation,
   })
 
   const { results: summary, isPending: kpiLoading } = useAction({
@@ -119,9 +127,11 @@ const Reception = () => {
   };
 
   const handleRoomClick = (data) => {
-    setSelectedRoomData(data);
-    setShowReservationModal(true);
-  };
+    // Solo permitir abrir el modal de reserva si tiene permiso para crear reservas
+    if (!canAddReservation) return
+    setSelectedRoomData(data)
+    setShowReservationModal(true)
+  }
 
   const handleReservationSuccess = (reservation) => {
     // Aquí puedes agregar lógica adicional si es necesario
@@ -152,6 +162,15 @@ const Reception = () => {
     { status: 'blocked', label: 'Bloqueada', color: '#8B5CF6', description: 'Habitación bloqueada temporalmente' },
     { status: 'out_of_service', label: 'Fuera de servicio', color: '#6B7280', description: 'Habitación no disponible' }
   ], [])
+
+  // Si no tiene permiso para ver reservas, mostrar mensaje y no renderizar el mapa
+  if (!canViewReservation) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('reception.no_permission', 'No tenés permiso para acceder a la recepción o al mapa de habitaciones.')}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -252,39 +271,39 @@ const Reception = () => {
           </div>
         </div>
 
-      {/* Leyenda de colores con animación */}
-      <div 
-        className={`overflow-hidden transition-all duration-500 ease-in-out ${
-          showLegend 
-            ? 'max-h-96 opacity-100 transform translate-y-0' 
-            : 'max-h-0 opacity-0 transform -translate-y-4'
-        }`}
-      >
-        <div className={`transition-all duration-300 delay-75 ${
-          showLegend ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-2'
-        }`}>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <InfoIcon className="w-5 h-5 text-blue-600" />
-              Leyenda de Estados de Habitaciones
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {roomColorLegend.map((item) => (
-                <div key={item.status} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
-                  <div 
-                    className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: item.color }}
-                  ></div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900">{item.label}</div>
-                    <div className="text-sm text-gray-600">{item.description}</div>
+        {/* Leyenda de colores con animación */}
+        <div 
+          className={`overflow-hidden transition-all duration-500 ease-in-out ${
+            showLegend 
+              ? 'max-h-96 opacity-100 transform translate-y-0' 
+              : 'max-h-0 opacity-0 transform -translate-y-4'
+          }`}
+        >
+          <div className={`transition-all duration-300 delay-75 ${
+            showLegend ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-2'
+          }`}>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <InfoIcon className="w-5 h-5 text-blue-600" />
+                Leyenda de Estados de Habitaciones
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {roomColorLegend.map((item) => (
+                  <div key={item.status} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
+                    <div 
+                      className="w-4 h-4 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    ></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900">{item.label}</div>
+                      <div className="text-sm text-gray-600">{item.description}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Mapa de habitaciones */}
@@ -316,9 +335,9 @@ const Reception = () => {
         </div>
       )}
 
-      {/* Modal de Reservas */}
+      {/* Modal de Reservas (solo si tiene permiso para crear reservas) */}
       <ReservationsModal
-        isOpen={showReservationModal}
+        isOpen={canAddReservation && showReservationModal}
         onClose={() => {
           setShowReservationModal(false);
           setSelectedRoomData(null);

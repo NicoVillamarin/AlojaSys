@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { format, parseISO } from 'date-fns'
 import Button from 'src/components/Button'
 import TableGeneric from 'src/components/TableGeneric'
 import Filter from 'src/components/Filter'
@@ -34,6 +35,7 @@ export default function Housekeeping() {
   const { hasSingleHotel, singleHotelId } = useUserHotels()
   
   // Verificar permisos
+  const canAccessHousekeeping = usePermissions("housekeeping.access_housekeeping")
   const canAddTask = usePermissions("housekeeping.add_housekeepingtask")
   const canChangeTask = usePermissions("housekeeping.change_housekeepingtask")
   const canDeleteTask = usePermissions("housekeeping.delete_housekeepingtask")
@@ -59,6 +61,7 @@ export default function Housekeeping() {
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'housekeeping/tasks',
     params: listParams,
+    enabled: canAccessHousekeeping,
   })
 
   // Acciones start/complete
@@ -71,6 +74,14 @@ export default function Housekeeping() {
     () => (results || []).filter((task) => ACTIVE_STATUS_KEYS.includes(task.status)),
     [results]
   )
+
+  if (!canAccessHousekeeping) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.no_permission', 'No tenés permiso para acceder a las tareas de housekeeping.')}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -205,6 +216,13 @@ export default function Housekeeping() {
                 </div>
               )
             }
+          },
+          {
+            key: 'created_at',
+            header: t('common.created_at'),
+            sortable: true,
+            accessor: (r) => r.created_at ? format(parseISO(r.created_at), 'dd/MM/yyyy HH:mm') : '',
+            render: (r) => r.created_at ? format(parseISO(r.created_at), 'dd/MM/yyyy HH:mm') : '-',
           },
           { 
             key: 'checklist', 

@@ -276,8 +276,10 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
     },
     "generate_daily_housekeeping_tasks_hourly": {
-        "task": "apps.housekeeping.tasks.generate_daily_tasks",
-        "schedule": crontab(minute=0),  # Cada hora a los 0 minutos
+        # Scheduler fino que dispara la generación diaria según daily_generation_time
+        # y timezone de cada hotel (ver apps.housekeeping.tasks.schedule_daily_tasks)
+        "task": "apps.housekeeping.tasks.schedule_daily_tasks",
+        "schedule": crontab(minute="*/10"),  # Cada 10 minutos
     },
     "check_overdue_housekeeping_tasks": {
         "task": "apps.housekeeping.tasks.check_overdue_tasks",
@@ -290,6 +292,10 @@ CELERY_BEAT_SCHEDULE = {
     "auto_mark_no_show_daily": {
         "task": "apps.reservations.tasks.auto_mark_no_show_daily",
         "schedule": crontab(hour=9, minute=0),  # Diario a las 9:00 AM
+    },
+    "rebalance_housekeeping_workload": {
+        "task": "apps.housekeeping.tasks.rebalance_housekeeping_workload",
+        "schedule": crontab(minute="*/15"),  # Cada 15 minutos
     },
     "process_pending_refunds_hourly": {
         "task": "apps.payments.tasks.process_pending_refunds",

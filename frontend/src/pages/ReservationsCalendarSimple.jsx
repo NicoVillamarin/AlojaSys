@@ -10,11 +10,16 @@ import Button from 'src/components/Button'
 import SelectStandalone from 'src/components/selects/SelectStandalone'
 import Filter from 'src/components/Filter'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
+import { usePermissions } from 'src/hooks/usePermissions'
 import { format, parseISO } from 'date-fns'
 import 'src/styles/calendar.css'
 
 const ReservationsCalendarSimple = () => {
   const { t, i18n } = useTranslation()
+
+  // Permisos relacionados con reservas
+  const canViewReservation = usePermissions('reservations.view_reservation')
+  const canAddReservation = usePermissions('reservations.add_reservation')
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -31,12 +36,14 @@ const ReservationsCalendarSimple = () => {
   const { results: hotels } = useList({
     resource: 'hotels',
     params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {},
+    enabled: canViewReservation,
   })
   
   // Obtener habitaciones para el filtro
   const { results: allRooms } = useList({
     resource: 'rooms',
     params: { hotel: filters.hotel || undefined },
+    enabled: canViewReservation,
   })
   
   // Obtener habitaciones con sus reservas
@@ -48,6 +55,7 @@ const ReservationsCalendarSimple = () => {
       room: filters.room || undefined,
       status: filters.status || undefined,
     },
+    enabled: canViewReservation,
   })
 
   // Lista de estados para el filtro
@@ -140,12 +148,23 @@ const ReservationsCalendarSimple = () => {
 
   // Manejar clic en fecha vacía para crear nueva reserva
   const handleDateClick = (dateClickInfo) => {
+    if (!canAddReservation) return
     setShowModal(true)
   }
 
   // Manejar selección de rango de fechas
   const handleSelect = (selectInfo) => {
+    if (!canAddReservation) return
     setShowModal(true)
+  }
+
+  // Si no tiene permiso para ver reservas, mostrar mensaje
+  if (!canViewReservation) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('dashboard.reservations_management.no_permission_view', 'No tenés permiso para ver el calendario de reservas.')}
+      </div>
+    )
   }
 
   return (
@@ -159,13 +178,15 @@ const ReservationsCalendarSimple = () => {
             <span>🏨 {rooms?.length || 0} habitaciones</span>
           </div>
         </div>
-        <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          {t('dashboard.reservations_management.create_reservation')}
-        </Button>
+        {canAddReservation && (
+          <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
+            {t('dashboard.reservations_management.create_reservation')}
+          </Button>
+        )}
       </div>
 
       <ReservationsModal 
-        isOpen={showModal} 
+        isOpen={canAddReservation && showModal} 
         onClose={() => setShowModal(false)} 
         onSuccess={refetch} 
       />

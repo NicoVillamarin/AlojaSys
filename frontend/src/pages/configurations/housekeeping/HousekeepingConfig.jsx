@@ -8,6 +8,7 @@ import Filter from 'src/components/Filter'
 import { useAction } from 'src/hooks/useAction'
 import { useUpdate } from 'src/hooks/useUpdate'
 import { Link } from 'react-router-dom'
+import HelpTooltip from 'src/components/HelpTooltip'
 
 export default function HousekeepingConfig() {
   const { t } = useTranslation()
@@ -41,6 +42,7 @@ export default function HousekeepingConfig() {
     const payload = {
       enable_auto_assign: !!hkValues.enable_auto_assign,
       create_daily_tasks: !!hkValues.create_daily_tasks,
+      daily_for_all_rooms: !!hkValues.daily_for_all_rooms,
       daily_generation_time: hkValues.daily_generation_time || null,
       skip_service_on_checkin: !!hkValues.skip_service_on_checkin,
       skip_service_on_checkout: !!hkValues.skip_service_on_checkout,
@@ -151,7 +153,10 @@ export default function HousekeepingConfig() {
               <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
                 {/* Activación y generación */}
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                   <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.automation')}</h4>
+                    <HelpTooltip text={t('housekeeping.config.automation_help')} />
+                  </div>
                   <label className='flex items-center gap-2 cursor-pointer'>
                     <input
                       type='checkbox'
@@ -160,6 +165,15 @@ export default function HousekeepingConfig() {
                       onChange={(e) => setHkValues((v) => ({ ...v, enable_auto_assign: e.target.checked }))}
                     />
                     <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.enable_auto_assign')}</span>
+                  </label>
+              <label className='flex items-center gap-2 cursor-pointer'>
+                <input
+                  type='checkbox'
+                  className='rounded border-gray-300'
+                  checked={!!hkValues?.daily_for_all_rooms}
+                  onChange={(e) => setHkValues((v) => ({ ...v, daily_for_all_rooms: e.target.checked }))}
+                />
+                <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.daily_for_all_rooms')}</span>
                   </label>
                   <label className='flex items-center gap-2 cursor-pointer'>
                     <input
@@ -183,7 +197,10 @@ export default function HousekeepingConfig() {
 
                 {/* Reglas de servicio */}
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                   <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.service_rules')}</h4>
+                    <HelpTooltip text={t('housekeeping.config.service_rules_help')} />
+                  </div>
                   <label className='flex items-center gap-2 cursor-pointer'>
                     <input
                       type='checkbox'
@@ -226,7 +243,10 @@ export default function HousekeepingConfig() {
 
                 {/* Ventanas de tiempo */}
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                   <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.time_windows')}</h4>
+                    <HelpTooltip text={t('housekeeping.config.time_windows_help')} />
+                  </div>
                   <div>
                     <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.morning_window_start')}</label>
                     <input
@@ -285,7 +305,10 @@ export default function HousekeepingConfig() {
 
                 {/* Asignación y prioridades */}
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                   <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.assignment_priorities')}</h4>
+                    <HelpTooltip text={t('housekeeping.config.assignment_priorities_help')} />
+                  </div>
                   <label className='flex items-center gap-2 cursor-pointer'>
                     <input
                       type='checkbox'
@@ -343,7 +366,10 @@ export default function HousekeepingConfig() {
 
                 {/* Vencimiento de tareas */}
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                   <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.task_timeout')}</h4>
+                    <HelpTooltip text={t('housekeeping.config.task_timeout_help')} />
+                  </div>
                   <div>
                     <label className='block text-xs font-medium text-aloja-gray-800/70 mb-1'>{t('hotels_modal.housekeeping.max_task_duration_minutes')}</label>
                     <input

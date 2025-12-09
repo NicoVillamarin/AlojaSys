@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.chatbot.models import ChatSession, ChatbotProviderAccount
@@ -271,6 +271,13 @@ class WhatsappChatbotService:
     # ------------------------------------------------------------------ #
 
     def _get_or_create_session(self, hotel: Hotel, guest_phone: str) -> ChatSession:
+        """
+        Obtiene la sesión activa para (hotel, guest_phone) o la crea de forma atómica.
+
+        Usamos get_or_create dentro de una transacción para evitar la condición de
+        carrera con el UniqueConstraint `unique_active_chatbot_session_per_guest`.
+        """
+        # Fast path: la mayoría de las veces ya existirá una sesión activa
         session = (
             ChatSession.objects.filter(hotel=hotel, guest_phone=guest_phone, is_active=True)
             .order_by("-updated_at")
@@ -278,12 +285,26 @@ class WhatsappChatbotService:
         )
         if session:
             return session
-        return ChatSession.objects.create(
-            hotel=hotel,
-            guest_phone=guest_phone,
-            state=ChatSession.State.ASKING_CHECKIN,
-            context={},
-        )
+
+        try:
+            with transaction.atomic():
+                session, _created = ChatSession.objects.get_or_create(
+                    hotel=hotel,
+                    guest_phone=guest_phone,
+                    is_active=True,
+                    defaults={
+                        "state": ChatSession.State.ASKING_CHECKIN,
+                        "context": {},
+                    },
+                )
+                return session
+        except IntegrityError:
+            # Otra transacción creó la sesión en paralelo; la buscamos de nuevo.
+            return (
+                ChatSession.objects.filter(hotel=hotel, guest_phone=guest_phone, is_active=True)
+                .order_by("-updated_at")
+                .first()
+            )
 
     def _restart_session(self, session: ChatSession) -> None:
         session.context = {}

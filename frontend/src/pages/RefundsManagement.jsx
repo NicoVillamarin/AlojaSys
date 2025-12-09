@@ -12,9 +12,13 @@ import Filter from 'src/components/Filter'
 import Select from 'react-select'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 export default function RefundsManagement() {
   const { t } = useTranslation()
+
+  // Permisos de reembolsos (gestión)
+  const canViewRefunds = usePermissions('payments.view_refund')
   const queryClient = useQueryClient()
   const [showModal, setShowModal] = useState(false)
   const [selectedRefund, setSelectedRefund] = useState(null)
@@ -24,7 +28,7 @@ export default function RefundsManagement() {
     method: ''
   })
   const didMountRef = useRef(false)
-
+  
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'payments/refunds',
     params: { 
@@ -32,6 +36,7 @@ export default function RefundsManagement() {
       status: filters.status || 'pending,processing,failed', // Solo estados que requieren acción
       refund_method: filters.method
     },
+    enabled: canViewRefunds,
   })
 
   const displayResults = useMemo(() => {
@@ -124,6 +129,14 @@ export default function RefundsManagement() {
     { value: 'voucher', label: t('payments.refunds.methods.voucher') },
     { value: 'original_payment', label: t('payments.refunds.methods.original_payment') }
   ]
+
+  if (!canViewRefunds) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('payments.refunds.no_permission', 'No tenés permiso para gestionar reembolsos.')}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">

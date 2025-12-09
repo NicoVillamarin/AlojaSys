@@ -11,9 +11,14 @@ import VouchersManagementModal from 'src/components/modals/VouchersManagementMod
 import EditIcon from 'src/assets/icons/EditIcon'
 import DeleteButton from 'src/components/DeleteButton'
 import CancelIcon from 'src/assets/icons/CancelIcon'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 export default function VouchersManagement() {
   const { t } = useTranslation()
+  // Permisos de vouchers de reembolso
+  const canViewVouchers = usePermissions('payments.view_refundvoucher')
+  const canChangeVouchers = usePermissions('payments.change_refundvoucher')
+  const canDeleteVouchers = usePermissions('payments.delete_refundvoucher')
   const [showModal, setShowModal] = useState(false)
   const [editVoucher, setEditVoucher] = useState(null)
   const [filters, setFilters] = useState({ search: '' })
@@ -23,6 +28,7 @@ export default function VouchersManagement() {
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'payments/refund-vouchers',
     params: { search: filters.search },
+    enabled: canViewVouchers,
   })
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ 
@@ -68,11 +74,20 @@ export default function VouchersManagement() {
   }
 
   const handleCancelVoucher = (voucherId) => {
+    if (!canChangeVouchers) return
     doAction({
       action: `${voucherId}/cancel_voucher`,
       body: { reason: 'Cancelado por administrador' },
       method: 'POST'
     })
+  }
+
+  if (!canViewVouchers) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('vouchers.no_permission', 'No tenés permiso para gestionar vouchers de reembolso.')}
+      </div>
+    )
   }
 
   return (
@@ -82,13 +97,26 @@ export default function VouchersManagement() {
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.vouchers')}</h1>
         </div>
-        <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
-          {t('common.create')} {t('sidebar.vouchers')}
-        </Button>
+        {canChangeVouchers && (
+          <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
+            {t('common.create')} {t('sidebar.vouchers')}
+          </Button>
+        )}
       </div>
 
-      <VouchersManagementModal isOpen={showModal} onClose={() => setShowModal(false)} isEdit={false} onSuccess={refetch} />
-      <VouchersManagementModal isOpen={!!editVoucher} onClose={() => setEditVoucher(null)} isEdit={true} voucher={editVoucher} onSuccess={refetch} />
+      <VouchersManagementModal 
+        isOpen={canChangeVouchers && showModal} 
+        onClose={() => setShowModal(false)} 
+        isEdit={false} 
+        onSuccess={refetch} 
+      />
+      <VouchersManagementModal 
+        isOpen={!!editVoucher && canChangeVouchers} 
+        onClose={() => setEditVoucher(null)} 
+        isEdit={true} 
+        voucher={editVoucher} 
+        onSuccess={refetch} 
+      />
 
       <div className="bg-white rounded-xl shadow p-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -181,11 +209,15 @@ export default function VouchersManagement() {
             right: true,
             render: (v) => (
               <div className="flex justify-end items-center gap-x-2">
-                <EditIcon size="18" onClick={() => setEditVoucher(v)} className="cursor-pointer" />
-                {v.status === 'active' && (
-                    <CancelIcon size="20" onClick={() => handleCancelVoucher(v.id)} className="cursor-pointer text-red-500" />
+                {canChangeVouchers && (
+                  <EditIcon size="18" onClick={() => setEditVoucher(v)} className="cursor-pointer" />
                 )}
-                <DeleteButton resource="payments/refund-vouchers" id={v.id} onDeleted={refetch} className="cursor-pointer" />
+                {v.status === 'active' && canChangeVouchers && (
+                  <CancelIcon size="20" onClick={() => handleCancelVoucher(v.id)} className="cursor-pointer text-red-500" />
+                )}
+                {canDeleteVouchers && (
+                  <DeleteButton resource="payments/refund-vouchers" id={v.id} onDeleted={refetch} className="cursor-pointer" />
+                )}
               </div>
             ),
           },

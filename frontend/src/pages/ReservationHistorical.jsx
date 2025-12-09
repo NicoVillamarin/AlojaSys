@@ -16,11 +16,17 @@ import { useUserHotels } from 'src/hooks/useUserHotels'
 import Badge from 'src/components/Badge'
 import fetchWithAuth from 'src/services/fetchWithAuth'
 import { getApiURL } from 'src/services/utils'
-
+import { usePermissions } from 'src/hooks/usePermissions'
 
 
 export default function ReservationHistorical() {
   const { t } = useTranslation()
+
+  // Permisos de reservas para histórico
+  const canViewReservation = usePermissions('reservations.view_reservation')
+  const canAddReservation = usePermissions('reservations.add_reservation')
+  const canChangeReservation = usePermissions('reservations.change_reservation')
+  const canDeleteReservation = usePermissions('reservations.delete_reservation')
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
   const [historyReservationId, setHistoryReservationId] = useState(null)
@@ -40,6 +46,7 @@ export default function ReservationHistorical() {
       ordering: '-id', // Ordenar por ID descendente (más recientes primero)
       page_size: 100, // Cargar suficientes resultados para el histórico (puede usar "Cargar más" si necesita más)
     },
+    enabled: canViewReservation,
   })
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ resource: 'reservations', onSuccess: () => refetch() })
@@ -126,26 +133,40 @@ export default function ReservationHistorical() {
     return () => clearTimeout(id)
   }, [filters.search, filters.hotel, filters.room, filters.status, refetch])
 
-  const canCheckIn = (r) => r.status === 'confirmed'
-  const canCheckOut = (r) => r.status === 'check_in'
-  const canCancel = (r) => r.status === 'pending' || r.status === 'confirmed'
-  const canConfirm = (r) => r.status === 'pending'
-  const canEdit = (r) => r.status === 'pending' // Solo se puede editar si está pendiente
+  const canCheckIn = (r) => canChangeReservation && r.status === 'confirmed'
+  const canCheckOut = (r) => canChangeReservation && r.status === 'check_in'
+  const canCancel = (r) => canDeleteReservation && (r.status === 'pending' || r.status === 'confirmed')
+  const canConfirm = (r) => canChangeReservation && r.status === 'pending'
+  const canEdit = (r) => canChangeReservation && r.status === 'pending' // Solo se puede editar si está pendiente
 
   const onCheckIn = (r) => {
+    if (!canCheckIn(r)) return
     doAction({ action: `${r.id}/check_in`, body: {}, method: 'POST' })
   }
   const onCheckOut = (r) => {
+    if (!canCheckOut(r)) return
     doAction({ action: `${r.id}/check_out`, body: {}, method: 'POST' })
   }
   const onCancel = (r) => {
+    if (!canCancel(r)) return
     doAction({ action: `${r.id}/cancel`, body: {}, method: 'POST' })
   }
   const onConfirm = (r) => {
+    if (!canConfirm(r)) return
     doAction({ action: `${r.id}`, body: { status: 'confirmed' }, method: 'PATCH' })
   }
   const onEdit = (r) => {
+    if (!canEdit(r)) return
     setEditReservation(r)
+  }
+
+  // Si no tiene permiso para ver reservas, mostrar mensaje
+  if (!canViewReservation) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('sidebar.no_permission_history', 'No tenés permiso para ver el histórico de reservas.')}
+      </div>
+    )
   }
 
   return (
@@ -157,8 +178,18 @@ export default function ReservationHistorical() {
         </div>
       </div>
 
-      <ReservationsModal isOpen={showModal} onClose={() => setShowModal(false)} onSuccess={refetch} />
-      <ReservationsModal isOpen={!!editReservation} onClose={() => setEditReservation(null)} isEdit={true} reservation={editReservation} onSuccess={refetch} />
+      <ReservationsModal 
+        isOpen={canAddReservation && showModal} 
+        onClose={() => setShowModal(false)} 
+        onSuccess={refetch} 
+      />
+      <ReservationsModal 
+        isOpen={!!editReservation && canChangeReservation} 
+        onClose={() => setEditReservation(null)} 
+        isEdit={true} 
+        reservation={editReservation} 
+        onSuccess={refetch} 
+      />
       {!!historyReservationId && (
         <ReservationHistoricalModal
           reservationId={historyReservationId}

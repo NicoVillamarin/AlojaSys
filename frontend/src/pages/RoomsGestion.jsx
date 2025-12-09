@@ -25,22 +25,31 @@ import Badge from "src/components/Badge";
 import ToggleButton from "src/components/ToggleButton";
 import EyeIcon from "src/assets/icons/EyeIcon";
 import EyeSlashIcon from "src/assets/icons/EyeSlashIcon";
+import { usePermissions } from "src/hooks/usePermissions";
 
 export default function RoomsGestion() {
   const { t, i18n } = useTranslation();
+  // Permisos CRUD de habitaciones
+  const canViewRoom = usePermissions("rooms.view_room");
+  const canChangeRoom = usePermissions("rooms.change_room");
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
   const [showKpis, setShowKpis] = useState(true);
   const didMountRef = useRef(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
-    useList({ resource: "rooms", params: { search: filters.search, hotel: filters.hotel, status: filters.status } });
+    useList({ 
+      resource: "rooms", 
+      params: { search: filters.search, hotel: filters.hotel, status: filters.status },
+      enabled: canViewRoom,
+    });
 
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   
   // Lista de hoteles para el filtro (filtrados por usuario si no es superuser)
   const { results: hotels } = useList({ 
     resource: "hotels",
-    params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {}
+    params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {},
+    enabled: canViewRoom,
   });
 
 
@@ -124,6 +133,15 @@ export default function RoomsGestion() {
       };
     }
   }, [results, count, shouldUseSummary, summary]);
+
+  // Si no puede ver habitaciones, mostrar mensaje
+  if (!canViewRoom) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t("rooms.no_permission_view", "No tenés permiso para ver la gestión de habitaciones.")}
+      </div>
+    );
+  }
 
   // Crear KPIs para RoomsGestion
   const roomsGestionKpis = useMemo(() => {

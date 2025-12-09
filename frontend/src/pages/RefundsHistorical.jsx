@@ -12,9 +12,11 @@ import { convertToDecimal } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import Badge from 'src/components/Badge'
+import { usePermissions } from 'src/hooks/usePermissions'
 
 export default function RefundsHistorical() {
   const { t } = useTranslation()
+  const canViewRefunds = usePermissions('payments.view_refund')
   const [historyRefundId, setHistoryRefundId] = useState(null)
   const [historyRefund, setHistoryRefund] = useState(null)
   const [filters, setFilters] = useState({ 
@@ -36,6 +38,7 @@ export default function RefundsHistorical() {
       status: filters.status || undefined,
       reason: filters.reason || undefined
     },
+    enabled: canViewRefunds,
   })
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ 
@@ -122,6 +125,14 @@ export default function RefundsHistorical() {
       style: 'currency',
       currency: 'ARS'
     }).format(amount)
+  }
+
+  if (!canViewRefunds) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('payments.refunds.no_permission_history', 'No tenés permiso para ver el histórico de reembolsos.')}
+      </div>
+    )
   }
 
   return (

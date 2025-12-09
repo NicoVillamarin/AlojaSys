@@ -8458,6 +8458,7 @@ class HousekeepingConfig(models.Model):
     # Generación y asignación
     enable_auto_assign = BooleanField(default=True)
     create_daily_tasks = BooleanField(default=True)
+    daily_for_all_rooms = BooleanField(default=False)  # Si True, genera para todas las habitaciones (ocupadas y vacías)
     daily_generation_time = TimeField(default=time(7, 0))
     # Reglas de servicio
     skip_service_on_checkin = BooleanField(default=True)
@@ -8589,10 +8590,29 @@ Servicio centralizado para generar y gestionar tareas de housekeeping.
 
 **`create_daily_tasks_for_hotel(hotel, target_date)`**
 ```python
-# Genera tareas diarias para habitaciones ocupadas:
+# Genera tareas diarias según configuración:
+# - Si daily_for_all_rooms=True: todas las habitaciones activas (AVAILABLE, OCCUPIED, RESERVED)
+# - Si daily_for_all_rooms=False: solo habitaciones ocupadas (OCCUPIED)
 # - Considera skip_service_on_checkin
 # - Considera skip_service_on_checkout
 # - Aplica reglas de linens_every_n_nights y towels_every_n_nights
+# - Excluye habitaciones en MAINTENANCE o OUT_OF_SERVICE
+```
+
+**`calculate_staff_workload(hotel)`**
+```python
+# Calcula la carga de trabajo de cada miembro del staff
+# Retorna dict {staff_id: pending_tasks_count}
+# Considera tareas PENDING + IN_PROGRESS
+```
+
+**`rebalance_workload_for_hotel(hotel)`**
+```python
+# Rebalancea la carga de trabajo entre el personal de limpieza
+# - Identifica staff más cargado y menos cargado
+# - Mueve hasta 5 tareas PENDING del más cargado al menos cargado
+# - Respeta zonas y turnos
+# - Retorna estadísticas de tareas movidas
 ```
 
 ### Views y Endpoints
@@ -8673,16 +8693,31 @@ Servicio centralizado para generar y gestionar tareas de housekeeping.
 
 #### `check_overdue_tasks`
 ```python
-@shared_task
-def check_overdue_tasks():
+@shared_task(bind=True)
+def check_overdue_tasks(self):
     """
     Verifica tareas en progreso que hayan excedido su tiempo estimado.
     - Marca como is_overdue=True
-    - Auto-completa si auto_complete_overdue está activo
+    - Auto-completa si auto_complete_overdue está activo y pasa grace_period
     """
 ```
 
-**Programación**: Ejecuta periódicamente (configurado en `CELERY_BEAT_SCHEDULE`)
+**Programación**: Ejecuta cada hora a los 15 minutos (configurado en `CELERY_BEAT_SCHEDULE`)
+
+#### `schedule_daily_tasks`
+```python
+@shared_task
+def schedule_daily_tasks():
+    """
+    Scheduler fino que respeta daily_generation_time + timezone de cada hotel.
+    - Se ejecuta cada 10 minutos
+    - Para cada hotel activo, verifica si la hora local coincide con daily_generation_time
+    - Ventana de ±10 minutos para disparar la generación
+    - Llama a generate_daily_tasks solo cuando corresponde según timezone del hotel
+    """
+```
+
+**Programación**: Ejecuta cada 10 minutos (configurado en `CELERY_BEAT_SCHEDULE`)
 
 #### `generate_daily_tasks`
 ```python
@@ -8690,11 +8725,29 @@ def check_overdue_tasks():
 def generate_daily_tasks():
     """
     Genera tareas diarias para todos los hoteles activos.
-    Se ejecuta según daily_generation_time configurado.
+    - Recorre hoteles activos con create_daily_tasks=True
+    - Usa TaskGeneratorService.create_daily_tasks_for_hotel()
+    - Respeta daily_for_all_rooms (todas las habitaciones vs solo ocupadas)
+    - No duplica tareas (skip_if_exists=True)
     """
 ```
 
-**Programación**: Ejecuta cada hora (configurado en `CELERY_BEAT_SCHEDULE`)
+**Nota**: Esta tarea ahora se llama desde `schedule_daily_tasks`, no directamente desde Beat.
+
+#### `rebalance_housekeeping_workload`
+```python
+@shared_task
+def rebalance_housekeeping_workload():
+    """
+    Rebalancea automáticamente la carga de trabajo entre el personal de housekeeping.
+    - Recorre hoteles activos con enable_auto_assign=True
+    - Usa TaskGeneratorService.rebalance_workload_for_hotel()
+    - Mueve tareas PENDING del staff más cargado al menos cargado
+    - Respeta zonas y turnos del personal
+    """
+```
+
+**Programación**: Ejecuta cada 15 minutos (configurado en `CELERY_BEAT_SCHEDULE`)
 
 ### Integraciones
 
@@ -8767,16 +8820,29 @@ def generate_daily_tasks():
 
 ```python
 CELERY_BEAT_SCHEDULE = {
-    'check-overdue-tasks': {
+    'check_overdue_housekeeping_tasks': {
         'task': 'apps.housekeeping.tasks.check_overdue_tasks',
-        'schedule': crontab(minute='*/15'),  # Cada 15 minutos
+        'schedule': crontab(minute=15),  # Cada hora a los 15 minutos
     },
-    'generate-daily-housekeeping-tasks': {
-        'task': 'apps.housekeeping.tasks.generate_daily_tasks',
-        'schedule': crontab(minute=0),  # Cada hora
+    'generate_daily_housekeeping_tasks_hourly': {
+        'task': 'apps.housekeeping.tasks.schedule_daily_tasks',
+        'schedule': crontab(minute='*/10'),  # Cada 10 minutos
+        # Este scheduler verifica si cada hotel está en su daily_generation_time
+        # y dispara generate_daily_tasks solo cuando corresponde según timezone
+    },
+    'rebalance_housekeeping_workload': {
+        'task': 'apps.housekeeping.tasks.rebalance_housekeeping_workload',
+        'schedule': crontab(minute='*/15'),  # Cada 15 minutos
     },
 }
 ```
+
+**Nota sobre el scheduler de tareas diarias**:
+- El scheduler `schedule_daily_tasks` se ejecuta frecuentemente (cada 10 min)
+- Para cada hotel, calcula la hora local usando `hotel.timezone`
+- Compara con `config.daily_generation_time` con ventana de ±10 minutos
+- Solo cuando coincide, llama a `TaskGeneratorService.create_daily_tasks_for_hotel()`
+- Esto permite que hoteles en diferentes zonas horarias generen tareas a su hora local correcta
 
 ### Frontend
 

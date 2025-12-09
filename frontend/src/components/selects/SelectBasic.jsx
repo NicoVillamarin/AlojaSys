@@ -19,6 +19,7 @@ const SelectBasic = ({
   isSearchable = false,
   getOptionLabel = (o) => (o && o.label != null ? o.label : String(o ?? '')),
   getOptionValue = (o) => (o && o.value != null ? o.value : String(o ?? '')),
+  onChangeExtra, // callback opcional cuando cambia el valor simple
   ...props
 }) => {
   const [field, meta, helpers] = useField(name)
@@ -29,7 +30,11 @@ const SelectBasic = ({
   }, [options, field.value, getOptionValue])
 
   const onChange = (opt) => {
-    helpers.setValue(opt ? getOptionValue(opt) : '')
+    const newValue = opt ? getOptionValue(opt) : ''
+    helpers.setValue(newValue)
+    if (typeof onChangeExtra === 'function') {
+      onChangeExtra(newValue)
+    }
   }
 
   const onBlur = () => helpers.setTouched(true)

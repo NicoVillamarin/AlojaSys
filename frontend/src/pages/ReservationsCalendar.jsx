@@ -10,6 +10,7 @@ import scrollGridPlugin from '@fullcalendar/scrollgrid'
 import { useList } from 'src/hooks/useList'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import { useCalendarEvents, useCalendarStats, useCalendarDragDrop } from 'src/hooks/useCalendar'
+import { usePermissions } from 'src/hooks/usePermissions'
 import Button from 'src/components/Button'
 import SelectStandalone from 'src/components/selects/SelectStandalone'
 import Filter from 'src/components/Filter'
@@ -37,6 +38,10 @@ import ToggleButton from 'src/components/ToggleButton'
 
 const ReservationsCalendar = () => {
   const { t, i18n } = useTranslation()
+
+  // Permisos relacionados con reservas
+  const canViewReservation = usePermissions('reservations.view_reservation')
+  const canAddReservation = usePermissions('reservations.add_reservation')
   const [showModal, setShowModal] = useState(false)
   const [editReservation, setEditReservation] = useState(null)
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -147,16 +152,18 @@ const ReservationsCalendar = () => {
   
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   
-  // Obtener hoteles para el filtro
+  // Obtener hoteles para el filtro (requiere poder ver reservas)
   const { results: hotels } = useList({
     resource: 'hotels',
     params: !isSuperuser && hotelIdsString ? { ids: hotelIdsString } : {},
+    enabled: canViewReservation,
   })
   
-  // Obtener habitaciones para el filtro
+  // Obtener habitaciones para el filtro (requiere poder ver reservas)
   const { results: allRooms } = useList({
     resource: 'rooms',
     params: { hotel: filters.hotel || undefined },
+    enabled: canViewReservation,
   })
   
   // Usar la nueva API de calendario
@@ -200,6 +207,7 @@ const ReservationsCalendar = () => {
       // Solo reservas desde hoy en adelante
       check_in_gte: format(new Date(), 'yyyy-MM-dd'),
     },
+    enabled: canViewReservation,
   })
 
   // Mantener compatibilidad con la API anterior para filtros (solo para KPIs)
@@ -347,6 +355,15 @@ const ReservationsCalendar = () => {
       averageStay: totalReservations > 0 ? Math.round(totalNights / totalReservations) : 0
     }
   }, [rooms])
+
+  // Si no tiene permiso para ver reservas, mostrar mensaje y no renderizar el calendario
+  if (!canViewReservation) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('dashboard.reservations_management.no_permission_view', 'No tenés permiso para ver el calendario de reservas.')}
+      </div>
+    )
+  }
 
   // Convertir habitaciones a recursos para la vista de habitaciones
   const calendarResources = useMemo(() => {
@@ -891,9 +908,14 @@ const ReservationsCalendar = () => {
           <div className="text-xs text-aloja-gray-800/60">{t('dashboard.reservations_management.title')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">Calendario de Reservas</h1>
         </div>
+        {canAddReservation && (
+          <Button variant="primary" size="md" onClick={() => setShowModal(true)}>
+            {t('dashboard.reservations_management.create_reservation')}
+          </Button>
+        )}
       </div>
       <ReservationsModal 
-        isOpen={showModal} 
+        isOpen={canAddReservation && showModal} 
         onClose={() => {
           setShowModal(false)
           setSelectedDateRange(null)
