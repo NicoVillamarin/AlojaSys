@@ -191,15 +191,29 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   }, [location.pathname]);
   const toggleGroup = (key) => setOpenGroups((s) => ({ ...s, [key]: !s[key] }));
   return (
-    <aside className="flex flex-col bg-aloja-navy text-white p-3 gap-2 overflow-y-auto no-scrollbar h-screen w-full relative">
-      {/* Fondo decorativo sutil como background fijo */}
+    <aside
+      className="flex flex-col bg-aloja-navy text-white h-screen w-full relative"
+      style={{
+        // Fondo solo con imagen, sin tinte azul
+        backgroundImage: `url(${fondo})`,
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'left bottom',
+      }}
+    >
+      {/* Capa de blur y sombreado suave sobre TODO el sidebar */}
       <div
         aria-hidden
-        className="pointer-events-none select-none absolute inset-0 opacity-[0.1] bg-contain bg-no-repeat bg-left-bottom bg-fixed"
+        className="pointer-events-none select-none absolute inset-0"
         style={{
-          backgroundImage: `linear-gradient(135deg, rgba(212,175,55,0.14), rgba(0,0,0,0)), url(${fondo})`,
+          backdropFilter: 'blur(3px)',
+          backgroundColor: 'rgba(6,24,48,0.45)',
+          zIndex: 0,
         }}
       />
+
+      {/* Contenido scrolleable por encima del blur */}
+      <div className="flex flex-col p-3 gap-2 overflow-y-auto no-scrollbar h-full relative" style={{ zIndex: 1 }}>
 
       {/* Botón de cerrar para móvil */}
       {isMobile && (
@@ -222,7 +236,8 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
           {!isMini && <img src={logo_name} alt="AlojaSys" className="block h-5 w-auto object-contain" />}
         </div>
       </div>
-      <nav className="mt-2 flex flex-col gap-1">
+      {/* Menú principal */}
+      <nav className="mt-3 flex flex-col gap-1">
         {/* Si es solo personal de limpieza, mostrar solo housekeeping */}
         {isOnlyHousekeepingStaff ? (
           <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>
@@ -378,7 +393,10 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                 <Item to="/settings/rooms" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.rooms')}</Item>
               )}
               {hasViewHotels && (
-                <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
+                <>
+                  <Item to="/settings/hotels" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.hotels')}</Item>
+                  <Item to="/settings/whatsapp" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.whatsapp')}</Item>
+                </>
               )}
               {hasViewUsers && (
                 <Item to="/settings/users" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.users')}</Item>
@@ -505,10 +523,10 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         )}
       </nav>
 
-      {!isMini && (
-        <div className="mt-auto text-[10px] text-white/50 px-2">v0.1</div>
-      )}
-
+        {!isMini && (
+          <div className="mt-auto text-[10px] text-white/50 px-2">v0.1</div>
+        )}
+      </div>
     </aside>
   );
 }

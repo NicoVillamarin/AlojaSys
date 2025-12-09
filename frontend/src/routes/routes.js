@@ -39,6 +39,7 @@ import TaskTemplates from "src/pages/configurations/housekeeping/TaskTemplates";
 import Checklists from "src/pages/configurations/housekeeping/Checklists";
 import HousekeepingConfig from "src/pages/configurations/housekeeping/HousekeepingConfig";
 import HousekeepingHistorical from "src/pages/HousekeepingHistorical";
+import Whatsapp from "src/pages/configurations/Whatsapp";
 
 
 export const appRoutes = [
@@ -85,6 +86,7 @@ export const appRoutes = [
       { path: "settings/housekeeping/templates", element: React.createElement(TaskTemplates) },
       { path: "settings/housekeeping/checklists", element: React.createElement(Checklists) },
       { path: "housekeeping/historical", element: React.createElement(HousekeepingHistorical) },
+      { path: "settings/whatsapp", element: React.createElement(Whatsapp) },
     ],
   },
 ];
