@@ -34,6 +34,7 @@ const DatePickedRange = ({
   reservationsList = [], // Array de reservas para mostrar en el panel lateral
   occupiedNights = [], // Array de fechas ocupadas en formato 'YYYY-MM-DD' para indicadores visuales
   onApply, // Callback al presionar "Aplicar" (startISO, endISO). Si retorna false, no se cierra.
+  disabled = false, // Prop para deshabilitar el componente
 }) => {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef(null)
@@ -93,11 +94,12 @@ const DatePickedRange = ({
           <input
             readOnly
             value={display}
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => !disabled && setOpen((v) => !v)}
             placeholder={placeholder}
-            className={`w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-aloja-navy/20 focus:border-aloja-navy/50 ${inputClassName}`}
+            disabled={disabled}
+            className={`w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-aloja-navy/20 focus:border-aloja-navy/50 ${disabled ? 'bg-gray-100 cursor-not-allowed opacity-60' : 'cursor-pointer'} ${inputClassName}`}
           />
-          {display && (
+          {display && !disabled && (
             <button
               type="button"
               onClick={() => { onChange && onChange('', ''); setOpen(false) }}

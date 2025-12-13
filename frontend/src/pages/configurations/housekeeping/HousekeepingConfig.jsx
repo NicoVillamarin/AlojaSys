@@ -24,9 +24,14 @@ export default function HousekeepingConfig() {
 
   const [hkValues, setHkValues] = useState(null)
   useEffect(() => {
-    if (hkConfig) {
-      setHkValues(hkConfig)
-    }
+    if (!hkConfig) return
+    setHkValues((prev) => {
+      // Si ya tenemos la misma config (por id), no volver a setear para evitar loops
+      if (prev && prev.id === hkConfig.id) {
+        return prev
+      }
+      return hkConfig
+    })
   }, [hkConfig])
 
   const { mutate: updateHK, isPending: savingHK } = useUpdate({
@@ -40,6 +45,7 @@ export default function HousekeepingConfig() {
   const handleSaveHK = () => {
     if (!hkValues?.id) return
     const payload = {
+      use_checklists: hkValues.use_checklists !== false,
       enable_auto_assign: !!hkValues.enable_auto_assign,
       create_daily_tasks: !!hkValues.create_daily_tasks,
       daily_for_all_rooms: !!hkValues.daily_for_all_rooms,
@@ -154,7 +160,7 @@ export default function HousekeepingConfig() {
                 {/* Activación y generación */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.automation')}</h4>
+                    <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.automation')}</h4>
                     <HelpTooltip text={t('housekeeping.config.automation_help')} />
                   </div>
                   <label className='flex items-center gap-2 cursor-pointer'>
@@ -165,6 +171,24 @@ export default function HousekeepingConfig() {
                       onChange={(e) => setHkValues((v) => ({ ...v, enable_auto_assign: e.target.checked }))}
                     />
                     <span className='text-sm text-aloja-gray-800/80'>{t('hotels_modal.housekeeping.enable_auto_assign')}</span>
+                  </label>
+                  {/* Modo de uso: simple vs avanzado */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <h4 className="text-xs font-semibold text-aloja-gray-800/70 uppercase">{t('housekeeping.config.mode')}</h4>
+                    <HelpTooltip text={t('housekeeping.config.mode_help')} />
+                  </div>
+                  <label className='flex items-start gap-2 cursor-pointer'>
+                    <input
+                      type='checkbox'
+                      className='mt-1 rounded border-gray-300'
+                      checked={hkValues?.use_checklists !== false}
+                      onChange={(e) => setHkValues((v) => ({ ...v, use_checklists: e.target.checked }))}
+                    />
+                    <div className="flex flex-col">
+                      <span className='text-sm text-aloja-gray-800/80'>
+                        {t('hotels_modal.housekeeping.use_checklists')}
+                      </span>
+                    </div>
                   </label>
               <label className='flex items-center gap-2 cursor-pointer'>
                 <input

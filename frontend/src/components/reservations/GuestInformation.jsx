@@ -2,6 +2,7 @@ import React from 'react'
 import { useFormikContext } from 'formik'
 import { useTranslation } from 'react-i18next'
 import InputText from 'src/components/inputs/InputText'
+import InputDocument from 'src/components/inputs/InputDocument'
 import PeopleIcon from 'src/assets/icons/PeopleIcon'
 
 const GuestInformation = () => {
@@ -67,13 +68,11 @@ const GuestInformation = () => {
               onChange={(e) => setFieldValue('guest_name', e.target.value)}
               error={touched.guest_name && errors.guest_name}
             />
-            <InputText
+            <InputDocument
               title={`${t('guest_information.document')} *`}
               name="guest_document"
               placeholder={t('guest_information.document_placeholder')}
-              value={values.guest_document || ''}
-              onChange={(e) => setFieldValue('guest_document', e.target.value)}
-              error={touched.guest_document && errors.guest_document}
+              inputClassName="w-full"
             />
           </div>
         </div>
@@ -186,8 +185,14 @@ const GuestInformation = () => {
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="\d*"
+                        maxLength={15}
                         value={guest.document || ''}
-                        onChange={(e) => updateGuest(index, 'document', e.target.value)}
+                        onChange={(e) => {
+                          const sanitized = (e.target.value || '').replace(/\D+/g, '').slice(0, 15)
+                          updateGuest(index, 'document', sanitized)
+                        }}
                         placeholder={t('guest_information.document_placeholder')}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           errors.other_guests?.[index]?.document ? 'border-red-500' : 'border-gray-300'

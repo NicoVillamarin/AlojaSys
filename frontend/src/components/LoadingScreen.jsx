@@ -72,7 +72,7 @@ const LoadingScreen = ({ onComplete }) => {
   return (
     <>
       {/* Estilos CSS para animaciones de reserva */}
-      <style jsx>{`
+      <style>{`
         @keyframes fadeToWhite {
           0% { opacity: 1; }
           100% { opacity: 0; }

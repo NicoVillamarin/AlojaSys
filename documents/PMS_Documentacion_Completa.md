@@ -8475,6 +8475,8 @@ class HousekeepingConfig(models.Model):
     # Asignación
     prefer_by_zone = BooleanField(default=True)
     rebalance_every_minutes = PositiveIntegerField(default=5)
+    # Modo de uso
+    use_checklists = BooleanField(default=True)  # Si False, modo simple sin checklists (solo descripción/duración)
     # Prioridades
     checkout_priority = PositiveIntegerField(default=2)
     daily_priority = PositiveIntegerField(default=1)
@@ -8505,6 +8507,10 @@ class TaskTemplate(models.Model):
 ```
 
 **Propósito**: Define tareas estándar por tipo de habitación y tipo de tarea.
+
+**Uso recomendado**:
+- **Modo avanzado (con checklists)**: usar plantillas **granulares** (ej: "Hacer cama", "Cambiar sábanas", "Reponer amenities") para documentar bien qué incluye la limpieza y calcular tiempos finos. El checklist complementa estas plantillas con items tildables para el personal.
+- **Modo simple (sin checklists)**: usar plantillas **consolidadas** (ej: "Limpieza diaria estándar", "Limpieza matutina") donde la descripción agrupa todas las acciones y `estimated_minutes` refleja la duración total (por ejemplo 60–90 minutos). La tarea resultante se gestiona solo con su descripción y estado, sin checklist.
 
 #### Checklist (Lista de Verificación)
 ```python
@@ -8638,6 +8644,26 @@ Servicio centralizado para generar y gestionar tareas de housekeeping.
 - `priority`: Prioridad
 - `created_from`: Fecha de creación desde
 - `created_to`: Fecha de creación hasta
+
+#### Detalle de Tarea (Frontend)
+
+En el frontend existe un **modal de detalle de tarea de housekeeping** accesible desde:
+
+- La vista principal de tareas de housekeeping.
+- El histórico de tareas.
+
+Al hacer clic en el identificador de la tarea ("Tarea N° X"), se abre un modal que muestra:
+
+- Hotel, habitación, tipo de tarea y estado (incluyendo flag `is_overdue`).
+- Personal asignado, zona y prioridad.
+- Tiempos: `estimated_minutes`, `created_at`, `started_at`, `completed_at`.
+- Campo `notes` (descripción libre generada desde plantillas o editada manualmente).
+- Si la tarea tiene checklist asociado, lista los `TaskChecklistCompletion` con:
+  - Nombre del item.
+  - Estado (completado / pendiente).
+  - `completed_at` y `completed_by` (si aplica).
+
+En **modo simple** (`use_checklists=False`), este modal sigue siendo el punto central para entender qué incluye cada tarea (a través de `notes`) y su duración estimada, pero no se muestran items de checklist (porque no se generan).
 - `completed_from`: Fecha de completado desde
 - `completed_to`: Fecha de completado hasta
 

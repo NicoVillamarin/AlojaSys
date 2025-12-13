@@ -12,6 +12,7 @@ import { Formik } from 'formik'
 import DeleteButton from 'src/components/DeleteButton'
 import HousekeepingModal from 'src/components/modals/HousekeepingModal'
 import ChecklistDetailModal from 'src/components/modals/ChecklistDetailModal'
+import HousekeepingTaskDetailModal from 'src/components/modals/HousekeepingTaskDetailModal'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import EditIcon from 'src/assets/icons/EditIcon'
 import ClockIcon from 'src/assets/icons/ClockIcon'
@@ -49,6 +50,8 @@ export default function Housekeeping() {
   const [editTask, setEditTask] = useState(null)
   const [showChecklistDetail, setShowChecklistDetail] = useState(false)
   const [selectedChecklistId, setSelectedChecklistId] = useState(null)
+  const [showTaskDetail, setShowTaskDetail] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState(null)
 
   // Memoizar params para que no cambie en cada render
   const listParams = useMemo(() => ({
@@ -116,6 +119,15 @@ export default function Housekeeping() {
           setSelectedChecklistId(null)
         }}
         checklistId={selectedChecklistId}
+      />
+
+      <HousekeepingTaskDetailModal
+        isOpen={showTaskDetail}
+        onClose={() => {
+          setShowTaskDetail(false)
+          setSelectedTaskId(null)
+        }}
+        taskId={selectedTaskId}
       />
 
       <Filter>
@@ -191,7 +203,24 @@ export default function Housekeeping() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
-          { key: 'id', header: 'ID', sortable: true, accessor: (r) => r.id, render: (r) => `Tarea N° ${r.id}` || '-' },
+          {
+            key: 'id',
+            header: 'ID',
+            sortable: true,
+            accessor: (r) => r.id,
+            render: (r) => (
+              <button
+                type="button"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                onClick={() => {
+                  setSelectedTaskId(r.id)
+                  setShowTaskDetail(true)
+                }}
+              >
+                {`Tarea N° ${r.id}`}
+              </button>
+            ),
+          },
           { key: 'hotel', header: t('common.hotel'), sortable: true, render: (r) => r.hotel_name || r.hotel },
           { key: 'room', header: t('housekeeping.room'), sortable: true, render: (r) => r.room_name || r.room },
           { key: 'task_type', header: t('housekeeping.task_type'), sortable: true, render: (r) => t(`housekeeping.types.${r.task_type}`) },

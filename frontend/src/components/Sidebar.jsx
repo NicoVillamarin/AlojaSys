@@ -2,6 +2,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePermissions, useHasAnyPermission } from "src/hooks/usePermissions";
+import { useUserHotels } from "src/hooks/useUserHotels";
+import { useAction } from "src/hooks/useAction";
 import logo from "../assets/img/logo_new_alone_white.png";
 import logo_name from "../assets/img/name_white.png";
 import { Chevron } from "src/assets/icons/Chevron";
@@ -64,6 +66,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const [openGroups, setOpenGroups] = useState({ settings: false, locations: false, financial: false, histories: false, invoicing: false, rates: false, policies: false, housekeeping: false });
   const {data: me } = useMe();
   const isSuperuser = me?.is_superuser || false;
+  const { hasSingleHotel, singleHotelId } = useUserHotels();
   
   // Permisos para el menú principal
   const hasViewDashboard = usePermissions("dashboard.view_dashboardmetrics");
@@ -130,6 +133,15 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     "housekeeping.view_housekeepingconfig",
     "housekeeping.change_housekeepingconfig",
   ]);
+
+  // Configuración de housekeeping para el hotel único (si aplica) para saber si usa checklists avanzados
+  const { results: hkSidebarConfig } = useAction({
+    resource: 'housekeeping/config',
+    action: hasSingleHotel && singleHotelId ? `by-hotel/${singleHotelId}` : undefined,
+    enabled: hasSingleHotel && !!singleHotelId && hasHousekeepingConfig,
+  });
+
+  const canSeeHousekeepingChecklistsMenu = hasHousekeepingConfig && (hkSidebarConfig?.use_checklists !== false);
   
   // Verificar si tiene algún permiso de configuración
   const hasAnySettings = useHasAnyPermission([
@@ -201,7 +213,6 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
         backgroundPosition: 'left bottom',
       }}
     >
-      {/* Capa de blur y sombreado suave sobre TODO el sidebar */}
       <div
         aria-hidden
         className="pointer-events-none select-none absolute inset-0"
@@ -426,7 +437,9 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                     <Item to="/settings/housekeeping/zones" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.zones.title')}</Item>
                     <Item to="/settings/housekeeping/staff" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.staff.title')}</Item>
                     <Item to="/settings/housekeeping/templates" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.templates.title')}</Item>
-                    <Item to="/settings/housekeeping/checklists" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.checklists.title')}</Item>
+                    {canSeeHousekeepingChecklistsMenu && (
+                      <Item to="/settings/housekeeping/checklists" onMobileClose={onMobileClose} isMobile={isMobile}>{t('housekeeping.checklists.title')}</Item>
+                    )}
                   </div>
                 </div>
               )}

@@ -147,6 +147,7 @@ class HousekeepingConfigSerializer(serializers.ModelSerializer):
             "id",
             "hotel",
             "hotel_name",
+            "use_checklists",
             "enable_auto_assign",
             "create_daily_tasks",
             "daily_generation_time",

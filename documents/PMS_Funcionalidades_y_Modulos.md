@@ -6898,6 +6898,28 @@ Configura la prioridad por defecto para cada tipo de tarea:
 - ✅ Activar/desactivar auto-completado de tareas vencidas
 - ⏰ Minutos de gracia adicionales antes de auto-completar
 
+#### Modo Simple vs Modo Avanzado
+
+El módulo de limpieza puede trabajar en **dos modos**, configurables por hotel:
+
+- **Modo simple (sin checklists detallados)**:
+  - El hotel **no usa checklists** paso a paso.
+  - Cada tarea de limpieza tiene:
+    - Un **tipo** (Diaria, Salida, Mantenimiento).
+    - Una **descripción** (campo “Notas”) donde se detalla qué incluye la limpieza.
+    - Una **duración estimada** calculada desde las plantillas de tareas.
+  - Ideal para hoteles que quieren algo simple: por ejemplo, una plantilla “Limpieza diaria estándar” que dice “hacer cama, cambiar toallas, limpiar baño, reponer amenities” y dura 60–90 minutos.
+
+- **Modo avanzado (con checklists)**:
+  - Además de lo anterior, el hotel define **checklists detallados** por tipo de habitación y tipo de tarea.
+  - El personal ve una lista tildable (checklist) con cada paso (“cambiar sábanas”, “limpiar ducha”, etc.) y marca lo que fue completando.
+  - Ideal para hoteles que necesitan control de calidad más fino y trazabilidad.
+
+En ambos modos, las **plantillas de tareas** son el “cerebro” que define qué incluye cada tipo de limpieza y cuánto debería durar, pero:
+
+- En **modo simple** se recomiendan plantillas **consolidadas** (una por limpieza diaria, una por salida, etc.).
+- En **modo avanzado** se recomiendan plantillas **granulares**, sumadas a los checklists.
+
 ### Flujos de Trabajo
 
 #### Flujo de Checkout

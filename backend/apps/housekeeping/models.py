@@ -182,6 +182,11 @@ class HousekeepingConfig(models.Model):
     # Asignación
     prefer_by_zone = models.BooleanField(default=True)
     rebalance_every_minutes = models.PositiveIntegerField(default=5)
+    # Modo de uso
+    use_checklists = models.BooleanField(
+        default=True,
+        help_text="Si está activo, las tareas usarán checklists detallados. Si está desactivado, solo se usará descripción general."
+    )
     # Prioridades
     checkout_priority = models.PositiveIntegerField(default=2)
     daily_priority = models.PositiveIntegerField(default=1)

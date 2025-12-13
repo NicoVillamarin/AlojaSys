@@ -8,6 +8,7 @@ import { useUserHotels } from 'src/hooks/useUserHotels'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import SelectStandalone from 'src/components/selects/SelectStandalone'
 import ChecklistDetailModal from 'src/components/modals/ChecklistDetailModal'
+import HousekeepingTaskDetailModal from 'src/components/modals/HousekeepingTaskDetailModal'
 import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
 
@@ -59,6 +60,8 @@ export default function HousekeepingHistorical() {
   })
   const [showChecklistDetail, setShowChecklistDetail] = useState(false)
   const [selectedChecklistId, setSelectedChecklistId] = useState(null)
+  const [showTaskDetail, setShowTaskDetail] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState(null)
 
   const listParams = useMemo(
     () => ({
@@ -112,6 +115,15 @@ export default function HousekeepingHistorical() {
           setSelectedChecklistId(null)
         }}
         checklistId={selectedChecklistId}
+      />
+
+      <HousekeepingTaskDetailModal
+        isOpen={showTaskDetail}
+        onClose={() => {
+          setShowTaskDetail(false)
+          setSelectedTaskId(null)
+        }}
+        taskId={selectedTaskId}
       />
 
       <Filter>
@@ -264,7 +276,23 @@ export default function HousekeepingHistorical() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
-          { key: 'id', header: 'ID', sortable: true, render: (r) => `Tarea N° ${r.id}` },
+          {
+            key: 'id',
+            header: 'ID',
+            sortable: true,
+            render: (r) => (
+              <button
+                type="button"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                onClick={() => {
+                  setSelectedTaskId(r.id)
+                  setShowTaskDetail(true)
+                }}
+              >
+                {`Tarea N° ${r.id}`}
+              </button>
+            ),
+          },
           { key: 'hotel', header: t('common.hotel'), sortable: true, render: (r) => r.hotel_name || r.hotel },
           { key: 'room', header: t('housekeeping.room'), sortable: true, render: (r) => r.room_name || r.room },
           {

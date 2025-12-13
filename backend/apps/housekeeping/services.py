@@ -382,7 +382,12 @@ class TaskGeneratorService:
 
             # Obtener checklist relevante si está habilitado
             checklist = None
-            if use_checklist:
+            # Respetar configuración del hotel: si use_checklists está desactivado, no asignar checklist
+            effective_use_checklist = use_checklist
+            if hasattr(config, "use_checklists") and config.use_checklists is False:
+                effective_use_checklist = False
+
+            if effective_use_checklist:
                 checklist = cls.find_relevant_checklist(
                     hotel=hotel,
                     room_type=room.room_type,

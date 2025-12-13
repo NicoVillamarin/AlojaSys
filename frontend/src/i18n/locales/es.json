@@ -390,10 +390,12 @@
     "config": {
       "title": "Horarios y Configuración",
       "settings": "Configuración del Hotel",
-      "manage_resources": "Gestionar Recursos",
-      "manage_zones_desc": "Configurar zonas y pisos",
-      "manage_templates_desc": "Crear plantillas de tareas",
-      "manage_checklists_desc": "Gestionar checklists",
+      "manage_resources": "Gestionar recursos",
+      "manage_zones_desc": "Configurar sectores de limpieza (pisos, alas) para distribuir mejor el trabajo.",
+      "manage_templates_desc": "Definir qué incluye cada tipo de limpieza y su duración estimada por tipo de habitación.",
+      "manage_checklists_desc": "Configurar la lista de pasos que verá el personal para marcar como completados en cada tarea.",
+      "mode": "Modo de uso",
+      "mode_help": "Define si tu hotel usa un flujo simple o avanzado para housekeeping.\n\n• Modo simple: no usa checklists, solo tareas con descripción y duración estimada.\n• Modo avanzado: permite checklists detallados por tipo de tarea y habitación.",
       "automation": "Automatización",
       "automation_help": "Configura cómo el sistema genera y asigna tareas automáticamente.\n\n• Asignación automática: El sistema busca el mejor personal disponible según horarios, turnos y carga de trabajo.\n• Generar para todas las habitaciones: Crea tareas diarias incluso para habitaciones vacías (útil para mantenimiento preventivo).\n• Hora de generación: El sistema respeta la zona horaria de tu hotel para generar tareas a la hora local correcta.",
       "service_rules": "Reglas de Servicio",
@@ -1177,8 +1179,8 @@
     "enabled_for_operation": "Habilitado para operar",
     "auto_check_in_enabled": "Auto check-in al llegar la fecha de entrada",
     "auto_check_out_enabled": "Auto check-out al pasar la fecha de salida",
-    "auto_no_show_enabled": "Auto no-show para reservas vencidas",
-    "housekeeping": {
+      "auto_no_show_enabled": "Auto no-show para reservas vencidas",
+      "housekeeping": {
       "title": "Limpieza (Housekeeping)",
       "config_note": "Para configurar las opciones de housekeeping, zonas, plantillas y checklists, ve a Configuración > Housekeeping.",
       "enable_auto_assign": "Asignación automática de tareas",
@@ -1205,8 +1207,9 @@
       "auto_complete_overdue": "Auto-completar tareas vencidas",
       "overdue_grace_minutes": "Tiempo de gracia para auto-completar (minutos)",
       "overdue_grace_help": "Minutos adicionales después del tiempo máximo antes de auto-completar la tarea",
-      "save_config": "Guardar configuración"
-    },
+      "save_config": "Guardar configuración",
+      "use_checklists": "Usar checklists detallados (modo avanzado)"
+      },
     "whatsapp_settings": "Configuración de WhatsApp",
     "whatsapp_enabled": "Habilitar chatbot de WhatsApp",
     "whatsapp_phone": "Número de WhatsApp",

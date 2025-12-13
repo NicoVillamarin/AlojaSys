@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
 import AlertSwal from 'src/components/AlertSwal'
 import InputText from 'src/components/inputs/InputText'
+import InputDocument from 'src/components/inputs/InputDocument'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import DatePickedRange from 'src/components/DatePickedRange'
 import { useCreate } from 'src/hooks/useCreate'
@@ -293,12 +294,13 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   // Limpiar selección de habitación cuando cambie el hotel
   useEffect(() => {
     if (formikRef.current) {
-      const { values, setFieldValue } = formikRef.current
+      const { values, setFieldValue, setFieldTouched } = formikRef.current
 
       // Si cambió el hotel, limpiar habitación
       if (values.hotel !== (reservation?.hotel ?? '')) {
         setFieldValue('room', '')
         setFieldValue('room_data', null)
+        setFieldTouched('room', false, false)
       }
     }
   }, [reservation?.hotel])
@@ -408,19 +410,45 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       }),
     room: Yup.number().required(t('reservations_modal.room_required')),
     // Validación del huésped principal
-    guest_name: Yup.string().required(t('reservations_modal.guest_name_required')),
+    guest_name: Yup.string()
+      .trim()
+      .min(2, t('reservations_modal.guest_name_required'))
+      .matches(/^[\p{L}\p{M}.'\- ]+$/u, t('reservations_modal.guest_name_required'))
+      .required(t('reservations_modal.guest_name_required')),
     guest_email: Yup.string().email(t('reservations_modal.guest_email_invalid')).required(t('reservations_modal.guest_email_required')),
-    guest_phone: Yup.string().required(t('reservations_modal.guest_phone_required')),
-    guest_document: Yup.string().required(t('reservations_modal.guest_document_required')),
-    contact_address: Yup.string().required(t('reservations_modal.contact_address_required')),
+    guest_phone: Yup.string()
+      .trim()
+      .matches(/^[0-9()+\-.\s]{6,20}$/, t('reservations_modal.guest_phone_required'))
+      .required(t('reservations_modal.guest_phone_required')),
+    guest_document: Yup.string()
+      .trim()
+      .matches(/^\d{6,15}$/, t('reservations_modal.guest_document_required')) // Solo dígitos, 6-15 caracteres
+      .required(t('reservations_modal.guest_document_required')),
+    contact_address: Yup.string()
+      .trim()
+      .min(5, t('reservations_modal.contact_address_required'))
+      .required(t('reservations_modal.contact_address_required')),
     // Validación de otros huéspedes
     other_guests: Yup.array().of(
       Yup.object({
-        name: Yup.string().required(t('reservations_modal.other_guests_name_required')),
-        document: Yup.string().required(t('reservations_modal.other_guests_document_required')),
+        name: Yup.string()
+          .trim()
+          .min(2, t('reservations_modal.other_guests_name_required'))
+          .matches(/^[\p{L}\p{M}.'\- ]+$/u, t('reservations_modal.other_guests_name_required'))
+          .required(t('reservations_modal.other_guests_name_required')),
+        document: Yup.string()
+          .trim()
+          .matches(/^\d{6,15}$/, t('reservations_modal.other_guests_document_required')) // Solo dígitos, 6-15 caracteres
+          .required(t('reservations_modal.other_guests_document_required')),
         email: Yup.string().email(t('reservations_modal.other_guests_email_invalid')).required(t('reservations_modal.other_guests_email_required')),
-        phone: Yup.string().required(t('reservations_modal.other_guests_phone_required')),
-        address: Yup.string().required(t('reservations_modal.other_guests_address_required')),
+        phone: Yup.string()
+          .trim()
+          .matches(/^[0-9()+\-.\s]{6,20}$/, t('reservations_modal.other_guests_phone_required'))
+          .required(t('reservations_modal.other_guests_phone_required')),
+        address: Yup.string()
+          .trim()
+          .min(5, t('reservations_modal.other_guests_address_required'))
+          .required(t('reservations_modal.other_guests_address_required')),
       })
     ),
   })
@@ -664,9 +692,9 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       validationSchema={validationSchema}
       onSubmit={() => { }}
     >
-      {({ values, setFieldValue, errors, touched }) => {
+      {({ values, setFieldValue, setFieldTouched, errors, touched }) => {
         // Guardar referencia a Formik para helpers del footer
-        formikRef.current = { values, setFieldValue, errors, touched }
+        formikRef.current = { values, setFieldValue, setFieldTouched, errors, touched }
 
         // Extraer fechas ocupadas de los datos de la habitación
         const { reservationRanges, occupiedNights, arrivalDays } = getOccupiedDates(values.room_data)
@@ -734,6 +762,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
           if (values.guests && values.room_data && values.guests > values.room_data.max_capacity) {
             setFieldValue('room', '')
             setFieldValue('room_data', null)
+            setFieldTouched('room', false, false)
           }
         }
 
@@ -926,6 +955,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
               {activeTab === 'basic' && (
                 <>
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {/* 1. Hotel */}
                     <div>
                       <SelectAsync
                         title={`${t('reservations_modal.hotel')} *`}
@@ -936,67 +966,24 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         getOptionLabel={(h) => h?.name}
                         getOptionValue={(h) => h?.id}
                         value={values.hotel}
-                        onChange={(option) => setFieldValue('hotel', option?.value || null)}
+                        onChange={(option) => {
+                          setFieldValue('hotel', option?.value || null)
+                          // Limpiar habitación y fechas cuando cambia el hotel
+                          setFieldValue('room', '')
+                          setFieldValue('room_data', null)
+                          setFieldValue('date_range', { startDate: '', endDate: '' })
+                          setFieldValue('check_in', '')
+                          setFieldValue('check_out', '')
+                          // Limpiar el estado touched de los campos
+                          setFieldTouched('room', false, false)
+                          setFieldTouched('check_in', false, false)
+                          setFieldTouched('check_out', false, false)
+                        }}
                         error={touched.hotel && errors.hotel}
                       />
                     </div>
 
-                    <div>
-                      <InputText
-                        title={`${t('reservations_modal.guests_number')} *`}
-                        name='guests'
-                        type='number'
-                        min='1'
-                        max={values.room_data?.max_capacity || 10}
-                        placeholder='Ej: 2'
-                        value={values.guests}
-                        onChange={(e) => setFieldValue('guests', Number(e.target.value))}
-                        error={touched.guests && errors.guests}
-                      />
-                    </div>
-                    <div>
-                      <SelectAsync
-                        title={`${t('reservations_modal.room')} *`}
-                        name='room'
-                        resource='rooms'
-                        placeholder={
-                          !values.hotel
-                            ? t('reservations_modal.room_placeholder_no_hotel')
-                            : values.guests
-                              ? t('reservations_modal.room_placeholder_with_guests', { 
-                                  guests: values.guests, 
-                                  plural: values.guests > 1 ? 'es' : '' 
-                                })
-                              : t('reservations_modal.room_placeholder_loading')
-                        }
-                        getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
-                        getOptionValue={(r) => r?.id}
-                        extraParams={{
-                          hotel: values.hotel || undefined,
-                          min_capacity: getEffectiveGuests(values) || undefined,
-                        }}
-                        value={values.room}
-                        onValueChange={(option) => {
-                          setFieldValue('room', option?.id || null)
-                          setFieldValue('room_data', option || null)
-                        }}
-                        error={touched.room && errors.room}
-                        disabled={!values.hotel || getEffectiveGuests(values) === 0}
-                      />
-                      {values.guests && values.hotel && (
-                        <div className="text-xs text-blue-600 mt-1">
-                          💡 {t('reservations_modal.capacity_filter_info', { 
-                            guests: values.guests, 
-                            plural: values.guests > 1 ? 'es' : '' 
-                          })}
-                        </div>
-                      )}
-                      {values.room_data && (
-                        <div className="text-xs text-gray-600 mt-1">
-                          {t('reservations_modal.capacity_info', { max: values.room_data.max_capacity })}
-                        </div>
-                      )}
-                    </div>
+                    {/* 2. Fechas de estadía */}
                     <div>
                       <DatePickedRange
                         label="Fechas de estadía *"
@@ -1010,6 +997,11 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                           setFieldValue('date_range', { startDate, endDate })
                           setFieldValue('check_in', startDate)
                           setFieldValue('check_out', endDate)
+                          // Limpiar habitación cuando cambian las fechas
+                          setFieldValue('room', '')
+                          setFieldValue('room_data', null)
+                          // Limpiar el estado touched del campo room
+                          setFieldTouched('room', false, false)
                         }}
                         onApply={(startISO, endISO) => {
                           try {
@@ -1045,6 +1037,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         placeholder="Check-in — Check-out"
                         inputClassName="w-full"
                         containerClassName=""
+                        disabled={!values.hotel}
                       />
                       <div className="text-xs text-gray-500 mt-1">
                         💡 La primera fecha es el <strong>check-in</strong> y la segunda el <strong>check-out</strong>
@@ -1052,6 +1045,98 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                           <span className="text-red-600 ml-2">🚫 {occupiedNights.length} noche(s) ocupada(s)</span>
                         )}
                       </div>
+                    </div>
+
+                    {/* 3. Cantidad de huéspedes */}
+                    <div>
+                      <InputText
+                        title={`${t('reservations_modal.guests_number')} *`}
+                        name='guests'
+                        type='number'
+                        min='1'
+                        max={values.room_data?.max_capacity || 10}
+                        placeholder='Ej: 2'
+                        value={values.guests}
+                        onChange={(e) => {
+                          const newGuests = Number(e.target.value)
+                          setFieldValue('guests', newGuests)
+                          // Limpiar habitación si la nueva cantidad excede la capacidad de la habitación actual
+                          if (values.room_data && newGuests > values.room_data.max_capacity) {
+                            setFieldValue('room', '')
+                            setFieldValue('room_data', null)
+                            // Limpiar el estado touched del campo room
+                            setFieldTouched('room', false, false)
+                          }
+                        }}
+                        error={touched.guests && errors.guests}
+                        disabled={!values.hotel || !values.date_range?.startDate || !values.date_range?.endDate}
+                      />
+                      {!values.date_range?.startDate || !values.date_range?.endDate ? (
+                        <div className="text-xs text-gray-500 mt-1">
+                          💡 Primero seleccioná las fechas de estadía
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* 4. Habitación */}
+                    <div>
+                      <SelectAsync
+                        title={`${t('reservations_modal.room')} *`}
+                        name='room'
+                        resource='rooms'
+                        placeholder={
+                          !values.hotel
+                            ? t('reservations_modal.room_placeholder_no_hotel')
+                            : !values.date_range?.startDate || !values.date_range?.endDate
+                            ? 'Primero seleccioná las fechas de estadía'
+                            : !getEffectiveGuests(values) || getEffectiveGuests(values) === 0
+                            ? 'Primero ingresá la cantidad de huéspedes'
+                            : t('reservations_modal.room_placeholder_with_guests', { 
+                                guests: values.guests, 
+                                plural: values.guests > 1 ? 'es' : '' 
+                              })
+                        }
+                        getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
+                        getOptionValue={(r) => r?.id}
+                        extraParams={{
+                          hotel: values.hotel || undefined,
+                          min_capacity: getEffectiveGuests(values) || undefined,
+                          check_in: values.date_range?.startDate || values.check_in || undefined,
+                          check_out: values.date_range?.endDate || values.check_out || undefined,
+                        }}
+                        value={values.room}
+                        onValueChange={(option) => {
+                          const roomId = option?.id || null
+                          setFieldValue('room', roomId)
+                          setFieldValue('room_data', option || null)
+                          // Marcar el campo como touched cuando se selecciona una habitación
+                          if (roomId) {
+                            setFieldTouched('room', true, false)
+                          } else {
+                            setFieldTouched('room', false, false)
+                          }
+                        }}
+                        error={touched.room && errors.room}
+                        disabled={
+                          !values.hotel || 
+                          !values.date_range?.startDate || 
+                          !values.date_range?.endDate || 
+                          getEffectiveGuests(values) === 0
+                        }
+                      />
+                      {values.guests && values.hotel && (values.date_range?.startDate && values.date_range?.endDate) && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          💡 {t('reservations_modal.capacity_filter_info', { 
+                            guests: values.guests, 
+                            plural: values.guests > 1 ? 'es' : '' 
+                          })} - Filtrando habitaciones disponibles para las fechas seleccionadas
+                        </div>
+                      )}
+                      {values.room_data && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {t('reservations_modal.capacity_info', { max: values.room_data.max_capacity })}
+                        </div>
+                      )}
                     </div>
                   </div>
 

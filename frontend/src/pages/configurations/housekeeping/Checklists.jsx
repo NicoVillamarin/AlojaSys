@@ -64,6 +64,9 @@ export default function Checklists() {
         <div>
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.configuration')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">{t('housekeeping.checklists.title')}</h1>
+          <p className="mt-1 text-xs text-aloja-gray-800/70">
+            {t('housekeeping.config.manage_checklists_desc')}
+          </p>
         </div>
         <Button variant="primary" size="md" onClick={() => { setEditChecklist(null); setShowModal(true); }}>
           {t('housekeeping.checklists.new_checklist')}
