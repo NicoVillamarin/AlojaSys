@@ -105,12 +105,19 @@ class WhatsappWebhookView(APIView):
 
             from_number = msg.get("from")
             metadata = value.get("metadata") or {}
-            to_number = metadata.get("display_phone_number") or metadata.get("phone_number_id")
+            display_phone_number = metadata.get("display_phone_number")
+            phone_number_id = metadata.get("phone_number_id")
+            # `display_phone_number` es el número de WhatsApp del negocio (útil para mapear por número).
+            # `phone_number_id` es el identificador interno del número (útil para mapear de forma robusta
+            # incluso cuando Meta envía payloads de prueba con números "dummy").
+            to_number = display_phone_number or phone_number_id
 
             return {
                 "from": from_number,
                 "to": to_number,
                 "message": text,
+                "display_phone_number": display_phone_number,
+                "phone_number_id": phone_number_id,
             }
         except Exception as exc:  # pragma: no cover - defensivo
             logger.error("Error normalizando payload Meta WhatsApp: %s payload=%s", exc, payload, exc_info=True)

@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.chatbot.models import ChatSession, ChatbotProviderAccount
@@ -47,6 +48,7 @@ class WhatsappChatbotService:
             payload.get("from") or payload.get("sender") or payload.get("contact")
         )
         to_number = self._normalize_phone(payload.get("to") or payload.get("receiver"))
+        phone_number_id = (payload.get("phone_number_id") or "").strip() or None
         message_text = (payload.get("message") or payload.get("body") or "").strip()
 
         if not (from_number and to_number):
@@ -56,9 +58,13 @@ class WhatsappChatbotService:
                 "reply": "No pudimos identificar el remitente. Intentalo nuevamente más tarde.",
             }
 
-        hotel = self._resolve_hotel(to_number)
+        hotel = self._resolve_hotel(to_number, phone_number_id=phone_number_id)
         if not hotel:
-            logger.warning("WhatsApp entrante sin hotel configurado. to=%s", to_number)
+            logger.warning(
+                "WhatsApp entrante sin hotel configurado. to=%s phone_number_id=%s",
+                to_number,
+                phone_number_id,
+            )
             return {
                 "ok": False,
                 "reply": "Este número no tiene WhatsApp configurado en AlojaSys.",
@@ -358,8 +364,22 @@ class WhatsappChatbotService:
             digits = "+" + digits
         return digits
 
-    def _resolve_hotel(self, phone_number: Optional[str]) -> Optional[Hotel]:
+    def _resolve_hotel(
+        self, phone_number: Optional[str], phone_number_id: Optional[str] = None
+    ) -> Optional[Hotel]:
         if not phone_number:
+            # En algunos payloads de Meta (por ejemplo tests) puede no venir el "to" real.
+            # Permitimos resolver por phone_number_id cuando está disponible.
+            if phone_number_id:
+                return (
+                    Hotel.objects.filter(whatsapp_enabled=True)
+                    .filter(
+                        Q(whatsapp_phone_number_id=phone_number_id)
+                        | Q(whatsapp_provider_account__phone_number_id=phone_number_id)
+                    )
+                    .order_by("id")
+                    .first()
+                )
             return None
         normalized_target = self._normalize_phone(phone_number)
         if not normalized_target:
@@ -369,6 +389,22 @@ class WhatsappChatbotService:
         for candidate in direct_hotels:
             if self._normalize_phone(candidate.whatsapp_phone) == normalized_target:
                 return candidate
+
+        # Fallback: si tenemos phone_number_id, resolvemos por el identificador interno.
+        # Esto es más robusto que el display_phone_number y también permite soportar
+        # payloads de prueba de Meta.
+        if phone_number_id:
+            hotel = (
+                Hotel.objects.filter(whatsapp_enabled=True)
+                .filter(
+                    Q(whatsapp_phone_number_id=phone_number_id)
+                    | Q(whatsapp_provider_account__phone_number_id=phone_number_id)
+                )
+                .order_by("id")
+                .first()
+            )
+            if hotel:
+                return hotel
 
         accounts = ChatbotProviderAccount.objects.filter(is_active=True).exclude(phone_number="")
         for account in accounts:
