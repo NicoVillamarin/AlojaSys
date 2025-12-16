@@ -196,6 +196,12 @@ LOGGING = {
         },
     },
     'loggers': {
+        # WhatsApp / Chatbot (necesario para ver logs del webhook en producción)
+        'apps.chatbot': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'apps.invoicing.services.afip_auth_service': {
             'handlers': ['console'],
             'level': 'INFO',
