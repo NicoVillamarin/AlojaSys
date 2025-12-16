@@ -51,6 +51,31 @@ class WhatsappChatbotService:
         phone_number_id = (payload.get("phone_number_id") or "").strip() or None
         message_text = (payload.get("message") or payload.get("body") or "").strip()
 
+        # --------------------------------------------------------------
+        # Meta "Webhook test" (payload de ejemplo con IDs dummy)
+        # --------------------------------------------------------------
+        # El test de Meta suele enviar:
+        # - phone_number_id=123456123
+        # - display_phone_number=16505551111
+        # - from=16315551181
+        # - body="this is a text message"
+        #
+        # Esos valores NO son un número real conectado a tu WABA, por lo que
+        # no se puede (ni se debe) intentar responder vía Graph API.
+        if (
+            (phone_number_id == "123456123" or to_number == "+16505551111")
+            and from_number == "+16315551181"
+            and message_text.lower() == "this is a text message"
+        ):
+            logger.info(
+                "Webhook Meta (TEST) recibido. Se ignora para evitar respuestas a IDs dummy. "
+                "to=%s phone_number_id=%s from=%s",
+                to_number,
+                phone_number_id,
+                from_number,
+            )
+            return {"ok": True, "ignored": True, "reason": "meta_webhook_test"}
+
         # En webhooks reales de Meta, a veces el "to" puede venir como display_phone_number o faltar
         # en ciertos tests; permitimos identificar el número por `phone_number_id`.
         if not from_number or (not to_number and not phone_number_id):
@@ -61,7 +86,14 @@ class WhatsappChatbotService:
 
         hotel = self._resolve_hotel(to_number, phone_number_id=phone_number_id)
         if not hotel:
-            logger.warning(
+            # Meta "Webhook test" suele usar valores dummy (por ejemplo +16505551111 / 123456123).
+            # En ese caso, lo registramos como info para no confundir con un problema real.
+            is_meta_dummy_test = (
+                (to_number == "+16505551111")
+                or (phone_number_id == "123456123")
+            )
+            log_fn = logger.info if is_meta_dummy_test else logger.warning
+            log_fn(
                 "WhatsApp entrante sin hotel configurado. to=%s phone_number_id=%s",
                 to_number,
                 phone_number_id,

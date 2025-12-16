@@ -1213,6 +1213,7 @@
     "whatsapp_settings": "Configuración de WhatsApp",
     "whatsapp_enabled": "Habilitar chatbot de WhatsApp",
     "whatsapp_phone": "Número de WhatsApp",
+    "whatsapp_phone_help": "Este es el número del negocio (hotel) conectado al proveedor. No es tu número personal ni el del huésped. En Meta Sandbox, el test de webhook puede mostrar números/IDs “dummy” y no debe usarse para configurar este campo.",
     "whatsapp_provider": "Proveedor",
     "whatsapp_business_id": "Business ID",
     "whatsapp_phone_number_id": "Phone Number ID",

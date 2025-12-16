@@ -104,15 +104,20 @@ const WhatsappModal = ({ isOpen, onClose, hotel, onSuccess }) => {
 
               {values.whatsapp_enabled && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <InputText
-                    title={t('hotels_modal.whatsapp_phone')}
-                    name="whatsapp_phone"
-                    placeholder="+15550123075"
-                    value={values.whatsapp_phone}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    error={touched.whatsapp_phone && errors.whatsapp_phone}
-                  />
+                  <div className="md:col-span-2">
+                    <InputText
+                      title={t('hotels_modal.whatsapp_phone')}
+                      name="whatsapp_phone"
+                      placeholder="+1 555 012 3075"
+                      value={values.whatsapp_phone}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      error={touched.whatsapp_phone && errors.whatsapp_phone}
+                    />
+                    <p className="mt-1 text-xs text-aloja-gray-800/60">
+                      {t('hotels_modal.whatsapp_phone_help')}
+                    </p>
+                  </div>
 
                   <SelectBasic
                     title={t('hotels_modal.whatsapp_provider')}
