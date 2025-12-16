@@ -422,15 +422,13 @@ use_resend_default = bool(RESEND_API_KEY) if RESEND_API_KEY else False
 USE_RESEND_API = config('USE_RESEND_API', default=use_resend_default, cast=bool)
 
 # Log informativo sobre configuración de email
+# Nota: evitamos prints/emoji para no romper en Windows (cp1252) y durante tests.
 if USE_RESEND_API and RESEND_API_KEY:
-    print(f"[EMAIL] ✅ Resend API habilitado (funciona en local y producción)")
-    logger.info("Resend API habilitado para envío de emails")
+    logger.info("EMAIL: Resend API habilitado (funciona en local y producción)")
 elif RESEND_API_KEY and not USE_RESEND_API:
-    print(f"[EMAIL] ⚠️ RESEND_API_KEY configurada pero USE_RESEND_API=False")
-    logger.warning("RESEND_API_KEY configurada pero USE_RESEND_API=False")
+    logger.warning("EMAIL: RESEND_API_KEY configurada pero USE_RESEND_API=False")
 elif not RESEND_API_KEY:
-    print(f"[EMAIL] ℹ️ Resend API no configurado, usando backend de Django")
-    logger.info("Resend API no configurado, usando backend de Django")
+    logger.info("EMAIL: Resend API no configurado, usando backend de Django")
 
 # Para producción, usar SMTP solo si está permitido por la plataforma
 EMAIL_USE_SMTP = config('EMAIL_USE_SMTP', default=False, cast=bool)
@@ -445,22 +443,18 @@ if EMAIL_USE_SMTP:
     # Timeout explícito para evitar que email.send() quede colgado indefinidamente
     EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
     
-    print(
-        f"[EMAIL] ✅ Configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, "
-        f"TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, "
-        f"Timeout={EMAIL_TIMEOUT}s"
-    )
     logger.info(
-        f"EMAIL configurado para SMTP: {EMAIL_HOST}:{EMAIL_PORT}, "
-        f"TLS={EMAIL_USE_TLS}, User={EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else 'N/A'}***, "
-        f"Timeout={EMAIL_TIMEOUT}s"
+        "EMAIL: Configurado para SMTP: %s:%s, TLS=%s, User=%s***, Timeout=%ss",
+        EMAIL_HOST,
+        EMAIL_PORT,
+        EMAIL_USE_TLS,
+        (EMAIL_HOST_USER[:3] if EMAIL_HOST_USER else "N/A"),
+        EMAIL_TIMEOUT,
     )
 else:
-    print(f"[EMAIL] ⚠️ EMAIL_USE_SMTP=False. Backend: {EMAIL_BACKEND}")
     if not DEBUG:
-        print("[EMAIL] ⚠️ ADVERTENCIA: En producción sin SMTP, los emails NO se enviarán a través de SMTP.")
         logger.warning(
-            "⚠️ EMAIL_USE_SMTP=False en producción. Los emails NO se enviarán por SMTP; "
+            "EMAIL: EMAIL_USE_SMTP=False en producción. Los emails NO se enviarán por SMTP; "
             "usa Resend HTTP API (USE_RESEND_API=True) para envíos reales."
         )
     else:

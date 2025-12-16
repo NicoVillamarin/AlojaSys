@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     "apps.payments",
     "apps.notifications",
     "apps.calendar",
+    "apps.chatbot",
+    "apps.otas",
 ]
 
 MIDDLEWARE = [
@@ -53,7 +55,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "hotel.urls"
+ROOT_URLCONF = "test_urls"
 
 TEMPLATES = [
     {

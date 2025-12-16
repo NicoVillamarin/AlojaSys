@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, Optional
 
 from django.core.exceptions import ValidationError
@@ -23,6 +23,7 @@ from apps.reservations.serializers import ReservationSerializer
 from apps.reservations.services.pricing import (
     generate_nights_for_reservation,
     recalc_reservation_totals,
+    quote_reservation_total,
 )
 from apps.rooms.models import Room, RoomStatus
 
@@ -134,14 +135,6 @@ class WhatsappChatbotService:
                 "state": session.state,
             }
 
-        # Salir cordialmente cuando ya se completó
-        if session.state == ChatSession.State.COMPLETED and normalized_message in {"gracias", "muchas gracias"}:
-            return {
-                "ok": True,
-                "reply": "De nada, un placer ayudarte. Si querés hacer otra reserva, solo escribí 'nueva reserva'.",
-                "state": session.state,
-            }
-
         if not message_text:
             return {
                 "ok": True,
@@ -171,6 +164,7 @@ class WhatsappChatbotService:
             ChatSession.State.ASKING_GUEST_NAME: self._handle_guest_name,
             ChatSession.State.ASKING_GUEST_EMAIL: self._handle_guest_email,
             ChatSession.State.CONFIRMATION: self._handle_confirmation,
+            ChatSession.State.COMPLETED: self._handle_completed,
         }
         handler = handlers.get(session.state)
         if not handler:
@@ -181,6 +175,27 @@ class WhatsappChatbotService:
                 f"Recuerda el formato {self.DATE_FORMAT_HINT}."
             )
         return handler(session, message_text)
+
+    def _handle_completed(self, session: ChatSession, message_text: str) -> str:
+        """
+        Cuando la conversación ya finalizó, evitamos "reiniciar" automáticamente.
+        Guiamos al huésped para iniciar una nueva solicitud o finalizar.
+        """
+        normalized = (message_text or "").strip().lower()
+        reservation_id = session.context.get("reservation_id")
+        reservation_label = f"Reserva N° {reservation_id}" if reservation_id else "Tu reserva"
+
+        if normalized in {"gracias", "muchas gracias", "ok", "okey", "perfecto"}:
+            return (
+                f"De nada, un placer ayudarte. {reservation_label} ya quedó registrada.\n"
+                "Si querés hacer otra reserva, escribí: nueva reserva."
+            )
+
+        return (
+            f"{reservation_label} ya quedó registrada.\n"
+            "Si querés hacer otra reserva, escribí: nueva reserva.\n"
+            "Si necesitás ayuda, podés responder: ayuda."
+        )
 
     def _handle_checkin(self, session: ChatSession, message_text: str) -> str:
         check_in = self._parse_date(message_text)
@@ -272,10 +287,48 @@ class WhatsappChatbotService:
         guests = session.context.get("guests")
         check_in_str = self._format_date_for_guest(check_in)
         check_out_str = self._format_date_for_guest(check_out)
+
+        # Confirmar disponibilidad y cotizar EXACTO antes de pedir confirmación
+        quote_text = ""
+        if check_in and check_out and guests:
+            room = self._find_available_room(session.hotel, check_in, check_out, int(guests))
+            if not room:
+                self._restart_session(session)
+                return (
+                    "Por el momento no encontré disponibilidad automática para esas fechas.\n"
+                    "Probemos con otras fechas: ¿cuál sería tu check-in?"
+                )
+
+            quote = quote_reservation_total(
+                hotel=session.hotel,
+                room=room,
+                guests=int(guests),
+                check_in=check_in,
+                check_out=check_out,
+                channel=ReservationChannel.WHATSAPP,
+                promotion_code=(session.context or {}).get("promotion_code"),
+                voucher_code=(session.context or {}).get("voucher_code"),
+            )
+            total = quote.get("total")
+            nights_count = quote.get("nights_count") or 0
+            if total is not None and nights_count:
+                total_label = f"$ {float(total):,.2f}"
+                session.context = {
+                    **(session.context or {}),
+                    "quote_total": str(total),
+                    "quote_nights": nights_count,
+                }
+                session.save(update_fields=["context", "updated_at"])
+                quote_text = (
+                    f"\nTotal exacto ({nights_count} noche(s)): {total_label}.\n"
+                    "Incluye las tarifas/reglas/impuestos configurados en el sistema."
+                )
+
         summary = (
             f"Perfecto {session.guest_name or ''}. Reservaríamos del "
             f"{check_in_str} al {check_out_str} para {guests} huésped(es). "
-            "¿Confirmás? Responde SI para crear la reserva o NO para reiniciar."
+            f"{quote_text}\n\n"
+            "¿Confirmás? Respondé SI para crear la reserva o NO para reiniciar."
         )
         return summary
 
@@ -295,15 +348,29 @@ class WhatsappChatbotService:
                 "Un agente del hotel te contactará en breve."
             )
 
+        # Guardamos la reserva en contexto para poder referenciarla luego (post-conversación)
+        session.context = {**(session.context or {}), "reservation_id": reservation.id}
         session.state = ChatSession.State.COMPLETED
         session.is_active = False
         session.last_message_at = timezone.now()
-        session.save(update_fields=["state", "is_active", "last_message_at", "updated_at"])
+        session.save(update_fields=["context", "state", "is_active", "last_message_at", "updated_at"])
+
+        check_in = self._get_context_date(session, "check_in")
+        check_out = self._get_context_date(session, "check_out")
+        check_in_str = self._format_date_for_guest(check_in)
+        check_out_str = self._format_date_for_guest(check_out)
+        hotel_name = getattr(session.hotel, "name", "") or "el hotel"
 
         return (
-            f"Listo! Creamos la reserva #{reservation.id} en estado pendiente. "
-            "El equipo del hotel se comunicará para confirmar el pago."
+            "¡Listo! Tu reserva quedó registrada.\n"
+            f"Reserva N° {reservation.id}\n"
+            f"Hotel: {hotel_name}\n"
+            f"Fechas: {check_in_str} al {check_out_str}\n\n"
+            "En breve te confirmamos disponibilidad y próximos pasos. "
+            "Si querés hacer otra reserva, escribí: nueva reserva."
         )
+
+    # Nota: eliminamos la estimación "aproximada" y usamos cotización exacta vía pricing engine.
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -355,9 +422,156 @@ class WhatsappChatbotService:
         )
 
     def _parse_date(self, message_text: str) -> Optional[date]:
-        cleaned = message_text.strip()
-        # soportamos AAAA-MM-DD y DD/MM/AAAA
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        """
+        Intenta extraer una fecha desde texto libre.
+
+        Soporta:
+        - AAAA-MM-DD (ISO) dentro del texto
+        - DD/MM/AAAA y DD-MM-AAAA dentro del texto
+        - DD/MM (sin año): asume el año actual o el próximo si ya pasó
+        - "17 de diciembre de 2025" (mes en español, con/sin "de", con/sin año)
+        - "mañana" / "pasado mañana"
+        """
+        if not message_text:
+            return None
+
+        text = (message_text or "").strip()
+        if not text:
+            return None
+
+        lower = text.lower()
+        today = date.today()
+
+        # Relativos comunes
+        if "pasado mañana" in lower or "pasado manana" in lower:
+            return today + timedelta(days=2)
+        if "mañana" in lower or "manana" in lower:
+            return today + timedelta(days=1)
+
+        # 1) ISO (AAAA-MM-DD o AAAA/MM/DD) en cualquier parte del texto
+        iso_match = re.search(r"\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b", lower)
+        if iso_match:
+            y, m, d = (int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)))
+            try:
+                return date(y, m, d)
+            except ValueError:
+                pass
+
+        # 2) Numérico D/M/Y con separadores / o - (DD/MM/AAAA, DD-MM-AAAA)
+        dmy_match = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", lower)
+        if dmy_match:
+            d, m, y_raw = int(dmy_match.group(1)), int(dmy_match.group(2)), int(dmy_match.group(3))
+            y = (2000 + y_raw) if y_raw < 100 else y_raw
+            try:
+                return date(y, m, d)
+            except ValueError:
+                pass
+
+        # 3) Numérico D/M sin año (DD/MM o DD-MM)
+        dm_match = re.search(r"\b(\d{1,2})[/-](\d{1,2})\b", lower)
+        if dm_match:
+            d, m = int(dm_match.group(1)), int(dm_match.group(2))
+            y = today.year
+            try:
+                candidate = date(y, m, d)
+                if candidate < today:
+                    candidate = date(y + 1, m, d)
+                return candidate
+            except ValueError:
+                pass
+
+        # 4) "17 de diciembre de 2025" (mes en español)
+        month_map = {
+            "enero": 1,
+            "febrero": 2,
+            "marzo": 3,
+            "abril": 4,
+            "mayo": 5,
+            "junio": 6,
+            "julio": 7,
+            "agosto": 8,
+            "septiembre": 9,
+            "setiembre": 9,
+            "octubre": 10,
+            "noviembre": 11,
+            "diciembre": 12,
+        }
+        # Permitimos: "17 de diciembre", "17 diciembre", "17 de diciembre de 2025"
+        month_regex = r"(" + "|".join(month_map.keys()) + r")"
+        m_match = re.search(
+            rf"\b(\d{{1,2}})\s*(?:de\s*)?{month_regex}\s*(?:de\s*)?(\d{{4}})?\b",
+            lower,
+        )
+        if m_match:
+            d = int(m_match.group(1))
+            m_name = m_match.group(2)
+            y_str = m_match.group(3)
+            m = month_map.get(m_name)
+            if m:
+                y = int(y_str) if y_str else today.year
+                try:
+                    candidate = date(y, m, d)
+                    if not y_str and candidate < today:
+                        candidate = date(y + 1, m, d)
+                    return candidate
+                except ValueError:
+                    pass
+
+        # 5) "el 17" / "día 17" (solo día del mes; asumimos mes/año actual o el próximo)
+        day_only = re.search(r"\b(?:el|día|dia)\s+(\d{1,2})\b", lower)
+        if day_only:
+            day = int(day_only.group(1))
+            # buscamos la próxima fecha válida con ese día
+            y = today.year
+            m = today.month
+            for _ in range(0, 14):  # hasta ~14 meses para cubrir edge-cases
+                try:
+                    candidate = date(y, m, day)
+                    if candidate > today:
+                        return candidate
+                except ValueError:
+                    pass
+                m += 1
+                if m > 12:
+                    m = 1
+                    y += 1
+
+        # 6) "este viernes" / "el viernes" / "próximo viernes"
+        weekday_map = {
+            "lunes": 0,
+            "martes": 1,
+            "miercoles": 2,
+            "miércoles": 2,
+            "jueves": 3,
+            "viernes": 4,
+            "sabado": 5,
+            "sábado": 5,
+            "domingo": 6,
+        }
+        wd_match = re.search(
+            r"\b(?:este|esta|el|la|próximo|proximo)\s+(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b",
+            lower,
+        )
+        if wd_match:
+            wd_token = wd_match.group(1)
+            # normalizamos acentos para el dict
+            wd_norm = (
+                wd_token.replace("é", "e")
+                .replace("á", "a")
+                .replace("í", "i")
+                .replace("ó", "o")
+                .replace("ú", "u")
+            )
+            target = weekday_map.get(wd_token) or weekday_map.get(wd_norm)
+            if target is not None:
+                days_ahead = (target - today.weekday() + 7) % 7
+                if days_ahead == 0:
+                    days_ahead = 7
+                return today + timedelta(days=days_ahead)
+
+        # Fallback antiguo: si el texto es SOLO una fecha exacta, probamos formatos clásicos
+        cleaned = text.strip()
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
             try:
                 return datetime.strptime(cleaned, fmt).date()
             except ValueError:
