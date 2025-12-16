@@ -51,12 +51,13 @@ class WhatsappChatbotService:
         phone_number_id = (payload.get("phone_number_id") or "").strip() or None
         message_text = (payload.get("message") or payload.get("body") or "").strip()
 
-        if not (from_number and to_number):
+        # En webhooks reales de Meta, a veces el "to" puede venir como display_phone_number o faltar
+        # en ciertos tests; permitimos identificar el número por `phone_number_id`.
+        if not from_number or (not to_number and not phone_number_id):
             logger.warning("Webhook inválido: faltan números. payload=%s", payload)
-            return {
-                "ok": False,
-                "reply": "No pudimos identificar el remitente. Intentalo nuevamente más tarde.",
-            }
+            # Para proveedores con reintentos (como Meta), es mejor responder 200 y loguear,
+            # evitando que el proveedor reintente indefinidamente por un payload no procesable.
+            return {"ok": True, "ignored": True, "reason": "missing_numbers"}
 
         hotel = self._resolve_hotel(to_number, phone_number_id=phone_number_id)
         if not hotel:
@@ -65,10 +66,10 @@ class WhatsappChatbotService:
                 to_number,
                 phone_number_id,
             )
-            return {
-                "ok": False,
-                "reply": "Este número no tiene WhatsApp configurado en AlojaSys.",
-            }
+            # OJO: el "Webhook test" de Meta suele enviar IDs/números dummy que no coinciden
+            # con ningún hotel. En lugar de responder 400 (que Meta interpreta como fallo),
+            # devolvemos 200 y marcamos el evento como ignorado.
+            return {"ok": True, "ignored": True, "reason": "hotel_not_configured"}
 
         session = self._get_or_create_session(hotel, from_number)
         logger.info(
