@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 class RoomType(models.TextChoices):
     SINGLE = "single", "Single"
@@ -58,3 +59,21 @@ class Room(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.get_room_type_display()}"
+
+    def clean(self):
+        """
+        Mantener consistencia: max_capacity debe ser >= capacity.
+        """
+        super().clean()
+        if self.capacity is not None and self.max_capacity is not None:
+            if self.max_capacity < self.capacity:
+                raise ValidationError({
+                    "max_capacity": "max_capacity no puede ser menor que capacity."
+                })
+
+    def save(self, *args, **kwargs):
+        # Auto-corrección defensiva para datos viejos o formularios incompletos
+        if self.capacity is not None and self.max_capacity is not None:
+            if self.max_capacity < self.capacity:
+                self.max_capacity = self.capacity
+        super().save(*args, **kwargs)

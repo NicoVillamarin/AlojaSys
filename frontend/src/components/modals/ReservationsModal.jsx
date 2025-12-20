@@ -7,7 +7,7 @@ import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
 import AlertSwal from 'src/components/AlertSwal'
 import InputText from 'src/components/inputs/InputText'
-import InputDocument from 'src/components/inputs/InputDocument'
+import LabelsContainer from 'src/components/inputs/LabelsContainer'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import DatePickedRange from 'src/components/DatePickedRange'
 import { useCreate } from 'src/hooks/useCreate'
@@ -37,7 +37,7 @@ import PaymentModal from 'src/components/modals/PaymentModal'
  * - onSuccess?: (data) => void (se llama al crear/editar OK)
  * - initialData?: objeto con datos iniciales (ej: { check_in: '2025-01-15', check_out: '2025-01-17' })
  */
-const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reservation, initialData }) => {
+const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reservation, initialData, lockHotel = false, lockRoom = false }) => {
   const { t } = useTranslation()
   const [modalKey, setModalKey] = useState(0)
   const [activeTab, setActiveTab] = useState('basic')
@@ -294,13 +294,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   // Limpiar selección de habitación cuando cambie el hotel
   useEffect(() => {
     if (formikRef.current) {
-      const { values, setFieldValue, setFieldTouched } = formikRef.current
+      const { values, setFieldValue } = formikRef.current
 
       // Si cambió el hotel, limpiar habitación
       if (values.hotel !== (reservation?.hotel ?? '')) {
         setFieldValue('room', '')
         setFieldValue('room_data', null)
-        setFieldTouched('room', false, false)
       }
     }
   }, [reservation?.hotel])
@@ -422,7 +421,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
       .required(t('reservations_modal.guest_phone_required')),
     guest_document: Yup.string()
       .trim()
-      .matches(/^\d{6,15}$/, t('reservations_modal.guest_document_required')) // Solo dígitos, 6-15 caracteres
+      .matches(/^\d{6,15}$/, t('reservations_modal.guest_document_required'))
       .required(t('reservations_modal.guest_document_required')),
     contact_address: Yup.string()
       .trim()
@@ -438,7 +437,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
           .required(t('reservations_modal.other_guests_name_required')),
         document: Yup.string()
           .trim()
-          .matches(/^\d{6,15}$/, t('reservations_modal.other_guests_document_required')) // Solo dígitos, 6-15 caracteres
+          .matches(/^\d{6,15}$/, t('reservations_modal.other_guests_document_required'))
           .required(t('reservations_modal.other_guests_document_required')),
         email: Yup.string().email(t('reservations_modal.other_guests_email_invalid')).required(t('reservations_modal.other_guests_email_required')),
         phone: Yup.string()
@@ -488,6 +487,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     if (raw === '' || raw === null || raw === undefined) return 1
     const num = Number(raw)
     return Number.isNaN(num) ? 1 : num
+  }
+
+  const hasDatesSelected = (vals) => {
+    const checkIn = vals?.date_range?.startDate || vals?.check_in
+    const checkOut = vals?.date_range?.endDate || vals?.check_out
+    return Boolean(checkIn && checkOut)
   }
 
   const isBasicComplete = () => {
@@ -762,7 +767,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
           if (values.guests && values.room_data && values.guests > values.room_data.max_capacity) {
             setFieldValue('room', '')
             setFieldValue('room_data', null)
-            setFieldTouched('room', false, false)
           }
         }
 
@@ -955,7 +959,6 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
               {activeTab === 'basic' && (
                 <>
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {/* 1. Hotel */}
                     <div>
                       <SelectAsync
                         title={`${t('reservations_modal.hotel')} *`}
@@ -965,16 +968,16 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         placeholder={t('common.search_placeholder')}
                         getOptionLabel={(h) => h?.name}
                         getOptionValue={(h) => h?.id}
-                        value={values.hotel}
-                        onChange={(option) => {
-                          setFieldValue('hotel', option?.value || null)
+                        disabled={lockHotel}
+                        isClearable={!lockHotel}
+                        onValueChange={() => {
                           // Limpiar habitación y fechas cuando cambia el hotel
                           setFieldValue('room', '')
                           setFieldValue('room_data', null)
                           setFieldValue('date_range', { startDate: '', endDate: '' })
                           setFieldValue('check_in', '')
                           setFieldValue('check_out', '')
-                          // Limpiar el estado touched de los campos
+                          // Limpiar touched relacionado
                           setFieldTouched('room', false, false)
                           setFieldTouched('check_in', false, false)
                           setFieldTouched('check_out', false, false)
@@ -997,11 +1000,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                           setFieldValue('date_range', { startDate, endDate })
                           setFieldValue('check_in', startDate)
                           setFieldValue('check_out', endDate)
-                          // Limpiar habitación cuando cambian las fechas
-                          setFieldValue('room', '')
-                          setFieldValue('room_data', null)
-                          // Limpiar el estado touched del campo room
-                          setFieldTouched('room', false, false)
+                          // Limpiar habitación cuando cambian las fechas (solo si NO está fijada)
+                          if (!lockRoom) {
+                            setFieldValue('room', '')
+                            setFieldValue('room_data', null)
+                            setFieldTouched('room', false, false)
+                          }
                         }}
                         onApply={(startISO, endISO) => {
                           try {
@@ -1021,17 +1025,14 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                               iter.setDate(iter.getDate() + 1)
                             }
                             if (conflict) {
-                              // Limpiar las fechas del input
                               setFieldValue('date_range', { startDate: '', endDate: '' })
                               setFieldValue('check_in', '')
                               setFieldValue('check_out', '')
                               setDateAlertMsg('La habitación ya tiene reservas en alguna(s) de las noches seleccionadas. Por favor elegí otro rango.')
                               setDateAlertOpen(true)
-                              return false // no cerrar el calendario
+                              return false
                             }
-                          } catch (e) {
-                            // Si algo falla, no bloquear
-                          }
+                          } catch (e) {}
                           return true
                         }}
                         placeholder="Check-in — Check-out"
@@ -1058,78 +1059,74 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         placeholder='Ej: 2'
                         value={values.guests}
                         onChange={(e) => {
-                          const newGuests = Number(e.target.value)
+                          const raw = Number(e.target.value)
+                          const maxCap = values.room_data?.max_capacity
+                          const newGuests = lockRoom && maxCap ? Math.min(raw, maxCap) : raw
                           setFieldValue('guests', newGuests)
-                          // Limpiar habitación si la nueva cantidad excede la capacidad de la habitación actual
-                          if (values.room_data && newGuests > values.room_data.max_capacity) {
+                          // Si NO está fijada la habitación, y excede capacidad, limpiar selección
+                          if (!lockRoom && values.room_data && newGuests > values.room_data.max_capacity) {
                             setFieldValue('room', '')
                             setFieldValue('room_data', null)
-                            // Limpiar el estado touched del campo room
                             setFieldTouched('room', false, false)
                           }
                         }}
                         error={touched.guests && errors.guests}
-                        disabled={!values.hotel || !values.date_range?.startDate || !values.date_range?.endDate}
+                        disabled={!values.hotel || !hasDatesSelected(values)}
                       />
-                      {!values.date_range?.startDate || !values.date_range?.endDate ? (
+                      {!hasDatesSelected(values) ? (
                         <div className="text-xs text-gray-500 mt-1">
-                          💡 Primero seleccioná las fechas de estadía
+                          Primero seleccioná las fechas de estadía.
                         </div>
                       ) : null}
                     </div>
 
                     {/* 4. Habitación */}
                     <div>
-                      <SelectAsync
-                        title={`${t('reservations_modal.room')} *`}
-                        name='room'
-                        resource='rooms'
-                        placeholder={
-                          !values.hotel
-                            ? t('reservations_modal.room_placeholder_no_hotel')
-                            : !values.date_range?.startDate || !values.date_range?.endDate
-                            ? 'Primero seleccioná las fechas de estadía'
-                            : !getEffectiveGuests(values) || getEffectiveGuests(values) === 0
-                            ? 'Primero ingresá la cantidad de huéspedes'
-                            : t('reservations_modal.room_placeholder_with_guests', { 
-                                guests: values.guests, 
-                                plural: values.guests > 1 ? 'es' : '' 
-                              })
-                        }
-                        getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
-                        getOptionValue={(r) => r?.id}
-                        extraParams={{
-                          hotel: values.hotel || undefined,
-                          min_capacity: getEffectiveGuests(values) || undefined,
-                          check_in: values.date_range?.startDate || values.check_in || undefined,
-                          check_out: values.date_range?.endDate || values.check_out || undefined,
-                        }}
-                        value={values.room}
-                        onValueChange={(option) => {
-                          const roomId = option?.id || null
-                          setFieldValue('room', roomId)
-                          setFieldValue('room_data', option || null)
-                          // Marcar el campo como touched cuando se selecciona una habitación
-                          if (roomId) {
-                            setFieldTouched('room', true, false)
-                          } else {
-                            setFieldTouched('room', false, false)
+                      {lockRoom ? (
+                        <LabelsContainer title={`${t('reservations_modal.room')} *`}>
+                          <div className="w-full border border-gray-200 rounded-md px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed">
+                            {values.room_data?.name || values.room_data?.number || (values.room ? `#${values.room}` : '—')}
+                          </div>
+                        </LabelsContainer>
+                      ) : (
+                        <SelectAsync
+                          title={`${t('reservations_modal.room')} *`}
+                          name='room'
+                          resource='rooms'
+                          placeholder={
+                            !values.hotel
+                              ? t('reservations_modal.room_placeholder_no_hotel')
+                              : !hasDatesSelected(values)
+                              ? 'Primero seleccioná las fechas de estadía'
+                              : !getEffectiveGuests(values) || getEffectiveGuests(values) === 0
+                              ? 'Primero ingresá la cantidad de huéspedes'
+                              : t('reservations_modal.room_placeholder_with_guests', { 
+                                  guests: values.guests, 
+                                  plural: values.guests > 1 ? 'es' : '' 
+                                })
                           }
-                        }}
-                        error={touched.room && errors.room}
-                        disabled={
-                          !values.hotel || 
-                          !values.date_range?.startDate || 
-                          !values.date_range?.endDate || 
-                          getEffectiveGuests(values) === 0
-                        }
-                      />
-                      {values.guests && values.hotel && (values.date_range?.startDate && values.date_range?.endDate) && (
+                          getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
+                          getOptionValue={(r) => r?.id}
+                          extraParams={{
+                            hotel: values.hotel || undefined,
+                            min_capacity: getEffectiveGuests(values) || undefined,
+                            check_in: values.date_range?.startDate || values.check_in || undefined,
+                            check_out: values.date_range?.endDate || values.check_out || undefined,
+                          }}
+                          onValueChange={(option) => {
+                            setFieldValue('room', option?.id || null)
+                            setFieldValue('room_data', option || null)
+                          }}
+                          error={touched.room && errors.room}
+                          disabled={!values.hotel || !hasDatesSelected(values) || getEffectiveGuests(values) === 0}
+                        />
+                      )}
+                      {values.guests && values.hotel && (
                         <div className="text-xs text-blue-600 mt-1">
                           💡 {t('reservations_modal.capacity_filter_info', { 
                             guests: values.guests, 
                             plural: values.guests > 1 ? 'es' : '' 
-                          })} - Filtrando habitaciones disponibles para las fechas seleccionadas
+                          })}
                         </div>
                       )}
                       {values.room_data && (

@@ -344,6 +344,8 @@ const Reception = () => {
         }}
         onSuccess={handleReservationSuccess}
         isEdit={false}
+        lockHotel={true}
+        lockRoom={true}
         reservation={{
           hotel: selectedRoomData?.selectedHotel,
           room: selectedRoomData?.room?.id,
