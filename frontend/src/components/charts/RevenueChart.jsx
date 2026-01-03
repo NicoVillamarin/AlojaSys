@@ -17,7 +17,13 @@ const RevenueChart = ({
     if (revenueAnalysis && Array.isArray(revenueAnalysis.daily_revenue) && revenueAnalysis.daily_revenue.length > 0) {
       const categories = revenueAnalysis.daily_revenue.map(d => d.date)
       const data = revenueAnalysis.daily_revenue.map(d => parseFloat((metric === 'net' ? (d.net ?? d.revenue) : d.revenue) || 0))
-      
+      return {
+        series: [{
+          name: metric === 'net' ? t('dashboard.charts.net_revenue') : t('dashboard.charts.gross_revenue'),
+          data
+        }],
+        categories
+      }
     }
 
     if (!reservations || reservations.length === 0) {

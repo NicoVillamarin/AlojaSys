@@ -238,7 +238,7 @@ const HousekeepingModal = ({ isOpen, onClose, isEdit = false, task, onSuccess })
             />
             {formHotel && currentRoomType && formTaskType && (
               <SelectStandalone
-                title={t('housekeeping.checklist')}
+                title={t('housekeeping.checklist_label')}
                 value={
                   values.checklist
                     ? relevantChecklists.find((c) => c.id === values.checklist) || null

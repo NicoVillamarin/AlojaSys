@@ -9,17 +9,19 @@ import { useAction } from 'src/hooks/useAction'
 import { useUpdate } from 'src/hooks/useUpdate'
 import { Link } from 'react-router-dom'
 import HelpTooltip from 'src/components/HelpTooltip'
+import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
 
 export default function HousekeepingConfig() {
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
+  const { housekeepingEnabled } = usePlanFeatures()
   const [selectedHotel, setSelectedHotel] = useState(hasSingleHotel ? String(singleHotelId) : '')
   const didMountRef = useRef(false)
 
   const { results: hkConfig, isPending: hkLoading, refetch: refetchHK } = useAction({
     resource: 'housekeeping/config',
     action: selectedHotel ? `by-hotel/${selectedHotel}` : undefined,
-    enabled: !!selectedHotel,
+    enabled: housekeepingEnabled && !!selectedHotel,
   })
 
   const [hkValues, setHkValues] = useState(null)
@@ -41,6 +43,14 @@ export default function HousekeepingConfig() {
     },
     method: 'PATCH',
   })
+
+  if (!housekeepingEnabled) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.not_enabled', 'El módulo de housekeeping no está habilitado en tu plan.')}
+      </div>
+    )
+  }
 
   const handleSaveHK = () => {
     if (!hkValues?.id) return

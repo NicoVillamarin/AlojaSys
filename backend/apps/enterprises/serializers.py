@@ -49,6 +49,12 @@ class EnterpriseSerializer(serializers.ModelSerializer):
         Si viene city, forzar coherencia: state y country se derivan de city.
         Si no viene city pero viene state, derivar country desde state.
         """
+        # Regla comercial: en planes no-custom, NO permitimos overrides.
+        # Si se cambia plan_type a basic/medium/full, limpiamos enabled_features.
+        plan_type = attrs.get("plan_type")
+        if plan_type and str(plan_type).lower() != "custom":
+            attrs["enabled_features"] = {}
+
         city = attrs.get("city")
         state = attrs.get("state")
         if city is not None:

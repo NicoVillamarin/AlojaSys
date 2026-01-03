@@ -48,7 +48,16 @@ const buildGuestsDataFromRoom = (room) => {
   return guestsData
 }
 
-const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, groupCode, groupReservations = [], refreshKey = 0 }) => {
+const MultiRoomReservationsModal = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  isEdit = false,
+  groupCode,
+  groupReservations = [],
+  refreshKey = 0,
+  prefill,
+}) => {
   const { t } = useTranslation()
   const { hotelIdsString, isSuperuser } = useUserHotels()
   const [alert, setAlert] = useState({ open: false, title: '', description: '' })
@@ -124,6 +133,28 @@ const MultiRoomReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false
             reservation_id: res.id, // Guardar el ID para actualizar
           }
         }),
+      }
+    }
+
+    // Prefill para creación (por ejemplo desde RoomMap seleccionando múltiples habitaciones)
+    if (!isEdit && prefill && prefill.hotel && Array.isArray(prefill.rooms) && prefill.rooms.length > 0) {
+      return {
+        hotel: String(prefill.hotel),
+        date_range: prefill.date_range || { startDate: '', endDate: '' },
+        notes: prefill.notes || '',
+        promotion_code: prefill.promotion_code || '',
+        voucher_code: prefill.voucher_code || '',
+        rooms: prefill.rooms.map((r) => ({
+          room: r?.id || '',
+          room_data: r || null,
+          guests: 1,
+          guest_name: '',
+          guest_email: '',
+          guest_phone: '',
+          guest_document: '',
+          guest_address: '',
+          notes: '',
+        })),
       }
     }
     

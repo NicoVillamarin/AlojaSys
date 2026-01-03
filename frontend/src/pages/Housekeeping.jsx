@@ -21,6 +21,7 @@ import CancelIcon from 'src/assets/icons/CancelIcon'
 import Tooltip from 'src/components/Tooltip'
 import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
+import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
 
 const TASK_STATUS = {
   pending: { labelKey: 'housekeeping.status.pending', variant: 'warning' },
@@ -34,6 +35,7 @@ const ACTIVE_STATUS_KEYS = ['pending', 'in_progress']
 export default function Housekeeping() {
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
+  const { housekeepingEnabled } = usePlanFeatures()
   
   // Verificar permisos
   const canAccessHousekeeping = usePermissions("housekeeping.access_housekeeping")
@@ -77,6 +79,14 @@ export default function Housekeeping() {
     () => (results || []).filter((task) => ACTIVE_STATUS_KEYS.includes(task.status)),
     [results]
   )
+
+  if (!housekeepingEnabled) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.not_enabled', 'El módulo de housekeeping no está habilitado en tu plan.')}
+      </div>
+    )
+  }
 
   if (!canAccessHousekeeping) {
     return (

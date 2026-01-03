@@ -11,6 +11,7 @@ import ChecklistDetailModal from 'src/components/modals/ChecklistDetailModal'
 import HousekeepingTaskDetailModal from 'src/components/modals/HousekeepingTaskDetailModal'
 import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
+import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
 
 const TASK_STATUS = {
   pending: { labelKey: 'housekeeping.status.pending', variant: 'warning' },
@@ -45,6 +46,7 @@ const formatDateTime = (value, locale) => {
 export default function HousekeepingHistorical() {
   const { t, i18n } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
+  const { housekeepingEnabled } = usePlanFeatures()
   const canViewHousekeeping = usePermissions("housekeeping.access_housekeeping")
   const [filters, setFilters] = useState({
     hotel: hasSingleHotel ? String(singleHotelId) : '',
@@ -90,6 +92,14 @@ export default function HousekeepingHistorical() {
 
   const handleDateChange = (field) => (event) => {
     setFilters((prev) => ({ ...prev, [field]: event.target.value }))
+  }
+
+  if (!housekeepingEnabled) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.not_enabled', 'El módulo de housekeeping no está habilitado en tu plan.')}
+      </div>
+    )
   }
 
   if (!canViewHousekeeping) {

@@ -69,12 +69,24 @@ def sync_room_occupancy_for_today(self):
                     res.room.status = RoomStatus.AVAILABLE
                     res.room.save(update_fields=["status"])
 
-                # Crear tarea de limpieza automáticamente
+                # Limpieza: siempre marcar habitación como sucia al hacer checkout (housekeeping ON/OFF)
                 try:
+                    from apps.rooms.models import CleaningStatus
+                    if res.room and hasattr(res.room, "cleaning_status"):
+                        res.room.cleaning_status = CleaningStatus.DIRTY
+                        res.room.save(update_fields=["cleaning_status"])
+                except Exception:
+                    pass
+
+                # Crear tarea de limpieza automáticamente SOLO si housekeeping está habilitado por plan
+                try:
+                    from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+                    if not is_housekeeping_enabled_for_hotel(res.hotel):
+                        raise RuntimeError("Housekeeping disabled by plan")
+
                     from apps.housekeeping.services import TaskGeneratorService
                     from apps.housekeeping.models import TaskType
-                    from apps.rooms.models import CleaningStatus
-                    
+
                     TaskGeneratorService.create_task(
                         hotel=res.hotel,
                         room=res.room,
@@ -85,11 +97,6 @@ def sync_room_occupancy_for_today(self):
                         use_checklist=True,
                         auto_assign_staff=True,  # Asignar automáticamente el personal
                     )
-                    
-                    # Marcar habitación como sucia
-                    if res.room and hasattr(res.room, "cleaning_status"):
-                        res.room.cleaning_status = CleaningStatus.DIRTY
-                        res.room.save(update_fields=["cleaning_status"])
                 except Exception as hk_error:
                     # No fallar el checkout si la creación de tarea falla
                     print(f"⚠️ Error creando tarea de limpieza para reserva {res.id}: {hk_error}")
@@ -108,12 +115,24 @@ def sync_room_occupancy_for_today(self):
                     res.room.status = RoomStatus.AVAILABLE
                     res.room.save(update_fields=["status"])
 
-                # Crear tarea de limpieza automáticamente
+                # Limpieza: siempre marcar habitación como sucia al hacer checkout (housekeeping ON/OFF)
                 try:
+                    from apps.rooms.models import CleaningStatus
+                    if res.room and hasattr(res.room, "cleaning_status"):
+                        res.room.cleaning_status = CleaningStatus.DIRTY
+                        res.room.save(update_fields=["cleaning_status"])
+                except Exception:
+                    pass
+
+                # Crear tarea de limpieza automáticamente SOLO si housekeeping está habilitado por plan
+                try:
+                    from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+                    if not is_housekeeping_enabled_for_hotel(res.hotel):
+                        raise RuntimeError("Housekeeping disabled by plan")
+
                     from apps.housekeeping.services import TaskGeneratorService
                     from apps.housekeeping.models import TaskType
-                    from apps.rooms.models import CleaningStatus
-                    
+
                     TaskGeneratorService.create_task(
                         hotel=res.hotel,
                         room=res.room,
@@ -124,11 +143,6 @@ def sync_room_occupancy_for_today(self):
                         use_checklist=True,
                         auto_assign_staff=True,  # Asignar automáticamente el personal
                     )
-                    
-                    # Marcar habitación como sucia
-                    if res.room and hasattr(res.room, "cleaning_status"):
-                        res.room.cleaning_status = CleaningStatus.DIRTY
-                        res.room.save(update_fields=["cleaning_status"])
                 except Exception as hk_error:
                     # No fallar el checkout si la creación de tarea falla
                     print(f"⚠️ Error creando tarea de limpieza para reserva {res.id}: {hk_error}")
@@ -235,12 +249,24 @@ def process_automatic_checkouts(self):
                         res.room.status = RoomStatus.AVAILABLE
                         res.room.save(update_fields=["status"])
                     
-                    # Crear tarea de limpieza automáticamente
+                    # Limpieza: siempre marcar habitación como sucia al hacer checkout (housekeeping ON/OFF)
                     try:
+                        from apps.rooms.models import CleaningStatus
+                        if res.room and hasattr(res.room, "cleaning_status"):
+                            res.room.cleaning_status = CleaningStatus.DIRTY
+                            res.room.save(update_fields=["cleaning_status"])
+                    except Exception:
+                        pass
+
+                    # Crear tarea de limpieza automáticamente SOLO si housekeeping está habilitado por plan
+                    try:
+                        from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+                        if not is_housekeeping_enabled_for_hotel(res.hotel):
+                            raise RuntimeError("Housekeeping disabled by plan")
+
                         from apps.housekeeping.services import TaskGeneratorService
                         from apps.housekeeping.models import TaskType
-                        from apps.rooms.models import CleaningStatus
-                        
+
                         TaskGeneratorService.create_task(
                             hotel=res.hotel,
                             room=res.room,
@@ -251,11 +277,6 @@ def process_automatic_checkouts(self):
                             use_checklist=True,
                             auto_assign_staff=True,  # Asignar automáticamente el personal
                         )
-                        
-                        # Marcar habitación como sucia
-                        if res.room and hasattr(res.room, "cleaning_status"):
-                            res.room.cleaning_status = CleaningStatus.DIRTY
-                            res.room.save(update_fields=["cleaning_status"])
                     except Exception as hk_error:
                         # No fallar el checkout si la creación de tarea falla
                         print(f"⚠️ Error creando tarea de limpieza para reserva {res.id}: {hk_error}")
@@ -278,12 +299,24 @@ def process_automatic_checkouts(self):
                         res.room.status = RoomStatus.AVAILABLE
                         res.room.save(update_fields=["status"])
                     
-                    # Crear tarea de limpieza automáticamente
+                    # Limpieza: siempre marcar habitación como sucia al hacer checkout (housekeeping ON/OFF)
                     try:
+                        from apps.rooms.models import CleaningStatus
+                        if res.room and hasattr(res.room, "cleaning_status"):
+                            res.room.cleaning_status = CleaningStatus.DIRTY
+                            res.room.save(update_fields=["cleaning_status"])
+                    except Exception:
+                        pass
+
+                    # Crear tarea de limpieza automáticamente SOLO si housekeeping está habilitado por plan
+                    try:
+                        from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+                        if not is_housekeeping_enabled_for_hotel(res.hotel):
+                            raise RuntimeError("Housekeeping disabled by plan")
+
                         from apps.housekeeping.services import TaskGeneratorService
                         from apps.housekeeping.models import TaskType
-                        from apps.rooms.models import CleaningStatus
-                        
+
                         TaskGeneratorService.create_task(
                             hotel=res.hotel,
                             room=res.room,
@@ -294,11 +327,6 @@ def process_automatic_checkouts(self):
                             use_checklist=True,
                             auto_assign_staff=True,  # Asignar automáticamente el personal
                         )
-                        
-                        # Marcar habitación como sucia
-                        if res.room and hasattr(res.room, "cleaning_status"):
-                            res.room.cleaning_status = CleaningStatus.DIRTY
-                            res.room.save(update_fields=["cleaning_status"])
                     except Exception as hk_error:
                         # No fallar el checkout si la creación de tarea falla
                         print(f"⚠️ Error creando tarea de limpieza para reserva {res.id}: {hk_error}")

@@ -286,13 +286,25 @@ class ReservationViewSet(viewsets.ModelViewSet):
             reservation.room.status = RoomStatus.AVAILABLE
             reservation.room.save(update_fields=["status"])
         reservation.save(update_fields=["status"]) 
-        # Crear tarea de limpieza de salida y marcar habitación como sucia
+        # Limpieza: siempre marcar habitación como sucia al hacer check-out (housekeeping ON/OFF)
         try:
+            from apps.rooms.models import CleaningStatus
+            if hasattr(reservation.room, "cleaning_status"):
+                reservation.room.cleaning_status = CleaningStatus.DIRTY
+                reservation.room.save(update_fields=["cleaning_status"])
+        except Exception:
+            pass
+
+        # Si housekeeping está habilitado por plan, crear tarea de salida.
+        # Si está deshabilitado, NO crear tareas (pero igual queda "Sucia").
+        try:
+            from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+            if not is_housekeeping_enabled_for_hotel(reservation.hotel):
+                raise RuntimeError("Housekeeping disabled by plan")
+
             from apps.housekeeping.services import TaskGeneratorService
             from apps.housekeeping.models import TaskType
-            from apps.rooms.models import CleaningStatus
-            
-            # Usar el servicio para crear la tarea con plantillas, checklist y asignación automática
+
             TaskGeneratorService.create_task(
                 hotel=reservation.hotel,
                 room=reservation.room,
@@ -303,11 +315,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 use_checklist=True,
                 auto_assign_staff=True,  # Asignar automáticamente el personal según configuración
             )
-            
-            # Marcar estado de limpieza como sucia
-            if hasattr(reservation.room, "cleaning_status"):
-                reservation.room.cleaning_status = CleaningStatus.DIRTY
-                reservation.room.save(update_fields=["cleaning_status"])
         except Exception as e:
             # Evitar romper el flujo de checkout por errores de housekeeping
             import logging

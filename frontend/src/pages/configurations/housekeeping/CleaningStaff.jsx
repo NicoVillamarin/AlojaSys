@@ -10,10 +10,12 @@ import Button from 'src/components/Button'
 import CleaningStaffModal from 'src/components/modals/CleaningStaffModal'
 import Filter from 'src/components/Filter'
 import EditIcon from 'src/assets/icons/EditIcon'
+import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
 
 export default function CleaningStaff() {
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
+  const { housekeepingEnabled } = usePlanFeatures()
   const [filters, setFilters] = useState({
     hotel: hasSingleHotel ? String(singleHotelId) : '',
   })
@@ -27,7 +29,16 @@ export default function CleaningStaff() {
       hotel: filters.hotel || undefined,
       page_size: 100,
     },
+    enabled: housekeepingEnabled,
   })
+
+  if (!housekeepingEnabled) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.not_enabled', 'El módulo de housekeeping no está habilitado en tu plan.')}
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (!didMountRef.current) {

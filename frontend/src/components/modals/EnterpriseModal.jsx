@@ -7,19 +7,56 @@ import SelectBasic from 'src/components/selects/SelectBasic'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
+import { useQueryClient } from '@tanstack/react-query'
+
+// Defaults por plan (deben reflejar backend/apps/enterprises/features.py)
+const PLAN_DEFAULT_FEATURES = {
+  basic: {
+    afip: false,
+    mercado_pago: false,
+    whatsapp_bot: false,
+    otas: false,
+    housekeeping_advanced: false,
+    bank_reconciliation: false,
+  },
+  medium: {
+    afip: true,
+    mercado_pago: true,
+    whatsapp_bot: true,
+    otas: false,
+    housekeeping_advanced: false,
+    bank_reconciliation: false,
+  },
+  full: {
+    afip: true,
+    mercado_pago: true,
+    whatsapp_bot: true,
+    otas: true,
+    housekeeping_advanced: true,
+    bank_reconciliation: true,
+  },
+  custom: {},
+}
 
 /**
  * EnterpriseModal: crear/editar empresa
  */
 const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSuccess }) => {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { mutate: createEnterprise, isPending: creating } = useCreate({
     resource: 'enterprises',
-    onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['enterprises'] })
+      onSuccess && onSuccess(data); onClose && onClose()
+    },
   })
   const { mutate: updateEnterprise, isPending: updating } = useUpdate({
     resource: 'enterprises',
-    onSuccess: (data) => { onSuccess && onSuccess(data); onClose && onClose() },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['enterprises'] })
+      onSuccess && onSuccess(data); onClose && onClose()
+    },
   })
 
   const initialValues = {
@@ -59,7 +96,8 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
           state: values.state ? Number(values.state) : undefined,
           city: values.city ? Number(values.city) : undefined,
           plan_type: values.plan_type || 'basic',
-          enabled_features: values.plan_type === 'custom' ? values.enabled_features || {} : undefined,
+          // En planes no-custom, se limpian overrides para que mande el plan.
+          enabled_features: values.plan_type === 'custom' ? (values.enabled_features || {}) : {},
           is_active: !!values.is_active,
         }
         if (isEdit && enterprise?.id) updateEnterprise({ id: enterprise.id, body: payload })
@@ -67,6 +105,14 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
       }}
     >
       {({ values, handleSubmit, setFieldValue }) => (
+        (() => {
+          const planKey = (values.plan_type || 'basic').toLowerCase()
+          const effectiveFeatures =
+            values.plan_type === 'custom'
+              ? (values.enabled_features || {})
+              : (PLAN_DEFAULT_FEATURES[planKey] || PLAN_DEFAULT_FEATURES.basic)
+
+          return (
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
@@ -150,7 +196,7 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                     <input
                       type='checkbox'
                       disabled={values.plan_type !== 'custom'}
-                      checked={!!values.enabled_features?.afip}
+                      checked={!!effectiveFeatures?.afip}
                       onChange={(e) =>
                         setFieldValue('enabled_features', {
                           ...values.enabled_features,
@@ -159,12 +205,15 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                       }
                     />
                     <span>{t('enterprise_modal.feature_afip')}</span>
+                    <span className={`ml-auto text-[11px] font-medium ${effectiveFeatures?.afip ? 'text-emerald-200' : 'text-white/70'}`}>
+                      {effectiveFeatures?.afip ? t('common.included', 'Incluido') : t('common.not_included', 'No incluido')}
+                    </span>
                   </label>
                   <label className={`flex items-center gap-2 ${values.plan_type !== 'custom' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type='checkbox'
                       disabled={values.plan_type !== 'custom'}
-                      checked={!!values.enabled_features?.mercado_pago}
+                      checked={!!effectiveFeatures?.mercado_pago}
                       onChange={(e) =>
                         setFieldValue('enabled_features', {
                           ...values.enabled_features,
@@ -173,12 +222,15 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                       }
                     />
                     <span>{t('enterprise_modal.feature_mp')}</span>
+                    <span className={`ml-auto text-[11px] font-medium ${effectiveFeatures?.mercado_pago ? 'text-emerald-200' : 'text-white/70'}`}>
+                      {effectiveFeatures?.mercado_pago ? t('common.included', 'Incluido') : t('common.not_included', 'No incluido')}
+                    </span>
                   </label>
                   <label className={`flex items-center gap-2 ${values.plan_type !== 'custom' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type='checkbox'
                       disabled={values.plan_type !== 'custom'}
-                      checked={!!values.enabled_features?.whatsapp_bot}
+                      checked={!!effectiveFeatures?.whatsapp_bot}
                       onChange={(e) =>
                         setFieldValue('enabled_features', {
                           ...values.enabled_features,
@@ -187,12 +239,15 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                       }
                     />
                     <span>{t('enterprise_modal.feature_whatsapp')}</span>
+                    <span className={`ml-auto text-[11px] font-medium ${effectiveFeatures?.whatsapp_bot ? 'text-emerald-200' : 'text-white/70'}`}>
+                      {effectiveFeatures?.whatsapp_bot ? t('common.included', 'Incluido') : t('common.not_included', 'No incluido')}
+                    </span>
                   </label>
                   <label className={`flex items-center gap-2 ${values.plan_type !== 'custom' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type='checkbox'
                       disabled={values.plan_type !== 'custom'}
-                      checked={!!values.enabled_features?.otas}
+                      checked={!!effectiveFeatures?.otas}
                       onChange={(e) =>
                         setFieldValue('enabled_features', {
                           ...values.enabled_features,
@@ -201,12 +256,15 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                       }
                     />
                     <span>{t('enterprise_modal.feature_otas')}</span>
+                    <span className={`ml-auto text-[11px] font-medium ${effectiveFeatures?.otas ? 'text-emerald-200' : 'text-white/70'}`}>
+                      {effectiveFeatures?.otas ? t('common.included', 'Incluido') : t('common.not_included', 'No incluido')}
+                    </span>
                   </label>
                   <label className={`flex items-center gap-2 ${values.plan_type !== 'custom' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type='checkbox'
                       disabled={values.plan_type !== 'custom'}
-                      checked={!!values.enabled_features?.housekeeping_advanced}
+                      checked={!!effectiveFeatures?.housekeeping_advanced}
                       onChange={(e) =>
                         setFieldValue('enabled_features', {
                           ...values.enabled_features,
@@ -215,12 +273,15 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                       }
                     />
                     <span>{t('enterprise_modal.feature_housekeeping')}</span>
+                    <span className={`ml-auto text-[11px] font-medium ${effectiveFeatures?.housekeeping_advanced ? 'text-emerald-200' : 'text-white/70'}`}>
+                      {effectiveFeatures?.housekeeping_advanced ? t('common.included', 'Incluido') : t('common.not_included', 'No incluido')}
+                    </span>
                   </label>
                   <label className={`flex items-center gap-2 ${values.plan_type !== 'custom' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type='checkbox'
                       disabled={values.plan_type !== 'custom'}
-                      checked={!!values.enabled_features?.bank_reconciliation}
+                      checked={!!effectiveFeatures?.bank_reconciliation}
                       onChange={(e) =>
                         setFieldValue('enabled_features', {
                           ...values.enabled_features,
@@ -229,6 +290,9 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
                       }
                     />
                     <span>{t('enterprise_modal.feature_bank_reconciliation')}</span>
+                    <span className={`ml-auto text-[11px] font-medium ${effectiveFeatures?.bank_reconciliation ? 'text-emerald-200' : 'text-white/70'}`}>
+                      {effectiveFeatures?.bank_reconciliation ? t('common.included', 'Incluido') : t('common.not_included', 'No incluido')}
+                    </span>
                   </label>
                 </div>
                 {values.plan_type !== 'custom' && (
@@ -254,6 +318,8 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
             </div>
           </div>
         </ModalLayout>
+          )
+        })()
       )}
     </Formik>
   )

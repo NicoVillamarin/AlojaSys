@@ -31,10 +31,14 @@ def generate_daily_tasks():
         "errors": 0,
     }
 
-    hotels = Hotel.objects.filter(is_active=True)
+    hotels = Hotel.objects.filter(is_active=True).select_related("enterprise")
 
     for hotel in hotels:
         try:
+            from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+            if not is_housekeeping_enabled_for_hotel(hotel):
+                continue
+
             config = getattr(hotel, "housekeeping_config", None)
             if not config:
                 logger.info(f"Hotel {hotel.id} no tiene configuración de housekeeping, se omite.")
@@ -91,6 +95,10 @@ def schedule_daily_tasks():
     for config in configs:
         hotel = config.hotel
         if not hotel.is_active:
+            continue
+
+        from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+        if not is_housekeeping_enabled_for_hotel(hotel):
             continue
 
         if not config.create_daily_tasks:
@@ -227,11 +235,14 @@ def rebalance_housekeeping_workload():
     logger.info("🔄 Iniciando tarea de rebalanceo de carga de housekeeping...")
 
     hotels = Hotel.objects.filter(is_active=True, housekeeping_config__enable_auto_assign=True).select_related(
-        "housekeeping_config"
+        "housekeeping_config", "enterprise"
     )
 
     results = []
     for hotel in hotels:
+        from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+        if not is_housekeeping_enabled_for_hotel(hotel):
+            continue
         config = hotel.housekeeping_config
         # Aquí podríamos usar rebalance_every_minutes para decidir si saltar el hotel
         # en función de la última ejecución almacenada; por simplicidad, dejamos que

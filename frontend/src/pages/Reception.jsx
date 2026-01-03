@@ -27,6 +27,12 @@ import EyeIcon from 'src/assets/icons/EyeIcon'
 import EyeSlashIcon from 'src/assets/icons/EyeSlashIcon'
 import InfoIcon from 'src/assets/icons/InfoIcon'
 import { usePermissions } from 'src/hooks/usePermissions'
+import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
+import RoomActionChoiceModal from 'src/components/modals/RoomActionChoiceModal'
+import RoomStatusModal from 'src/components/modals/RoomStatusModal'
+import MultiRoomReservationsModal from 'src/components/modals/MultiRoomReservationsModal'
+import Button from 'src/components/Button'
+import SelectedRoomsActionsModal from 'src/components/modals/SelectedRoomsActionsModal'
 
 const Reception = () => {
   const { t, i18n } = useTranslation()
@@ -34,6 +40,8 @@ const Reception = () => {
   // Permisos relacionados a reservas para recepción
   const canViewReservation = usePermissions('reservations.view_reservation')
   const canAddReservation = usePermissions('reservations.add_reservation')
+  const canChangeRoom = usePermissions('rooms.change_room')
+  const { housekeepingEnabled } = usePlanFeatures()
 
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   const [activeTab, setActiveTab] = useState(null)
@@ -41,6 +49,12 @@ const Reception = () => {
   const [filters, setFilters] = useState({ search: "", status: "" })
   const [showReservationModal, setShowReservationModal] = useState(false)
   const [selectedRoomData, setSelectedRoomData] = useState(null)
+  const [showRoomActionModal, setShowRoomActionModal] = useState(false)
+  const [showManageRoomModal, setShowManageRoomModal] = useState(false)
+  const [selectedMapRoomIds, setSelectedMapRoomIds] = useState(() => new Set())
+  const [showMultiRoomModal, setShowMultiRoomModal] = useState(false)
+  const [showBulkManageRoomModal, setShowBulkManageRoomModal] = useState(false)
+  const [showSelectedRoomsModal, setShowSelectedRoomsModal] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
   const didMountRef = useRef(false)
   const [language, setLanguage] = useState(i18n.language)
@@ -127,11 +141,46 @@ const Reception = () => {
   };
 
   const handleRoomClick = (data) => {
-    // Solo permitir abrir el modal de reserva si tiene permiso para crear reservas
+    setSelectedRoomData(data)
+    // Si hay selección activa, priorizar acciones sobre la selección (sin barra superior)
+    if (selectedMapRoomIds && selectedMapRoomIds.size > 0) {
+      setShowSelectedRoomsModal(true)
+      return
+    }
+    // Si housekeeping está habilitado por plan, volver al comportamiento anterior:
+    // click directo => crear reserva (sin pre-modal)
+    if (housekeepingEnabled) {
+      openCreateReservation(data)
+      return
+    }
+    setShowRoomActionModal(true)
+  }
+
+  const openCreateReservation = (data) => {
     if (!canAddReservation) return
     setSelectedRoomData(data)
+    setShowRoomActionModal(false)
     setShowReservationModal(true)
   }
+
+  const openManageRoom = (data) => {
+    if (!canChangeRoom) return
+    if (housekeepingEnabled) return
+    setSelectedRoomData(data)
+    setShowRoomActionModal(false)
+    setShowManageRoomModal(true)
+  }
+
+  // Selección múltiple (drag-select) desde RoomMap
+  const selectedMapRooms = useMemo(() => {
+    const ids = selectedMapRoomIds
+    return (rooms || []).filter((r) => ids.has(r.id))
+  }, [rooms, selectedMapRoomIds])
+
+  // Limpiar selección al cambiar hotel/filtros
+  useEffect(() => {
+    setSelectedMapRoomIds(new Set())
+  }, [selectedHotel, filters.search, filters.status])
 
   const handleReservationSuccess = (reservation) => {
     // Aquí puedes agregar lógica adicional si es necesario
@@ -323,6 +372,9 @@ const Reception = () => {
             onRoomClick={handleRoomClick}
             selectedHotel={selectedHotel}
             hotels={hotels || []}
+            enableDragSelect={false}
+            selectedRoomIds={selectedMapRoomIds}
+            onSelectedRoomIdsChange={setSelectedMapRoomIds}
           />
         </div>
       ) : (
@@ -351,6 +403,75 @@ const Reception = () => {
           room: selectedRoomData?.room?.id,
           room_data: selectedRoomData?.room
         }}
+      />
+
+      <RoomActionChoiceModal
+        isOpen={showRoomActionModal}
+        onClose={() => setShowRoomActionModal(false)}
+        roomData={selectedRoomData}
+        canCreateReservation={!!canAddReservation}
+        canManageRoom={!!canChangeRoom}
+        housekeepingEnabled={!!housekeepingEnabled}
+        onCreateReservation={openCreateReservation}
+        onManageRoom={openManageRoom}
+      />
+
+      <RoomStatusModal
+        isOpen={showManageRoomModal}
+        onClose={() => setShowManageRoomModal(false)}
+        rooms={selectedRoomData?.room ? [selectedRoomData.room] : []}
+        onSuccess={() => {
+          setShowManageRoomModal(false)
+          refetchRooms && refetchRooms()
+        }}
+      />
+
+      <RoomStatusModal
+        isOpen={showBulkManageRoomModal}
+        onClose={() => setShowBulkManageRoomModal(false)}
+        rooms={selectedMapRooms}
+        onSuccess={() => {
+          setShowBulkManageRoomModal(false)
+          setSelectedMapRoomIds(new Set())
+          refetchRooms && refetchRooms()
+        }}
+      />
+
+      <MultiRoomReservationsModal
+        isOpen={showMultiRoomModal}
+        onClose={() => setShowMultiRoomModal(false)}
+        onSuccess={() => {
+          setShowMultiRoomModal(false)
+          setSelectedMapRoomIds(new Set())
+          refetchRooms && refetchRooms()
+        }}
+        isEdit={false}
+        refreshKey={0}
+        prefill={{
+          hotel: selectedHotel,
+          rooms: selectedMapRooms,
+        }}
+      />
+
+      <SelectedRoomsActionsModal
+        isOpen={showSelectedRoomsModal}
+        onClose={() => setShowSelectedRoomsModal(false)}
+        selectedRooms={selectedMapRooms}
+        activeRoom={selectedRoomData?.room}
+        canCreateReservation={!!canAddReservation}
+        canManageRoom={!!canChangeRoom}
+        housekeepingEnabled={!!housekeepingEnabled}
+        onCreateSingleReservation={(room) => {
+          // Construir roomData como espera el flujo actual
+          openCreateReservation({
+            room,
+            hotel: hotels?.find((h) => h.id === selectedHotel),
+            selectedHotel,
+          })
+        }}
+        onCreateMultiReservation={() => setShowMultiRoomModal(true)}
+        onManageRooms={() => setShowBulkManageRoomModal(true)}
+        onClearSelection={() => setSelectedMapRoomIds(new Set())}
       />
     </div>
   )

@@ -11,10 +11,12 @@ import Button from 'src/components/Button'
 import TaskTemplateModal from 'src/components/modals/TaskTemplateModal'
 import Filter from 'src/components/Filter'
 import EditIcon from 'src/assets/icons/EditIcon'
+import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
 
 export default function TaskTemplates() {
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
+  const { housekeepingEnabled } = usePlanFeatures()
   const [filters, setFilters] = useState({
     hotel: hasSingleHotel ? String(singleHotelId) : '',
     room_type: '',
@@ -32,7 +34,16 @@ export default function TaskTemplates() {
       task_type: filters.task_type || undefined,
       page_size: 100,
     },
+    enabled: housekeepingEnabled,
   })
+
+  if (!housekeepingEnabled) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        {t('housekeeping.not_enabled', 'El módulo de housekeeping no está habilitado en tu plan.')}
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (!didMountRef.current) {

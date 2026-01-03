@@ -26,15 +26,21 @@ import ToggleButton from "src/components/ToggleButton";
 import EyeIcon from "src/assets/icons/EyeIcon";
 import EyeSlashIcon from "src/assets/icons/EyeSlashIcon";
 import { usePermissions } from "src/hooks/usePermissions";
+import { usePlanFeatures } from "src/hooks/usePlanFeatures";
+import RoomStatusModal from "src/components/modals/RoomStatusModal";
+import Button from "src/components/Button";
 
 export default function RoomsGestion() {
   const { t, i18n } = useTranslation();
   // Permisos CRUD de habitaciones
   const canViewRoom = usePermissions("rooms.view_room");
   const canChangeRoom = usePermissions("rooms.change_room");
+  const { housekeepingEnabled } = usePlanFeatures();
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
-  const [showKpis, setShowKpis] = useState(true);
+  const [showKpis, setShowKpis] = useState(false);
   const didMountRef = useRef(false);
+  const [selectedRoomIds, setSelectedRoomIds] = useState(() => new Set());
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ 
@@ -299,6 +305,33 @@ export default function RoomsGestion() {
     });
   }, [results, filters.search]);
 
+  const selectedRooms = useMemo(() => {
+    const ids = selectedRoomIds
+    return (displayResults || []).filter((r) => ids.has(r.id))
+  }, [displayResults, selectedRoomIds])
+
+  const selectedCount = selectedRoomIds.size
+
+  const toggleOne = (id, checked) => {
+    setSelectedRoomIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const toggleAllVisible = (checked) => {
+    setSelectedRoomIds((prev) => {
+      const next = new Set(prev)
+      ;(displayResults || []).forEach((r) => {
+        if (checked) next.add(r.id)
+        else next.delete(r.id)
+      })
+      return next
+    })
+  }
+
   const onSearch = () => refetch();
   const onClear = () => {
     setFilters({ search: "", hotel: "", status: "" });
@@ -394,6 +427,17 @@ export default function RoomsGestion() {
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Acción: edición manual de estado/subestado (solo si housekeeping NO está habilitado) */}
+            {canChangeRoom && !housekeepingEnabled && (
+              <Button
+                variant="primary"
+                size="md"
+                disabled={selectedCount === 0}
+                onClick={() => setShowStatusModal(true)}
+              >
+                {t('rooms.edit_status_action', 'Editar estados')} {selectedCount > 0 ? `(${selectedCount})` : ''}
+              </Button>
+            )}
             <ToggleButton
               isOpen={showKpis}
               onToggle={() => setShowKpis(!showKpis)}
@@ -444,6 +488,33 @@ export default function RoomsGestion() {
         data={displayResults}
         getRowId={(r) => r.id}
         columns={[
+          // Selección (solo cuando housekeeping NO está habilitado)
+          ...(!housekeepingEnabled
+            ? [
+                {
+                  key: "__select__",
+                  header: (
+                    <input
+                      type="checkbox"
+                      aria-label={t('common.select_all', 'Seleccionar todo')}
+                      checked={displayResults?.length > 0 && displayResults.every((r) => selectedRoomIds.has(r.id))}
+                      onChange={(e) => toggleAllVisible(e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ),
+                  sortable: false,
+                  render: (r) => (
+                    <input
+                      type="checkbox"
+                      aria-label={t('common.select', 'Seleccionar')}
+                      checked={selectedRoomIds.has(r.id)}
+                      onChange={(e) => toggleOne(r.id, e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             key: "updated_at",
             header: t('rooms.last_updated'),
@@ -483,6 +554,11 @@ export default function RoomsGestion() {
                       {t('rooms.cleaning_status.dirty') || 'Requiere limpieza'}
                     </Badge>
                   )}
+                  {cleaningStatus === 'clean' && (
+                    <Badge variant="success" size="sm" className="bg-emerald-100 text-emerald-700">
+                      {t('rooms.cleaning_status.clean') || 'Limpia'}
+                    </Badge>
+                  )}
                 </div>
               );
             },
@@ -519,6 +595,17 @@ export default function RoomsGestion() {
           </button>
         </div>
       )}
+
+      <RoomStatusModal
+        isOpen={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+        rooms={selectedRooms}
+        onSuccess={() => {
+          setShowStatusModal(false)
+          setSelectedRoomIds(new Set())
+          refetch()
+        }}
+      />
     </div>
   );
 }

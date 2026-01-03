@@ -187,7 +187,7 @@
       "out_of_service": "Fuera de servicio"
     },
     "cleaning_status": {
-      "dirty": "Requiere limpieza",
+      "dirty": "Para limpiar",
       "in_progress": "En limpieza",
       "clean": "Limpia"
     }
@@ -232,7 +232,7 @@
     "zone_placeholder": "Ej. Piso 1, Ala A",
     "notes": "Observaciones",
     "notes_placeholder": "Notas adicionales…",
-    "checklist": "Checklist",
+    "checklist_label": "Checklist",
     "checklist_placeholder": "Seleccione un checklist (opcional)",
     "start": "Iniciar",
     "complete": "Completar",
@@ -683,7 +683,7 @@
     "not_selected_room": "No seleccionada",
     "type": "Tipo:",
     "guests": "Huéspedes",
-    "total": "Total:",
+    "total_label": "Total:",
     "principal": "Principal:",
     "not_specified": "No especificado",
     "additional": "Adicionales:",
@@ -1563,8 +1563,8 @@
     "title": "Histórico de Pagos",
     "subtitle": "Gestión de Pagos de Reservas",
     "search_placeholder": "Buscar por huésped, hotel, habitación...",
-    "status": "Estado",
-    "method": "Método",
+    "status_label": "Estado",
+    "method_label": "Método",
     "from": "Desde",
     "to": "Hasta",
     "clear_filters": "Limpiar filtros",

@@ -23,6 +23,7 @@ import ReconciliationIcon from "src/assets/icons/ReconciliationIcon";
 import ChannelsIcon from "src/assets/icons/ChannelsIcon";
 import { useMe } from "src/hooks/useMe";
 import CleaningIcon from "src/assets/icons/CleaningIcon";
+import { usePlanFeatures } from "src/hooks/usePlanFeatures";
 
 const Item = ({ to, children, onMobileClose, isMobile, exact = false }) => (
   <NavLink
@@ -67,6 +68,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const {data: me } = useMe();
   const isSuperuser = me?.is_superuser || false;
   const { hasSingleHotel, singleHotelId } = useUserHotels();
+  const { housekeepingEnabled } = usePlanFeatures();
   
   // Permisos para el menú principal
   const hasViewDashboard = usePermissions("dashboard.view_dashboardmetrics");
@@ -119,6 +121,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const hasViewRefundPolicies = usePermissions("payments.view_refundpolicy");
   const hasAnyPolicy = useHasAnyPermission(["payments.view_paymentpolicy", "payments.view_cancellationpolicy", "payments.view_refundpolicy"]);
   const hasViewHousekeeping = usePermissions("housekeeping.access_housekeeping");
+  const canShowHousekeeping = hasViewHousekeeping && housekeepingEnabled;
   
   // Verificar si tiene permisos para acceder a configuraciones de housekeeping
   const hasHousekeepingConfig = useHasAnyPermission([
@@ -138,7 +141,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const { results: hkSidebarConfig } = useAction({
     resource: 'housekeeping/config',
     action: hasSingleHotel && singleHotelId ? `by-hotel/${singleHotelId}` : undefined,
-    enabled: hasSingleHotel && !!singleHotelId && hasHousekeepingConfig,
+    enabled: hasSingleHotel && !!singleHotelId && hasHousekeepingConfig && canShowHousekeeping,
   });
 
   const canSeeHousekeepingChecklistsMenu = hasHousekeepingConfig && (hkSidebarConfig?.use_checklists !== false);
@@ -168,6 +171,9 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     if (!me || !me.profile) return false;
     const isHKStaff = me.profile.is_housekeeping_staff === true;
     if (!isHKStaff) return false;
+    // Si el módulo no está habilitado por plan, no tratamos al usuario como "solo housekeeping"
+    // (evita redirecciones/menu vacío).
+    if (!housekeepingEnabled) return false;
     
     // Si es personal de limpieza, verificar si tiene otros permisos importantes
     const hasOtherPermissions = 
@@ -183,7 +189,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     
     // Si es personal de limpieza pero NO tiene otros permisos, es "solo" personal de limpieza
     return !hasOtherPermissions;
-  }, [me, hasViewDashboard, hasReception, hasViewReservations, hasViewCalendar, hasViewRooms, hasViewOTAs, hasAnyHistory, hasAnyFinancial, hasAnySettings]);
+  }, [me, housekeepingEnabled, hasViewDashboard, hasReception, hasViewReservations, hasViewCalendar, hasViewRooms, hasViewOTAs, hasAnyHistory, hasAnyFinancial, hasAnySettings]);
   
   useEffect(() => {
     const isSettings = location.pathname.startsWith("/settings");
@@ -268,7 +274,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
             {hasViewCalendar && (
               <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
             )}
-            {hasViewHousekeeping && (
+            {canShowHousekeeping && (
               <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>
                 <CleaningIcon size="20" /> {!isMini && <span>{t('sidebar.housekeeping')}</span>}
               </Item>
@@ -309,7 +315,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               {hasViewRefunds && (
                 <Item to="/refunds/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds_history')}</Item>
               )}
-              {hasViewHousekeeping && (
+              {canShowHousekeeping && (
                 <Item to="/housekeeping/historical" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.housekeeping_historical')}</Item>
               )}
             </div>
@@ -417,7 +423,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               )}
               {/* Fiscal - por ahora sin permiso específico, se puede agregar después */}
               <Item to="/settings/fiscal" onMobileClose={onMobileClose} isMobile={isMobile}>Configuración Fiscal</Item>
-              {hasViewHousekeeping && hasHousekeepingConfig && (
+              {canShowHousekeeping && hasHousekeepingConfig && (
                 <div className="mt-1 ml-2">
                   <button
                     type="button"

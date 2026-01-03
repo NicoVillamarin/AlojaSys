@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Room
 from django.utils import timezone
 from apps.reservations.models import ReservationStatus
+from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
 
 class RoomSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(source="hotel.name", read_only=True)
@@ -139,3 +140,33 @@ class RoomSerializer(serializers.ModelSerializer):
             # Retornar el número real de huéspedes de la reserva
             return reservation.guests
         return 0
+
+    def validate(self, attrs):
+        """
+        Regla de negocio:
+        - Si housekeeping está ACTIVADO (por plan), el cleaning_status NO se gestiona
+          manualmente desde gestión de habitaciones para evitar inconsistencias.
+        - Si housekeeping está DESACTIVADO, sí se permite editar cleaning_status.
+        """
+        if "cleaning_status" in attrs:
+            hotel = None
+            # En updates, podemos tomar hotel desde la instancia (lo normal en gestión de rooms)
+            if getattr(self, "instance", None) is not None:
+                hotel = getattr(self.instance, "hotel", None)
+            else:
+                # En create, intentar resolver por hotel id (si vino)
+                raw_hotel = attrs.get("hotel") or (self.initial_data.get("hotel") if isinstance(self.initial_data, dict) else None)
+                hotel_id = getattr(raw_hotel, "id", None) or raw_hotel
+                try:
+                    from apps.core.models import Hotel
+                    if hotel_id:
+                        hotel = Hotel.objects.select_related("enterprise").filter(id=hotel_id).first()
+                except Exception:
+                    hotel = None
+
+            if hotel and is_housekeeping_enabled_for_hotel(hotel):
+                raise serializers.ValidationError(
+                    {"cleaning_status": "No se puede modificar manualmente cuando housekeeping está habilitado."}
+                )
+
+        return super().validate(attrs)
