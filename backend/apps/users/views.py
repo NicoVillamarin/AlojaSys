@@ -81,15 +81,41 @@ def me_view(request):
     # Obtener información del perfil y hoteles asignados
     try:
         profile = user.profile
+        # Helper: intentar inferir enterprise desde el perfil o desde los hoteles asignados
+        def _infer_enterprise(profile_obj, hotels_qs):
+            ent = getattr(profile_obj, "enterprise", None)
+            if ent:
+                return ent
+            try:
+                first_hotel = hotels_qs.first() if hotels_qs is not None else None
+                return getattr(first_hotel, "enterprise", None) if first_hotel else None
+            except Exception:
+                return None
         
         # Si es superusuario, devolver todos los hoteles activos
         if user.is_superuser:
-            hotels = Hotel.objects.filter(is_active=True).select_related('city', 'city__state', 'city__state__country')
+            hotels = Hotel.objects.filter(is_active=True).select_related('enterprise', 'city', 'city__state', 'city__state__country')
             enterprises = Enterprise.objects.filter(is_active=True)
         else:
             # Usuario normal: solo hoteles asignados
-            hotels = profile.hotels.filter(is_active=True).select_related('city', 'city__state', 'city__state__country')
-            enterprises = Enterprise.objects.filter(id=profile.enterprise.id, is_active=True) if profile.enterprise else Enterprise.objects.none()
+            hotels = profile.hotels.filter(is_active=True).select_related('enterprise', 'city', 'city__state', 'city__state__country')
+            inferred_enterprise = _infer_enterprise(profile, hotels)
+            enterprises = (
+                Enterprise.objects.filter(id=inferred_enterprise.id, is_active=True)
+                if inferred_enterprise
+                else Enterprise.objects.none()
+            )
+
+        # Calcular features efectivos del plan para la empresa inferida (si existe)
+        enterprise_for_me = _infer_enterprise(profile, hotels)
+        plan_features = {}
+        try:
+            if enterprise_for_me:
+                from apps.enterprises.features import get_effective_features
+
+                plan_features = get_effective_features(enterprise_for_me)
+        except Exception:
+            plan_features = {}
         
         # Construir URL del avatar si existe
         avatar_image_url = None
@@ -107,9 +133,10 @@ def me_view(request):
             },
             "enterprise_ids": [enterprise.id for enterprise in enterprises],
             "enterprise": {
-                "id": profile.enterprise.id,
-                "name": profile.enterprise.name,
-            } if profile.enterprise else None,
+                "id": enterprise_for_me.id,
+                "name": enterprise_for_me.name,
+                "plan_features": plan_features,
+            } if enterprise_for_me else None,
             "hotels": [
                 {
                     "id": hotel.id,

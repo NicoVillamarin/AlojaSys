@@ -48,6 +48,7 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
     resource: 'enterprises',
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['enterprises'] })
+      queryClient.invalidateQueries({ queryKey: ['me'] })
       onSuccess && onSuccess(data); onClose && onClose()
     },
   })
@@ -55,6 +56,7 @@ const EnterpriseModal = ({ isOpen, onClose, isEdit = false, enterprise, onSucces
     resource: 'enterprises',
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['enterprises'] })
+      queryClient.invalidateQueries({ queryKey: ['me'] })
       onSuccess && onSuccess(data); onClose && onClose()
     },
   })

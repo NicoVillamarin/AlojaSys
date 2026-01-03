@@ -22,6 +22,7 @@ import Tooltip from 'src/components/Tooltip'
 import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
 import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
+import { useMe } from 'src/hooks/useMe'
 
 const TASK_STATUS = {
   pending: { labelKey: 'housekeeping.status.pending', variant: 'warning' },
@@ -36,9 +37,12 @@ export default function Housekeeping() {
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
   const { housekeepingEnabled } = usePlanFeatures()
+  const { data: me } = useMe()
   
   // Verificar permisos
-  const canAccessHousekeeping = usePermissions("housekeeping.access_housekeeping")
+  const hasPermAccessHousekeeping = usePermissions("housekeeping.access_housekeeping")
+  const isHKStaff = me?.profile?.is_housekeeping_staff === true
+  const canAccessHousekeeping = !!hasPermAccessHousekeeping || !!isHKStaff || !!me?.is_superuser
   const canAddTask = usePermissions("housekeeping.add_housekeepingtask")
   const canChangeTask = usePermissions("housekeeping.change_housekeepingtask")
   const canDeleteTask = usePermissions("housekeeping.delete_housekeepingtask")
@@ -66,7 +70,7 @@ export default function Housekeeping() {
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
     resource: 'housekeeping/tasks',
     params: listParams,
-    enabled: canAccessHousekeeping,
+    enabled: housekeepingEnabled && canAccessHousekeeping,
   })
 
   // Acciones start/complete

@@ -88,6 +88,7 @@ export default function SelectedRoomsActionsModal({
               variant="primary"
               size="lg"
               fullWidth
+              className={housekeepingEnabled ? 'md:col-span-2 md:justify-self-center md:w-[360px]' : ''}
               disabled={!canCreateReservation || count < 2}
               onClick={() => onCreateMultiReservation && onCreateMultiReservation(selectedRooms)}
             >
@@ -95,18 +96,27 @@ export default function SelectedRoomsActionsModal({
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="lg"
-            fullWidth
-            disabled={!canManageRoom || housekeepingEnabled || count === 0}
-            onClick={() => onManageRooms && onManageRooms(selectedRooms)}
-          >
-            {housekeepingEnabled
-              ? t('rooms.manage_room_disabled_housekeeping', 'No disponible: housekeeping está habilitado.')
-              : t('rooms.manage_room', 'Gestionar habitaciones')}
-          </Button>
+          {!housekeepingEnabled && (
+            <Button
+              variant="outline"
+              size="lg"
+              fullWidth
+              disabled={!canManageRoom || count === 0}
+              onClick={() => onManageRooms && onManageRooms(selectedRooms)}
+            >
+              {t('rooms.manage_room', 'Gestionar habitaciones')}
+            </Button>
+          )}
         </div>
+
+        {housekeepingEnabled && (
+          <p className="text-xs text-slate-600 text-center">
+            {t(
+              'rooms.manage_room_hidden_housekeeping',
+              'La gestión de habitaciones desde este panel se desactiva cuando Housekeeping está habilitado.'
+            )}
+          </p>
+        )}
       </div>
     </ModalLayout>
   )

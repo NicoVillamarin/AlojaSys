@@ -12,6 +12,7 @@ import HousekeepingTaskDetailModal from 'src/components/modals/HousekeepingTaskD
 import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
 import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
+import { useMe } from 'src/hooks/useMe'
 
 const TASK_STATUS = {
   pending: { labelKey: 'housekeeping.status.pending', variant: 'warning' },
@@ -47,7 +48,10 @@ export default function HousekeepingHistorical() {
   const { t, i18n } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
   const { housekeepingEnabled } = usePlanFeatures()
-  const canViewHousekeeping = usePermissions("housekeeping.access_housekeeping")
+  const { data: me } = useMe()
+  const hasPermAccessHousekeeping = usePermissions("housekeeping.access_housekeeping")
+  const isHKStaff = me?.profile?.is_housekeeping_staff === true
+  const canViewHousekeeping = !!hasPermAccessHousekeeping || !!isHKStaff || !!me?.is_superuser
   const [filters, setFilters] = useState({
     hotel: hasSingleHotel ? String(singleHotelId) : '',
     status: '',
@@ -85,7 +89,7 @@ export default function HousekeepingHistorical() {
   const { results, isPending, hasNextPage, fetchNextPage } = useList({
     resource: 'housekeeping/tasks',
     params: listParams,
-    enabled: canViewHousekeeping,
+    enabled: housekeepingEnabled && canViewHousekeeping,
   })
 
   const displayResults = useMemo(() => results || [], [results])

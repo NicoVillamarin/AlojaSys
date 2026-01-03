@@ -121,7 +121,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const hasViewRefundPolicies = usePermissions("payments.view_refundpolicy");
   const hasAnyPolicy = useHasAnyPermission(["payments.view_paymentpolicy", "payments.view_cancellationpolicy", "payments.view_refundpolicy"]);
   const hasViewHousekeeping = usePermissions("housekeeping.access_housekeeping");
-  const canShowHousekeeping = hasViewHousekeeping && housekeepingEnabled;
+  const isHKStaff = me?.profile?.is_housekeeping_staff === true;
   
   // Verificar si tiene permisos para acceder a configuraciones de housekeeping
   const hasHousekeepingConfig = useHasAnyPermission([
@@ -137,11 +137,18 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     "housekeeping.change_housekeepingconfig",
   ]);
 
+  // Separación clara:
+  // - Licencia/plan: housekeepingEnabled
+  // - Acceso tareas: permiso access_housekeeping O housekeeping_staff O superuser
+  // - Acceso configuración: permisos de config (o superuser)
+  const canShowHousekeepingTasks = housekeepingEnabled && (hasViewHousekeeping || isHKStaff || isSuperuser);
+  const canShowHousekeepingConfig = housekeepingEnabled && (hasHousekeepingConfig || isSuperuser);
+
   // Configuración de housekeeping para el hotel único (si aplica) para saber si usa checklists avanzados
   const { results: hkSidebarConfig } = useAction({
     resource: 'housekeeping/config',
     action: hasSingleHotel && singleHotelId ? `by-hotel/${singleHotelId}` : undefined,
-    enabled: hasSingleHotel && !!singleHotelId && hasHousekeepingConfig && canShowHousekeeping,
+    enabled: hasSingleHotel && !!singleHotelId && hasHousekeepingConfig && canShowHousekeepingConfig,
   });
 
   const canSeeHousekeepingChecklistsMenu = hasHousekeepingConfig && (hkSidebarConfig?.use_checklists !== false);
@@ -169,8 +176,8 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   // Verificar si es solo personal de limpieza (sin otros permisos importantes)
   const isOnlyHousekeepingStaff = useMemo(() => {
     if (!me || !me.profile) return false;
-    const isHKStaff = me.profile.is_housekeeping_staff === true;
-    if (!isHKStaff) return false;
+    const isHK = me.profile.is_housekeeping_staff === true;
+    if (!isHK) return false;
     // Si el módulo no está habilitado por plan, no tratamos al usuario como "solo housekeeping"
     // (evita redirecciones/menu vacío).
     if (!housekeepingEnabled) return false;
@@ -274,7 +281,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
             {hasViewCalendar && (
               <Item to="/reservations-calendar" onMobileClose={onMobileClose} isMobile={isMobile}><CalendarIcon size="20" /> {!isMini && <span>Calendario de Reservas</span>}</Item>
             )}
-            {canShowHousekeeping && (
+            {canShowHousekeepingTasks && (
               <Item to="/housekeeping" onMobileClose={onMobileClose} isMobile={isMobile} exact={true}>
                 <CleaningIcon size="20" /> {!isMini && <span>{t('sidebar.housekeeping')}</span>}
               </Item>
@@ -315,7 +322,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               {hasViewRefunds && (
                 <Item to="/refunds/history" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.refunds_history')}</Item>
               )}
-              {canShowHousekeeping && (
+              {canShowHousekeepingTasks && (
                 <Item to="/housekeeping/historical" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.housekeeping_historical')}</Item>
               )}
             </div>
@@ -423,7 +430,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
               )}
               {/* Fiscal - por ahora sin permiso específico, se puede agregar después */}
               <Item to="/settings/fiscal" onMobileClose={onMobileClose} isMobile={isMobile}>Configuración Fiscal</Item>
-              {canShowHousekeeping && hasHousekeepingConfig && (
+              {canShowHousekeepingConfig && (
                 <div className="mt-1 ml-2">
                   <button
                     type="button"

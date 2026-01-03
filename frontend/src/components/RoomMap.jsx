@@ -383,8 +383,8 @@ const RoomMap = ({
 
   return (
     <div className="relative">
-      {/* Flexbox de habitaciones (como antes) + un poco más de padding X */}
-      <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-4 md:p-8 px-6 md:px-10 rounded-2xl shadow-inner relative">
+      {/* Flexbox de habitaciones moderno */}
+      <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-4 md:p-8 rounded-2xl shadow-inner">
         <div className="flex flex-wrap gap-2 md:gap-4 justify-center relative z-10">
           {rooms.map((room) => {
             const effectiveStatus = getEffectiveStatus(room);
@@ -411,7 +411,20 @@ const RoomMap = ({
                 className={[
                   'group cursor-pointer transition-all duration-300',
                   'relative',
-                  isSelected ? 'ring-2 ring-aloja-navy rounded-2xl' : '',
+                  isSelected
+                    ? [
+                        // Selección sin línea: "tarjeta elevada" sobre el fondo
+                        // Queremos que resalte (con scale), pero sin que se note desalineado:
+                        // lo resolvemos centrando la puerta abajo (wrapper), no quitando el scale.
+                        'z-20 isolate rounded-2xl bg-white/90',
+                        'transform-gpu scale-[1.03]',
+                        // Sombra un poco más suave
+                        'shadow-[0_18px_55px_rgba(15,23,42,0.24)]',
+                        // Halo suave azul (difuminado), sin línea
+                        'before:content-[""] before:absolute before:inset-[-8px] before:rounded-[24px]',
+                        'before:bg-aloja-navy/16 before:blur-[14px] before:-z-10',
+                      ].join(' ')
+                    : '',
                 ].join(' ')}
                 onMouseEnter={() => handleMouseEnter(room)}
                 onMouseLeave={handleMouseLeave}
@@ -438,13 +451,14 @@ const RoomMap = ({
                 tabIndex={onRoomClick ? 0 : -1}
                 title={`${room.name || `Habitación #${room.number || room.id}`} - ${getEffectiveStatusLabel(room)}${cleaning ? ' (En limpieza)' : ''}`}
               >
-                {/* Puerta */}
-                <div className="relative">
-                  <DoorVisual
-                    variant={doorVariant}
-                    toneClass={getDoorTone(room)}
-                    dimmed={isBlocked}
-                  />
+                {/* Puerta (centrada dentro del tile) */}
+                <div className="flex justify-center">
+                  <div className="relative inline-block">
+                    <DoorVisual
+                      variant={doorVariant}
+                      toneClass={getDoorTone(room)}
+                      dimmed={isBlocked}
+                    />
 
                   {/* Checkbox de selección: lo mostramos en la línea del nombre (abajo) para no tapar la puerta */}
 
@@ -499,6 +513,7 @@ const RoomMap = ({
                       <DirtIcon size={18} className="text-white" />
                     </DoorBadge>
                   )}
+                  </div>
                 </div>
 
                 {/* Texto debajo (como antes) */}

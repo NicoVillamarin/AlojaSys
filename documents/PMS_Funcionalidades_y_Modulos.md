@@ -6716,6 +6716,56 @@ Cada mapeo de habitación permite configurar la dirección de sincronización:
 
 El módulo de Gestión de Limpieza permite gestionar de manera integral todas las tareas de limpieza y mantenimiento de las habitaciones del hotel, con asignación automática de personal, seguimiento de tareas y control de calidad mediante checklists.
 
+### Activación del Módulo (según Plan)
+
+Este módulo es **opcional**: se habilita o no según el **plan contratado** por la empresa.
+
+- Si el módulo **está activo**, el hotel trabaja con un flujo completo de housekeeping (tareas, personal, zonas, checklists).
+- Si el módulo **no está activo**, igualmente podés usar el “subestado de limpieza” de la habitación de forma manual (como etiqueta).
+
+### Estados de Habitación: Estado Principal + Estado de Limpieza
+
+Las habitaciones tienen:
+
+- **Estado principal** (operativo): Disponible / Ocupada / Mantenimiento / etc.
+- **Estado de limpieza** (subestado): **Para limpiar** / **En limpieza** / **Limpia**
+
+#### Regla importante (Checkout)
+
+Siempre que se hace **checkout**, la habitación queda marcada como **Para limpiar**.
+
+### ¿Qué pasa si el Módulo NO está activo?
+
+Modo simple/manual:
+
+- El estado de limpieza se usa como “etiqueta” y se puede cambiar desde la gestión de habitaciones.
+- Ideal para hoteles que quieren solo visibilidad rápida (“qué está para limpiar”) sin operar tareas.
+
+### ¿Qué pasa si el Módulo SÍ está activo?
+
+Modo housekeeping completo:
+
+- El estado de limpieza se gestiona automáticamente por las **tareas de housekeeping**.
+- Para evitar inconsistencias, la modificación manual del subestado de limpieza desde la gestión de habitaciones se bloquea.
+- El módulo agrega:
+  - asignación de personal
+  - zonas de limpieza
+  - plantillas de tareas
+  - (opcional) checklists
+
+### Mapa de Habitaciones (Recepción)
+
+En el mapa se muestra visualmente el estado de limpieza:
+
+- Ícono/indicador para **En limpieza**
+- Ícono/indicador para **Para limpiar**
+- El texto debajo muestra: `Disponible · Para limpiar` / `Disponible · En limpieza` / `Disponible · Limpia`
+
+Además, se puede seleccionar múltiples habitaciones con checkbox para:
+
+- **Reserva multi-habitación**
+- **Acciones masivas** (cuando el módulo de housekeeping no está activo y el usuario tiene permisos)
+
 ### ¿Qué es el Módulo de Housekeeping?
 
 El módulo de Housekeeping es un sistema completo que automatiza y organiza todas las actividades de limpieza del hotel, desde la creación de tareas hasta el seguimiento de su completado, asegurando que todas las habitaciones estén en perfecto estado para los huéspedes.

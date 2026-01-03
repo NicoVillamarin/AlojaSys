@@ -8386,6 +8386,58 @@ logger.info(f"Usuario {user.id} accedió a comprobante {payment.id}")
 
 **Propósito**: Sistema completo de gestión de tareas de limpieza y mantenimiento de habitaciones, con asignación automática de personal, generación de tareas programadas, y seguimiento de checklists.
 
+### Activación por Plan (Feature Flag / Licencia)
+
+Este módulo es **opcional** y se habilita/deshabilita a nivel **Empresa** según el plan contratado.
+
+- **Feature key**: `housekeeping_advanced`
+- **Backend**: `apps.enterprises.features.get_effective_features()` y helper `has_feature()`
+- **Regla**: cuando `Enterprise.plan_type` no es `custom`, el backend **limpia** `enabled_features` para evitar overrides persistentes.
+
+#### Fuente de verdad para UI (plan_features)
+
+Para que el frontend pueda “gatear” el módulo por plan **sin depender** de permisos de `enterprises`, el endpoint `/api/me/` incluye:
+
+- `enterprise.plan_features` (features efectivos del plan)
+- y, si el usuario no tiene `profile.enterprise` pero sí hoteles asignados, el backend **infiera** la empresa desde `hotel.enterprise`.
+
+> Esto evita el caso típico: usuario con permisos de housekeeping pero `enterprise=null` → el frontend no puede inferir plan y oculta el módulo.
+
+### Doble estado de Habitación (Rooms)
+
+El sistema maneja dos estados:
+
+- **Estado principal**: `Room.status` (Disponible/Ocupada/Mantenimiento/etc.)
+- **Estado secundario (limpieza)**: `Room.cleaning_status`:
+  - `dirty` (**Para limpiar**)
+  - `in_progress` (**En limpieza**)
+  - `clean` (**Limpia**)
+
+#### Reglas de negocio clave
+
+- **Checkout**: siempre marca la habitación como `dirty` (**Para limpiar**) al finalizar una estadía, independientemente de si el módulo está activo o no.
+- **Housekeeping ON (módulo activo)**:
+  - `cleaning_status` se gestiona por el workflow de tareas (HousekeepingTask).
+  - Se **bloquea** el cambio manual de `cleaning_status` desde la gestión de habitaciones para evitar inconsistencias.
+- **Housekeeping OFF (módulo desactivado)**:
+  - `cleaning_status` se puede gestionar manualmente desde la UI de habitaciones (uso como “etiqueta”).
+
+#### Enforcements (Backend)
+
+- **Permisos/Acceso**: `HousekeepingAccessPermission` valida:
+  - plan habilitado para el hotel (`is_housekeeping_enabled_for_hotel_id`)
+  - y además permiso `housekeeping.access_housekeeping` o `profile.is_housekeeping_staff` (o superuser)
+- **Integridad de estados**: el serializer de `Room` valida que no se pueda modificar `cleaning_status` manualmente si el módulo está habilitado.
+- **Tareas automáticas**: tasks/servicios del app de housekeeping verifican el feature flag antes de generar/rebalancear tareas cuando el módulo no está habilitado.
+
+### UI/Frontend (Gating por plan + permisos)
+
+- El sidebar separa **licencia** (plan) de **acceso** (permisos):
+  - **Plan**: `usePlanFeatures().housekeepingEnabled`
+  - **Acceso tareas**: permiso `housekeeping.access_housekeeping` o `is_housekeeping_staff`
+  - **Acceso configuración**: permisos de configuración de housekeeping
+- `EnterpriseModal` permite configurar el plan y, en modo `custom`, overrides de `enabled_features`. Al guardar invalida queries de `enterprises` y `me` para refrescar inmediatamente el menú.
+
 ### Modelos Principales
 
 #### CleaningZone (Zona de Limpieza)
