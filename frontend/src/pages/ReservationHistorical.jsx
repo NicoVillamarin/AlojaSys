@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next'
 import TableGeneric from 'src/components/TableGeneric'
 import ReservationHistoricalModal from 'src/components/modals/ReservationHistoricalModal'
 import MultiRoomReservationDetailModal from 'src/components/modals/MultiRoomReservationDetailModal'
+import GuestDetailsModal from 'src/components/modals/GuestDetailsModal'
 import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import ReservationsModal from 'src/components/modals/ReservationsModal'
 import Button from 'src/components/Button'
+import ExportButton from 'src/components/ExportButton'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import { Formik } from 'formik'
 import { format, parseISO } from 'date-fns'
@@ -17,6 +19,8 @@ import Badge from 'src/components/Badge'
 import fetchWithAuth from 'src/services/fetchWithAuth'
 import { getApiURL } from 'src/services/utils'
 import { usePermissions } from 'src/hooks/usePermissions'
+import { showErrorConfirm, showSuccess } from 'src/services/toast'
+import { exportJsonToExcel } from 'src/utils/exportExcel'
 
 
 export default function ReservationHistorical() {
@@ -33,7 +37,10 @@ export default function ReservationHistorical() {
   const [historyReservation, setHistoryReservation] = useState(null)
   const [showMultiRoomDetail, setShowMultiRoomDetail] = useState(false)
   const [selectedMultiRoomGroup, setSelectedMultiRoomGroup] = useState(null)
+  const [guestDetailsOpen, setGuestDetailsOpen] = useState(false)
+  const [guestDetailsReservation, setGuestDetailsReservation] = useState(null)
   const [filters, setFilters] = useState({ search: '', hotel: '', room: '', status: '', dateFrom: '', dateTo: '' })
+  const [isExporting, setIsExporting] = useState(false)
   const didMountRef = useRef(false)
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
   const { results, isPending, hasNextPage, fetchNextPage, refetch } = useList({
@@ -43,6 +50,8 @@ export default function ReservationHistorical() {
       hotel: filters.hotel || undefined, 
       room: filters.room || undefined, 
       status: filters.status || undefined,
+      date_from: filters.dateFrom || undefined,
+      date_to: filters.dateTo || undefined,
       ordering: '-id', // Ordenar por ID descendente (más recientes primero)
       page_size: 100, // Cargar suficientes resultados para el histórico (puede usar "Cargar más" si necesita más)
     },
@@ -51,10 +60,75 @@ export default function ReservationHistorical() {
 
   const { mutate: doAction, isPending: acting } = useDispatchAction({ resource: 'reservations', onSuccess: () => refetch() })
 
+  const normalizeReservationForExport = (r, { groupCode = '', isFromGroup = false } = {}) => {
+    const isOta = r?.is_ota || r?.external_id
+    const channel = r?.channel_display || r?.channel || (isOta ? 'OTA' : 'Directo')
+
+    const safeDate = (value, fmt) => {
+      if (!value) return ''
+      try {
+        return format(parseISO(value), fmt)
+      } catch {
+        return String(value)
+      }
+    }
+
+    return {
+      ID: r?.id ?? '',
+      Reserva: r?.display_name ?? '',
+      Huésped: r?.guest_name ?? '',
+      Hotel: r?.hotel_name ?? '',
+      Habitación: r?.room_name ?? '',
+      Canal: channel,
+      'Check-in': safeDate(r?.check_in, 'dd/MM/yyyy'),
+      'Check-out': safeDate(r?.check_out, 'dd/MM/yyyy'),
+      Creada: safeDate(r?.created_at, 'dd/MM/yyyy HH:mm'),
+      Huéspedes: r?.guests ?? '',
+      Total: typeof r?.total_price === 'number' ? r.total_price : (parseFloat(r?.total_price) || 0),
+      Estado: getStatusLabel(r?.status, t),
+      Grupo: groupCode || r?.group_code || '',
+      'Multi-habitación': isFromGroup ? 'Sí' : 'No',
+      Overbooking: r?.overbooking_flag ? 'Sí' : 'No',
+      'Pagada por': r?.paid_by || '',
+    }
+  }
+
+  const handleExportExcel = async () => {
+    if (!displayResults?.length) {
+      showErrorConfirm('No hay reservas para exportar con los filtros actuales.')
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      const rows = []
+      for (const r of displayResults) {
+        if (r?.is_group && Array.isArray(r.group_reservations) && r.group_reservations.length > 0) {
+          for (const rr of r.group_reservations) {
+            rows.push(normalizeReservationForExport(rr, { groupCode: r.group_code || '', isFromGroup: true }))
+          }
+        } else {
+          rows.push(normalizeReservationForExport(r, { groupCode: r?.group_code || '', isFromGroup: false }))
+        }
+      }
+
+      const today = format(new Date(), 'yyyy-MM-dd')
+      await exportJsonToExcel({
+        rows,
+        filename: `reservas_historico_${today}.xlsx`,
+        sheetName: 'Reservas',
+      })
+      showSuccess('Excel generado correctamente.')
+    } catch (error) {
+      console.error('Error exportando reservas:', error)
+      showErrorConfirm('No se pudo exportar el Excel. Revisá la consola para más detalle.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const displayResults = useMemo(() => {
     const q = (filters.search || '').trim().toLowerCase()
-    const from = filters.dateFrom ? new Date(filters.dateFrom) : null
-    const to = filters.dateTo ? new Date(filters.dateTo) : null
     let arr = results || []
     
     if (q) {
@@ -68,16 +142,6 @@ export default function ReservationHistorical() {
       })
     }
     
-    if (from || to) {
-      arr = arr.filter((r) => {
-        const ci = new Date(r.check_in)
-        const co = new Date(r.check_out)
-        if (from && co < from) return false
-        if (to && ci > to) return false
-        return true
-      })
-    }
-
     // Agrupar por group_code para reservas multi-habitación (igual que en ReservationsGestions)
     const groupedByCode = {}
     const singles = []
@@ -125,13 +189,13 @@ export default function ReservationHistorical() {
     // Ordenar por ID descendente por defecto (más recientes primero)
     finalArr.sort((a, b) => (b.id || 0) - (a.id || 0))
     return finalArr
-  }, [results, filters.search, filters.dateFrom, filters.dateTo])
+  }, [results, filters.search])
 
   useEffect(() => {
     if (!didMountRef.current) { didMountRef.current = true; return }
     const id = setTimeout(() => refetch(), 400)
     return () => clearTimeout(id)
-  }, [filters.search, filters.hotel, filters.room, filters.status, refetch])
+  }, [filters.search, filters.hotel, filters.room, filters.status, filters.dateFrom, filters.dateTo, refetch])
 
   const canCheckIn = (r) => canChangeReservation && r.status === 'confirmed'
   const canCheckOut = (r) => canChangeReservation && r.status === 'check_in'
@@ -176,6 +240,15 @@ export default function ReservationHistorical() {
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.history')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">{t('sidebar.reservations_history')}</h1>
         </div>
+        <div className="flex gap-2">
+          <ExportButton
+            onClick={handleExportExcel}
+            isPending={isExporting}
+            loadingText="Exportando..."
+          >
+            Exportar Excel
+          </ExportButton>
+        </div>
       </div>
 
       <ReservationsModal 
@@ -206,6 +279,14 @@ export default function ReservationHistorical() {
         }}
         groupCode={selectedMultiRoomGroup?.groupCode}
         groupReservations={selectedMultiRoomGroup?.groupReservations}
+      />
+      <GuestDetailsModal
+        isOpen={guestDetailsOpen}
+        onClose={() => {
+          setGuestDetailsOpen(false)
+          setGuestDetailsReservation(null)
+        }}
+        reservation={guestDetailsReservation}
       />
 
      <Filter>
@@ -342,7 +423,25 @@ export default function ReservationHistorical() {
               );
             }
           },
-          { key: 'guest_name', header: t('dashboard.reservations_management.table_headers.guest'), sortable: true },
+          {
+            key: 'guest_name',
+            header: t('dashboard.reservations_management.table_headers.guest'),
+            sortable: true,
+            render: (r) => (
+              <button
+                type="button"
+                className="text-blue-600 hover:text-blue-800 cursor-pointer text-left"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setGuestDetailsReservation(r)
+                  setGuestDetailsOpen(true)
+                }}
+                title="Ver datos del huésped"
+              >
+                {r.guest_name || '—'}
+              </button>
+            ),
+          },
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
           { 
             key: 'room_name', 

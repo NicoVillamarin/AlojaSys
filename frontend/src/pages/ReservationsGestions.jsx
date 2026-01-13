@@ -45,6 +45,10 @@ import Tooltip from "src/components/Tooltip";
 import { Chevron } from "src/assets/icons/Chevron";
 import { useEffectOnce } from "src/hooks/useEffectOnce";
 import { usePermissions, useHasAnyPermission } from "src/hooks/usePermissions";
+import ExportButton from "src/components/ExportButton";
+import { exportJsonToExcel } from "src/utils/exportExcel";
+import { showErrorConfirm, showSuccess } from "src/services/toast";
+import GuestDetailsModal from "src/components/modals/GuestDetailsModal";
 
 export default function ReservationsGestions() {
   const { t, i18n } = useTranslation();
@@ -86,6 +90,9 @@ export default function ReservationsGestions() {
   const [selectedMultiRoomGroup, setSelectedMultiRoomGroup] = useState(null);
   const [editMultiRoomGroup, setEditMultiRoomGroup] = useState(null);
   const [multiRoomRefreshKey, setMultiRoomRefreshKey] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const [guestDetailsOpen, setGuestDetailsOpen] = useState(false);
+  const [guestDetailsReservation, setGuestDetailsReservation] = useState(null);
   const [filters, setFilters] = useState({
     search: "",
     hotel: "",
@@ -109,6 +116,8 @@ export default function ReservationsGestions() {
       hotel: filters.hotel || undefined,
       room: filters.room || undefined,
       status: filters.status || undefined,
+      date_from: filters.dateFrom || undefined,
+      date_to: filters.dateTo || undefined,
       ordering: "-id", // Ordenar por ID descendente (más recientes primero), con ordenamiento secundario por check_in en backend
       page_size: 1000, // Cargar más resultados para evitar problemas de paginación
     },
@@ -136,8 +145,6 @@ export default function ReservationsGestions() {
 
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
-    const from = filters.dateFrom ? new Date(filters.dateFrom) : null;
-    const to = filters.dateTo ? new Date(filters.dateTo) : null;
     let arr = results || [];
 
     // Excluir reservas finalizadas (check_out) de la gestión
@@ -163,16 +170,6 @@ export default function ReservationsGestions() {
           status.includes(q) ||
           group.includes(q)
         );
-      });
-    }
-
-    if (from || to) {
-      arr = arr.filter((r) => {
-        const ci = new Date(r.check_in);
-        const co = new Date(r.check_out);
-        if (from && co < from) return false;
-        if (to && ci > to) return false;
-        return true;
       });
     }
 
@@ -223,7 +220,86 @@ export default function ReservationsGestions() {
     // Ordenar por ID descendente por defecto (más recientes primero)
     finalArr.sort((a, b) => (b.id || 0) - (a.id || 0));
     return finalArr;
-  }, [results, filters.search, filters.dateFrom, filters.dateTo]);
+  }, [results, filters.search]);
+
+  const normalizeReservationForExport = (r, { groupCode = "", isFromGroup = false } = {}) => {
+    const isOta = r?.is_ota || r?.external_id;
+    const channel = r?.channel_display || r?.channel || (isOta ? "OTA" : "Directo");
+
+    const safeDate = (value, fmt) => {
+      if (!value) return "";
+      try {
+        return format(parseISO(value), fmt);
+      } catch {
+        return String(value);
+      }
+    };
+
+    return {
+      ID: r?.id ?? "",
+      Reserva: r?.display_name ?? "",
+      Huésped: r?.guest_name ?? "",
+      Hotel: r?.hotel_name ?? "",
+      Habitación: r?.room_name ?? "",
+      Canal: channel,
+      "Check-in": safeDate(r?.check_in, "dd/MM/yyyy"),
+      "Check-out": safeDate(r?.check_out, "dd/MM/yyyy"),
+      Creada: safeDate(r?.created_at, "dd/MM/yyyy HH:mm"),
+      Huéspedes: r?.guests ?? "",
+      Total: typeof r?.total_price === "number" ? r.total_price : (parseFloat(r?.total_price) || 0),
+      Estado: getStatusLabel(r?.status, t),
+      "Pagada por": r?.paid_by || "",
+      "Total pagado": typeof r?.total_paid === "number" ? r.total_paid : (parseFloat(r?.total_paid) || 0),
+      "Saldo pendiente": typeof r?.balance_due === "number" ? r.balance_due : (parseFloat(r?.balance_due) || 0),
+      Grupo: groupCode || r?.group_code || "",
+      "Multi-habitación": isFromGroup ? "Sí" : "No",
+      Overbooking: r?.overbooking_flag ? "Sí" : "No",
+    };
+  };
+
+  const handleExportExcel = async () => {
+    if (!displayResults?.length) {
+      showErrorConfirm("No hay reservas para exportar con los filtros actuales.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      const rows = [];
+      for (const r of displayResults) {
+        if (r?.is_group && Array.isArray(r.group_reservations) && r.group_reservations.length > 0) {
+          for (const rr of r.group_reservations) {
+            rows.push(
+              normalizeReservationForExport(rr, {
+                groupCode: r.group_code || "",
+                isFromGroup: true,
+              })
+            );
+          }
+        } else {
+          rows.push(
+            normalizeReservationForExport(r, {
+              groupCode: r?.group_code || "",
+              isFromGroup: false,
+            })
+          );
+        }
+      }
+
+      const today = format(new Date(), "yyyy-MM-dd");
+      await exportJsonToExcel({
+        rows,
+        filename: `reservas_gestion_${today}.xlsx`,
+        sheetName: "Reservas",
+      });
+      showSuccess("Excel generado correctamente.");
+    } catch (error) {
+      console.error("Error exportando reservas:", error);
+      showErrorConfirm("No se pudo exportar el Excel. Revisá la consola para más detalle.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!didMountRef.current) {
@@ -232,7 +308,7 @@ export default function ReservationsGestions() {
     }
     const id = setTimeout(() => refetch(), 400);
     return () => clearTimeout(id);
-  }, [filters.search, filters.hotel, filters.room, filters.status, refetch]);
+  }, [filters.search, filters.hotel, filters.room, filters.status, filters.dateFrom, filters.dateTo, refetch]);
 
   // Escuchar eventos SSE de OTAs para refrescar automáticamente al recibir cambios
   useEffect(() => {
@@ -718,6 +794,14 @@ export default function ReservationsGestions() {
           </h1>
         </div>
         <div className="flex gap-3">
+          <ExportButton
+            onClick={handleExportExcel}
+            isPending={isExporting}
+            loadingText="Exportando..."
+            size="md"
+          >
+            Exportar Excel
+          </ExportButton>
           <AutoNoShowButton
             selectedHotel={selectedHotel}
             hasAutoNoShowEnabled={hasAutoNoShowEnabled}
@@ -810,6 +894,15 @@ export default function ReservationsGestions() {
         }}
         groupCode={selectedMultiRoomGroup?.groupCode}
         groupReservations={selectedMultiRoomGroup?.groupReservations}
+      />
+
+      <GuestDetailsModal
+        isOpen={guestDetailsOpen}
+        onClose={() => {
+          setGuestDetailsOpen(false);
+          setGuestDetailsReservation(null);
+        }}
+        reservation={guestDetailsReservation}
       />
 
       <PaymentModal
@@ -1064,6 +1157,20 @@ export default function ReservationsGestions() {
             key: "guest_name",
             header: t("dashboard.reservations_management.table_headers.guest"),
             sortable: true,
+            render: (r) => (
+              <button
+                type="button"
+                className="text-blue-600 hover:text-blue-800 cursor-pointer text-left"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGuestDetailsReservation(r);
+                  setGuestDetailsOpen(true);
+                }}
+                title="Ver datos del huésped"
+              >
+                {r.guest_name || "—"}
+              </button>
+            ),
           },
           {
             key: "hotel_name",

@@ -14,6 +14,9 @@ import { useGet } from 'src/hooks/useGet'
 import Tabs from 'src/components/Tabs'
 import Button from 'src/components/Button'
 import { usePermissions } from 'src/hooks/usePermissions'
+import ExportButton from 'src/components/ExportButton'
+import { exportJsonToExcel } from 'src/utils/exportExcel'
+import { showErrorConfirm, showSuccess } from 'src/services/toast'
 
 export default function Payments() {
   const { t } = useTranslation()
@@ -24,6 +27,7 @@ export default function Payments() {
   const [selectedPayment, setSelectedPayment] = useState(null)
   const [stats, setStats] = useState(null)
   const [activeTab, setActiveTab] = useState('all')
+  const [isExporting, setIsExporting] = useState(false)
   const [filters, setFilters] = useState({ 
     search: '', 
     hotel: '', 
@@ -354,39 +358,70 @@ export default function Payments() {
     return () => clearTimeout(id)
   }, [filters.search, filters.hotel, filters.type, filters.method, filters.status, filters.dateFrom, filters.dateTo, filters.minAmount, filters.maxAmount, refetch])
 
-  const handleExport = async () => {
-    try {
-      const params = new URLSearchParams()
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) {
-          const paramKey = key === 'dateFrom' ? 'date_from' : 
-                          key === 'dateTo' ? 'date_to' :
-                          key === 'minAmount' ? 'min_amount' :
-                          key === 'maxAmount' ? 'max_amount' : key
-          params.append(paramKey, value)
-        }
-      })
-      
-      // Usar fetch directamente para la descarga
-      const response = await fetch(`/api/payments/collections/export/?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        }
-      })
-      
-      if (response.ok) {
-        const blob = await response.blob()
-        const downloadUrl = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = downloadUrl
-        link.download = `cobros_${new Date().toISOString().split('T')[0]}.csv`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(downloadUrl)
+  const handleExportExcel = async () => {
+    if (!displayResults?.length) {
+      showErrorConfirm('No hay cobros para exportar con los filtros actuales.')
+      return
+    }
+
+    const safeDate = (value, fmt) => {
+      if (!value) return ''
+      try {
+        return format(parseISO(value), fmt)
+      } catch {
+        return String(value)
       }
+    }
+
+    try {
+      setIsExporting(true)
+      const rows =
+        activeTab === 'postnet'
+          ? displayResults.map((r) => ({
+              Reserva: r?.reservation_id ? `#${r.reservation_id}` : '',
+              Huésped: r?.guest_name ?? '',
+              Hotel: r?.hotel_name ?? '',
+              Monto: typeof r?.amount === 'number' ? r.amount : (parseFloat(r?.amount) || 0),
+              Terminal_ID: r?.terminal_id ?? '',
+              Batch: r?.batch_number ?? '',
+              Estado:
+                r?.status === 'pending_settlement'
+                  ? 'Pendiente Liquidación'
+                  : r?.status === 'approved'
+                  ? 'Aprobado'
+                  : r?.status === 'failed'
+                  ? 'Fallido'
+                  : (r?.status ?? ''),
+              Fecha_Pago: safeDate(r?.date, 'dd/MM/yyyy'),
+            }))
+          : displayResults.map((r) => ({
+              Reserva: r?.reservation_id ? `#${r.reservation_id}` : '',
+              Huésped: r?.guest_name ?? '',
+              Hotel: r?.hotel_name ?? '',
+              Habitación: r?.room_name ?? '',
+              'Check-in': safeDate(r?.check_in, 'dd/MM/yyyy'),
+              'Check-out': safeDate(r?.check_out, 'dd/MM/yyyy'),
+              Monto: typeof r?.amount === 'number' ? r.amount : (parseFloat(r?.amount) || 0),
+              Método: getMethodLabel(r?.method),
+              Tipo: getTypeLabel(r?.type),
+              Estado: getStatusLabel(r?.status),
+              Fecha_Pago: safeDate(r?.date, 'dd/MM/yyyy'),
+              Creado: safeDate(r?.created_at, 'dd/MM/yyyy HH:mm'),
+              Descripción: r?.description ?? '',
+            }))
+
+      const today = new Date().toISOString().split('T')[0]
+      await exportJsonToExcel({
+        rows,
+        filename: `cobros_${activeTab}_${today}.xlsx`,
+        sheetName: activeTab === 'postnet' ? 'POS_POSTNET' : 'Cobros',
+      })
+      showSuccess('Excel generado correctamente.')
     } catch (error) {
       console.error('Error exportando cobros:', error)
+      showErrorConfirm('No se pudo exportar el Excel. Revisá la consola para más detalle.')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -406,12 +441,9 @@ export default function Payments() {
           <h1 className="text-2xl font-semibold text-aloja-navy">Cobros</h1>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            Exportar CSV
-          </button>
+          <ExportButton onClick={handleExportExcel} isPending={isExporting} loadingText="Exportando...">
+            Exportar Excel
+          </ExportButton>
         </div>
       </div>
 

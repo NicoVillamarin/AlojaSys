@@ -13,6 +13,9 @@ import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
 import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
 import { useMe } from 'src/hooks/useMe'
+import ExportButton from 'src/components/ExportButton'
+import { exportJsonToExcel } from 'src/utils/exportExcel'
+import { showErrorConfirm, showSuccess } from 'src/services/toast'
 
 const TASK_STATUS = {
   pending: { labelKey: 'housekeeping.status.pending', variant: 'warning' },
@@ -68,6 +71,7 @@ export default function HousekeepingHistorical() {
   const [selectedChecklistId, setSelectedChecklistId] = useState(null)
   const [showTaskDetail, setShowTaskDetail] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const listParams = useMemo(
     () => ({
@@ -94,6 +98,48 @@ export default function HousekeepingHistorical() {
 
   const displayResults = useMemo(() => results || [], [results])
 
+  const handleExportExcel = async () => {
+    if (!displayResults?.length) {
+      showErrorConfirm('No hay tareas para exportar con los filtros actuales.')
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      const rows = displayResults.map((r) => ({
+        ID: r?.id ?? '',
+        Hotel: r?.hotel_name || r?.hotel || '',
+        Habitación: r?.room_name || r?.room || '',
+        Tipo: r?.task_type ? t(`housekeeping.types.${r.task_type}`) : '',
+        Estado: r?.status ? t(`housekeeping.status.${r.status}`) : '',
+        Prioridad:
+          (typeof r?.priority === 'number' ? r.priority : parseInt(r?.priority ?? '0', 10)) >= 2
+            ? t('housekeeping.priority_high')
+            : (typeof r?.priority === 'number' ? r.priority : parseInt(r?.priority ?? '0', 10)) === 1
+            ? t('housekeeping.priority_medium')
+            : t('housekeeping.priority_low'),
+        Asignado_a: r?.assigned_to_name || '',
+        Checklist: r?.checklist_name || '',
+        Creada: formatDateTime(r?.created_at, i18n.language),
+        Iniciada: formatDateTime(r?.started_at, i18n.language),
+        Completada: formatDateTime(r?.completed_at, i18n.language),
+      }))
+
+      const today = new Date().toISOString().split('T')[0]
+      await exportJsonToExcel({
+        rows,
+        filename: `housekeeping_historico_${today}.xlsx`,
+        sheetName: 'Housekeeping',
+      })
+      showSuccess('Excel generado correctamente.')
+    } catch (error) {
+      console.error('Error exportando housekeeping:', error)
+      showErrorConfirm('No se pudo exportar el Excel. Revisá la consola para más detalle.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const handleDateChange = (field) => (event) => {
     setFilters((prev) => ({ ...prev, [field]: event.target.value }))
   }
@@ -116,10 +162,17 @@ export default function HousekeepingHistorical() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="text-xs text-aloja-gray-800/60">{t('sidebar.housekeeping_historical')}</div>
-        <h1 className="text-2xl font-semibold text-aloja-navy">{t('housekeeping.history.title')}</h1>
-        <p className="text-sm text-aloja-gray-700 mt-1">{t('housekeeping.history.description')}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs text-aloja-gray-800/60">{t('sidebar.housekeeping_historical')}</div>
+          <h1 className="text-2xl font-semibold text-aloja-navy">{t('housekeeping.history.title')}</h1>
+          <p className="text-sm text-aloja-gray-700 mt-1">{t('housekeeping.history.description')}</p>
+        </div>
+        <div className="shrink-0">
+          <ExportButton onClick={handleExportExcel} isPending={isExporting} loadingText="Exportando...">
+            Exportar Excel
+          </ExportButton>
+        </div>
       </div>
 
       <ChecklistDetailModal

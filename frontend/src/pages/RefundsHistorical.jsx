@@ -5,6 +5,7 @@ import RefundDetailModal from 'src/components/modals/RefundDetailModal'
 import { useList } from 'src/hooks/useList'
 import { useDispatchAction } from 'src/hooks/useDispatchAction'
 import Button from 'src/components/Button'
+import ExportButton from 'src/components/ExportButton'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import { Formik } from 'formik'
 import { format, parseISO } from 'date-fns'
@@ -13,12 +14,15 @@ import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import Badge from 'src/components/Badge'
 import { usePermissions } from 'src/hooks/usePermissions'
+import { exportJsonToExcel } from 'src/utils/exportExcel'
+import { showErrorConfirm, showSuccess } from 'src/services/toast'
 
 export default function RefundsHistorical() {
   const { t } = useTranslation()
   const canViewRefunds = usePermissions('payments.view_refund')
   const [historyRefundId, setHistoryRefundId] = useState(null)
   const [historyRefund, setHistoryRefund] = useState(null)
+  const [isExporting, setIsExporting] = useState(false)
   const [filters, setFilters] = useState({ 
     search: '', 
     hotel: '', 
@@ -127,6 +131,43 @@ export default function RefundsHistorical() {
     }).format(amount)
   }
 
+  const handleExportExcel = async () => {
+    if (!displayResults?.length) {
+      showErrorConfirm('No hay reembolsos para exportar con los filtros actuales.')
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      const rows = displayResults.map((r) => ({
+        ID: r?.id ?? '',
+        Reserva: r?.reservation_display_name || (r?.reservation_id ? `Reserva #${r.reservation_id}` : ''),
+        Hotel: r?.hotel_name || '',
+        Monto: typeof r?.amount === 'number' ? r.amount : (parseFloat(r?.amount) || 0),
+        Motivo: getReasonLabel(r?.reason),
+        Método: getRefundMethodLabel(r?.refund_method),
+        Estado: r?.status || '',
+        Creado: r?.created_at ? format(parseISO(r.created_at), 'dd/MM/yyyy HH:mm') : '',
+        Procesado: r?.processed_at ? format(parseISO(r.processed_at), 'dd/MM/yyyy HH:mm') : '',
+        Referencia_externa: r?.external_reference || '',
+        Voucher: r?.generated_voucher?.code || '',
+      }))
+
+      const today = new Date().toISOString().split('T')[0]
+      await exportJsonToExcel({
+        rows,
+        filename: `reembolsos_historico_${today}.xlsx`,
+        sheetName: 'Reembolsos',
+      })
+      showSuccess('Excel generado correctamente.')
+    } catch (error) {
+      console.error('Error exportando reembolsos:', error)
+      showErrorConfirm('No se pudo exportar el Excel. Revisá la consola para más detalle.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   if (!canViewRefunds) {
     return (
       <div className="p-6 text-center text-gray-600">
@@ -141,6 +182,11 @@ export default function RefundsHistorical() {
         <div>
           <div className="text-xs text-aloja-gray-800/60">{t('sidebar.histories')}</div>
           <h1 className="text-2xl font-semibold text-aloja-navy">Histórico de Reembolsos</h1>
+        </div>
+        <div className="flex gap-2">
+          <ExportButton onClick={handleExportExcel} isPending={isExporting} loadingText="Exportando...">
+            Exportar Excel
+          </ExportButton>
         </div>
       </div>
 

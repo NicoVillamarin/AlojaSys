@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from datetime import date, timedelta
 from django.core.exceptions import ValidationError
 from django.utils import timezone as django_timezone
+from django.db.models import Q
 from apps.rooms.models import Room, RoomStatus
 from apps.rooms.serializers import RoomSerializer
 from .models import Reservation, ReservationStatus, ReservationChannel, RoomBlock, ReservationNight
@@ -38,6 +39,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
         room_id = self.request.query_params.get("room")
         status_param = self.request.query_params.get("status")
         group_code = self.request.query_params.get("group_code")
+        search = (self.request.query_params.get("search") or "").strip()
+        date_from_str = self.request.query_params.get("date_from") or self.request.query_params.get("check_in_from")
+        date_to_str = self.request.query_params.get("date_to") or self.request.query_params.get("check_in_to")
         ordering = self.request.query_params.get("ordering", "-check_in")  # Por defecto ordenar por check-in descendente
         
         if hotel_id and hotel_id.isdigit():
@@ -48,6 +52,40 @@ class ReservationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_param)
         if group_code:
             qs = qs.filter(group_code=group_code)
+
+        # Filtro por rango de fechas (solapamiento), equivalente al filtro frontend:
+        # incluir reservas donde NO (check_out < from OR check_in > to)
+        # => check_out >= from AND check_in <= to
+        try:
+            if date_from_str:
+                dfrom = date.fromisoformat(date_from_str)
+                qs = qs.filter(check_out__gte=dfrom)
+        except Exception:
+            pass
+        try:
+            if date_to_str:
+                dto = date.fromisoformat(date_to_str)
+                qs = qs.filter(check_in__lte=dto)
+        except Exception:
+            pass
+
+        # Búsqueda simple (no rompe compatibilidad si el frontend también filtra):
+        # - id exacto si es numérico
+        # - group_code / external_id / status / channel / hotel / room por contains
+        if search:
+            q = Q()
+            if search.isdigit():
+                try:
+                    q |= Q(id=int(search))
+                except Exception:
+                    pass
+            q |= Q(group_code__icontains=search)
+            q |= Q(external_id__icontains=search)
+            q |= Q(status__icontains=search)
+            q |= Q(channel__icontains=search)
+            q |= Q(hotel__name__icontains=search)
+            q |= Q(room__name__icontains=search)
+            qs = qs.filter(q)
         
         # Validar que el campo de ordenamiento sea válido
         valid_orderings = ['created_at', '-created_at', 'check_in', '-check_in', 'check_out', '-check_out', 'id', '-id']
