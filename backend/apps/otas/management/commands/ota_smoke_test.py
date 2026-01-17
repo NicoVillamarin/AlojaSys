@@ -6,7 +6,7 @@ from apps.core.models import Hotel
 from apps.rooms.models import Room
 from apps.reservations.models import Reservation, ReservationStatus
 from apps.otas.models import OtaConfig, OtaProvider, OtaRoomMapping, OtaSyncJob
-from apps.otas.services.ical_importer import import_ics_for_room_mapping
+from apps.otas.services.ical_sync_service import ICALSyncService
 from apps.otas.services.ari_publisher import build_mock_ari_payload, push_ari_for_hotel
 
 import secrets
@@ -75,7 +75,7 @@ class Command(BaseCommand):
 
         # 4) Ejecutar import ICS sincronamente
         job = OtaSyncJob.objects.create(hotel=hotel, provider=OtaProvider.ICAL, job_type=OtaSyncJob.JobType.IMPORT_ICS, status=OtaSyncJob.JobStatus.RUNNING, stats={"mapping_id": m.id})
-        stats = import_ics_for_room_mapping(m.id, job=job)
+        stats = ICALSyncService.import_reservations(m, job=job)
         job.status = OtaSyncJob.JobStatus.SUCCESS
         job.stats = stats
         job.save(update_fields=["status", "stats", "finished_at"])

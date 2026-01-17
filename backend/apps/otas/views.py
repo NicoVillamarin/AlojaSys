@@ -54,9 +54,10 @@ def _build_calendar(name: str) -> Calendar:
 
 def _add_reservation_event(cal: Calendar, reservation: Reservation) -> None:
     event = Event()
-    # All-day event [DTEND no-inclusivo → sumar 1 día]
+    # All-day event (iCal estándar): DTEND es no-inclusivo.
+    # Para reservas hoteleras, el evento cubre [check_in, check_out) → DTEND = check_out.
     dt_start = datetime.combine(reservation.check_in, datetime.min.time())
-    dt_end = datetime.combine(reservation.check_out + timedelta(days=1), datetime.min.time())
+    dt_end = datetime.combine(reservation.check_out, datetime.min.time())
 
     event.add("uid", f"alojasys-reservation-{reservation.id}@alojasys")
     event.add("summary", f"RES-{reservation.id} | {reservation.room.name}")
@@ -515,3 +516,199 @@ def airbnb_webhook(request):
     result = _process_reservation_webhook(OtaProvider.AIRBNB, request)
     http_status = status.HTTP_200_OK if result.get("ok") else status.HTTP_400_BAD_REQUEST
     return Response(result, status=http_status)
+
+
+# ===== Webhooks Smoobu (Channel Manager) =====
+
+def _get_smoobu_webhook_token() -> str:
+    return os.environ.get("SMOOBU_WEBHOOK_TOKEN", os.environ.get("OTAS_WEBHOOK_TOKEN", ""))
+
+
+def _verify_smoobu_webhook_token(request) -> bool:
+    """
+    Smoobu no documenta firma HMAC en webhooks.
+    Validamos por token propio (query ?token=... o header X-Webhook-Token).
+    En DEBUG permitimos sin token para facilitar desarrollo.
+    """
+    token_required = _get_smoobu_webhook_token()
+    if not token_required:
+        return True if settings.DEBUG else True  # si no configuraste token, no bloqueamos
+    provided = request.query_params.get("token") or request.headers.get("X-Webhook-Token") or request.headers.get("X-Token")
+    return bool(provided) and str(provided) == str(token_required)
+
+
+def _parse_smoobu_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)[:10]).date()
+    except Exception:
+        return None
+
+
+def _map_smoobu_channel_to_internal(channel_name: str | None) -> str:
+    name = (channel_name or "").lower()
+    if "booking" in name:
+        return ReservationChannel.BOOKING
+    if "airbnb" in name:
+        return ReservationChannel.AIRBNB
+    if "expedia" in name:
+        return ReservationChannel.EXPEDIA
+    return ReservationChannel.OTHER
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def smoobu_webhook(request):
+    if not _verify_smoobu_webhook_token(request):
+        return Response({"ok": False, "status": "invalid_token"}, status=status.HTTP_403_FORBIDDEN)
+
+    payload = request.data if hasattr(request, "data") else {}
+    action = payload.get("action")
+    data = payload.get("data") or {}
+
+    # Construir notification_id para idempotencia (Smoobu no provee event_id explícito en docs)
+    smoobu_res_id = data.get("id")
+    modified = data.get("modifiedAt") or data.get("modified-at") or data.get("modified_at") or data.get("created-at")
+    notification_id = f"smoobu:{action}:{smoobu_res_id}:{modified}" if (action and smoobu_res_id) else None
+
+    if notification_id and WebhookSecurityService.is_notification_processed(notification_id, None):
+        return Response({"ok": True, "status": "duplicate"}, status=status.HTTP_200_OK)
+
+    # Resolver apartment -> room mapping
+    apartment = data.get("apartment") or {}
+    apartment_id = (apartment.get("id") if isinstance(apartment, dict) else None) or data.get("apartmentId")
+    if not apartment_id:
+        if notification_id:
+            WebhookSecurityService.mark_notification_processed(notification_id, None)
+        return Response({"ok": True, "status": "accepted_noop"}, status=status.HTTP_200_OK)
+
+    mapping = (
+        OtaRoomMapping.objects.select_related("hotel", "room")
+        .filter(provider=OtaProvider.SMOOBU, external_id=str(apartment_id), is_active=True)
+        .first()
+    )
+
+    job = OtaSyncJob.objects.create(
+        hotel=getattr(mapping, "hotel", None),
+        provider=OtaProvider.SMOOBU,
+        job_type=OtaSyncJob.JobType.PULL_RESERVATIONS,
+        status=OtaSyncJob.JobStatus.RUNNING,
+        stats={"webhook": True, "provider": OtaProvider.SMOOBU},
+    )
+
+    try:
+        if not (mapping and mapping.hotel and mapping.room and smoobu_res_id):
+            OtaSyncLog.objects.create(
+                job=job,
+                level=OtaSyncLog.Level.WARNING,
+                message="SMOOBU_WEBHOOK_INCOMPLETE",
+                payload={"apartment_id": apartment_id, "smoobu_id": smoobu_res_id, "action": action},
+            )
+            job.status = OtaSyncJob.JobStatus.SUCCESS
+            job.save(update_fields=["status"])
+            if notification_id:
+                WebhookSecurityService.mark_notification_processed(notification_id, None)
+            return Response({"ok": True, "status": "accepted_noop"}, status=status.HTTP_200_OK)
+
+        channel_name = None
+        chan = data.get("channel") or {}
+        if isinstance(chan, dict):
+            channel_name = chan.get("name")
+        channel = _map_smoobu_channel_to_internal(channel_name)
+
+        external_id = f"smoobu:{smoobu_res_id}"
+        check_in = _parse_smoobu_date(data.get("arrival") or data.get("arrivalDate"))
+        check_out = _parse_smoobu_date(data.get("departure") or data.get("departureDate"))
+
+        # Cancelación / borrado
+        if action in ("cancelReservation", "deleteReservation"):
+            # intentar por channel + fallback a cualquier channel
+            qs = Reservation.objects.filter(hotel=mapping.hotel, external_id=external_id)
+            if channel:
+                qs = qs.filter(channel=channel)
+            res = qs.order_by("-id").first()
+            if res:
+                res.status = ReservationStatus.CANCELLED
+                res.save(update_fields=["status"])
+                OtaSyncLog.objects.create(
+                    job=job,
+                    level=OtaSyncLog.Level.INFO,
+                    message="SMOOBU_RESERVATION_CANCELLED",
+                    payload={"reservation_id": res.id, "external_id": external_id, "channel": channel},
+                )
+            job.status = OtaSyncJob.JobStatus.SUCCESS
+            job.save(update_fields=["status"])
+            if notification_id:
+                WebhookSecurityService.mark_notification_processed(notification_id, None)
+            return Response({"ok": True, "status": "processed"}, status=status.HTTP_200_OK)
+
+        if not (check_in and check_out):
+            OtaSyncLog.objects.create(
+                job=job,
+                level=OtaSyncLog.Level.WARNING,
+                message="SMOOBU_WEBHOOK_MISSING_DATES",
+                payload={"external_id": external_id, "action": action},
+            )
+            job.status = OtaSyncJob.JobStatus.SUCCESS
+            job.save(update_fields=["status"])
+            if notification_id:
+                WebhookSecurityService.mark_notification_processed(notification_id, None)
+            return Response({"ok": True, "status": "accepted_noop"}, status=status.HTTP_200_OK)
+
+        adults = int(data.get("adults") or 0)
+        children = int(data.get("children") or 0)
+        guests = max(adults + children, 1)
+
+        guest_name = data.get("guest-name") or data.get("guest_name") or data.get("guestName") or data.get("firstname") or "Huésped Smoobu"
+        email = data.get("email") or ""
+        guests_data = [{
+            "name": guest_name,
+            "email": email or f"{guest_name.lower().replace(' ', '.')}@example.com",
+            "is_primary": True,
+            "source": "smoobu",
+            "provider": "smoobu",
+            "channel_name": channel_name,
+        }]
+
+        result = OtaReservationService.upsert_reservation(
+            hotel=mapping.hotel,
+            room=mapping.room,
+            external_id=external_id,
+            channel=channel,
+            check_in=check_in,
+            check_out=check_out,
+            guests=guests,
+            guests_data=guests_data,
+            notes=f"Webhook Smoobu (canal: {channel_name})",
+            provider_name=OtaProvider.SMOOBU.label,
+        )
+
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.INFO,
+            message="SMOOBU_WEBHOOK_RESERVATION_UPSERTED",
+            payload={
+                "reservation_id": result.get("reservation_id"),
+                "created": result.get("created"),
+                "external_id": external_id,
+                "channel": channel,
+            },
+        )
+
+        job.status = OtaSyncJob.JobStatus.SUCCESS
+        job.save(update_fields=["status"])
+        if notification_id:
+            WebhookSecurityService.mark_notification_processed(notification_id, None)
+        return Response({"ok": True, "status": "processed"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.ERROR,
+            message="SMOOBU_WEBHOOK_ERROR",
+            payload={"error": str(e), "action": action},
+        )
+        job.status = OtaSyncJob.JobStatus.FAILED
+        job.error_message = str(e)
+        job.save(update_fields=["status", "error_message"])
+        return Response({"ok": False, "status": "error", "error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

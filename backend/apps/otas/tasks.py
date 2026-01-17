@@ -18,6 +18,7 @@ from django.utils import timezone
 from datetime import date, timedelta
 import os, json
 import redis
+from .services.smoobu_sync_service import SmoobuSyncService
 
 
 @shared_task(bind=True)
@@ -383,4 +384,64 @@ def pull_reservations_all_hotels_task(self):
         pull_reservations_for_hotel_task.delay(cfg["hotel_id"], cfg["provider"], None)
         total += 1
     return {"scheduled": total}
+
+
+# ===== SMOOBU (push) =====
+@shared_task(bind=True)
+def sync_smoobu_for_hotel_task(self, hotel_id: int, days_ahead: int = 90, job_id: int | None = None):
+    """
+    Empuja bloqueos (y opcionalmente rates) desde AlojaSys hacia Smoobu para un hotel.
+    """
+    if job_id:
+        try:
+            job = OtaSyncJob.objects.get(id=job_id)
+        except OtaSyncJob.DoesNotExist:
+            job = OtaSyncJob.objects.create(
+                hotel_id=hotel_id,
+                provider=OtaProvider.SMOOBU,
+                job_type=OtaSyncJob.JobType.SYNC_SMOOBU,
+                status=OtaSyncJob.JobStatus.RUNNING,
+                stats={"hotel_id": hotel_id, "provider": OtaProvider.SMOOBU, "days_ahead": days_ahead, "fallback": "job_not_found"},
+            )
+    else:
+        job = OtaSyncJob.objects.create(
+            hotel_id=hotel_id,
+            provider=OtaProvider.SMOOBU,
+            job_type=OtaSyncJob.JobType.SYNC_SMOOBU,
+            status=OtaSyncJob.JobStatus.RUNNING,
+            stats={"hotel_id": hotel_id, "provider": OtaProvider.SMOOBU, "days_ahead": days_ahead},
+        )
+
+    OtaSyncLog.objects.create(
+        job=job,
+        level=OtaSyncLog.Level.INFO,
+        message="SMOOBU_SYNC_STARTED",
+        payload={"hotel_id": hotel_id, "days_ahead": days_ahead, "trigger": "task"},
+    )
+
+    try:
+        result = SmoobuSyncService.sync_hotel(int(hotel_id), days_ahead=int(days_ahead))
+        job.status = OtaSyncJob.JobStatus.SUCCESS if result.get("status") == "ok" else OtaSyncJob.JobStatus.FAILED
+        job.stats = {**(job.stats or {}), **result}
+        job.finished_at = timezone.now()
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.INFO if job.status == OtaSyncJob.JobStatus.SUCCESS else OtaSyncLog.Level.WARNING,
+            message="SMOOBU_SYNC_COMPLETED",
+            payload={"hotel_id": hotel_id, "result": result},
+        )
+    except Exception as e:
+        import traceback
+        job.status = OtaSyncJob.JobStatus.FAILED
+        job.error_message = str(e)
+        job.finished_at = timezone.now()
+        OtaSyncLog.objects.create(
+            job=job,
+            level=OtaSyncLog.Level.ERROR,
+            message="SMOOBU_SYNC_ERROR",
+            payload={"hotel_id": hotel_id, "error": str(e), "traceback": traceback.format_exc()},
+        )
+    finally:
+        job.save(update_fields=["status", "stats", "error_message", "finished_at"])
+    return job.stats or {}
 

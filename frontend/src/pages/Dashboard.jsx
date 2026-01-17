@@ -450,6 +450,12 @@ const Dashboard = () => {
     ? (dashboardMetrics?.revenueAnalysis?.revenue?.net_total ?? dashboardMetrics?.summary?.total_revenue ?? 0)
     : (dashboardMetrics?.revenueAnalysis?.revenue?.total ?? dashboardMetrics?.summary?.total_revenue ?? 0)
 
+  // Cobros (caja) del período: por fecha de pago, no por fecha de estadía
+  const cashPeriod = revenueMetric === 'net'
+    ? (dashboardMetrics?.revenueAnalysis?.cash?.net_collected ?? dashboardMetrics?.summary?.cash_net_collected ?? 0)
+    : (dashboardMetrics?.revenueAnalysis?.cash?.gross_collected ?? dashboardMetrics?.summary?.cash_gross_collected ?? 0)
+  const cashRefundsPeriod = (dashboardMetrics?.revenueAnalysis?.cash?.refunds ?? dashboardMetrics?.summary?.cash_refunds ?? 0)
+
   // Tooltips de ayuda (abreviaciones / KPIs financieros) - texto claro para cliente final
   const insightHelpText = {
     revpar:
@@ -557,14 +563,14 @@ const Dashboard = () => {
       progress: (totalRoomsCount || 0) > 0 ? Math.round((operational.occupiedRooms / (totalRoomsCount || 1)) * 100) : 0
     },
     {
-      title: t('dashboard.kpis.arrivals_today_short', 'Llegadas hoy'),
+      title: t('dashboard.kpis.arrivals_today_short', 'Check-in hoy'),
       value: operational.arrivalsCount,
       subtitle: t('dashboard.kpis.today'),
       icon: CheckinIcon,
       tone: 'brand'
     },
     {
-      title: t('dashboard.kpis.departures_today_short', 'Salidas hoy'),
+      title: t('dashboard.kpis.departures_today_short', 'Check-out hoy'),
       value: operational.departuresCount,
       subtitle: t('dashboard.kpis.today'),
       icon: CheckoutIcon,
@@ -817,8 +823,34 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="mt-3 rounded-2xl bg-gradient-to-br from-emerald-50 to-cyan-50 border border-emerald-100 px-4 py-3">
-                <div className="text-xs font-medium text-slate-600">{t('dashboard.period')}</div>
-                <div className="mt-1 text-2xl font-semibold text-slate-900">{formatMoney(periodRevenue)}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-600">
+                      {t('dashboard.revenue_accrual', 'Ingresos (estadía)')}
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-slate-900">{formatMoney(periodRevenue)}</div>
+                  </div>
+                  <HelpTooltip
+                    text={
+                      `Ingresos (estadía) = devengado por noches dentro del período.\n` +
+                      `No incluye cobros de reservas futuras si la estadía todavía no ocurre.\n\n` +
+                      `Cobros (caja) = pagos cobrados dentro del período, aunque la estadía sea futura.`
+                    }
+                    className="shrink-0"
+                  />
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-emerald-100">
+                  <div className="text-xs font-medium text-slate-600">
+                    {t('dashboard.cash_collections', 'Cobros (caja)')}
+                  </div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{formatMoney(cashPeriod)}</div>
+                  {Number(cashRefundsPeriod || 0) > 0 && (
+                    <div className="mt-1 text-xs text-slate-600">
+                      {t('dashboard.refunds', 'Devoluciones')}: <span className="text-slate-900">{formatMoney(cashRefundsPeriod)}</span>
+                    </div>
+                  )}
+                </div>
                 <div className="mt-1 text-xs text-slate-600">
                   {t('dashboard.period')}: <span className="text-slate-900">{dateRange.label}</span>
                 </div>

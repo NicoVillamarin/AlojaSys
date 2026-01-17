@@ -9,6 +9,7 @@ class OtaProvider(models.TextChoices):
     BOOKING = "booking", "Booking"
     AIRBNB = "airbnb", "Airbnb"
     EXPEDIA = "expedia", "Expedia"
+    SMOOBU = "smoobu", "Smoobu"
     GOOGLE = "google", "Google Calendar"
     OTHER = "other", "Otro"
 
@@ -113,6 +114,7 @@ class OtaSyncJob(models.Model):
         EXPORT_ICS = "export_ics", "Export ICS"
         PUSH_ARI = "push_ari", "Push ARI"
         PULL_RESERVATIONS = "pull_reservations", "Pull Reservations"
+        SYNC_SMOOBU = "sync_smoobu", "Sync Smoobu"
 
     class JobStatus(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -229,3 +231,65 @@ class OtaRatePlanMapping(models.Model):
 
     def __str__(self) -> str:
         return f"{self.hotel_id}:{self.provider}:{self.rate_plan_code}->{self.provider_code}"
+
+
+class SmoobuExportedBooking(models.Model):
+    """
+    Tracking de bookings/bloqueos creados en Smoobu desde AlojaSys (fase 2, push).
+
+    Se usa para:
+    - idempotencia (no crear duplicados)
+    - updates (si cambian fechas)
+    - delete/cancel (si se cancela un bloqueo local)
+    """
+
+    class Kind(models.TextChoices):
+        RESERVATION = "reservation", "Reservation"
+        ROOM_BLOCK = "room_block", "RoomBlock"
+
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="smoobu_exported_bookings")
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="smoobu_exported_bookings")
+
+    # Origen local (uno u otro)
+    reservation = models.ForeignKey(
+        "reservations.Reservation",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="smoobu_exported_bookings",
+    )
+    room_block = models.ForeignKey(
+        "reservations.RoomBlock",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="smoobu_exported_bookings",
+    )
+
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+
+    # Smoobu
+    apartment_id = models.CharField(max_length=64)
+    smoobu_booking_id = models.CharField(max_length=64)
+
+    # Para evitar updates innecesarios
+    checksum = models.CharField(max_length=64, blank=True, null=True)
+    last_synced = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["hotel", "room", "kind"]),
+            models.Index(fields=["smoobu_booking_id"]),
+            models.Index(fields=["apartment_id"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["reservation"], name="uniq_smoobu_exported_reservation", condition=models.Q(reservation__isnull=False)),
+            models.UniqueConstraint(fields=["room_block"], name="uniq_smoobu_exported_room_block", condition=models.Q(room_block__isnull=False)),
+        ]
+
+    def __str__(self) -> str:
+        return f"SmoobuExportedBooking({self.kind}) {self.apartment_id} -> {self.smoobu_booking_id}"

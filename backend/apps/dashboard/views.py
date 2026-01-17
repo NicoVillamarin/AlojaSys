@@ -14,7 +14,30 @@ from .serializers import (
 )
 from apps.core.models import Hotel
 from apps.rooms.models import Room
-from apps.reservations.models import Reservation, ReservationStatus, ReservationNight, ChannelCommission
+from apps.reservations.models import Reservation, ReservationStatus, ReservationNight, ChannelCommission, Payment
+
+
+def _compute_cash_collections(hotels_qs, start_date: date, end_date: date):
+    """
+    Cobros (caja) basados en Payment.date, independiente de fechas de estadía.
+    - gross_collected: suma de pagos positivos
+    - refunds: suma absoluta de pagos negativos
+    - net_collected: suma neta (incluye negativos)
+    """
+    payments_qs = Payment.objects.filter(
+        reservation__hotel__in=hotels_qs,
+        date__range=[start_date, end_date],
+    )
+    gross = payments_qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    refunds = payments_qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    net = payments_qs.aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    # refunds viene negativo; lo devolvemos positivo para lectura humana
+    return {
+        'gross_collected': Decimal(gross).quantize(Decimal('0.01')),
+        'refunds': Decimal(abs(refunds)).quantize(Decimal('0.01')),
+        'net_collected': Decimal(net).quantize(Decimal('0.01')),
+    }
+
 def _compute_revenue_for_day(hotels_qs, target_date):
     """Calcula ingresos diarios prorrateados para un conjunto de hoteles en una fecha."""
     reservations = Reservation.objects.filter(
@@ -311,6 +334,12 @@ def dashboard_summary(request):
         cancelled_30d = Reservation.objects.filter(hotel__in=hotels, status=ReservationStatus.CANCELLED, updated_at__date__range=[win_start, target_date]).count()
         cancellation_rate_30d = (Decimal(cancelled_30d) / Decimal(created_30d) * Decimal('100')).quantize(Decimal('0.01')) if created_30d else Decimal('0.00')
         
+        # Cobros (caja) en el período seleccionado (por Payment.date)
+        if use_date_range:
+            cash = _compute_cash_collections(hotels, start_date, end_date)
+        else:
+            cash = _compute_cash_collections(hotels, target_date, target_date)
+        
         # Crear resumen global
         summary_data = {
             'hotel_id': None,
@@ -351,6 +380,9 @@ def dashboard_summary(request):
             'otb_next_30d_nights': otb_next_30d_nights,
             'otb_next_30d_revenue': otb_next_30d_revenue,
             'cancellation_rate_30d': cancellation_rate_30d,
+            'cash_gross_collected': cash['gross_collected'],
+            'cash_refunds': cash['refunds'],
+            'cash_net_collected': cash['net_collected'],
         }
         
         serializer = DashboardSummarySerializer(summary_data)
@@ -439,6 +471,7 @@ def dashboard_summary(request):
         )
         commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
         revenue_net_checkin = (total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+        cash = _compute_cash_collections(Hotel.objects.filter(id=hotel.id), start_date, end_date)
         
         summary_data = {
             'hotel_id': hotel.id,
@@ -463,6 +496,9 @@ def dashboard_summary(request):
             'adr_night': adr_night,
             'commissions_checkin': commissions_checkin,
             'revenue_net_checkin': revenue_net_checkin,
+            'cash_gross_collected': cash['gross_collected'],
+            'cash_refunds': cash['refunds'],
+            'cash_net_collected': cash['net_collected'],
         }
     else:
         # Comportamiento original: una sola fecha
@@ -485,6 +521,7 @@ def dashboard_summary(request):
         )
         commissions_checkin = ChannelCommission.objects.filter(reservation__in=checkin_qs).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
         revenue_net_checkin = (metrics.total_revenue - commissions_checkin).quantize(Decimal('0.01'))
+        cash = _compute_cash_collections(Hotel.objects.filter(id=hotel.id), target_date, target_date)
 
         # Crear resumen
         summary_data = {
@@ -510,6 +547,9 @@ def dashboard_summary(request):
             'adr_night': adr_night,
             'commissions_checkin': commissions_checkin,
             'revenue_net_checkin': revenue_net_checkin,
+            'cash_gross_collected': cash['gross_collected'],
+            'cash_refunds': cash['refunds'],
+            'cash_net_collected': cash['net_collected'],
         }
 
     # KPIs adicionales por hotel
@@ -958,6 +998,7 @@ def dashboard_revenue_analysis(request):
                 'net': (gross - comm).quantize(Decimal('0.01'))
             }
         net_total = (total_revenue - commissions_total).quantize(Decimal('0.01'))
+        cash = _compute_cash_collections(hotels, start_date, end_date)
 
         analysis_data = {
             'period': {
@@ -972,6 +1013,7 @@ def dashboard_revenue_analysis(request):
                 'average_daily': average_daily_revenue,
                 'average_room_rate': average_room_rate
             },
+            'cash': cash,
             'revenue_by_room_type': revenue_by_type,
             'daily_revenue': daily_revenue,
             'by_channel': by_channel,
@@ -1037,6 +1079,7 @@ def dashboard_revenue_analysis(request):
             'net': (gross - comm).quantize(Decimal('0.01'))
         }
     net_total = (total_revenue - commissions_total).quantize(Decimal('0.01'))
+    cash = _compute_cash_collections(Hotel.objects.filter(id=hotel.id), start_date, end_date)
 
     analysis_data = {
         'period': {
@@ -1051,6 +1094,7 @@ def dashboard_revenue_analysis(request):
             'average_daily': average_daily_revenue,
             'average_room_rate': average_room_rate
         },
+        'cash': cash,
         'revenue_by_room_type': revenue_by_type,
         'daily_revenue': [
             {

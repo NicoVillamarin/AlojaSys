@@ -17,6 +17,7 @@ from apps.reservations.models import Reservation, ReservationStatus, Reservation
 from apps.notifications.services import NotificationService
 from ..models import (
     OtaRoomMapping,
+    OtaImportedEvent,
     OtaSyncJob,
     OtaSyncLog,
     OtaProvider,
@@ -55,7 +56,8 @@ class ICALSyncService:
         Returns:
             Dict con estadísticas: {processed, created, updated, skipped, errors}
         """
-        stats = {"processed": 0, "created": 0, "updated": 0, "skipped": 0, "errors": 0}
+        stats = {"processed": 0, "created": 0, "updated": 0, "skipped": 0, "errors": 0, "cancelled": 0}
+        run_started_at = timezone.now()
 
         # Verificar condiciones previas
         if not ota_room_mapping.is_active or not ota_room_mapping.ical_in_url:
@@ -125,6 +127,7 @@ class ICALSyncService:
             return stats
 
         # Procesar eventos VEVENT
+        seen_uids: set[str] = set()
         for component in cal.walk("VEVENT"):
             stats["processed"] += 1
 
@@ -132,6 +135,7 @@ class ICALSyncService:
             dtstart = component.get("dtstart")
             dtend = component.get("dtend")
             summary = str(component.get("summary")) if component.get("summary") else None
+            ical_status = str(component.get("status") or "").strip().lower()  # e.g. CANCELLED
 
             if not uid or not dtstart or not dtend:
                 stats["skipped"] += 1
@@ -149,6 +153,8 @@ class ICALSyncService:
                     )
                 continue
 
+            seen_uids.add(uid)
+
             # Normalizar fechas
             start_date = ICALSyncService._to_date(dtstart.dt) if dtstart else None
             end_date = ICALSyncService._to_date(dtend.dt) if dtend else None
@@ -158,6 +164,42 @@ class ICALSyncService:
                 continue
 
             start_date, end_date = ICALSyncService._normalize_range(start_date, end_date)
+
+            # Persistir / refrescar tracking del evento importado (por provider real, no siempre "ical")
+            try:
+                imported_event, created_ie = OtaImportedEvent.objects.get_or_create(
+                    hotel=ota_room_mapping.hotel,
+                    room=ota_room_mapping.room,
+                    provider=ota_room_mapping.provider,
+                    uid=uid,
+                    defaults={
+                        "dtstart": start_date,
+                        "dtend": end_date,
+                        "source_url": ota_room_mapping.ical_in_url,
+                        "summary": summary,
+                    },
+                )
+                if not created_ie:
+                    changed_ie = False
+                    if imported_event.dtstart != start_date or imported_event.dtend != end_date:
+                        imported_event.dtstart = start_date
+                        imported_event.dtend = end_date
+                        changed_ie = True
+                    if imported_event.source_url != ota_room_mapping.ical_in_url:
+                        imported_event.source_url = ota_room_mapping.ical_in_url
+                        changed_ie = True
+                    if imported_event.summary != summary:
+                        imported_event.summary = summary
+                        changed_ie = True
+                    if changed_ie:
+                        imported_event.save(update_fields=["dtstart", "dtend", "source_url", "summary", "last_seen"])
+                    else:
+                        # Aunque no cambie nada, refrescar last_seen para poder detectar "desaparecidos"
+                        OtaImportedEvent.objects.filter(pk=imported_event.pk).update(last_seen=run_started_at)
+                # created_ie ya tiene last_seen set por auto_now=True
+            except Exception:
+                # No romper import por fallas de tracking
+                pass
 
             # Determinar si se debe crear Reservation o RoomBlock
             # Por defecto: Booking/Airbnb/Expedia crean Reservation, ICAL genérico puede crear RoomBlock
@@ -202,6 +244,32 @@ class ICALSyncService:
                         channel=channel,
                     ).first()
 
+                    # Si el VEVENT viene CANCELLED, cancelar la reserva si existe y no está cerrada.
+                    if ical_status in ("cancelled", "canceled"):
+                        if reservation and reservation.status in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]:
+                            reservation.status = ReservationStatus.CANCELLED
+                            reservation.notes = (reservation.notes or "") + f"\nCancelada desde {ota_room_mapping.provider} iCal (STATUS:CANCELLED)."
+                            reservation.save(skip_clean=True)
+                            stats["cancelled"] += 1
+                            if job:
+                                OtaSyncLog.objects.create(
+                                    job=job,
+                                    level=OtaSyncLog.Level.INFO,
+                                    message="RESERVATION_CANCELLED",
+                                    payload={
+                                        "reservation_id": reservation.id,
+                                        "external_id": uid,
+                                        "source": source,
+                                        "channel": channel,
+                                        "provider": ota_room_mapping.provider,
+                                        "reason": "ical_status_cancelled",
+                                        "status": "success",
+                                    },
+                                )
+                        else:
+                            stats["skipped"] += 1
+                        continue
+
                     if reservation:
                         # Actualizar reserva existente
                         changed = False
@@ -212,7 +280,7 @@ class ICALSyncService:
                         if reservation.room_id != ota_room_mapping.room_id:
                             reservation.room = ota_room_mapping.room
                             changed = True
-                        if reservation.status != ReservationStatus.CONFIRMED:
+                        if reservation.status != ReservationStatus.CONFIRMED and reservation.status != ReservationStatus.CANCELLED:
                             reservation.status = ReservationStatus.CONFIRMED
                             changed = True
                         if summary and (not reservation.notes or summary not in reservation.notes):
@@ -513,6 +581,57 @@ class ICALSyncService:
                             "status": "error",
                         },
                     )
+
+        # Cancelaciones por "evento desaparecido del feed":
+        # Si un UID ya existía para esta fuente (source_url) y no apareció en esta corrida,
+        # lo marcamos como cancelado (solo reservas futuras/activas).
+        try:
+            if ota_room_mapping.ical_in_url:
+                disappeared = (
+                    OtaImportedEvent.objects.filter(
+                        hotel=ota_room_mapping.hotel,
+                        room=ota_room_mapping.room,
+                        provider=ota_room_mapping.provider,
+                        source_url=ota_room_mapping.ical_in_url,
+                        last_seen__lt=run_started_at,
+                    )
+                )
+                today = timezone.localdate()
+                for ev in disappeared.iterator():
+                    if ev.uid in seen_uids:
+                        continue
+                    # Cancelar solo si la reserva está activa y aún no pasó (ev.dtend >= hoy)
+                    if ev.dtend and ev.dtend < today:
+                        continue
+                    r = Reservation.objects.filter(
+                        hotel=ota_room_mapping.hotel,
+                        external_id=ev.uid,
+                        channel=channel_map.get(ota_room_mapping.provider, ReservationChannel.OTHER),
+                    ).first()
+                    if not r:
+                        continue
+                    if r.status not in [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]:
+                        continue
+                    r.status = ReservationStatus.CANCELLED
+                    r.notes = (r.notes or "") + f"\nCancelada desde {ota_room_mapping.provider} iCal (evento ya no está en el feed)."
+                    r.save(skip_clean=True)
+                    stats["cancelled"] += 1
+                    if job:
+                        OtaSyncLog.objects.create(
+                            job=job,
+                            level=OtaSyncLog.Level.INFO,
+                            message="RESERVATION_CANCELLED",
+                            payload={
+                                "reservation_id": r.id,
+                                "external_id": ev.uid,
+                                "provider": ota_room_mapping.provider,
+                                "reason": "event_disappeared",
+                                "status": "success",
+                            },
+                        )
+        except Exception:
+            # No romper import por fallas al detectar desaparecidos
+            pass
 
         # Actualizar last_synced si hubo procesamiento exitoso
         if stats["processed"] > 0 or stats["created"] > 0 or stats["updated"] > 0:

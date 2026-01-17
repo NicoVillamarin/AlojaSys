@@ -27,11 +27,16 @@ class OtaConfigSerializer(serializers.ModelSerializer):
     ical_out_token_masked = serializers.SerializerMethodField()
     booking_client_secret_masked = serializers.SerializerMethodField()
     airbnb_client_secret_masked = serializers.SerializerMethodField()
+    smoobu_api_key_masked = serializers.SerializerMethodField()
     
     # Campos originales: writable para actualizar, pero enmascarados en lectura
     ical_out_token = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     booking_client_secret = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
     airbnb_client_secret = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
+    # Smoobu: guardamos API key en credentials.api_key (write-only)
+    smoobu_api_key = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
+    # Base URL opcional (defaults a https://login.smoobu.com). Guardamos en credentials.base_url
+    smoobu_base_url = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
     
     def __init__(self, *args, **kwargs):
         """Permite incluir token real solo cuando se solicita explícitamente."""
@@ -50,6 +55,10 @@ class OtaConfigSerializer(serializers.ModelSerializer):
     def get_airbnb_client_secret_masked(self, obj) -> str | None:
         """Retorna el secret de Airbnb enmascarado para lectura."""
         return _mask_sensitive_value(obj.airbnb_client_secret)
+
+    def get_smoobu_api_key_masked(self, obj) -> str | None:
+        api_key = (obj.credentials or {}).get("api_key")
+        return _mask_sensitive_value(api_key)
     
     # URLs completas de iCal (para evitar exponer token real)
     ical_hotel_url = serializers.SerializerMethodField()
@@ -170,6 +179,23 @@ class OtaConfigSerializer(serializers.ModelSerializer):
                     attrs['verified'] = False
             else:
                 attrs['verified'] = False
+        elif provider == OtaProvider.SMOOBU:
+            # Persistimos campos write-only en credentials
+            creds = dict(self.instance.credentials) if (self.instance and self.instance.credentials) else {}
+            api_key = attrs.pop("smoobu_api_key", None)
+            base_url = attrs.pop("smoobu_base_url", None)
+            if api_key is not None:
+                if str(api_key).strip():
+                    creds["api_key"] = str(api_key).strip()
+                else:
+                    creds.pop("api_key", None)
+            if base_url is not None:
+                if str(base_url).strip():
+                    creds["base_url"] = str(base_url).strip()
+                else:
+                    creds.pop("base_url", None)
+            attrs["credentials"] = creds
+            attrs["verified"] = bool(creds.get("api_key"))
         else:
             # Para ICAL y otros providers, verified=False por defecto
             attrs['verified'] = False
@@ -184,11 +210,15 @@ class OtaConfigSerializer(serializers.ModelSerializer):
             "ical_out_token_masked",
             "booking_client_secret_masked",
             "airbnb_client_secret_masked",
+            "smoobu_api_key_masked",
             # Tokens/secrets: ical_out_token siempre enmascarado en lectura, writable para actualizar
             # booking_client_secret y airbnb_client_secret solo writable (no se retornan en lectura)
             "ical_out_token",
             "booking_client_secret",
             "airbnb_client_secret",
+            # Smoobu (write-only; persiste en credentials)
+            "smoobu_api_key",
+            "smoobu_base_url",
             # URLs completas de iCal (para uso del frontend)
             "ical_hotel_url",
             "ical_room_urls",

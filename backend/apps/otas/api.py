@@ -24,7 +24,9 @@ from .serializers import (
     OtaSyncLogSerializer,
 )
 from .services.ical_sync_service import ICALSyncService
+from .services.smoobu_sync_service import SmoobuSyncService
 from django.conf import settings
+from django.utils import timezone
 
 # Import opcional para Google Calendar
 try:
@@ -99,6 +101,39 @@ def sync_otas(request: Request) -> Response:
     hotel_id = request.data.get("hotel_id")
     
     try:
+        # Caso especial: Smoobu (push AlojaSys -> Smoobu)
+        if provider == OtaProvider.SMOOBU and hotel_id:
+            job = OtaSyncJob.objects.create(
+                hotel_id=hotel_id,
+                provider=OtaProvider.SMOOBU,
+                job_type=OtaSyncJob.JobType.SYNC_SMOOBU,
+                status=OtaSyncJob.JobStatus.RUNNING,
+                stats={"hotel_id": hotel_id, "provider": OtaProvider.SMOOBU, "trigger": "manual_sync"},
+            )
+            try:
+                result = SmoobuSyncService.sync_hotel(int(hotel_id), days_ahead=int(request.data.get("days_ahead") or 90))
+                job.status = OtaSyncJob.JobStatus.SUCCESS if result.get("status") == "ok" else OtaSyncJob.JobStatus.FAILED
+                job.stats = {**(job.stats or {}), **result}
+                job.finished_at = timezone.now()
+                job.save(update_fields=["status", "stats", "finished_at"])
+            except Exception as e:
+                job.status = OtaSyncJob.JobStatus.FAILED
+                job.error_message = str(e)
+                job.finished_at = timezone.now()
+                job.save(update_fields=["status", "error_message", "finished_at"])
+                raise
+
+            recent_logs = OtaSyncLog.objects.select_related("job").order_by("-created_at")[:10]
+            return Response(
+                {
+                    "status": "ok" if job.status == OtaSyncJob.JobStatus.SUCCESS else "error",
+                    "message": "Sync Smoobu ejecutado",
+                    "stats": job.stats,
+                    "logs": OtaSyncLogSerializer(recent_logs, many=True).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
         # Si se especifica provider o hotel_id, sincronizar específico
         if provider or hotel_id:
             # Filtrar mapeos según criterios

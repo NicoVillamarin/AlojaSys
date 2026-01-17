@@ -20,6 +20,7 @@ urlpatterns = [
     # Webhooks OTAs
     path("webhooks/booking/", views.booking_webhook, name="otas-webhook-booking"),
     path("webhooks/airbnb/", views.airbnb_webhook, name="otas-webhook-airbnb"),
+    path("webhooks/smoobu/", views.smoobu_webhook, name="otas-webhook-smoobu"),
     # Google Calendar webhooks
     path("google/webhooks/notify/", api.google_webhook_notify, name="otas-google-webhook"),
     path("google/webhooks/enable/", api.google_enable_watch, name="otas-google-enable"),

@@ -27,6 +27,43 @@ class PaymentInfo:
 
 class OtaReservationService:
     @staticmethod
+    def _channel_label(channel_value: str) -> str:
+        """
+        Label humano del canal para UI/notificaciones.
+        Nota: No usamos gettext acá para mantenerlo simple y consistente con el resto.
+        """
+        return {
+            ReservationChannel.BOOKING: "Booking",
+            ReservationChannel.AIRBNB: "Airbnb",
+            ReservationChannel.EXPEDIA: "Expedia",
+            ReservationChannel.DIRECT: "Directa",
+            ReservationChannel.OTHER: "Otro",
+        }.get(channel_value, str(channel_value or "Otro"))
+
+    @staticmethod
+    def _provider_display_name(provider_name: str | None, external_id: str, channel_value: str) -> str | None:
+        """
+        Para reservas que entran vía Smoobu, queremos mostrar el canal real + " - Smoobu"
+        en notificaciones (ej: "Booking - Smoobu"), porque Smoobu es el intermediario.
+        """
+        if not provider_name:
+            return None
+        try:
+            ext = str(external_id or "")
+        except Exception:
+            ext = ""
+
+        # Caso Smoobu: external_id con prefijo "smoobu:" (tanto webhook como pull)
+        if ext.startswith("smoobu:"):
+            base = OtaReservationService._channel_label(channel_value or ReservationChannel.OTHER)
+            # Evitar "Otro - Smoobu" si quedó sin mapping de canal
+            if base.lower() in ("otro", "other"):
+                return "Smoobu"
+            return f"{base} - Smoobu"
+
+        return provider_name
+
+    @staticmethod
     @transaction.atomic
     def upsert_reservation(
         *,
@@ -97,6 +134,19 @@ class OtaReservationService:
             reservation.save(skip_clean=True)
             created = True
 
+        # Asegurar política de cancelación aplicada (necesaria para UI de cancelación)
+        # Las reservas OTA se crean por servicio (no por ReservationSerializer), así que la asignamos acá.
+        if not getattr(reservation, "applied_cancellation_policy_id", None):
+            try:
+                from apps.payments.models import CancellationPolicy
+                policy = CancellationPolicy.resolve_for_hotel(reservation.hotel)
+                if policy:
+                    reservation.applied_cancellation_policy = policy
+                    reservation.save(update_fields=["applied_cancellation_policy"])
+            except Exception:
+                # No romper el flujo de import OTA si falla la asignación
+                pass
+
         # Marcar overbooking_flag si hay otras reservas activas que se superponen
         active_status = [
             ReservationStatus.PENDING,
@@ -165,7 +215,8 @@ class OtaReservationService:
                     )
 
         # Generar notificación si se creó una nueva reserva y se proporcionó el nombre del provider
-        if created and provider_name:
+        provider_display_name = OtaReservationService._provider_display_name(provider_name, external_id, channel_value)
+        if created and provider_display_name:
             try:
                 # Obtener nombre del huésped principal
                 guest_name = ""
@@ -175,7 +226,7 @@ class OtaReservationService:
                         guest_name = primary_guest.get('name', '')
                 
                 NotificationService.create_ota_reservation_notification(
-                    provider_name=provider_name,
+                    provider_name=provider_display_name,
                     reservation_code=f"RES-{reservation.id}",
                     room_name=room.name or f"Habitación {room.number}",
                     check_in_date=check_in.strftime("%d/%m/%Y"),

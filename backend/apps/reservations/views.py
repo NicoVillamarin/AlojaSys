@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from datetime import date, timedelta
 from django.core.exceptions import ValidationError
 from django.utils import timezone as django_timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from django.db.models import Q
 from apps.rooms.models import Room, RoomStatus
 from apps.rooms.serializers import RoomSerializer
@@ -38,10 +39,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
         hotel_id = self.request.query_params.get("hotel")
         room_id = self.request.query_params.get("room")
         status_param = self.request.query_params.get("status")
+        status_in = self.request.query_params.get("status__in")
         group_code = self.request.query_params.get("group_code")
         search = (self.request.query_params.get("search") or "").strip()
         date_from_str = self.request.query_params.get("date_from") or self.request.query_params.get("check_in_from")
         date_to_str = self.request.query_params.get("date_to") or self.request.query_params.get("check_in_to")
+        # Filtros directos estilo DRF/django-filter (usados por el frontend)
+        check_in_str = self.request.query_params.get("check_in")
+        check_out_str = self.request.query_params.get("check_out")
+        check_in_gte_str = self.request.query_params.get("check_in__gte")
+        check_in_lte_str = self.request.query_params.get("check_in__lte")
+        check_out_gte_str = self.request.query_params.get("check_out__gte")
+        check_out_lte_str = self.request.query_params.get("check_out__lte")
+        created_at_gte_str = self.request.query_params.get("created_at__gte")
+        created_at_lte_str = self.request.query_params.get("created_at__lte")
         ordering = self.request.query_params.get("ordering", "-check_in")  # Por defecto ordenar por check-in descendente
         
         if hotel_id and hotel_id.isdigit():
@@ -50,8 +61,79 @@ class ReservationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(room_id=room_id)
         if status_param:
             qs = qs.filter(status=status_param)
+        if status_in:
+            values = [v.strip() for v in str(status_in).split(",") if v.strip()]
+            if values:
+                qs = qs.filter(status__in=values)
         if group_code:
             qs = qs.filter(group_code=group_code)
+
+        # Filtros exactos por fecha (compatibilidad con /api/reservations/?check_in=YYYY-MM-DD)
+        try:
+            if check_in_str:
+                d = parse_date(check_in_str)
+                if d:
+                    qs = qs.filter(check_in=d)
+        except Exception:
+            pass
+        try:
+            if check_out_str:
+                d = parse_date(check_out_str)
+                if d:
+                    qs = qs.filter(check_out=d)
+        except Exception:
+            pass
+
+        # Filtros por rango (compatibilidad con /api/reservations/?check_in__gte=...&check_in__lte=...)
+        # Nota: estos son distintos al filtro de solapamiento date_from/date_to (más usado por calendarios).
+        try:
+            if check_in_gte_str:
+                d = parse_date(check_in_gte_str)
+                if d:
+                    qs = qs.filter(check_in__gte=d)
+        except Exception:
+            pass
+        try:
+            if check_in_lte_str:
+                d = parse_date(check_in_lte_str)
+                if d:
+                    qs = qs.filter(check_in__lte=d)
+        except Exception:
+            pass
+        try:
+            if check_out_gte_str:
+                d = parse_date(check_out_gte_str)
+                if d:
+                    qs = qs.filter(check_out__gte=d)
+        except Exception:
+            pass
+        try:
+            if check_out_lte_str:
+                d = parse_date(check_out_lte_str)
+                if d:
+                    qs = qs.filter(check_out__lte=d)
+        except Exception:
+            pass
+
+        # Filtros por fecha/hora de creación (Dashboard timeline usa created_at__gte/lte)
+        try:
+            if created_at_gte_str:
+                dt = parse_datetime(created_at_gte_str)
+                if dt:
+                    if django_timezone.is_naive(dt):
+                        dt = django_timezone.make_aware(dt, django_timezone.get_current_timezone())
+                    qs = qs.filter(created_at__gte=dt)
+        except Exception:
+            pass
+        try:
+            if created_at_lte_str:
+                dt = parse_datetime(created_at_lte_str)
+                if dt:
+                    if django_timezone.is_naive(dt):
+                        dt = django_timezone.make_aware(dt, django_timezone.get_current_timezone())
+                    qs = qs.filter(created_at__lte=dt)
+        except Exception:
+            pass
 
         # Filtro por rango de fechas (solapamiento), equivalente al filtro frontend:
         # incluir reservas donde NO (check_out < from OR check_in > to)
@@ -400,11 +482,22 @@ class ReservationViewSet(viewsets.ModelViewSet):
         try:
             reservation = self.get_object()
             
-            # Usar la política de cancelación aplicada a la reserva (histórica)
+            # Usar la política de cancelación aplicada a la reserva (histórica).
+            # Fallback: si no existe (p.ej. reservas OTA importadas), resolver la vigente del hotel
+            # para no bloquear el flujo de UI.
             if not reservation.applied_cancellation_policy:
-                return Response({
-                    "error": "No hay política de cancelación aplicada a esta reserva"
-                }, status=status.HTTP_404_NOT_FOUND)
+                try:
+                    from apps.payments.models import CancellationPolicy
+                    policy = CancellationPolicy.resolve_for_hotel(reservation.hotel)
+                    if policy:
+                        reservation.applied_cancellation_policy = policy
+                        reservation.save(update_fields=["applied_cancellation_policy"])
+                except Exception:
+                    policy = None
+                if not reservation.applied_cancellation_policy:
+                    return Response({
+                        "error": "No hay política de cancelación configurada para este hotel"
+                    }, status=status.HTTP_404_NOT_FOUND)
             
             # Obtener política de devolución del hotel
             from apps.payments.models import RefundPolicy
@@ -494,11 +587,21 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Usar la política de cancelación aplicada a la reserva (histórica)
+        # Usar la política de cancelación aplicada a la reserva (histórica).
+        # Fallback: si no existe (p.ej. reservas OTA importadas), resolver la vigente del hotel.
         if not reservation.applied_cancellation_policy:
-            return Response({
-                "detail": "No hay política de cancelación aplicada a esta reserva"
-            }, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                from apps.payments.models import CancellationPolicy
+                policy = CancellationPolicy.resolve_for_hotel(reservation.hotel)
+                if policy:
+                    reservation.applied_cancellation_policy = policy
+                    reservation.save(update_fields=["applied_cancellation_policy"])
+            except Exception:
+                policy = None
+            if not reservation.applied_cancellation_policy:
+                return Response({
+                    "detail": "No hay política de cancelación configurada para este hotel"
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         # Obtener política de devolución del hotel
         from apps.payments.models import RefundPolicy

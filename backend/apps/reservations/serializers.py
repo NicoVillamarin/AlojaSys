@@ -22,7 +22,7 @@ class ReservationSerializer(serializers.ModelSerializer):
         source="applied_cancellation_policy.name", 
         read_only=True
     )
-    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    channel_display = serializers.SerializerMethodField()
     is_ota = serializers.SerializerMethodField()
     paid_by = serializers.CharField(read_only=True)
     overbooking_flag = serializers.BooleanField(read_only=True)
@@ -39,6 +39,52 @@ class ReservationSerializer(serializers.ModelSerializer):
             "display_name", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "total_price", "balance_due", "total_paid", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
+
+    @staticmethod
+    def _infer_channel_label_from_guests_data(obj) -> str | None:
+        """
+        Para reservas que entran vía Smoobu, intentamos inferir el canal real
+        (Booking/Airbnb/Expedia) desde metadata en guests_data.
+        """
+        try:
+            guests_data = obj.guests_data or []
+            if not isinstance(guests_data, list) or not guests_data:
+                return None
+            primary = next((g for g in guests_data if isinstance(g, dict) and g.get("is_primary") is True), None)
+            if not primary:
+                primary = guests_data[0] if isinstance(guests_data[0], dict) else None
+            if not primary:
+                return None
+            channel_name = (primary.get("channel_name") or primary.get("provider_channel") or "") if isinstance(primary, dict) else ""
+            channel_name = str(channel_name).lower()
+            if "booking" in channel_name:
+                return "Booking"
+            if "airbnb" in channel_name:
+                return "Airbnb"
+            if "expedia" in channel_name:
+                return "Expedia"
+        except Exception:
+            return None
+        return None
+
+    def get_channel_display(self, obj):
+        """
+        Display del canal para UI.
+
+        - Por defecto usa el label del enum (`get_channel_display()`).
+        - Si la reserva entró vía Smoobu (external_id prefijo `smoobu:`), mostramos:
+          "Booking - Smoobu", "Airbnb - Smoobu", etc.
+        """
+        base = obj.get_channel_display() if hasattr(obj, "get_channel_display") else str(getattr(obj, "channel", "") or "")
+        external_id = str(getattr(obj, "external_id", "") or "")
+        if external_id.startswith("smoobu:"):
+            # Si quedó como "Otro", intentamos inferir el canal real desde metadata.
+            if base.lower() in ("otro", "other"):
+                inferred = self._infer_channel_label_from_guests_data(obj)
+                if inferred:
+                    base = inferred
+            return f"{base} - Smoobu"
+        return base
 
     def get_room_data(self, obj):
         """Devuelve los datos completos de la habitación"""

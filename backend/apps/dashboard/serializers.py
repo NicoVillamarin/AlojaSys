@@ -83,6 +83,10 @@ class DashboardSummarySerializer(serializers.Serializer):
     adr_night = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     commissions_checkin = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     revenue_net_checkin = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    # Caja (cobros por pagos en el período seleccionado)
+    cash_gross_collected = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    cash_refunds = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    cash_net_collected = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
 
 class DashboardTrendsSerializer(serializers.Serializer):
     """Serializer para tendencias y comparaciones de métricas"""

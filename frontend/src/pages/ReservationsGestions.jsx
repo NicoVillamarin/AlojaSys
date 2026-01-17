@@ -378,8 +378,7 @@ export default function ReservationsGestions() {
 
   const canCancel = (r) =>
     canDeleteReservation &&
-    (r.status === "pending" || r.status === "confirmed") && 
-    !hasOverbooking(r);
+    (r.status === "pending" || r.status === "confirmed");
   const canConfirm = (r) => 
     canAddPayment && 
     r.status === "pending" && 

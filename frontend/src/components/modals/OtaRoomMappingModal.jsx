@@ -5,11 +5,19 @@ import ModalLayout from 'src/layouts/ModalLayout'
 import SelectAsync from 'src/components/selects/SelectAsync'
 import InputText from 'src/components/inputs/InputText'
 import Checkbox from 'src/components/Checkbox'
+import HelpTooltip from 'src/components/HelpTooltip'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 
 export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, mapping, defaultHotelId, onSuccess }) {
   const { t } = useTranslation()
+
+  const labelWithHelp = (label, helpText) => (
+    <span className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      <HelpTooltip text={helpText} />
+    </span>
+  )
 
   const { mutate: createItem, isPending: creating } = useCreate({
     resource: 'otas/mappings',
@@ -100,6 +108,7 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
               >
                 <option value="ical">iCal</option>
                 <option value="google">Google Calendar</option>
+                <option value="smoobu">Smoobu</option>
                 <option value="booking">Booking</option>
                 <option value="airbnb">Airbnb</option>
                 <option value="expedia">Expedia</option>
@@ -108,9 +117,24 @@ export default function OtaRoomMappingModal({ isOpen, onClose, isEdit = false, m
             </div>
 
             <InputText 
-              title={values.provider === 'google' ? 'Google Calendar ID' : t('ota.mappings.external_id')} 
+              title={
+                values.provider === 'google'
+                  ? 'Google Calendar ID'
+                  : values.provider === 'smoobu'
+                    ? labelWithHelp(
+                        'Smoobu Apartment ID',
+                        'Es el ID numérico del "apartment" en Smoobu. Tiene que coincidir con lo que llega en webhooks/pull para mapear la reserva a esta habitación.'
+                      )
+                    : t('ota.mappings.external_id')
+              }
               name="external_id" 
-              placeholder={values.provider === 'google' ? 'e.g. your_calendar@group.calendar.google.com' : t('ota.mappings.external_id_placeholder')} 
+              placeholder={
+                values.provider === 'google'
+                  ? 'e.g. your_calendar@group.calendar.google.com'
+                  : values.provider === 'smoobu'
+                    ? 'Ej: 398 (ID del apartment en Smoobu)'
+                    : t('ota.mappings.external_id_placeholder')
+              }
             />
             <div className="lg:col-span-2">
               {values.provider === 'ical' && (

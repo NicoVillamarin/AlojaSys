@@ -13,11 +13,13 @@ from apps.otas.models import (
     OtaSyncJob,
     OtaSyncLog,
     OtaConfig,
+    OtaRoomMapping,
 )
 
 import json
 import time
 import requests
+import os
 
 
 @dataclass
@@ -209,7 +211,111 @@ def get_adapter(provider: str, hotel_id: int) -> OtaAdapterBase:
     if provider == OtaProvider.AIRBNB:
         is_mock = not (cfg and cfg.airbnb_base_url)
         return AirbnbAdapter(is_mock=is_mock, config=cfg)
+    if provider == OtaProvider.SMOOBU:
+        return SmoobuAdapter(is_mock=False, config=cfg)
     return OtaAdapterBase(config=cfg)
+
+
+class SmoobuAdapter(OtaAdapterBase):
+    """
+    Adapter Smoobu (Channel Manager) usando Api-Key.
+
+    Docs: https://login.smoobu.com/api/...
+    - Auth: Header Api-Key: <key>
+    - GET /api/reservations?modifiedFrom=... (o filtros por arrival/departure)
+    - Webhooks: no documentan firma HMAC, se recomienda token propio.
+    """
+    provider = OtaProvider.SMOOBU
+
+    def _get_base_url(self) -> str:
+        # Por defecto el host real; permitir override para testing.
+        base = None
+        if self.config:
+            base = (self.config.credentials or {}).get("base_url")
+        base = base or os.environ.get("SMOOBU_BASE_URL") or "https://login.smoobu.com"
+        return str(base).rstrip("/")
+
+    def _get_api_key(self) -> str | None:
+        if not self.config:
+            return None
+        return (self.config.credentials or {}).get("api_key") or None
+
+    def is_available(self) -> bool:
+        return bool(self._get_api_key())
+
+    def pull_reservations(self, since: datetime) -> Dict[str, Any]:
+        """
+        Retorna items normalizados:
+          {
+            "items": [
+              {
+                "smoobu_id": int,
+                "arrival": "YYYY-MM-DD",
+                "departure": "YYYY-MM-DD",
+                "apartment_id": int,
+                "channel_name": str|None,
+                "guest_name": str|None,
+                "email": str|None,
+                "adults": int|None,
+                "children": int|None,
+                "price": number|None,
+                "is_blocked": bool|None,
+                "modified_at": str|None,
+              }
+            ]
+          }
+        """
+        if self.is_mock or not self.is_available():
+            return super().pull_reservations(since)
+
+        base_url = self._get_base_url()
+        url = f"{base_url}/api/reservations"
+        headers = {"Api-Key": self._get_api_key()}
+
+        # Smoobu usa filtros tipo modifiedFrom/created_from según endpoint; usamos modifiedFrom si está.
+        params = {
+            "modifiedFrom": since.strftime("%Y-%m-%d %H:%M"),
+            # evita traer bloqueos si no queremos (pero los bloqueos también sirven como ocupación)
+            # lo dejamos sin excluir para poder mapearlos si hiciera falta.
+        }
+
+        resp = requests.get(url, params=params, headers=headers, timeout=20)
+        if not (200 <= resp.status_code < 300):
+            return {"items": []}
+
+        data = resp.json()
+        # Según docs, puede ser lista directa o { "bookings": [...] } según versión.
+        raw_items = data.get("bookings") if isinstance(data, dict) else None
+        if raw_items is None and isinstance(data, list):
+            raw_items = data
+        if raw_items is None:
+            raw_items = data.get("data") if isinstance(data, dict) else []
+        if not isinstance(raw_items, list):
+            raw_items = []
+
+        items: list[Dict[str, Any]] = []
+        for r in raw_items:
+            if not isinstance(r, dict):
+                continue
+            apt = r.get("apartment") or {}
+            chan = r.get("channel") or {}
+            items.append(
+                {
+                    "smoobu_id": r.get("id"),
+                    "arrival": r.get("arrival") or r.get("arrivalDate"),
+                    "departure": r.get("departure") or r.get("departureDate"),
+                    "apartment_id": (apt.get("id") if isinstance(apt, dict) else None) or r.get("apartmentId"),
+                    "channel_name": (chan.get("name") if isinstance(chan, dict) else None) or r.get("channelName"),
+                    "guest_name": r.get("guest-name") or r.get("guest_name") or r.get("guestName") or r.get("firstname"),
+                    "email": r.get("email"),
+                    "adults": r.get("adults"),
+                    "children": r.get("children"),
+                    "price": r.get("price"),
+                    "is_blocked": r.get("is-blocked-booking") or r.get("is_blocked_booking") or r.get("isBlockedBooking"),
+                    "modified_at": r.get("modifiedAt") or r.get("modified-at") or r.get("modified_at"),
+                }
+            )
+        return {"items": items}
 
 
 @transaction.atomic
@@ -299,6 +405,8 @@ def push_ari_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, date_from:
 def pull_reservations_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, since: datetime) -> Dict[str, Any]:
     from django.utils import timezone
     import traceback
+    from apps.otas.services.ota_reservation_service import OtaReservationService
+    from apps.reservations.models import ReservationChannel, ReservationStatus, Reservation
     
     try:
         adapter = get_adapter(provider, hotel_id)
@@ -320,12 +428,95 @@ def pull_reservations_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, s
             payload={"count": len(items)},
         )
 
+        created = 0
+        updated = 0
+        skipped = 0
+        errors = 0
+
+        # Solo procesamos (upsert/cancel) en Smoobu por ahora. No afectamos comportamiento actual de Booking/Airbnb.
+        if provider == OtaProvider.SMOOBU:
+            for it in items:
+                try:
+                    smoobu_id = it.get("smoobu_id")
+                    arrival = it.get("arrival")
+                    departure = it.get("departure")
+                    apartment_id = it.get("apartment_id")
+                    if not (smoobu_id and arrival and departure and apartment_id):
+                        skipped += 1
+                        continue
+
+                    mapping = (
+                        OtaRoomMapping.objects.select_related("hotel", "room")
+                        .filter(hotel_id=hotel_id, provider=OtaProvider.SMOOBU, external_id=str(apartment_id), is_active=True)
+                        .first()
+                    )
+                    if not mapping:
+                        skipped += 1
+                        continue
+
+                    # Canal original (si podemos inferirlo) para reporting; external_id siempre namespaced.
+                    channel_name = (it.get("channel_name") or "").lower()
+                    if "booking" in channel_name:
+                        channel = ReservationChannel.BOOKING
+                    elif "airbnb" in channel_name:
+                        channel = ReservationChannel.AIRBNB
+                    elif "expedia" in channel_name:
+                        channel = ReservationChannel.EXPEDIA
+                    else:
+                        channel = ReservationChannel.OTHER
+
+                    external_id = f"smoobu:{smoobu_id}"
+
+                    # Si es un bloqueo, lo tratamos igual como reserva OTA para bloquear inventario en AlojaSys
+                    # (y para tener trazabilidad). En el futuro podríamos mapear a RoomBlock si preferís.
+
+                    adults = it.get("adults") or 0
+                    children = it.get("children") or 0
+                    guests = max(int(adults) + int(children), 1)
+
+                    guest_name = it.get("guest_name") or "Huésped Smoobu"
+                    email = it.get("email") or ""
+                    guests_data = [
+                        {
+                            "name": guest_name,
+                            "email": email or f"{guest_name.lower().replace(' ', '.')}@example.com",
+                            "is_primary": True,
+                            "source": "smoobu",
+                            "provider": "smoobu",
+                            "channel_name": it.get("channel_name"),
+                        }
+                    ]
+
+                    # Upsert: si ya existe, cuenta como updated; si no, created.
+                    result = OtaReservationService.upsert_reservation(
+                        hotel=mapping.hotel,
+                        room=mapping.room,
+                        external_id=external_id,
+                        channel=channel,
+                        check_in=date.fromisoformat(arrival[:10]),
+                        check_out=date.fromisoformat(departure[:10]),
+                        guests=guests,
+                        guests_data=guests_data,
+                        notes=f"Importado desde Smoobu (canal: {it.get('channel_name')})",
+                        provider_name=OtaProvider.SMOOBU.label,
+                    )
+                    if result.get("created"):
+                        created += 1
+                    else:
+                        updated += 1
+                except Exception:
+                    errors += 1
+
+        else:
+            skipped = len(items)  # comportamiento anterior
+
         job.stats = {
             **(job.stats or {}),
             "fetched": len(items),
-            "created": 0,
-            "updated": 0,
-            "skipped": len(items),  # por ahora no aplicamos cambios
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
         }
         return job.stats
     except Exception as e:

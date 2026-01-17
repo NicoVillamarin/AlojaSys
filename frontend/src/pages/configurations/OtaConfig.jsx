@@ -161,7 +161,10 @@ export default function OtaConfig() {
                   { key: 'is_active', header: t('ota.config.table.active'), sortable: true, render: (c) => (c.is_active ? '✓' : '—') },
                   {
                     key: 'ical_out_token', header: t('ota.config.table.token'), sortable: false, render: (c) => {
-                      const token_masked = String(c.ical_out_token_masked || c.ical_out_token || '')
+                      const token_masked =
+                        c.provider === 'smoobu'
+                          ? String(c.smoobu_api_key_masked || '')
+                          : String(c.ical_out_token_masked || c.ical_out_token || '')
                       return (
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm">{token_masked || '—'}</span>
