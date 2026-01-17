@@ -4372,6 +4372,26 @@ def validate_voucher(voucher_code, reservation_amount):
 - **Logs**: Monitoreo de aplicación
 - **Escalabilidad**: Recursos ajustables
 
+### Integraciones OTAs (Channel Manager)
+
+Esta integración permite conectar **AlojaSys** con canales de venta externos (OTAs) para sincronizar:
+- **Reservas entrantes**: OTA/Channel Manager → AlojaSys (webhooks/polling)
+- **Disponibilidad/bloqueos**: AlojaSys → OTA/Channel Manager (bloqueos tipo “busy/blocked”)
+- **Tarifas** (opcional): AlojaSys → Channel Manager (push de rates)
+
+**Proveedores soportados** (según configuración):
+- **Booking / Airbnb**: vía API/adapter y webhooks propios cuando aplica.
+- **iCal**: import/export básico (legacy) para integraciones simples.
+- **Smoobu**: **Channel Manager** recomendado cuando no se dispone de acceso directo/partnership con APIs de OTAs.
+
+**Concepto clave**: con Smoobu, AlojaSys opera como **source of truth** (disponibilidad/precio) y Smoobu distribuye a Booking/Airbnb; las reservas entran por Smoobu y se registran en AlojaSys con trazabilidad del canal real (ej: “Booking - Smoobu”).
+
+**Variables de entorno relevantes** (Smoobu):
+- `SMOOBU_WEBHOOK_TOKEN`: token propio para autenticar webhooks entrantes (query `?token=` o header `X-Webhook-Token`).
+- `SMOOBU_AUTO_SYNC`: habilita push automático AlojaSys → Smoobu ante cambios (signals + throttling).
+- `SMOOBU_PUSH_RATES`: habilita push de tarifas hacia Smoobu.
+- `SMOOBU_DRY_RUN`: fuerza modo simulación del cliente Smoobu (no hace HTTP real).
+
 ## 3.15 Módulo OTAs (Channel Manager)
 
 **Propósito**: Sincronización bidireccional de disponibilidad, tarifas y reservas con plataformas OTA (Online Travel Agencies) como Booking.com y Airbnb.
@@ -4801,6 +4821,99 @@ class OtaAdapterBase:
 - 🎯 **Menos carga en servidores**: Push en lugar de polling constante
 
 **Fallback**: Si los webhooks fallan o no están configurados, el sistema usa pull cada 1-2 minutos como respaldo.
+
+##### 5.1 Integración Smoobu (Channel Manager)
+
+Smoobu se integra como **Channel Manager** para resolver el caso donde AlojaSys no puede hablar directamente con la API de Booking/Airbnb por restricciones de partnership.
+
+La integración se divide en:
+- **Inbound (Smoobu → AlojaSys)**: reservas por webhook (principal) y polling (respaldo).
+- **Outbound (AlojaSys → Smoobu)**: bloqueos de disponibilidad (principal) + tarifas (opcional).
+
+###### 5.1.1 Configuración (OtaConfig + Room Mapping)
+
+**Proveedor**: `OtaProvider.SMOOBU`
+
+**Credenciales**: se almacenan en `OtaConfig.credentials` (JSON), por hotel:
+- `api_key` (string, requerido)
+- `base_url` (string, opcional; default `https://login.smoobu.com`)
+- `blocked_channel_id` (int, opcional; default `11`) → canal interno de Smoobu usado para crear “blocked bookings”
+- `dry_run` (bool, opcional) → simula llamadas a Smoobu (no hace HTTP real)
+
+**Env vars**:
+- `SMOOBU_WEBHOOK_TOKEN`: token para autenticar webhooks (query `?token=` o header `X-Webhook-Token`/`X-Token`)
+- `SMOOBU_AUTO_SYNC`: habilita sincronización automática AlojaSys → Smoobu por signals (`1/true/yes`)
+- `SMOOBU_PUSH_RATES`: habilita push de tarifas (`1/true/yes`)
+- `SMOOBU_DRY_RUN`: fuerza dry-run global (`1/true/yes`)
+
+**Mapeo de habitaciones** (`OtaRoomMapping`):
+- Para Smoobu, `external_id` debe contener el **Apartment ID** de Smoobu.
+- Este mapeo es imprescindible para resolver `apartment_id → room` al recibir reservas.
+
+###### 5.1.2 Webhook Smoobu (Smoobu → AlojaSys)
+
+**Endpoint**: `POST /api/otas/webhooks/smoobu/`
+
+**Seguridad**:
+- Smoobu no documenta firma HMAC; se valida con `SMOOBU_WEBHOOK_TOKEN`.
+- Si el token no está configurado, el endpoint no bloquea (comportamiento permissivo).
+
+**Idempotencia**:
+- Se construye `notification_id` en base a `action`, `data.id` y `modifiedAt` cuando existe.
+- Se usa `WebhookSecurityService` para evitar reprocesar el mismo evento.
+
+**Resolución de habitación**:
+- Smoobu entrega `apartment.id` (o `apartmentId`), que se mapea con `OtaRoomMapping(provider="smoobu", external_id=str(apartment_id))`.
+
+**Canal real**:
+- Se mapea desde `data.channel.name` hacia `ReservationChannel` (booking/airbnb/expedia/other).
+- El `external_id` interno se guarda como `smoobu:{smoobu_res_id}`.
+- `guests_data` incluye `channel_name` para trazabilidad.
+- UI/Notificaciones: se muestra “Booking - Smoobu” / “Airbnb - Smoobu” cuando aplica.
+
+###### 5.1.3 Polling Smoobu (respaldo)
+
+**Adapter**: `SmoobuAdapter` (patrón adapter existente).
+
+**Task**: `pull_reservations_all_hotels_task` incluye `provider=SMOOBU` como fallback.
+
+Uso típico:
+- Si el webhook no está disponible momentáneamente, el pull recupera reservas nuevas/modificadas desde Smoobu y las upsertea en AlojaSys.
+
+###### 5.1.4 Push a Smoobu (AlojaSys → Smoobu)
+
+**Objetivo**: que una reserva directa o un bloqueo interno de AlojaSys cierre disponibilidad en Smoobu, para que Smoobu lo replique a Booking/Airbnb.
+
+**Servicio**: `SmoobuSyncService` (`apps/otas/services/smoobu_sync_service.py`)
+
+Funcionalidad:
+- Exporta **reservas directas** de AlojaSys como “blocked booking” en Smoobu.
+- Exporta **RoomBlock** de AlojaSys como “blocked booking” en Smoobu.
+- (Opcional) Push de tarifas por habitación (si `SMOOBU_PUSH_RATES=1`).
+
+**Tracking e idempotencia outbound**:
+- Modelo `SmoobuExportedBooking` guarda:
+  - `smoobu_booking_id`, `apartment_id`, `checksum`, `kind` (reservation/room_block)
+  - referencias a `Reservation` / `RoomBlock`
+- Permite actualizar en lugar de crear duplicados.
+
+**Ejecución asíncrona**:
+- Task: `sync_smoobu_for_hotel_task(hotel_id, days_ahead=90, job_id=None)`
+- Orquestador: `SmoobuSyncService.sync_hotel(hotel_id, days_ahead)`
+
+**Automatización (signals + throttling)**:
+- Signals (`post_save`/`post_delete`) en `Reservation` y `RoomBlock`.
+- Se activa solo si `SMOOBU_AUTO_SYNC=1`.
+- Throttling por hotel para evitar tormenta de jobs (coalesce ~60s).
+
+###### 5.1.5 Testing / Simulación
+
+Comandos de soporte:
+- `python manage.py simulate_smoobu_webhook ...` simula `newReservation/updateReservation/cancelReservation/deleteReservation`
+- `python manage.py smoobu_smoke_test ...` smoke test de pull/config/mapeos
+
+Recomendación:
+- Usar `dry_run=true` (en `credentials`) o `SMOOBU_DRY_RUN=1` para probar push sin tocar Smoobu real.
 
 ##### 6. Validación de Disponibilidad en Tiempo Real (Prevención de Overbooking)
 

@@ -6091,6 +6091,38 @@ El sistema trabaja en **dos direcciones automáticamente**:
 
 2. **Importación de calendarios**: También puedes configurar que AlojaSys lea los calendarios de las OTAs para bloquear fechas ocupadas.
 
+### Integración recomendada: Smoobu (Channel Manager)
+
+En muchos casos, **Booking.com/Airbnb no permiten integraciones directas** salvo a partners (o requieren acuerdos). Para esos escenarios, AlojaSys se integra con **Smoobu** como “intermediario”:
+
+- **AlojaSys**: donde operás el día a día (reservas directas, bloqueos, precios).
+- **Smoobu**: distribuye disponibilidad a Booking/Airbnb y recibe reservas.
+- **Booking/Airbnb**: siguen siendo tus canales de venta.
+
+#### ¿Qué se logra con Smoobu?
+- **Evitar overbooking**: si se crea una reserva directa en AlojaSys, se bloquea en Smoobu y automáticamente se cierra en Booking/Airbnb.
+- **Reservas entrantes automáticas**: si entra una reserva por Booking/Airbnb, Smoobu la recibe y AlojaSys la registra en segundos.
+- **Trazabilidad**: en AlojaSys vas a ver el origen como “Booking - Smoobu” (o “Airbnb - Smoobu”).
+
+#### Configuración mínima (paso a paso)
+1. **Contratar Smoobu** y conectar tus canales:
+   - En Smoobu conectás **Booking.com** y/o **Airbnb**
+2. **Obtener la API Key**:
+   - Smoobu te entrega una **API Key** (clave de acceso)
+3. En AlojaSys:
+   - Ir a **Configuración → OTAs**
+   - Crear un proveedor **Smoobu**
+   - Pegar la **API Key**
+4. **Mapear habitaciones** (muy importante):
+   - Por cada habitación/unidad en AlojaSys, cargás el **Apartment ID** correspondiente de Smoobu
+5. **Webhook (recomendado)**:
+   - Configurar la URL de webhook de AlojaSys en Smoobu (para sincronización instantánea)
+   - Definir un token de seguridad (`SMOOBU_WEBHOOK_TOKEN`) para que solo Smoobu pueda notificar
+
+#### Uso diario con Smoobu
+- **Crear reserva directa en AlojaSys** → se bloquea en Smoobu → se refleja en Booking/Airbnb.
+- **Reserva en Booking/Airbnb** → entra a Smoobu → aparece en AlojaSys automáticamente.
+
 ### Configuración Inicial
 
 #### Paso 1: Configurar el Proveedor OTA

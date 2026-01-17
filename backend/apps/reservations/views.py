@@ -550,6 +550,17 @@ class ReservationViewSet(viewsets.ModelViewSet):
         - confirm: true/false - Si es true, cancela la reserva. Si es false, solo calcula.
         """
         reservation = self.get_object()
+
+        # Reservas OTA (incluyendo las que llegan desde Smoobu) deben cancelarse en el canal
+        # para evitar inconsistencias / loops. AlojaSys solo las refleja.
+        if getattr(reservation, "external_id", None):
+            return Response(
+                {
+                    "detail": "Esta reserva proviene de una OTA/Channel Manager y no puede cancelarse desde AlojaSys. "
+                              "Cancelala en Smoobu/Booking/Airbnb y se sincronizará automáticamente."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         
         # Obtener parámetro confirm (por defecto true para mantener compatibilidad)
         confirm = request.data.get('confirm', True)

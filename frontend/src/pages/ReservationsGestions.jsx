@@ -337,6 +337,19 @@ export default function ReservationsGestions() {
   }, [filters.hotel, refetch]);
 
   const hasOverbooking = (r) => !!r.overbooking_flag;
+  const isOtaReservation = (r) => {
+    const ext = r?.external_id;
+    if (ext !== null && typeof ext !== "undefined" && String(ext).trim() !== "") return true;
+    // Algunos clients podrían serializar booleans como string
+    if (r?.is_ota === true) return true;
+    if (String(r?.is_ota).toLowerCase() === "true") return true;
+    return false;
+  };
+  const isOtaChannel = (r) => {
+    const ch = String(r?.channel || "").toLowerCase().trim();
+    // Canales OTA conocidos (ver ReservationChannel en backend)
+    return ch === "booking" || ch === "airbnb" || ch === "expedia" || ch === "other";
+  };
   const canCheckIn = (r) => 
     canChangeReservation && 
     r.status === "confirmed" && 
@@ -378,6 +391,8 @@ export default function ReservationsGestions() {
 
   const canCancel = (r) =>
     canDeleteReservation &&
+    !isOtaReservation(r) &&
+    !isOtaChannel(r) &&
     (r.status === "pending" || r.status === "confirmed");
   const canConfirm = (r) => 
     canAddPayment && 

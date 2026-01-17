@@ -199,7 +199,11 @@ export default function ReservationHistorical() {
 
   const canCheckIn = (r) => canChangeReservation && r.status === 'confirmed'
   const canCheckOut = (r) => canChangeReservation && r.status === 'check_in'
-  const canCancel = (r) => canDeleteReservation && (r.status === 'pending' || r.status === 'confirmed')
+  const isOtaReservation = (r) => !!(r?.is_ota || r?.external_id)
+  const canCancel = (r) =>
+    canDeleteReservation &&
+    !isOtaReservation(r) &&
+    (r.status === 'pending' || r.status === 'confirmed')
   const canConfirm = (r) => canChangeReservation && r.status === 'pending'
   const canEdit = (r) => canChangeReservation && r.status === 'pending' // Solo se puede editar si está pendiente
 
