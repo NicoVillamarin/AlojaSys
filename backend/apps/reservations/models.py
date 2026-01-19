@@ -145,7 +145,13 @@ class Reservation(models.Model):
             
     def save(self, *args, **kwargs):
         skip_clean = kwargs.pop('skip_clean', False)
-        if self.room_id and self.check_in and self.check_out:
+        # Importante:
+        # - Para reservas DIRECTAS (sin external_id) calculamos el total aproximado con base_price.
+        # - Para reservas OTA (con external_id), si ya vino un total desde el channel manager/OTA,
+        #   NO debemos pisarlo. Solo hacemos fallback si el total está vacío/0.
+        should_autocalculate_total = (not self.external_id) or (self.total_price is None) or (self.total_price == 0)
+
+        if self.room_id and self.check_in and self.check_out and should_autocalculate_total:
             nights = (self.check_out - self.check_in).days
             # Precio base por noche desde la habitación
             base_nightly = self.room.base_price or Decimal('0.00')

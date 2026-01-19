@@ -369,7 +369,10 @@ class ICALSyncService:
                                 channel=channel,  # Channel según provider (booking, expedia, other)
                                 check_in=start_date,
                                 check_out=end_date,
-                                status=ReservationStatus.PENDING,
+                                # iCal no modela “pendiente/confirmada” como un PMS, pero el evento representa
+                                # una ocupación real (bloquea inventario). Para evitar confusión operativa y
+                                # efectos colaterales (tareas automáticas sobre PENDING), la marcamos CONFIRMED.
+                                status=ReservationStatus.CONFIRMED,
                                 guests=1,
                                 guests_data=guests_data,
                                 notes=f"Importado desde {ota_room_mapping.provider} iCal: {summary or ''}",

@@ -620,6 +620,7 @@ def smoobu_webhook(request):
         external_id = f"smoobu:{smoobu_res_id}"
         check_in = _parse_smoobu_date(data.get("arrival") or data.get("arrivalDate"))
         check_out = _parse_smoobu_date(data.get("departure") or data.get("departureDate"))
+        ota_total_price = data.get("price") or data.get("totalPrice") or data.get("total_price")
 
         # Cancelación / borrado
         if action in ("cancelReservation", "deleteReservation"):
@@ -681,6 +682,7 @@ def smoobu_webhook(request):
             guests=guests,
             guests_data=guests_data,
             notes=f"Webhook Smoobu (canal: {channel_name})",
+            ota_total_price=ota_total_price,
             provider_name=OtaProvider.SMOOBU.label,
         )
 

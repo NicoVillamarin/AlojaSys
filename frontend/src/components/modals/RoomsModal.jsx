@@ -48,6 +48,9 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     capacity: room?.capacity ?? '',
     max_capacity: room?.max_capacity ?? '',
     base_price: room?.base_price != null ? String(room.base_price) : '0',
+    // Solo lectura: el precio OTA se gestiona en Smoobu (channel manager) y se publica a OTAs.
+    // No lo enviamos en el payload de creación/edición de habitación.
+    ota_price: room?.ota_price != null ? String(room.ota_price) : '',
     status: room?.status ?? 'available',
     description: room?.description ?? '',
   }
@@ -149,6 +152,15 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             <InputText title={`${t('rooms_modal.capacity')} *`} name='capacity' placeholder={t('rooms_modal.capacity_placeholder')} />
             <InputText title={`${t('rooms_modal.max_capacity')} *`} name='max_capacity' placeholder={t('rooms_modal.max_capacity_placeholder')} />
             <InputText title={`${t('rooms_modal.base_price')} *`} name='base_price' placeholder={t('rooms_modal.base_price_placeholder')} />
+            <InputText
+              title={t('rooms_modal.ota_price')}
+              name='ota_price'
+              placeholder={t('rooms_modal.ota_price_placeholder')}
+              disabled
+              inputClassName='bg-gray-100 text-gray-500 cursor-not-allowed'
+              statusMessage={t('rooms_modal.ota_price_help')}
+              statusType='info'
+            />
             <SelectBasic
               title={`${t('rooms_modal.status')} *`}
               name='status'

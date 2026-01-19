@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional, Dict, Any
+
+from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
 
-from apps.reservations.models import Reservation, ReservationStatus, ReservationChannel, Payment, ChannelCommission
+from apps.reservations.models import (
+    Reservation,
+    ReservationStatus,
+    ReservationChannel,
+    Payment,
+    ChannelCommission,
+    ReservationNight,
+)
 from apps.notifications.services import NotificationService
 
 
@@ -26,6 +35,67 @@ class PaymentInfo:
 
 
 class OtaReservationService:
+    @staticmethod
+    def _to_decimal(val: Any) -> Decimal | None:
+        if val is None:
+            return None
+        try:
+            s = str(val).strip()
+            if not s:
+                return None
+            # Normalizar coma decimal si llegara a venir así
+            s = s.replace(",", ".")
+            d = Decimal(s).quantize(Decimal("0.01"))
+            if d <= 0:
+                return None
+            return d
+        except Exception:
+            return None
+
+    @staticmethod
+    def _apply_ota_total_price(reservation: Reservation, ota_total_price: Decimal) -> None:
+        """
+        Para reservas OTA, si tenemos un total real desde el channel manager (Smoobu),
+        lo usamos como total_price y generamos nights "planas" para que:
+        - total_price sea coherente con lo que se ve en OTAs
+        - recálculos posteriores no lo pisen con base_price
+        """
+        if not reservation or not getattr(reservation, "external_id", None):
+            return
+
+        nights_count = (reservation.check_out - reservation.check_in).days if (reservation.check_in and reservation.check_out) else 0
+        if nights_count <= 0:
+            return
+
+        # Reemplazar noches existentes por un prorrateo simple
+        ReservationNight.objects.filter(reservation=reservation).delete()
+
+        base = (ota_total_price / Decimal(nights_count)).quantize(Decimal("0.01"))
+        # Ajuste en la última noche para que la suma dé exacta (por redondeo)
+        running = Decimal("0.00")
+        current = reservation.check_in
+        for idx in range(nights_count):
+            amount = base
+            if idx == nights_count - 1:
+                amount = (ota_total_price - running).quantize(Decimal("0.01"))
+            ReservationNight.objects.create(
+                reservation=reservation,
+                hotel=reservation.hotel,
+                room=reservation.room,
+                date=current,
+                base_rate=amount,
+                extra_guest_fee=Decimal("0.00"),
+                discount=Decimal("0.00"),
+                tax=Decimal("0.00"),
+                total_night=amount,
+            )
+            running += amount
+            current = current + timedelta(days=1)
+
+        # Setear total_price sin disparar save() (evitar recalcular por base_price)
+        type(reservation).objects.filter(pk=reservation.pk).update(total_price=ota_total_price)
+        reservation.total_price = ota_total_price
+
     @staticmethod
     def _channel_label(channel_value: str) -> str:
         """
@@ -76,6 +146,7 @@ class OtaReservationService:
         guests: int,
         guests_data: list,
         notes: str | None = None,
+        ota_total_price: float | str | Decimal | None = None,
         payment_info: PaymentInfo | None = None,
         auto_confirm: bool = True,
         provider_name: str | None = None,
@@ -93,6 +164,7 @@ class OtaReservationService:
         )
 
         created = False
+        ota_total_dec = OtaReservationService._to_decimal(ota_total_price)
         if reservation:
             # Actualización mínima
             changed = False
@@ -111,6 +183,10 @@ class OtaReservationService:
                 changed = True
             if notes:
                 reservation.notes = (reservation.notes or "") + f"\n{notes}"
+                changed = True
+            # Si nos llega el total OTA real, lo actualizamos aunque no haya otros cambios
+            if ota_total_dec is not None and reservation.total_price != ota_total_dec:
+                reservation.total_price = ota_total_dec
                 changed = True
             if reservation.status == ReservationStatus.PENDING and auto_confirm:
                 reservation.status = ReservationStatus.CONFIRMED
@@ -131,8 +207,18 @@ class OtaReservationService:
                 guests_data=guests_data or [],
                 notes=notes or "",
             )
+            if ota_total_dec is not None:
+                reservation.total_price = ota_total_dec
             reservation.save(skip_clean=True)
             created = True
+
+        # Si tenemos total OTA real, dejamos el total coherente con OTAs y generamos nights planas.
+        if ota_total_dec is not None:
+            try:
+                OtaReservationService._apply_ota_total_price(reservation, ota_total_dec)
+            except Exception:
+                # No romper import OTA por falla en nights; el total ya quedó seteado arriba.
+                pass
 
         # Asegurar política de cancelación aplicada (necesaria para UI de cancelación)
         # Las reservas OTA se crean por servicio (no por ReservationSerializer), así que la asignamos acá.

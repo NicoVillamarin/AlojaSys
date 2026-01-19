@@ -589,10 +589,12 @@ def auto_cancel_expired_pending_reservations(self):
     
     print(f"🔄 Iniciando cancelación automática de reservas PENDING vencidas - Fecha: {today}")
     
-    # Buscar reservas PENDING con check-in pasado
+    # Buscar reservas PENDING con check-in pasado.
+    # Importante: excluir OTAs (tienen external_id) para evitar cancelar reservas traídas por Booking/Airbnb/Smoobu.
     expired_pending_reservations = Reservation.objects.select_related("hotel", "room").filter(
         status=ReservationStatus.PENDING,
-        check_in__lt=today
+        check_in__lt=today,
+        external_id__isnull=True,
     )
     
     if not expired_pending_reservations.exists():
@@ -680,9 +682,11 @@ def auto_cancel_pending_deposits(self):
         return "Tarea ya en ejecución"
     
     try:
-        # Obtener reservas pendientes
+        # Obtener reservas pendientes.
+        # Importante: excluir OTAs (tienen external_id) para no auto-cancelar reservas traídas por canales.
         pending_reservations = Reservation.objects.select_related("hotel", "room").filter(
-            status=ReservationStatus.PENDING
+            status=ReservationStatus.PENDING,
+            external_id__isnull=True,
         )
         
         if not pending_reservations.exists():

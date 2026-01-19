@@ -1130,6 +1130,9 @@
     "base_price_number": "Precio base debe ser un número",
     "base_price_more_than": "Precio base debe ser mayor a 0",
     "base_price_placeholder": "100.00",
+    "ota_price": "Precio OTA (Smoobu)",
+    "ota_price_placeholder": "Gestionado por Smoobu",
+    "ota_price_help": "Solo lectura. Las tarifas de OTAs se gestionan en Smoobu y se sincronizan a Booking/Airbnb/Expedia.",
     "status": "Estado",
     "status_required": "Estado es requerido",
     "statuses": {

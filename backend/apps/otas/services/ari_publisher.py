@@ -498,6 +498,7 @@ def pull_reservations_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, s
                         guests=guests,
                         guests_data=guests_data,
                         notes=f"Importado desde Smoobu (canal: {it.get('channel_name')})",
+                        ota_total_price=it.get("price"),
                         provider_name=OtaProvider.SMOOBU.label,
                     )
                     if result.get("created"):
