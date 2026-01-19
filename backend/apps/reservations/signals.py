@@ -19,6 +19,21 @@ AUDIT_FIELDS = [
     "notes",
 ]
 
+def _should_autogenerate_pricing(reservation: Reservation) -> bool:
+    """
+    Para reservas que entran vía Smoobu (external_id prefijo 'smoobu:'), el total real
+    puede venir desde el channel manager y nosotros generamos nights "planas" para
+    mantener coherencia. En ese caso NO debemos regenerar nights con el motor interno
+    porque pisa el total OTA.
+    """
+    try:
+        ext = str(getattr(reservation, "external_id", "") or "")
+    except Exception:
+        ext = ""
+    if ext.startswith("smoobu:"):
+        return False
+    return True
+
 def upsert_channel_commission(reservation: Reservation):
     from decimal import Decimal
     # Si la reserva ya tiene una comisión (especialmente de OTA), no sobrescribirla
@@ -45,8 +60,9 @@ def upsert_channel_commission(reservation: Reservation):
 def reservation_post_save_first(sender, instance: Reservation, created, **kwargs):
     if not instance.check_in or not instance.check_out or not instance.room_id:
         return
-    generate_nights_for_reservation(instance)
-    recalc_reservation_totals(instance)
+    if _should_autogenerate_pricing(instance):
+        generate_nights_for_reservation(instance)
+        recalc_reservation_totals(instance)
     upsert_channel_commission(instance)
 
 @receiver(pre_save, sender=Reservation)
@@ -62,8 +78,9 @@ def reservation_pre_save(sender, instance: Reservation, **kwargs):
 @receiver(post_save, sender=Reservation)
 def reservation_post_save_log(sender, instance: Reservation, created, **kwargs):
     if instance.check_in and instance.check_out and instance.room_id:
-        generate_nights_for_reservation(instance)
-        recalc_reservation_totals(instance)
+        if _should_autogenerate_pricing(instance):
+            generate_nights_for_reservation(instance)
+            recalc_reservation_totals(instance)
 
     prev = getattr(instance, "_prev", None)
     user = get_current_user()
