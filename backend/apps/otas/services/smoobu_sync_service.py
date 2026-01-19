@@ -9,6 +9,7 @@ import uuid
 
 import requests
 from django.utils import timezone
+from django.db.models import Q
 
 from apps.otas.models import OtaConfig, OtaProvider, OtaRoomMapping, SmoobuExportedBooking
 from apps.reservations.models import Reservation, ReservationStatus, RoomBlock
@@ -342,13 +343,17 @@ class SmoobuSyncService:
         end = today + timedelta(days=days_ahead)
 
         # Reservas directas que ocupan inventario (no OTA)
-        res_qs = Reservation.objects.filter(
-            hotel_id=hotel_id,
-            external_id__isnull=True,
-            status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
-            check_in__lt=end,
-            check_out__gt=today,
-        ).select_related("room")
+        # Nota: algunas creaciones pueden guardar external_id="" en vez de NULL; tratamos ambos como "directa".
+        res_qs = (
+            Reservation.objects.filter(
+                hotel_id=hotel_id,
+                status__in=[ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.CHECK_IN],
+                check_in__lt=end,
+                check_out__gt=today,
+            )
+            .filter(Q(external_id__isnull=True) | Q(external_id=""))
+            .select_related("room")
+        )
 
         blocks_qs = RoomBlock.objects.filter(
             hotel_id=hotel_id,
