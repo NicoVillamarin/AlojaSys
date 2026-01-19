@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import hashlib
 import os
 import uuid
+import logging
 
 import requests
 from django.utils import timezone
@@ -15,6 +16,8 @@ from apps.otas.models import OtaConfig, OtaProvider, OtaRoomMapping, SmoobuExpor
 from apps.reservations.models import Reservation, ReservationStatus, RoomBlock
 from apps.rates.services.engine import get_applicable_rule, compute_rate_for_date
 from apps.rooms.models import Room
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -149,6 +152,16 @@ class SmoobuSyncService:
         }
 
         if exported and exported.smoobu_booking_id:
+            logger.info(
+                "SMOOBU_BLOCK_UPDATE reservation_id=%s hotel_id=%s room_id=%s apartment_id=%s channel_id=%s booking_id=%s dry_run=%s",
+                reservation.id,
+                reservation.hotel_id,
+                reservation.room_id,
+                apartment_id,
+                blocked_channel_id,
+                exported.smoobu_booking_id,
+                getattr(client, "dry_run", False),
+            )
             client.update_booking(str(exported.smoobu_booking_id), payload)
             exported.apartment_id = str(apartment_id)
             exported.checksum = desired_checksum
@@ -157,6 +170,15 @@ class SmoobuSyncService:
             exported.save(update_fields=["apartment_id", "checksum", "last_synced", "is_active", "updated_at"])
             return {"status": "ok", "action": "updated", "smoobu_booking_id": exported.smoobu_booking_id}
 
+        logger.info(
+            "SMOOBU_BLOCK_CREATE reservation_id=%s hotel_id=%s room_id=%s apartment_id=%s channel_id=%s dry_run=%s",
+            reservation.id,
+            reservation.hotel_id,
+            reservation.room_id,
+            apartment_id,
+            blocked_channel_id,
+            getattr(client, "dry_run", False),
+        )
         res = client.create_booking(payload)
         smoobu_id = str(res.get("id") or res.get("data", {}).get("id") or "")
         if not smoobu_id:
@@ -207,6 +229,16 @@ class SmoobuSyncService:
         }
 
         if exported and exported.smoobu_booking_id:
+            logger.info(
+                "SMOOBU_BLOCK_UPDATE room_block_id=%s hotel_id=%s room_id=%s apartment_id=%s channel_id=%s booking_id=%s dry_run=%s",
+                block.id,
+                block.hotel_id,
+                block.room_id,
+                apartment_id,
+                blocked_channel_id,
+                exported.smoobu_booking_id,
+                getattr(client, "dry_run", False),
+            )
             client.update_booking(str(exported.smoobu_booking_id), payload)
             exported.apartment_id = str(apartment_id)
             exported.checksum = desired_checksum
@@ -215,6 +247,15 @@ class SmoobuSyncService:
             exported.save(update_fields=["apartment_id", "checksum", "last_synced", "is_active", "updated_at"])
             return {"status": "ok", "action": "updated", "smoobu_booking_id": exported.smoobu_booking_id}
 
+        logger.info(
+            "SMOOBU_BLOCK_CREATE room_block_id=%s hotel_id=%s room_id=%s apartment_id=%s channel_id=%s dry_run=%s",
+            block.id,
+            block.hotel_id,
+            block.room_id,
+            apartment_id,
+            blocked_channel_id,
+            getattr(client, "dry_run", False),
+        )
         res = client.create_booking(payload)
         smoobu_id = str(res.get("id") or res.get("data", {}).get("id") or "")
         if not smoobu_id:
@@ -337,6 +378,7 @@ class SmoobuSyncService:
         """
         client = SmoobuSyncService._client_for_hotel(hotel_id)
         if not client:
+            logger.warning("SMOOBU_SYNC_SKIP hotel_id=%s reason=no_smoobu_config", hotel_id)
             return {"status": "skipped", "reason": "no_smoobu_config"}
 
         today = timezone.now().date()
@@ -362,13 +404,25 @@ class SmoobuSyncService:
             end_date__gt=today,
         ).select_related("room")
 
-        stats = {
+        stats: Dict[str, Any] = {
             "exported_reservations": 0,
             "exported_room_blocks": 0,
             "rate_push_rooms": 0,
             "skipped": 0,
             "errors": 0,
+            "skip_reasons": {},
         }
+
+        logger.info(
+            "SMOOBU_SYNC_START hotel_id=%s days_ahead=%s dry_run=%s base_url=%s blocked_channel_id=%s direct_reservations=%s room_blocks=%s",
+            hotel_id,
+            days_ahead,
+            getattr(client, "dry_run", False),
+            getattr(client, "base_url", None),
+            SmoobuSyncService._blocked_channel_id(hotel_id),
+            res_qs.count(),
+            blocks_qs.count(),
+        )
 
         for r in res_qs:
             try:
@@ -377,8 +431,18 @@ class SmoobuSyncService:
                     stats["exported_reservations"] += 1 if out.get("action") in ("created", "updated", "noop") else 0
                 else:
                     stats["skipped"] += 1
-            except Exception:
+                    reason = str(out.get("reason") or "unknown")
+                    stats["skip_reasons"][reason] = int(stats["skip_reasons"].get(reason, 0)) + 1
+                    logger.info(
+                        "SMOOBU_BLOCK_SKIP reservation_id=%s hotel_id=%s room_id=%s reason=%s",
+                        r.id,
+                        r.hotel_id,
+                        r.room_id,
+                        reason,
+                    )
+            except Exception as e:
                 stats["errors"] += 1
+                logger.exception("SMOOBU_BLOCK_ERROR reservation_id=%s hotel_id=%s error=%s", r.id, r.hotel_id, str(e))
 
         for b in blocks_qs:
             try:
@@ -387,8 +451,18 @@ class SmoobuSyncService:
                     stats["exported_room_blocks"] += 1 if out.get("action") in ("created", "updated", "noop") else 0
                 else:
                     stats["skipped"] += 1
-            except Exception:
+                    reason = str(out.get("reason") or "unknown")
+                    stats["skip_reasons"][reason] = int(stats["skip_reasons"].get(reason, 0)) + 1
+                    logger.info(
+                        "SMOOBU_BLOCK_SKIP room_block_id=%s hotel_id=%s room_id=%s reason=%s",
+                        b.id,
+                        b.hotel_id,
+                        b.room_id,
+                        reason,
+                    )
+            except Exception as e:
                 stats["errors"] += 1
+                logger.exception("SMOOBU_BLOCK_ERROR room_block_id=%s hotel_id=%s error=%s", b.id, b.hotel_id, str(e))
 
         # Rates: por ahora solo para rooms mapeadas. (Se puede desactivar por env si querés)
         if os.environ.get("SMOOBU_PUSH_RATES", "0") in ("1", "true", "yes"):
@@ -406,6 +480,17 @@ class SmoobuSyncService:
                         stats["rate_push_rooms"] += 1
                 except Exception:
                     stats["errors"] += 1
+
+        logger.info(
+            "SMOOBU_SYNC_DONE hotel_id=%s exported_reservations=%s exported_room_blocks=%s rate_push_rooms=%s skipped=%s errors=%s skip_reasons=%s",
+            hotel_id,
+            stats.get("exported_reservations"),
+            stats.get("exported_room_blocks"),
+            stats.get("rate_push_rooms"),
+            stats.get("skipped"),
+            stats.get("errors"),
+            stats.get("skip_reasons"),
+        )
 
         return {"status": "ok", **stats}
 

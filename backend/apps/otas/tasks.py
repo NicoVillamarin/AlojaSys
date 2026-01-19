@@ -19,6 +19,9 @@ from datetime import date, timedelta
 import os, json
 import redis
 from .services.smoobu_sync_service import SmoobuSyncService
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
@@ -418,6 +421,7 @@ def sync_smoobu_for_hotel_task(self, hotel_id: int, days_ahead: int = 90, job_id
         message="SMOOBU_SYNC_STARTED",
         payload={"hotel_id": hotel_id, "days_ahead": days_ahead, "trigger": "task"},
     )
+    logger.info("SMOOBU_TASK_START hotel_id=%s days_ahead=%s job_id=%s", hotel_id, days_ahead, job.id)
 
     try:
         result = SmoobuSyncService.sync_hotel(int(hotel_id), days_ahead=int(days_ahead))
@@ -430,6 +434,7 @@ def sync_smoobu_for_hotel_task(self, hotel_id: int, days_ahead: int = 90, job_id
             message="SMOOBU_SYNC_COMPLETED",
             payload={"hotel_id": hotel_id, "result": result},
         )
+        logger.info("SMOOBU_TASK_DONE hotel_id=%s job_id=%s status=%s result=%s", hotel_id, job.id, job.status, result)
     except Exception as e:
         import traceback
         job.status = OtaSyncJob.JobStatus.FAILED
@@ -441,6 +446,7 @@ def sync_smoobu_for_hotel_task(self, hotel_id: int, days_ahead: int = 90, job_id
             message="SMOOBU_SYNC_ERROR",
             payload={"hotel_id": hotel_id, "error": str(e), "traceback": traceback.format_exc()},
         )
+        logger.exception("SMOOBU_TASK_ERROR hotel_id=%s job_id=%s error=%s", hotel_id, job.id, str(e))
     finally:
         job.save(update_fields=["status", "stats", "error_message", "finished_at"])
     return job.stats or {}
