@@ -621,6 +621,29 @@ def smoobu_webhook(request):
         check_in = _parse_smoobu_date(data.get("arrival") or data.get("arrivalDate"))
         check_out = _parse_smoobu_date(data.get("departure") or data.get("departureDate"))
         ota_total_price = data.get("price") or data.get("totalPrice") or data.get("total_price")
+        notice_l = str(data.get("notice") or "").strip().lower()
+        email_l = str(data.get("email") or "").strip().lower()
+        guest_l = str(data.get("guest-name") or data.get("guest_name") or data.get("guestName") or data.get("firstname") or "").strip().lower()
+
+        # Evitar loop: bloqueos creados por AlojaSys para cerrar fechas.
+        is_internal_block = (
+            ("bloqueo desde alojasys" in notice_l)
+            or (email_l == "blocked@alojasys.local")
+            or (guest_l in ("bloqueo", "bloqueo alojasys"))
+        )
+        if is_internal_block and action not in ("cancelReservation", "deleteReservation"):
+            # Si existe por corridas previas, cancelarla.
+            try:
+                Reservation.objects.filter(hotel=mapping.hotel, external_id=external_id).exclude(status=ReservationStatus.CANCELLED).update(
+                    status=ReservationStatus.CANCELLED
+                )
+            except Exception:
+                pass
+            job.status = OtaSyncJob.JobStatus.SUCCESS
+            job.save(update_fields=["status"])
+            if notification_id:
+                WebhookSecurityService.mark_notification_processed(notification_id, None)
+            return Response({"ok": True, "status": "ignored_internal_block"}, status=status.HTTP_200_OK)
 
         # Cancelación / borrado
         if action in ("cancelReservation", "deleteReservation"):

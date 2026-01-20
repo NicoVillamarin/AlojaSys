@@ -305,6 +305,7 @@ class SmoobuAdapter(OtaAdapterBase):
                     "arrival": r.get("arrival") or r.get("arrivalDate"),
                     "departure": r.get("departure") or r.get("departureDate"),
                     "apartment_id": (apt.get("id") if isinstance(apt, dict) else None) or r.get("apartmentId"),
+                    "channel_id": (chan.get("id") if isinstance(chan, dict) else None) or r.get("channelId"),
                     "channel_name": (chan.get("name") if isinstance(chan, dict) else None) or r.get("channelName"),
                     "guest_name": r.get("guest-name") or r.get("guest_name") or r.get("guestName") or r.get("firstname"),
                     "email": r.get("email"),
@@ -312,6 +313,7 @@ class SmoobuAdapter(OtaAdapterBase):
                     "children": r.get("children"),
                     "price": r.get("price"),
                     "is_blocked": r.get("is-blocked-booking") or r.get("is_blocked_booking") or r.get("isBlockedBooking"),
+                    "notice": r.get("notice") or r.get("comment") or r.get("notes"),
                     "modified_at": r.get("modifiedAt") or r.get("modified-at") or r.get("modified_at"),
                 }
             )
@@ -451,6 +453,27 @@ def pull_reservations_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, s
                         .first()
                     )
                     if not mapping:
+                        skipped += 1
+                        continue
+
+                    # Evitar loop: bloqueos creados por AlojaSys en Smoobu vuelven por webhook/pull.
+                    # No debemos crearlos como "reservas" en AlojaSys.
+                    email_l = str(it.get("email") or "").strip().lower()
+                    notice_l = str(it.get("notice") or "").strip().lower()
+                    is_internal_block = (
+                        ("bloqueo desde alojasys" in notice_l)
+                        or (email_l == "blocked@alojasys.local")
+                        or (str(it.get("guest_name") or "").strip().lower() in ("bloqueo", "bloqueo alojasys"))
+                    )
+                    if is_internal_block:
+                        # Si alguna corrida anterior ya lo creó como reserva, la cancelamos para que no moleste.
+                        try:
+                            Reservation.objects.filter(
+                                hotel=mapping.hotel,
+                                external_id=f"smoobu:{smoobu_id}",
+                            ).exclude(status=ReservationStatus.CANCELLED).update(status=ReservationStatus.CANCELLED)
+                        except Exception:
+                            pass
                         skipped += 1
                         continue
 
