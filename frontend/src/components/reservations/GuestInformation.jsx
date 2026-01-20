@@ -8,6 +8,11 @@ import PeopleIcon from 'src/assets/icons/PeopleIcon'
 const GuestInformation = () => {
   const { t } = useTranslation()
   const { values, setFieldValue, errors, touched } = useFormikContext()
+
+  const isBookingProxyEmail = (email) => {
+    const e = String(email || '').trim().toLowerCase()
+    return e.endsWith('@guest.booking.com')
+  }
   
   const requestedGuests = values.guests || 1
   const maxCapacity = values.room_data?.max_capacity || 10
@@ -91,6 +96,12 @@ const GuestInformation = () => {
               value={values.guest_email || ''}
               onChange={(e) => setFieldValue('guest_email', e.target.value)}
               error={touched.guest_email && errors.guest_email}
+                statusMessage={
+                  isBookingProxyEmail(values.guest_email)
+                    ? t('guest_information.booking_proxy_email_help')
+                    : undefined
+                }
+                statusType={isBookingProxyEmail(values.guest_email) ? 'warning' : 'info'}
             />
             <InputText
               title={`${t('guest_information.phone')} *`}

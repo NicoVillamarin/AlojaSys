@@ -439,6 +439,7 @@
     "document_placeholder": "RG, Passaporte, etc.",
     "email": "Email",
     "email_placeholder": "joao@email.com",
+    "booking_proxy_email_help": "Este email é um alias de privacidade do Booking. O email real do hóspede não é compartilhado; use-o para contatar o hóspede via Booking.",
     "phone": "Telefone",
     "phone_placeholder": "+55 11 99999-9999",
     "contact_address": "Endereço de contato",

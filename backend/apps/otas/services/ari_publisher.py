@@ -309,6 +309,7 @@ class SmoobuAdapter(OtaAdapterBase):
                     "channel_name": (chan.get("name") if isinstance(chan, dict) else None) or r.get("channelName"),
                     "guest_name": r.get("guest-name") or r.get("guest_name") or r.get("guestName") or r.get("firstname"),
                     "email": r.get("email"),
+                    "phone": r.get("phone") or r.get("phoneNumber") or r.get("phone_number"),
                     "adults": r.get("adults"),
                     "children": r.get("children"),
                     "price": r.get("price"),
@@ -499,10 +500,12 @@ def pull_reservations_for_hotel(job: OtaSyncJob, hotel_id: int, provider: str, s
 
                     guest_name = it.get("guest_name") or "Huésped Smoobu"
                     email = it.get("email") or ""
+                    phone = it.get("phone") or ""
                     guests_data = [
                         {
                             "name": guest_name,
                             "email": email or f"{guest_name.lower().replace(' ', '.')}@example.com",
+                            "phone": phone,
                             "is_primary": True,
                             "source": "smoobu",
                             "provider": "smoobu",

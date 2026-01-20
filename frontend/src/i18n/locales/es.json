@@ -575,6 +575,7 @@
     "document_placeholder": "DNI, Pasaporte, etc.",
     "email": "Email",
     "email_placeholder": "juan@email.com",
+    "booking_proxy_email_help": "Este email es un alias de privacidad de Booking. El email real del huésped no se comparte; sirve para contactar al huésped a través de Booking.",
     "phone": "Teléfono",
     "phone_placeholder": "+54 9 11 1234-5678",
     "contact_address": "Dirección de contacto",

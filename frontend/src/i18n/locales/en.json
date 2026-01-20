@@ -446,6 +446,7 @@
     "document_placeholder": "ID, Passport, etc.",
     "email": "Email",
     "email_placeholder": "john@email.com",
+    "booking_proxy_email_help": "This email is a Booking privacy alias. The guest’s real email is not shared; use it to contact the guest via Booking.",
     "phone": "Phone",
     "phone_placeholder": "+1 555 123-4567",
     "contact_address": "Contact address",

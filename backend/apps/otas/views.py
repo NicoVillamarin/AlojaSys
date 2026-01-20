@@ -686,9 +686,11 @@ def smoobu_webhook(request):
 
         guest_name = data.get("guest-name") or data.get("guest_name") or data.get("guestName") or data.get("firstname") or "Huésped Smoobu"
         email = data.get("email") or ""
+        phone = data.get("phone") or data.get("phoneNumber") or data.get("phone_number") or ""
         guests_data = [{
             "name": guest_name,
             "email": email or f"{guest_name.lower().replace(' ', '.')}@example.com",
+            "phone": phone,
             "is_primary": True,
             "source": "smoobu",
             "provider": "smoobu",
