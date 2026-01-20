@@ -149,6 +149,11 @@ class SmoobuSyncService:
             "apartmentId": apartment_id,
             "channelId": blocked_channel_id,
             "notice": f"Bloqueo desde AlojaSys (RES-{reservation.id})",
+            # Smoobu valida estos campos incluso para bloqueos (channelId=blocked).
+            # Usamos datos “dummy” para cumplir validación y evitar 400.
+            "firstName": "Bloqueo",
+            "lastName": "AlojaSys",
+            "email": "blocked@alojasys.local",
         }
 
         if exported and exported.smoobu_booking_id:
@@ -226,6 +231,10 @@ class SmoobuSyncService:
             "apartmentId": apartment_id,
             "channelId": blocked_channel_id,
             "notice": f"Bloqueo desde AlojaSys (RoomBlock-{block.id})",
+            # Smoobu valida estos campos incluso para bloqueos.
+            "firstName": "Bloqueo",
+            "lastName": "AlojaSys",
+            "email": "blocked@alojasys.local",
         }
 
         if exported and exported.smoobu_booking_id:
