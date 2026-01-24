@@ -28,7 +28,12 @@ import EyeSlashIcon from "src/assets/icons/EyeSlashIcon";
 import { usePermissions } from "src/hooks/usePermissions";
 import { usePlanFeatures } from "src/hooks/usePlanFeatures";
 import RoomStatusModal from "src/components/modals/RoomStatusModal";
+import RoomDetailModal from "src/components/modals/RoomDetailModal";
 import Button from "src/components/Button";
+import { listAllResources } from "src/services/listAllResources";
+import { printHtml } from "src/utils/printHtml";
+import { showErrorConfirm } from "src/services/toast";
+import PrintIcon from "src/assets/icons/PrintIcon";
 
 export default function RoomsGestion() {
   const { t, i18n } = useTranslation();
@@ -41,6 +46,8 @@ export default function RoomsGestion() {
   const didMountRef = useRef(false);
   const [selectedRoomIds, setSelectedRoomIds] = useState(() => new Set());
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [detailRoom, setDetailRoom] = useState(null);
+  const [isPrintingDirtyRooms, setIsPrintingDirtyRooms] = useState(false);
 
   const { results, count, isPending, hasNextPage, fetchNextPage, refetch } =
     useList({ 
@@ -76,6 +83,192 @@ export default function RoomsGestion() {
   // KPIs de hotel (cuando hay hotel seleccionado o cuando el usuario tiene un solo hotel)
   const shouldUseSummary = !!filters.hotel || (hasSingleHotel && singleHotelId);
   const hotelForSummary = filters.hotel || (hasSingleHotel ? String(singleHotelId) : undefined);
+  const hotelIdForPrint = hotelForSummary ? String(hotelForSummary) : "";
+  const hotelNameForPrint =
+    (hotels || []).find((h) => String(h?.id) === String(hotelIdForPrint))?.name || "";
+
+  const escapeHtml = (input) =>
+    String(input ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+
+  const onPrintDirtyRooms = async () => {
+    const title = t(
+      "rooms.print_cleaning_list_title",
+      "Lista de limpieza (Para limpiar)"
+    );
+    // Abrir ventana inmediatamente (evita popup bloqueado / en blanco)
+    let printWindow = null;
+    try {
+      printWindow = printHtml({
+        title,
+        html: `
+          <h1 class="title">${escapeHtml(title)}</h1>
+          <div class="meta">${escapeHtml(
+            t("common.loading", "Cargando…")
+          )}</div>
+        `,
+        autoPrint: false,
+      });
+    } catch (e) {
+      // Si el navegador bloquea popups, seguimos y mostramos error abajo.
+      printWindow = null;
+    }
+
+    try {
+      if (!hotelIdForPrint) {
+        if (printWindow) printWindow.close();
+        showErrorConfirm(
+          t(
+            "rooms.print_select_hotel",
+            "Seleccioná un hotel para imprimir la lista de limpieza."
+          )
+        );
+        return;
+      }
+
+      setIsPrintingDirtyRooms(true);
+      const dirtyRooms = await listAllResources({
+        resource: "rooms",
+        params: { hotel: hotelIdForPrint, cleaning_status: "dirty" },
+        pageSize: 1000,
+        maxPages: 200,
+      });
+
+      const rows = (dirtyRooms || [])
+        .slice()
+        .sort((a, b) => {
+          const fa = Number(a?.floor ?? 0);
+          const fb = Number(b?.floor ?? 0);
+          if (fa !== fb) return fa - fb;
+          const na = Number(a?.number ?? 0);
+          const nb = Number(b?.number ?? 0);
+          if (na !== nb) return na - nb;
+          return String(a?.name ?? "").localeCompare(String(b?.name ?? ""), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+        });
+
+      if (!rows.length) {
+        if (printWindow) printWindow.close();
+        showErrorConfirm(
+          t(
+            "rooms.print_no_dirty_rooms",
+            "No hay habitaciones 'Para limpiar' para imprimir."
+          )
+        );
+        return;
+      }
+
+      const now = new Date();
+      const nowStr = now.toLocaleString(i18n.language || "es");
+
+      const html = `
+        <h1 class="title">${escapeHtml(title)}</h1>
+        <div class="meta">
+          <span class="badge">${escapeHtml(nowStr)}</span>
+          ${
+            hotelNameForPrint
+              ? `<span class="badge" style="margin-left:8px;">${escapeHtml(
+                  hotelNameForPrint
+                )}</span>`
+              : ""
+          }
+          <span class="badge" style="margin-left:8px;">${escapeHtml(
+            t("common.total", "Total")
+          )}: ${rows.length}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:70px;">${escapeHtml(t("rooms_modal.floor", "Piso"))}</th>
+              <th>${escapeHtml(t("rooms.room_number", "Habitación"))}</th>
+              <th>${escapeHtml(t("rooms.room_type", "Tipo"))}</th>
+              <th style="width:110px;">${escapeHtml(t("rooms.print_has_reservation", "Reserva actual"))}</th>
+              <th style="width:90px;" class="center">${escapeHtml(t("rooms.print_guests", "Huéspedes"))}</th>
+              <th>${escapeHtml(t("common.status", "Estado"))}</th>
+              <th>${escapeHtml(t("rooms.status.cleaning", "Limpieza"))}</th>
+              <th>${escapeHtml(t("housekeeping.notes", "Observaciones"))}</th>
+              <th class="center" style="width:60px;">OK</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map((r) => {
+                const roomLabel = r?.name || r?.number || `#${r?.id}`;
+                const statusLabel = getStatusMeta(r?.status, t)?.label || String(r?.status || "");
+                const hasCurrentReservation = Boolean(r?.current_reservation);
+                const reservationGuestName = r?.current_reservation?.guest_name || "";
+                const reservationDates =
+                  r?.current_reservation?.check_in && r?.current_reservation?.check_out
+                    ? `${r.current_reservation.check_in} → ${r.current_reservation.check_out}`
+                    : "";
+                const cleaningLabel =
+                  r?.cleaning_status === "dirty"
+                    ? t("rooms.cleaning_status.dirty", "Para limpiar")
+                    : r?.cleaning_status === "in_progress"
+                      ? t("rooms.cleaning_status.in_progress", "En limpieza")
+                      : r?.cleaning_status === "clean"
+                        ? t("rooms.cleaning_status.clean", "Limpia")
+                        : String(r?.cleaning_status || "");
+                const guestsCount =
+                  typeof r?.current_guests === "number" ? r.current_guests : (r?.current_guests ? Number(r.current_guests) : 0);
+
+                return `
+                  <tr>
+                    <td class="center">${escapeHtml(r?.floor ?? "")}</td>
+                    <td>${escapeHtml(roomLabel)}</td>
+                    <td>${escapeHtml(r?.room_type ?? "")}</td>
+                    <td>
+                      <div><strong>${escapeHtml(hasCurrentReservation ? t("common.yes", "Sí") : t("common.no", "No"))}</strong></div>
+                      ${
+                        hasCurrentReservation
+                          ? `<div class="muted">${escapeHtml(reservationGuestName || "")}</div>
+                             <div class="muted">${escapeHtml(reservationDates || "")}</div>`
+                          : `<div class="muted">—</div>`
+                      }
+                    </td>
+                    <td class="center">${escapeHtml(hasCurrentReservation ? String(guestsCount || 0) : "—")}</td>
+                    <td>${escapeHtml(statusLabel)}</td>
+                    <td>${escapeHtml(cleaningLabel)}</td>
+                    <td class="muted">&nbsp;</td>
+                    <td class="center">□</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      `;
+
+      printHtml({ title, html, targetWindow: printWindow || undefined, autoPrint: true });
+    } catch (e) {
+      if (printWindow) {
+        try {
+          printHtml({
+            title,
+            targetWindow: printWindow,
+            autoPrint: false,
+            html: `
+              <h1 class="title">${escapeHtml(title)}</h1>
+              <div class="meta muted">${escapeHtml(
+                e?.message || String(e) || "Error al imprimir."
+              )}</div>
+            `,
+          });
+        } catch {
+          // noop
+        }
+      }
+      showErrorConfirm(e?.message || String(e) || "Error al imprimir.");
+    } finally {
+      setIsPrintingDirtyRooms(false);
+    }
+  };
   
   const { results: summary, isPending: kpiLoading } = useAction({
     resource: 'status',
@@ -426,7 +619,17 @@ export default function RoomsGestion() {
             </Filter>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <Button
+              variant="primary"
+              size="md"
+              isPending={isPrintingDirtyRooms}
+              onClick={onPrintDirtyRooms}
+              leftIcon={<PrintIcon size={18} />}
+              className="whitespace-nowrap shadow-sm"
+            >
+              {t("rooms.print_cleaning_list", "Imprimir lista de limpieza")}
+            </Button>
             {/* Acción: edición manual de estado/subestado (solo si housekeeping NO está habilitado) */}
             {canChangeRoom && !housekeepingEnabled && (
               <Button
@@ -527,7 +730,14 @@ export default function RoomsGestion() {
             header: t('rooms.room_number'),
             sortable: true,
             accessor: (r) => r.name || r.number || `#${r.id}`,
-            render: (r) => r.name || r.number || `#${r.id}`,
+            render: (r) => (
+              <button
+                onClick={() => setDetailRoom(r)}
+                className="text-blue-600 hover:text-blue-800 hover:underline text-left"
+              >
+                {r.name || r.number || `#${r.id}`}
+              </button>
+            ),
           },
           { key: "room_type", header: t('rooms.room_type'), sortable: true },
           {
@@ -606,6 +816,7 @@ export default function RoomsGestion() {
           refetch()
         }}
       />
+      <RoomDetailModal isOpen={!!detailRoom} onClose={() => setDetailRoom(null)} room={detailRoom} />
     </div>
   );
 }

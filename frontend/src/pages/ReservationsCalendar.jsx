@@ -48,10 +48,10 @@ const ReservationsCalendar = () => {
   const [isModalClosing, setIsModalClosing] = useState(false)
   const [selectedDateRange, setSelectedDateRange] = useState(null)
   const [showKpis, setShowKpis] = useState(false)
-  const [currentView, setCurrentView] = useState('dayGridMonth')
+  // Por defecto abrir en "Habitaciones"
+  const [currentView, setCurrentView] = useState('resourceTimelineWeek')
   const [selectedEvents, setSelectedEvents] = useState([])
   const [showLegend, setShowLegend] = useState(false)
-  const [forceRender, setForceRender] = useState(0)
   const calendarRef = useRef(null)
   
   // Estados para modales de confirmación
@@ -61,44 +61,30 @@ const ReservationsCalendar = () => {
   const [showErrorModal, setShowErrorModal] = useState(false)
   const [alertData, setAlertData] = useState(null)
   
-  // Función para forzar re-render del calendario
-  const forceCalendarRender = () => {
-    // Forzar re-render del componente completo
-    setForceRender(prev => prev + 1)
-    
-    if (calendarRef.current) {
-      const calendarApi = calendarRef.current.getApi()
-      
-      // Método más agresivo: destruir y recrear el calendario
-      const currentView = calendarApi.view.type
-      const currentDate = calendarApi.getDate()
-      
-      // Forzar re-render múltiples veces
-      calendarApi.render()
-      calendarApi.updateSize()
-      
-      // Cambiar de vista y volver para forzar re-cálculo completo
-      calendarApi.changeView('dayGridMonth')
+  // Refresh suave del calendario (sin cambiar vista ni remount)
+  const refreshCalendarLayout = () => {
+    if (!calendarRef.current) return
+    try {
+      const api = calendarRef.current.getApi()
+      // La pestaña puede volver con tamaños 0; forzamos recálculo sin resetear vista/fecha
+      api.updateSize()
+      api.render()
+      // Segundo intento para casos de layout tardío
       setTimeout(() => {
-        calendarApi.changeView(currentView)
-        calendarApi.gotoDate(currentDate)
-        calendarApi.render()
-      }, 10)
-      
-      // Segundo intento después de un poco más de tiempo
-      setTimeout(() => {
-        calendarApi.render()
-        calendarApi.updateSize()
-      }, 100)
-    }
+        try {
+          api.updateSize()
+          api.render()
+        } catch (e) {}
+      }, 80)
+    } catch (e) {}
   }
 
-  // Efecto para detectar cuando la pestaña vuelve a estar activa y forzar re-render
+  // Efecto para detectar cuando la pestaña vuelve a estar activa y refrescar layout
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && calendarRef.current) {
-        // La pestaña volvió a estar visible, forzar re-render
-        forceCalendarRender()
+        // La pestaña volvió a estar visible: refrescar layout (sin resetear vista)
+        refreshCalendarLayout()
       }
     }
 
@@ -242,6 +228,31 @@ const ReservationsCalendar = () => {
       'no_show': '#8B5CF6',      // Púrpura
     }
     return colors[status] || '#6B7280'
+  }
+
+  // Orden visual de reservas en el calendario (arriba → abajo)
+  // Nota: si aparecen otros estados, quedan al final.
+  const getStatusRank = (status) => {
+    const rank = {
+      check_in: 1,
+      confirmed: 2,
+      check_out: 3,
+      no_show: 4,
+      cancelled: 5,
+      pending: 6,
+    }
+    return rank[String(status || '').toLowerCase()] ?? 99
+  }
+
+  // Etiqueta amigable para tipo de habitación (para el sidebar de recursos)
+  const getRoomTypeLabel = (type) => {
+    const types = {
+      single: t('rooms_modal.room_types.single', 'Single'),
+      double: t('rooms_modal.room_types.double', 'Doble'),
+      triple: t('rooms_modal.room_types.triple', 'Triple'),
+      suite: t('rooms_modal.room_types.suite', 'Suite'),
+    }
+    return types[type] || (type ? String(type) : '')
   }
 
   // Crear leyenda de colores
@@ -413,13 +424,14 @@ const ReservationsCalendar = () => {
           extendedProps: {
           room: reservation.room || { id: resourceId },
             reservation: reservation,
+            statusRank: getStatusRank(reservation.status),
           type: 'reservation'
         }
       })
     })
     
     return events
-  }, [reservations, getStatusColor])
+  }, [reservations])
 
   // Crear KPIs para el calendario de reservas
   const calendarKpis = useMemo(() => {
@@ -610,8 +622,7 @@ const ReservationsCalendar = () => {
   // Manejar clic en evento
   const handleEventClick = (clickInfo) => {
       setSelectedEvent(clickInfo.event)
-    // Forzar re-render al hacer click para arreglar cualquier problema visual
-    forceCalendarRender()
+    refreshCalendarLayout()
   }
 
   // Manejar clic en fecha vacía para crear nueva reserva
@@ -641,8 +652,7 @@ const ReservationsCalendar = () => {
     })
     
     setShowModal(true)
-    // Forzar re-render al hacer click para arreglar cualquier problema visual
-    forceCalendarRender()
+    refreshCalendarLayout()
   }
 
   // Manejar selección de rango de fechas
@@ -775,7 +785,7 @@ const ReservationsCalendar = () => {
           event.setStart(originalStart)
           event.setEnd(originalEndForCalendar)
           // Forzar re-render del calendario para arreglar el layout
-          forceCalendarRender()
+          refreshCalendarLayout()
         }
       })
     } else {
@@ -868,7 +878,7 @@ const ReservationsCalendar = () => {
           event.setStart(originalStart)
           event.setEnd(originalEndForCalendar)
           // Forzar re-render del calendario para arreglar el layout
-          forceCalendarRender()
+          refreshCalendarLayout()
         }
       })
     } else {
@@ -1085,14 +1095,14 @@ const ReservationsCalendar = () => {
           </div>
         )}
         <FullCalendar
-          key={forceRender}
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimelinePlugin, resourceDayGridPlugin, scrollGridPlugin]}
           initialView={currentView}
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,resourceTimelineWeek'
+            // Orden: Habitaciones primero y luego Mes
+            right: 'resourceTimelineWeek,dayGridMonth,timeGridWeek,timeGridDay'
           }}
           schedulerLicenseKey={'GPL-My-Project-Is-Open-Source'}
           // Configuración específica para vista de habitaciones
@@ -1105,6 +1115,28 @@ const ReservationsCalendar = () => {
             nowIndicator: true,
             resources: calendarResources,
             resourceLabelText: "Habitaciones",
+            resourceLabelContent: (args) => {
+              const title = args?.resource?.title || ''
+              const roomType = args?.resource?.extendedProps?.room_type
+              const subtitle = getRoomTypeLabel(roomType)
+
+              const container = document.createElement('div')
+              container.className = 'flex flex-col leading-tight min-w-0'
+
+              const titleEl = document.createElement('div')
+              titleEl.className = 'text-sm font-semibold text-gray-900 truncate'
+              titleEl.textContent = title
+              container.appendChild(titleEl)
+
+              if (subtitle) {
+                const subtitleEl = document.createElement('div')
+                subtitleEl.className = 'text-xs text-gray-500 truncate'
+                subtitleEl.textContent = subtitle
+                container.appendChild(subtitleEl)
+              }
+
+              return { domNodes: [container] }
+            },
             resourceOrder: "title",
             resourceAreaWidth: "200px",
             resourceGroupField: 'group',
@@ -1128,6 +1160,22 @@ const ReservationsCalendar = () => {
             nowIndicator: true
           })}
           events={fullCalendarEvents}
+          // Ordenar visualmente los eventos dentro de cada día/lane
+          eventOrder={(a, b) => {
+            const ra = a?.extendedProps?.statusRank ?? getStatusRank(a?.extendedProps?.reservation?.status)
+            const rb = b?.extendedProps?.statusRank ?? getStatusRank(b?.extendedProps?.reservation?.status)
+            if (ra !== rb) return ra - rb
+
+            // Si empatan: primero el que empieza antes (si aplica)
+            const sa = a?.start ? new Date(a.start).getTime() : 0
+            const sb = b?.start ? new Date(b.start).getTime() : 0
+            if (sa !== sb) return sa - sb
+
+            // Si empatan: por nombre (estable)
+            const ta = String(a?.title || '').toLowerCase()
+            const tb = String(b?.title || '').toLowerCase()
+            return ta.localeCompare(tb)
+          }}
           eventClick={handleEventClick}
           dateClick={handleDateClick}
           selectable={true}

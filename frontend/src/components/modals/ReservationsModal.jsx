@@ -2,7 +2,7 @@ import { Formik } from 'formik'
 import * as Yup from 'yup'
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { format, parseISO, isValid, startOfDay, isAfter, isBefore, isSameDay, subDays } from 'date-fns'
+import { format, parseISO, isValid, startOfDay, isAfter, isBefore, isSameDay, subDays, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ModalLayout from 'src/layouts/ModalLayout'
 import AlertSwal from 'src/components/AlertSwal'
@@ -971,16 +971,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         disabled={lockHotel}
                         isClearable={!lockHotel}
                         onValueChange={() => {
-                          // Limpiar habitación y fechas cuando cambia el hotel
+                          // Limpiar habitación cuando cambia el hotel.
+                          // Importante: NO limpiar fechas, porque pueden venir preseleccionadas
+                          // desde el calendario (y se deben mantener visibles en el modal).
                           setFieldValue('room', '')
                           setFieldValue('room_data', null)
-                          setFieldValue('date_range', { startDate: '', endDate: '' })
-                          setFieldValue('check_in', '')
-                          setFieldValue('check_out', '')
-                          // Limpiar touched relacionado
                           setFieldTouched('room', false, false)
-                          setFieldTouched('check_in', false, false)
-                          setFieldTouched('check_out', false, false)
                         }}
                         error={touched.hotel && errors.hotel}
                       />
@@ -996,10 +992,22 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         reservationsList={reservationsList}
                         occupiedNights={occupiedNights}
                         onChange={(startDate, endDate) => {
+                          // Normalizar: si el usuario selecciona un solo día (start=end),
+                          // interpretarlo como 1 noche (check_out = check_in + 1 día).
+                          let normalizedStart = startDate
+                          let normalizedEnd = endDate
+                          if (normalizedStart && normalizedEnd && normalizedStart === normalizedEnd) {
+                            try {
+                              normalizedEnd = format(addDays(parseISO(normalizedStart), 1), 'yyyy-MM-dd')
+                            } catch (e) {
+                              // fallback defensivo: mantener lo recibido
+                              normalizedEnd = endDate
+                            }
+                          }
                           // Actualizar tanto el rango como los campos individuales para compatibilidad
-                          setFieldValue('date_range', { startDate, endDate })
-                          setFieldValue('check_in', startDate)
-                          setFieldValue('check_out', endDate)
+                          setFieldValue('date_range', { startDate: normalizedStart, endDate: normalizedEnd })
+                          setFieldValue('check_in', normalizedStart)
+                          setFieldValue('check_out', normalizedEnd)
                           // Limpiar habitación cuando cambian las fechas (solo si NO está fijada)
                           if (!lockRoom) {
                             setFieldValue('room', '')
@@ -1010,8 +1018,18 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                         onApply={(startISO, endISO) => {
                           try {
                             if (!startISO || !endISO) return
-                            const start = new Date(startISO + 'T00:00:00')
-                            const end = new Date(endISO + 'T00:00:00')
+                            // Normalizar también en "Aplicar" por seguridad
+                            let normalizedStartISO = startISO
+                            let normalizedEndISO = endISO
+                            if (normalizedStartISO === normalizedEndISO) {
+                              normalizedEndISO = format(addDays(parseISO(normalizedStartISO), 1), 'yyyy-MM-dd')
+                              setFieldValue('date_range', { startDate: normalizedStartISO, endDate: normalizedEndISO })
+                              setFieldValue('check_in', normalizedStartISO)
+                              setFieldValue('check_out', normalizedEndISO)
+                            }
+
+                            const start = new Date(normalizedStartISO + 'T00:00:00')
+                            const end = new Date(normalizedEndISO + 'T00:00:00')
                             // Chequear noches en [start, end)
                             let conflict = false
                             const occupiedSet = new Set(occupiedNights || [])

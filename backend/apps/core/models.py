@@ -70,6 +70,11 @@ class Hotel(models.Model):
         null=True,
         help_text="Logo del hotel"
     )
+    guest_card_policies = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Políticas y horarios que aparecen en la ficha del pasajero (texto libre, se imprime al final de la ficha)"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -27,6 +27,11 @@ class RoomViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter)
+
+        # Filtro por estado de limpieza (cleaning_status)
+        cleaning_status_filter = self.request.query_params.get("cleaning_status")
+        if cleaning_status_filter:
+            qs = qs.filter(cleaning_status=cleaning_status_filter)
         
         # Filtro por fechas de disponibilidad (check_in y check_out)
         check_in_str = self.request.query_params.get("check_in")

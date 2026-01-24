@@ -8,20 +8,36 @@ import InputText from 'src/components/inputs/InputText'
 import InputTextTarea from 'src/components/inputs/InputTextTarea'
 import SelectBasic from 'src/components/selects/SelectBasic'
 import SelectAsync from 'src/components/selects/SelectAsync'
+import FileImageMultiple from 'src/components/inputs/FileImageMultiple'
+import LabelsContainer from 'src/components/inputs/LabelsContainer'
+import { ROOM_AMENITIES, ROOM_AMENITY_CATEGORIES, getAmenityLabel } from 'src/utils/roomAmenities'
 import * as Yup from 'yup'
 
 
 /**
- * RoomsModal: crear/editar habitación
+ * RoomsModal: crear/editar habitaci?n
  * Props:
  * - isOpen: boolean
  * - onClose: () => void
  * - isEdit?: boolean
- * - room?: objeto habitación existente (para editar)
+ * - room?: objeto habitaci?n existente (para editar)
  * - onSuccess?: (data) => void (se llama al crear/editar OK)
  */
 const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
   const { t } = useTranslation()
+  const [amenitySearch, setAmenitySearch] = useState('')
+  const [customAmenity, setCustomAmenity] = useState('')
+  
+  // Funci?n para convertir archivo a base64
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = error => reject(error)
+    })
+  }
+
   const { mutate: createRoom, isPending: creating } = useCreate({
     resource: 'rooms',
     onSuccess: (data) => {
@@ -38,6 +54,19 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     },
   })
 
+  // Preparar im?genes existentes para edici?n
+  const existingImages = []
+  if (isEdit && room) {
+    // Agregar imagen principal si existe
+    if (room.primary_image_url) {
+      existingImages.push(room.primary_image_url)
+    }
+    // Agregar im?genes adicionales si existen
+    if (room.images_urls && Array.isArray(room.images_urls)) {
+      existingImages.push(...room.images_urls)
+    }
+  }
+
   const initialValues = {
     hotel: room?.hotel ?? '',
     hotel_name: room?.hotel_name ?? '',
@@ -49,10 +78,14 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     max_capacity: room?.max_capacity ?? '',
     base_price: room?.base_price != null ? String(room.base_price) : '0',
     // Solo lectura: el precio OTA se gestiona en Smoobu (channel manager) y se publica a OTAs.
-    // No lo enviamos en el payload de creación/edición de habitación.
+    // No lo enviamos en el payload de creaci?n/edici?n de habitaci?n.
     ota_price: room?.ota_price != null ? String(room.ota_price) : '',
     status: room?.status ?? 'available',
     description: room?.description ?? '',
+    amenities: Array.isArray(room?.amenities) ? room.amenities : [],
+    images: [], // Array de archivos de im?genes nuevas
+    imagesToDelete: [], // ?ndices de im?genes existentes a eliminar
+    primaryImageIndex: null, // ?ndice de la imagen principal si se cambi?
   }
 
   const validationSchema = Yup.object().shape({
@@ -88,33 +121,110 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     }
   }, [isOpen, isEdit])
 
+  useEffect(() => {
+    if (isOpen) {
+      setAmenitySearch('')
+      setCustomAmenity('')
+    }
+  }, [isOpen])
+
   return (
     <Formik
       key={isEdit ? `edit-${room?.id ?? 'new'}` : `create-${instanceKey}`}
       enableReinitialize
       initialValues={initialValues}
       validationSchema={validationSchema}
-      onSubmit={(values) => {
-        const payload = {
-          hotel: values.hotel ? Number(values.hotel) : undefined,
-          name: values.name || undefined,
-          number: values.number !== '' ? Number(values.number) : undefined,
-          floor: values.floor !== '' ? Number(values.floor) : undefined,
-          room_type: values.room_type || undefined,
-          capacity: values.capacity ? Number(values.capacity) : undefined,
-          max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
-          base_price: values.base_price ? Number(values.base_price) : undefined,
-          status: values.status || undefined,
-          description: values.description || undefined,
-        }
-        if (isEdit && room?.id) {
-          updateRoom({ id: room.id, body: payload })
-        } else {
-          createRoom(payload)
+      onSubmit={async (values) => {
+        try {
+          const payload = {
+            hotel: values.hotel ? Number(values.hotel) : undefined,
+            name: values.name || undefined,
+            number: values.number !== '' ? Number(values.number) : undefined,
+            floor: values.floor !== '' ? Number(values.floor) : undefined,
+            room_type: values.room_type || undefined,
+            capacity: values.capacity ? Number(values.capacity) : undefined,
+            max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
+            base_price: values.base_price ? Number(values.base_price) : undefined,
+            status: values.status || undefined,
+            description: values.description || undefined,
+            amenities: Array.isArray(values.amenities) ? values.amenities : undefined,
+          }
+
+          // Procesar im?genes
+          const images = values.images || []
+          if (images.length > 0) {
+            // Separar imagen principal (primera con isPrimary o primera del array)
+            const primaryImage = images.find(img => img.isPrimary) || images[0]
+            const additionalImages = images.filter((img, idx) => 
+              idx !== images.indexOf(primaryImage)
+            )
+
+            // Convertir imagen principal a base64
+            if (primaryImage && primaryImage.file) {
+              const primaryBase64 = await convertFileToBase64(primaryImage.file)
+              payload.primary_image_base64 = primaryBase64
+              payload.primary_image_filename = primaryImage.file.name
+            }
+
+            // Convertir im?genes adicionales a base64
+            if (additionalImages.length > 0) {
+              const imagesBase64 = []
+              for (const img of additionalImages) {
+                if (img.file) {
+                  const imgBase64 = await convertFileToBase64(img.file)
+                  imagesBase64.push({
+                    base64: imgBase64,
+                    filename: img.file.name
+                  })
+                }
+              }
+              if (imagesBase64.length > 0) {
+                payload.images_base64 = imagesBase64
+              }
+            }
+          }
+
+          // En modo edici?n, agregar informaci?n de eliminaci?n y cambio de principal
+          if (isEdit && room?.id) {
+            if (values.imagesToDelete && values.imagesToDelete.length > 0) {
+              payload.images_to_delete = values.imagesToDelete
+            }
+            if (values.primaryImageIndex !== null && values.primaryImageIndex !== undefined) {
+              // Si se cambi? la imagen principal, necesitamos reorganizar
+              // Esto se manejar? en el backend
+            }
+          }
+
+          if (isEdit && room?.id) {
+            updateRoom({ id: room.id, body: payload })
+          } else {
+            createRoom(payload)
+          }
+        } catch (error) {
+          console.error('? Error procesando im?genes:', error)
+          // En caso de error, enviar sin im?genes
+          const payload = {
+            hotel: values.hotel ? Number(values.hotel) : undefined,
+            name: values.name || undefined,
+            number: values.number !== '' ? Number(values.number) : undefined,
+            floor: values.floor !== '' ? Number(values.floor) : undefined,
+            room_type: values.room_type || undefined,
+            capacity: values.capacity ? Number(values.capacity) : undefined,
+            max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
+            base_price: values.base_price ? Number(values.base_price) : undefined,
+            status: values.status || undefined,
+            description: values.description || undefined,
+            amenities: Array.isArray(values.amenities) ? values.amenities : undefined,
+          }
+          if (isEdit && room?.id) {
+            updateRoom({ id: room.id, body: payload })
+          } else {
+            createRoom(payload)
+          }
         }
       }}
     >
-      {({ values, handleChange, handleSubmit }) => (
+      {({ values, handleChange, handleSubmit, setFieldValue }) => (
         <ModalLayout
           isOpen={isOpen}
           onClose={onClose}
@@ -124,7 +234,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
           cancelText={t('rooms_modal.cancel')}
           submitDisabled={creating || updating}
           submitLoading={creating || updating}
-          size='lg'
+          size='xl'
         >
           <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
             <SelectAsync
@@ -174,6 +284,155 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             />
             <div className='lg:col-span-2'>
               <InputTextTarea title={t('rooms_modal.description')} name='description' placeholder={t('rooms_modal.description_placeholder')} rows={3} />
+            </div>
+            <div className='lg:col-span-2'>
+              <LabelsContainer title={t('rooms_modal.amenities.title', 'Características / amenities')}>
+                <div className='rounded-lg border border-gray-200 p-4 space-y-3 bg-white'>
+                  {/* Buscador */}
+                  <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+                    <div className='w-full md:w-2/3'>
+                      <input
+                        type='text'
+                        value={amenitySearch}
+                        onChange={(e) => setAmenitySearch(e.target.value)}
+                        placeholder={t('rooms_modal.amenities.search_placeholder', 'Buscar…')}
+                        className='w-full border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm transition-all'
+                      />
+                    </div>
+                    <div className='w-full md:w-1/3 flex gap-2'>
+                      <input
+                        type='text'
+                        value={customAmenity}
+                        onChange={(e) => setCustomAmenity(e.target.value)}
+                        placeholder={t('rooms_modal.amenities.add_custom_placeholder', 'Agregar etiqueta…')}
+                        className='flex-1 border border-gray-200 focus:border-aloja-navy/50 focus:ring-2 focus:ring-aloja-navy/20 rounded-lg px-3 py-2 text-sm transition-all'
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const raw = (customAmenity || '').trim()
+                            if (!raw) return
+                            const code = `custom:${raw}`
+                            const current = Array.isArray(values.amenities) ? values.amenities : []
+                            const exists = current.some((c) => String(c).toLowerCase() === code.toLowerCase())
+                            if (!exists) setFieldValue('amenities', [...current, code])
+                            setCustomAmenity('')
+                          }
+                        }}
+                      />
+                      <button
+                        type='button'
+                        className='px-3 py-2 rounded-lg bg-aloja-navy text-white text-sm hover:opacity-90'
+                        onClick={() => {
+                          const raw = (customAmenity || '').trim()
+                          if (!raw) return
+                          const code = `custom:${raw}`
+                          const current = Array.isArray(values.amenities) ? values.amenities : []
+                          const exists = current.some((c) => String(c).toLowerCase() === code.toLowerCase())
+                          if (!exists) setFieldValue('amenities', [...current, code])
+                          setCustomAmenity('')
+                        }}
+                        disabled={!customAmenity.trim()}
+                        title={t('rooms_modal.amenities.add_custom_btn', 'Agregar')}
+                      >
+                        {t('rooms_modal.amenities.add_custom_btn', 'Agregar')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chips seleccionados */}
+                  {Array.isArray(values.amenities) && values.amenities.length > 0 && (
+                    <div className='flex flex-wrap gap-2'>
+                      {values.amenities.map((code) => (
+                        <span
+                          key={code}
+                          className='inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-100 text-gray-800 text-xs border border-gray-200'
+                          title={code}
+                        >
+                          <span className='font-medium'>{getAmenityLabel(t, code)}</span>
+                          <button
+                            type='button'
+                            className='text-gray-500 hover:text-gray-800'
+                            onClick={() => {
+                              const next = values.amenities.filter((c) => c !== code)
+                              setFieldValue('amenities', next)
+                            }}
+                            aria-label={t('rooms_modal.amenities.remove', 'Quitar')}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Lista de checks por categorías */}
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    {ROOM_AMENITY_CATEGORIES.map((cat) => {
+                      const q = (amenitySearch || '').trim().toLowerCase()
+                      const items = ROOM_AMENITIES
+                        .filter((a) => a.categoryKey === cat.key)
+                        .filter((a) => {
+                          if (!q) return true
+                          const label = (t(a.i18nKey) || '').toLowerCase()
+                          return label.includes(q) || a.code.includes(q)
+                        })
+
+                      if (items.length === 0) return null
+
+                      return (
+                        <div key={cat.key} className='space-y-2'>
+                          <div className='text-xs font-semibold text-aloja-gray-800/70 uppercase tracking-wide'>
+                            {t(cat.i18nKey)}
+                          </div>
+                          <div className='space-y-2'>
+                            {items.map((a) => {
+                              const checked = Array.isArray(values.amenities) && values.amenities.includes(a.code)
+                              return (
+                                <label key={a.code} className='flex items-center gap-2 text-sm text-gray-800'>
+                                  <input
+                                    type='checkbox'
+                                    checked={checked}
+                                    onChange={() => {
+                                      const current = Array.isArray(values.amenities) ? values.amenities : []
+                                      if (current.includes(a.code)) {
+                                        setFieldValue('amenities', current.filter((c) => c !== a.code))
+                                      } else {
+                                        setFieldValue('amenities', [...current, a.code])
+                                      }
+                                    }}
+                                  />
+                                  <span>{t(a.i18nKey)}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className='text-xs text-gray-500'>
+                    {t(
+                      'rooms_modal.amenities.help',
+                      'Estas características se guardan en la habitación y luego podés mostrarlas en el detalle o en tu web externa.'
+                    )}
+                  </div>
+                </div>
+              </LabelsContainer>
+            </div>
+            <div className='lg:col-span-2'>
+              <FileImageMultiple
+                name='images'
+                label={t('rooms_modal.images') || 'Im?genes de la habitaci?n'}
+                compress={true}
+                maxWidth={1920}
+                maxHeight={1080}
+                quality={0.9}
+                maxSize={5 * 1024 * 1024} // 5MB
+                maxImages={10}
+                existingImages={existingImages}
+                className='mt-4'
+              />
             </div>
           </div>
         </ModalLayout>

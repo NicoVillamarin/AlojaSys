@@ -4,6 +4,7 @@ import TableGeneric from "src/components/TableGeneric";
 import { useList } from "src/hooks/useList";
 import { getStatusMeta, statusList } from "src/utils/statusList";
 import RoomsModal from "src/components/modals/RoomsModal";
+import RoomDetailModal from "src/components/modals/RoomDetailModal";
 import EditIcon from "src/assets/icons/EditIcon";
 import DeleteButton from "src/components/DeleteButton";
 import Button from "src/components/Button";
@@ -29,6 +30,7 @@ export default function Rooms() {
   const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false);
   const [editRoom, setEditRoom] = useState(null);
+  const [detailRoom, setDetailRoom] = useState(null);
   const [filters, setFilters] = useState({ search: "", hotel: "", status: "" });
   const didMountRef = useRef(false);
   const { hotelIdsString, isSuperuser, hotelIds, hasSingleHotel, singleHotelId } = useUserHotels()
@@ -94,6 +96,7 @@ export default function Rooms() {
 
       <RoomsModal isOpen={showModal} onClose={() => setShowModal(false)} isEdit={false} onSuccess={refetch} />
       <RoomsModal isOpen={!!editRoom} onClose={() => setEditRoom(null)} isEdit={true} room={editRoom} onSuccess={refetch} />
+      <RoomDetailModal isOpen={!!detailRoom} onClose={() => setDetailRoom(null)} room={detailRoom} />
         <Filter>
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
@@ -185,7 +188,14 @@ export default function Rooms() {
             header: t('rooms.room_number'),
             sortable: true,
             accessor: (r) => r.name || r.number || `#${r.id}`,
-            render: (r) => r.name || r.number || `#${r.id}`,
+            render: (r) => (
+              <button
+                onClick={() => setDetailRoom(r)}
+                className="text-blue-600 hover:text-blue-800 hover:underline text-left"
+              >
+                {r.name || r.number || `#${r.id}`}
+              </button>
+            ),
           },
           { key: "room_type", header: t('rooms.room_type'), sortable: true },
           {

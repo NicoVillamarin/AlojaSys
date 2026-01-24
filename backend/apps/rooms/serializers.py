@@ -9,6 +9,23 @@ class RoomSerializer(serializers.ModelSerializer):
     current_reservation = serializers.SerializerMethodField()
     current_guests = serializers.SerializerMethodField()
     future_reservations = serializers.SerializerMethodField()
+    primary_image_url = serializers.SerializerMethodField()
+    images_urls = serializers.SerializerMethodField()
+    # Campos write-only para recibir imágenes en base64
+    primary_image_base64 = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    primary_image_filename = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    images_base64 = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField()
+        ),
+        write_only=True,
+        required=False
+    )
+    images_to_delete = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False
+    )
 
     class Meta:
         model = Room
@@ -28,6 +45,15 @@ class RoomSerializer(serializers.ModelSerializer):
             "cleaning_status",
             "is_active", 
             "description", 
+            "amenities",
+            "primary_image",
+            "primary_image_url",
+            "images",
+            "images_urls",
+            "primary_image_base64",
+            "primary_image_filename",
+            "images_base64",
+            "images_to_delete",
             "created_at", 
             "updated_at",
             "current_reservation", 
@@ -41,7 +67,9 @@ class RoomSerializer(serializers.ModelSerializer):
             "updated_at", 
             "current_reservation", 
             "current_guests",
-            "future_reservations"
+            "future_reservations",
+            "primary_image_url",
+            "images_urls"
         ]
 
     def get_future_reservations(self, obj):
@@ -141,6 +169,34 @@ class RoomSerializer(serializers.ModelSerializer):
             return reservation.guests
         return 0
 
+    def get_primary_image_url(self, obj):
+        """Obtiene la URL completa de la imagen principal"""
+        if obj.primary_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.primary_image.url)
+            return obj.primary_image.url
+        return None
+
+    def get_images_urls(self, obj):
+        """Obtiene las URLs completas de las imágenes adicionales"""
+        if not obj.images or not isinstance(obj.images, list):
+            return []
+        
+        request = self.context.get('request')
+        urls = []
+        for image_url in obj.images:
+            if image_url:
+                if request:
+                    # Si es una URL relativa, construir la URL absoluta
+                    if image_url.startswith('/'):
+                        urls.append(request.build_absolute_uri(image_url))
+                    else:
+                        urls.append(image_url)
+                else:
+                    urls.append(image_url)
+        return urls
+
     def validate(self, attrs):
         """
         Regla de negocio:
@@ -170,3 +226,138 @@ class RoomSerializer(serializers.ModelSerializer):
                 )
 
         return super().validate(attrs)
+
+    def create(self, validated_data):
+        """Crear habitación con imágenes desde base64"""
+        primary_image_base64 = validated_data.pop('primary_image_base64', None)
+        primary_image_filename = validated_data.pop('primary_image_filename', None)
+        images_base64 = validated_data.pop('images_base64', [])
+        images_to_delete = validated_data.pop('images_to_delete', [])
+        
+        room = super().create(validated_data)
+        
+        # Guardar imagen principal
+        if primary_image_base64 and primary_image_filename:
+            self._save_image_from_base64(room, primary_image_base64, primary_image_filename, is_primary=True)
+        
+        # Guardar imágenes adicionales
+        if images_base64:
+            saved_urls = []
+            for img_data in images_base64:
+                if img_data.get('base64') and img_data.get('filename'):
+                    saved_url = self._save_image_from_base64(
+                        room, 
+                        img_data['base64'], 
+                        img_data['filename'], 
+                        is_primary=False
+                    )
+                    if saved_url:
+                        saved_urls.append(saved_url)
+            
+            # Actualizar el campo images con las nuevas URLs
+            room.images = saved_urls
+            room.save(update_fields=['images'])
+        
+        return room
+
+    def update(self, instance, validated_data):
+        """Actualizar habitación con imágenes desde base64"""
+        primary_image_base64 = validated_data.pop('primary_image_base64', None)
+        primary_image_filename = validated_data.pop('primary_image_filename', None)
+        images_base64 = validated_data.pop('images_base64', [])
+        images_to_delete = validated_data.pop('images_to_delete', [])
+        
+        room = super().update(instance, validated_data)
+        
+        # Guardar imagen principal si se proporcionó una nueva
+        if primary_image_base64 and primary_image_filename:
+            self._save_image_from_base64(room, primary_image_base64, primary_image_filename, is_primary=True)
+        
+        # Eliminar imágenes marcadas para eliminación
+        if images_to_delete and isinstance(room.images, list):
+            request = self.context.get('request')
+            current_images = room.images.copy()
+            
+            for idx in sorted(images_to_delete, reverse=True):
+                if 0 <= idx < len(current_images):
+                    current_images.pop(idx)
+            
+            room.images = current_images
+            room.save(update_fields=['images'])
+        
+        # Guardar nuevas imágenes adicionales
+        if images_base64:
+            saved_urls = room.images.copy() if isinstance(room.images, list) else []
+            
+            for img_data in images_base64:
+                if img_data.get('base64') and img_data.get('filename'):
+                    saved_url = self._save_image_from_base64(
+                        room, 
+                        img_data['base64'], 
+                        img_data['filename'], 
+                        is_primary=False
+                    )
+                    if saved_url:
+                        saved_urls.append(saved_url)
+            
+            room.images = saved_urls
+            room.save(update_fields=['images'])
+        
+        return room
+
+    def _save_image_from_base64(self, room, image_base64, image_filename, is_primary=False):
+        """Guarda una imagen desde base64"""
+        try:
+            import base64
+            from django.core.files.base import ContentFile
+            from django.core.files.storage import default_storage
+            import os
+            import uuid
+            
+            # Decodificar base64
+            if ',' in image_base64:
+                header, data = image_base64.split(',', 1)
+            else:
+                data = image_base64
+            
+            file_data = base64.b64decode(data)
+            
+            # Crear archivo
+            file_obj = ContentFile(file_data, name=image_filename)
+            
+            if is_primary:
+                # Guardar como imagen principal
+                room.primary_image.save(image_filename, file_obj, save=True)
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(room.primary_image.url)
+                return room.primary_image.url
+            else:
+                # Guardar como imagen adicional usando el mismo patrón que primary_image
+                # Generar nombre único para evitar conflictos
+                name, ext = os.path.splitext(image_filename)
+                unique_filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
+                
+                # Usar el mismo upload_to que primary_image
+                from datetime import date
+                today = date.today()
+                upload_path = f"rooms/images/{today.year}/{today.month:02d}/{today.day:02d}/{unique_filename}"
+                
+                saved_path = default_storage.save(upload_path, file_obj)
+                request = self.context.get('request')
+                
+                # Construir URL relativa (sin dominio) para guardar en JSONField
+                # El frontend recibirá la URL completa desde get_images_urls
+                url_path = default_storage.url(saved_path)
+                if url_path.startswith('/'):
+                    # Es una URL relativa, guardarla así
+                    return url_path
+                else:
+                    # Es una URL absoluta, extraer la parte relativa si es posible
+                    return url_path
+                
+        except Exception as e:
+            print(f"Error guardando imagen desde base64: {e}")
+            import traceback
+            traceback.print_exc()
+            return None

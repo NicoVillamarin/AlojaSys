@@ -46,6 +46,7 @@ class HotelSerializer(serializers.ModelSerializer):
             "logo_url",
             "logo_base64",
             "logo_filename",
+            "guest_card_policies",
             "is_active",
             "created_at",
             "updated_at",

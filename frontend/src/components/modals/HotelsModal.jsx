@@ -9,6 +9,7 @@ import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 import SelectBasic from 'src/components/selects/SelectBasic'
+import InputTextTarea from 'src/components/inputs/InputTextTarea'
 
 /**
  * HotelsModal: crear/editar hotel
@@ -55,6 +56,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
     city: currentHotel?.city ?? '',
     check_in_time: (currentHotel?.check_in_time ?? '15:00').slice(0, 5),
     check_out_time: (currentHotel?.check_out_time ?? '11:00').slice(0, 5),
+    guest_card_policies: currentHotel?.guest_card_policies ?? '',
     is_active: currentHotel?.is_active ?? true,
     auto_check_in_enabled: currentHotel?.auto_check_in_enabled ?? false,
     auto_check_out_enabled: currentHotel?.auto_check_out_enabled ?? true,
@@ -92,6 +94,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             city: values.city ? Number(values.city) : null,
             check_in_time: values.check_in_time || null,
             check_out_time: values.check_out_time || null,
+            guest_card_policies: values.guest_card_policies || '',
             is_active: values.is_active !== undefined ? values.is_active : true,
             auto_check_in_enabled: values.auto_check_in_enabled || false,
             auto_check_out_enabled: values.auto_check_out_enabled !== undefined ? values.auto_check_out_enabled : true,
@@ -136,6 +139,7 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
             city: values.city ? Number(values.city) : null,
             check_in_time: values.check_in_time || null,
             check_out_time: values.check_out_time || null,
+            guest_card_policies: values.guest_card_policies || '',
             is_active: values.is_active !== undefined ? values.is_active : true,
             auto_check_in_enabled: values.auto_check_in_enabled || false,
             auto_check_out_enabled: values.auto_check_out_enabled !== undefined ? values.auto_check_out_enabled : true,
@@ -280,6 +284,18 @@ const HotelsModal = ({ isOpen, onClose, isEdit = false, hotel, onSuccess }) => {
                   existingImageUrl={isEdit ? values.existing_logo_url : null}
                   className='mb-4'
                 />
+              </div>
+              {/* Políticas de la ficha del pasajero */}
+              <div>
+                <InputTextTarea
+                  title={t('hotels_modal.guest_card_policies') || 'Políticas de la ficha del pasajero'}
+                  name='guest_card_policies'
+                  placeholder={t('hotels_modal.guest_card_policies_placeholder') || 'Ingresá las políticas, horarios y reglas que aparecerán al final de la ficha del pasajero...'}
+                  rows={6}
+                />
+                <p className='text-xs text-aloja-gray-800/60 mt-1'>
+                  {t('hotels_modal.guest_card_policies_help') || 'Este texto aparecerá al final de la ficha del pasajero impresa. Incluí horarios de check-in/check-out, políticas de cancelación, reglas del hotel, etc.'}
+                </p>
               </div>
             </div>
           </div>

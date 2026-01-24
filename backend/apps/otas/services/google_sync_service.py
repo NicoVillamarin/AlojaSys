@@ -483,9 +483,11 @@ def export_reservation_to_google(reservation: Reservation) -> Dict[str, Any]:
                 "timeZone": "America/Argentina/Buenos_Aires",
             },
             "end": {
-                # Google usa end exclusivo para all-day: si check_out=20, el evento termina antes del 20
-                # Así que agregamos 1 día para que el evento se vea hasta el check_out
-                "date": (reservation.check_out + timedelta(days=1)).isoformat(),
+                # Google Calendar (all-day) usa end EXCLUSIVO.
+                # En hotelería, nuestro rango ya es [check_in, check_out) → el día de check_out NO ocupa noche.
+                # Por lo tanto, el end.date correcto es exactamente check_out (sin +1),
+                # para permitir back-to-back (salida 24, entrada 24).
+                "date": reservation.check_out.isoformat(),
                 "timeZone": "America/Argentina/Buenos_Aires",
             },
             "extendedProperties": {

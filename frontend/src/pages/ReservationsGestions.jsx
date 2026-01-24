@@ -45,10 +45,13 @@ import Tooltip from "src/components/Tooltip";
 import { Chevron } from "src/assets/icons/Chevron";
 import { useEffectOnce } from "src/hooks/useEffectOnce";
 import { usePermissions, useHasAnyPermission } from "src/hooks/usePermissions";
-import ExportButton from "src/components/ExportButton";
+import ActionMenuButton from "src/components/ActionMenuButton";
 import { exportJsonToExcel } from "src/utils/exportExcel";
 import { showErrorConfirm, showSuccess } from "src/services/toast";
 import GuestDetailsModal from "src/components/modals/GuestDetailsModal";
+import PrintIcon from "src/assets/icons/PrintIcon";
+import SaveIcon from "src/assets/icons/SaveIcon";
+import { printHtml } from "src/utils/printHtml";
 
 export default function ReservationsGestions() {
   const { t, i18n } = useTranslation();
@@ -91,6 +94,7 @@ export default function ReservationsGestions() {
   const [editMultiRoomGroup, setEditMultiRoomGroup] = useState(null);
   const [multiRoomRefreshKey, setMultiRoomRefreshKey] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [guestDetailsOpen, setGuestDetailsOpen] = useState(false);
   const [guestDetailsReservation, setGuestDetailsReservation] = useState(null);
   const [filters, setFilters] = useState({
@@ -298,6 +302,259 @@ export default function ReservationsGestions() {
       showErrorConfirm("No se pudo exportar el Excel. Revisá la consola para más detalle.");
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handlePrintGuestCard = async (reservation) => {
+    try {
+      // Obtener datos completos del hotel (incluyendo políticas)
+      const hotelData = hotels?.find((h) => String(h.id) === String(reservation.hotel)) || null;
+      if (!hotelData) {
+        showErrorConfirm("No se encontró información del hotel.");
+        return;
+      }
+
+      // Obtener datos del huésped principal
+      const primaryGuest = reservation.guests_data?.find((g) => g.is_primary) || reservation.guests_data?.[0] || null;
+      const guestName = primaryGuest?.name || reservation.guest_name || "Huésped";
+      const guestEmail = primaryGuest?.email || "";
+      const guestPhone = primaryGuest?.phone || "";
+
+      const cardTitle = "Ficha del Pasajero";
+      const printTitle = "Ficha"; // Título corto para la pestaña (evita duplicar en header de impresión)
+      const now = new Date();
+      const nowStr = format(now, "dd/MM/yyyy HH:mm");
+
+      const escapeHtml = (input) =>
+        String(input ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+
+      const checkInDate = reservation.check_in
+        ? format(parseISO(reservation.check_in), "dd/MM/yyyy")
+        : "";
+      const checkOutDate = reservation.check_out
+        ? format(parseISO(reservation.check_out), "dd/MM/yyyy")
+        : "";
+      const checkInTime = hotelData.check_in_time || "15:00";
+      const checkOutTime = hotelData.check_out_time || "11:00";
+
+      const nights = reservation.check_in && reservation.check_out
+        ? Math.ceil(
+            (new Date(reservation.check_out) - new Date(reservation.check_in)) /
+              (1000 * 60 * 60 * 24)
+          )
+        : 0;
+
+      const html = `
+        <div style="max-width: 800px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column;">
+          <div style="flex: 1;">
+            <h1 style="text-align: center; margin-bottom: 24px; font-size: 20px; font-weight: 700; color: #111827;">${escapeHtml(cardTitle)}</h1>
+            
+            <div style="margin-bottom: 24px;">
+              <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+                Datos del Huésped
+              </h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px; font-weight: 600; width: 180px;">Nombre:</td>
+                <td style="padding: 8px;">${escapeHtml(guestName)}</td>
+              </tr>
+              ${guestEmail ? `
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Email:</td>
+                <td style="padding: 8px;">${escapeHtml(guestEmail)}</td>
+              </tr>
+              ` : ""}
+              ${guestPhone ? `
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Teléfono:</td>
+                <td style="padding: 8px;">${escapeHtml(guestPhone)}</td>
+              </tr>
+              ` : ""}
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Huéspedes:</td>
+                <td style="padding: 8px;">${escapeHtml(reservation.guests || 1)}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+              Información de la Reserva
+            </h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px; font-weight: 600; width: 180px;">Número de Reserva:</td>
+                <td style="padding: 8px;">#${escapeHtml(reservation.id || "")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Hotel:</td>
+                <td style="padding: 8px;">${escapeHtml(reservation.hotel_name || hotelData.name || "")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Habitación:</td>
+                <td style="padding: 8px;">${escapeHtml(reservation.room_name || "")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Fecha de Llegada:</td>
+                <td style="padding: 8px;">${escapeHtml(checkInDate)} - Check-in: ${escapeHtml(checkInTime)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Fecha de Salida:</td>
+                <td style="padding: 8px;">${escapeHtml(checkOutDate)} - Check-out: ${escapeHtml(checkOutTime)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Noches:</td>
+                <td style="padding: 8px;">${escapeHtml(nights)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Tarifa Total:</td>
+                <td style="padding: 8px; font-size: 16px; font-weight: 700;">$ ${escapeHtml(convertToDecimal(reservation.total_price || 0))}</td>
+              </tr>
+              ${reservation.total_paid > 0 ? `
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Total Pagado:</td>
+                <td style="padding: 8px;">$ ${escapeHtml(convertToDecimal(reservation.total_paid || 0))}</td>
+              </tr>
+              ` : ""}
+              ${(reservation.balance_due || 0) > 0 ? `
+              <tr>
+                <td style="padding: 8px; font-weight: 600;">Saldo Pendiente:</td>
+                <td style="padding: 8px; font-weight: 700;">$ ${escapeHtml(convertToDecimal(reservation.balance_due || 0))}</td>
+              </tr>
+              ` : ""}
+            </table>
+          </div>
+
+            ${hotelData.guest_card_policies ? `
+            <div style="margin-top: 32px; padding-top: 24px; border-top: 2px solid #e5e7eb;">
+              <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">
+                Políticas y Horarios del Hotel
+              </h2>
+              <div style="white-space: pre-wrap; line-height: 1.6; color: #374151;">
+                ${escapeHtml(hotelData.guest_card_policies)}
+              </div>
+            </div>
+            ` : ""}
+          </div>
+
+          <div style="margin-top: auto; padding-top: 32px; border-top: 1px solid #e5e7eb;">
+            <div style="text-align: center; margin-bottom: 8px;">
+              <div style="border-top: 1px solid #111827; width: 300px; margin: 0 auto 8px;"></div>
+              <div style="font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 16px;">
+                Firma del Pasajero
+              </div>
+            </div>
+            <div style="text-align: center; font-size: 11px; color: #6b7280; padding-bottom: 0;">
+              Ficha generada el ${escapeHtml(nowStr)}
+            </div>
+          </div>
+        </div>
+      `;
+
+      printHtml({ title: printTitle, html });
+    } catch (e) {
+      showErrorConfirm(e?.message || String(e) || "No se pudo imprimir la ficha del pasajero.");
+    }
+  };
+
+  const handlePrint = () => {
+    if (!displayResults?.length) {
+      showErrorConfirm("No hay reservas para imprimir con los filtros actuales.");
+      return;
+    }
+
+    try {
+      setIsPrinting(true);
+      const today = format(new Date(), "dd/MM/yyyy HH:mm");
+      const title = "Reservas (Gestión)";
+
+      // Expandir grupos (imprimir una fila por habitación/reserva real)
+      const rows = [];
+      for (const r of displayResults) {
+        if (r?.is_group && Array.isArray(r.group_reservations) && r.group_reservations.length > 0) {
+          for (const rr of r.group_reservations) {
+            rows.push(
+              normalizeReservationForExport(rr, {
+                groupCode: r.group_code || "",
+                isFromGroup: true,
+              })
+            );
+          }
+        } else {
+          rows.push(
+            normalizeReservationForExport(r, {
+              groupCode: r?.group_code || "",
+              isFromGroup: false,
+            })
+          );
+        }
+      }
+
+      const escapeHtml = (input) =>
+        String(input ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+
+      const html = `
+        <h1 class="title">${escapeHtml(title)}</h1>
+        <div class="meta">
+          <span class="badge">${escapeHtml(today)}</span>
+          <span class="badge" style="margin-left:8px;">${escapeHtml(
+            `${rows.length} registros`
+          )}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:70px;">ID</th>
+              <th>Huésped</th>
+              <th>Hotel</th>
+              <th>Habitación</th>
+              <th style="width:110px;">Check-in</th>
+              <th style="width:110px;">Check-out</th>
+              <th class="center" style="width:80px;">Huéspedes</th>
+              <th class="right" style="width:110px;">Total</th>
+              <th style="width:140px;">Estado</th>
+              <th style="width:140px;">Grupo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map((r) => {
+                const total = typeof r?.Total === "number" ? r.Total : parseFloat(r?.Total || 0) || 0;
+                return `
+                  <tr>
+                    <td class="center">${escapeHtml(r?.ID ?? "")}</td>
+                    <td>${escapeHtml(r?.Huésped ?? "")}</td>
+                    <td>${escapeHtml(r?.Hotel ?? "")}</td>
+                    <td>${escapeHtml(r?.Habitación ?? "")}</td>
+                    <td>${escapeHtml(r?.["Check-in"] ?? "")}</td>
+                    <td>${escapeHtml(r?.["Check-out"] ?? "")}</td>
+                    <td class="center">${escapeHtml(r?.Huéspedes ?? "")}</td>
+                    <td class="right">$ ${escapeHtml(convertToDecimal(total))}</td>
+                    <td>${escapeHtml(r?.Estado ?? "")}</td>
+                    <td>${escapeHtml(r?.Grupo ?? "")}</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      `;
+
+      printHtml({ title, html });
+    } catch (e) {
+      showErrorConfirm(e?.message || String(e) || "No se pudo imprimir.");
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -808,14 +1065,29 @@ export default function ReservationsGestions() {
           </h1>
         </div>
         <div className="flex gap-3">
-          <ExportButton
-            onClick={handleExportExcel}
-            isPending={isExporting}
-            loadingText="Exportando..."
+          <ActionMenuButton
+            label="Exportar"
+            variant="success"
             size="md"
-          >
-            Exportar Excel
-          </ExportButton>
+            isPending={isExporting || isPrinting}
+            loadingText={isExporting ? "Exportando..." : "Preparando..."}
+            items={[
+              {
+                key: "excel",
+                label: "Exportar a Excel",
+                onClick: handleExportExcel,
+                disabled: isExporting || isPrinting,
+                leftIcon: <SaveIcon size="18" />,
+              },
+              {
+                key: "print",
+                label: "Imprimir",
+                onClick: handlePrint,
+                disabled: isExporting || isPrinting,
+                leftIcon: <PrintIcon size={18} />,
+              },
+            ]}
+          />
           <AutoNoShowButton
             selectedHotel={selectedHotel}
             hasAutoNoShowEnabled={hasAutoNoShowEnabled}
@@ -1529,6 +1801,18 @@ export default function ReservationsGestions() {
                   >
                     <CancelIcon size="14" />
                     {getCancelMessage(r)}
+                  </button>
+                )}
+                {/* Botón Imprimir Ficha del Pasajero */}
+                {r.status === "check_in" && (
+                  <button
+                    onClick={() => handlePrintGuestCard(r)}
+                    disabled={acting}
+                    className="px-2 py-1 rounded text-xs border bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100 transition-colors flex items-center gap-1"
+                    title="Imprimir ficha del pasajero"
+                  >
+                    <PrintIcon size="14" />
+                    Ficha
                   </button>
                 )}
               </div>

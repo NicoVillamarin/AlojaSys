@@ -33,6 +33,22 @@ class Room(models.Model):
     extra_guest_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=255, choices=RoomStatus.choices, default=RoomStatus.AVAILABLE)
     cleaning_status = models.CharField(max_length=20, choices=CleaningStatus.choices, default=CleaningStatus.CLEAN)
+    primary_image = models.ImageField(
+        upload_to='rooms/images/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        help_text="Imagen principal de la habitación"
+    )
+    images = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de URLs de imágenes adicionales de la habitación"
+    )
+    amenities = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de características/amenities de la habitación (strings)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
