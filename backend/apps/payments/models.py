@@ -576,6 +576,11 @@ class Refund(models.Model):
         decimal_places=2,
         help_text="Monto del reembolso"
     )
+    currency = models.CharField(
+        max_length=10,
+        default="ARS",
+        help_text="Código de moneda del reembolso (ISO 4217, ej. ARS, USD)"
+    )
     reason = models.CharField(
         max_length=30, 
         choices=RefundReason.choices,
@@ -679,11 +684,31 @@ class Refund(models.Model):
         ]
 
     def __str__(self):
-        return f"Reembolso {self.id} - {self.reservation.display_name} - ${self.amount}"
+        return f"Reembolso {self.id} - {self.reservation.display_name} - ${self.amount} {self.currency}"
     
     def save(self, *args, **kwargs):
         """Override save para crear log automático al crear un refund"""
         is_new = self.pk is None
+
+        # Normalizar/derivar moneda (compat hacia atrás)
+        if not getattr(self, "currency", None):
+            self.currency = "ARS"
+        try:
+            self.currency = str(self.currency).strip().upper() or "ARS"
+        except Exception:
+            self.currency = "ARS"
+        # Si hay pago asociado, heredar moneda del pago
+        try:
+            if self.payment_id and getattr(self.payment, "currency", None):
+                self.currency = str(self.payment.currency).strip().upper() or self.currency
+        except Exception:
+            pass
+        # Si no hay pago, intentar heredar de la reserva (snapshot)
+        try:
+            if (not self.payment_id) and getattr(self.reservation, "pricing_currency_id", None) and getattr(self.reservation.pricing_currency, "code", None):
+                self.currency = str(self.reservation.pricing_currency.code).strip().upper() or self.currency
+        except Exception:
+            pass
         
         # Generar número de comprobante si no existe
         if not self.receipt_number:

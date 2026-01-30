@@ -1615,7 +1615,41 @@ export default function ReservationsGestions() {
             header: t("dashboard.reservations_management.table_headers.total"),
             sortable: true,
             right: true,
-            render: (r) => `$ ${convertToDecimal(r.total_price)}`,
+            render: (r) => {
+              const fallback = `$ ${convertToDecimal(r.total_price)}`
+              const getCurrencyCode = () => {
+                if (r?.is_group && Array.isArray(r.group_reservations) && r.group_reservations.length > 0) {
+                  const codes = new Set(
+                    r.group_reservations
+                      .map((rr) => rr?.pricing_currency_code)
+                      .filter(Boolean)
+                      .map((c) => String(c).toUpperCase())
+                  )
+                  if (codes.size === 1) return Array.from(codes)[0]
+                  if (codes.size > 1) return "MIX"
+                  return null
+                }
+                return (r?.pricing_currency_code ? String(r.pricing_currency_code).toUpperCase() : null)
+              }
+
+              const code = getCurrencyCode()
+              if (!code) return fallback
+
+              let formatted = fallback
+              try {
+                const amount = parseFloat(r.total_price || 0) || 0
+                // Queremos símbolo "$" siempre adelante (sin "US$"), y el código al final.
+                // Por eso NO usamos style:"currency" (que en es-AR muestra US$ para USD).
+                const number = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
+                formatted = `$ ${number}`
+              } catch {
+                formatted = fallback
+              }
+
+              // Mostrar el código al final, en la misma línea (ej: "$ 363.000,00 ARS")
+              if (code === "MIX") return `${formatted} MIX`
+              return `${formatted} ${code}`
+            },
           },
           {
             key: "payment_status",

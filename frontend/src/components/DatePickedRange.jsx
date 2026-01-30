@@ -113,7 +113,7 @@ const DatePickedRange = ({
 
         {open && (
           <div className="absolute z-50 mt-2 bg-white border-0 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-sm">
-            <style jsx>{`
+            <style>{`
               .rdrDefinedRangesWrapper {
                 display: none;
               }

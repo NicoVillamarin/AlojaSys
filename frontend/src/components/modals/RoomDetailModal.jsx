@@ -106,9 +106,19 @@ const RoomDetailModal = ({ isOpen, onClose, room }) => {
                 {t('rooms_modal.base_price')}
               </label>
               <p className="text-sm font-medium text-aloja-gray-800">
-                ${room.base_price ? parseFloat(room.base_price).toFixed(2) : '0.00'}
+                {(room.base_currency_code || '$')} {room.base_price ? parseFloat(room.base_price).toFixed(2) : '0.00'}
               </p>
             </div>
+            {(room.secondary_price != null && room.secondary_price !== '' && room.secondary_currency_code) && (
+              <div>
+                <label className="text-xs text-aloja-gray-800/70 mb-1 block">
+                  Tarifa secundaria
+                </label>
+                <p className="text-sm font-medium text-aloja-gray-800">
+                  {room.secondary_currency_code} {parseFloat(room.secondary_price).toFixed(2)}
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-xs text-aloja-gray-800/70 mb-1 block">
                 {t('rooms_modal.status')}

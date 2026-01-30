@@ -1,6 +1,13 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Hotel
+from .models import Currency, Hotel
+
+
+@admin.register(Currency)
+class CurrencyAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "symbol", "is_active", "updated_at")
+    search_fields = ("code", "name")
+    list_filter = ("is_active",)
 
 @admin.register(Hotel)
 class HotelAdmin(admin.ModelAdmin):

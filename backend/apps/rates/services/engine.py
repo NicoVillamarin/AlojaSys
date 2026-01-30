@@ -58,8 +58,27 @@ def get_applicable_rule(room: Room, on_date: date, channel: Optional[str] = None
             return rule
     return None
 
-def compute_rate_for_date(room: Room, guests: int, on_date: date, channel: Optional[str] = None, promotion_code: Optional[str] = None, voucher_code: Optional[str] = None) -> Decimal:
-    base_room_price = room.base_price or Decimal('0.00')
+def compute_rate_for_date(
+    room: Room,
+    guests: int,
+    on_date: date,
+    channel: Optional[str] = None,
+    promotion_code: Optional[str] = None,
+    voucher_code: Optional[str] = None,
+    price_source: Optional[str] = None,
+) -> Decimal:
+    """
+    Calcula el pricing por noche.
+
+    price_source:
+      - "primary" (default): usa room.base_price
+      - "secondary": usa room.secondary_price si existe; si no, hace fallback a base_price
+    """
+    if str(price_source or "").lower() == "secondary" and room.secondary_price is not None:
+        base_room_price = room.secondary_price
+    else:
+        base_room_price = room.base_price
+    base_room_price = base_room_price or Decimal("0.00")
     included_capacity = room.capacity or 1
     guest = max(int(guests or 1), 1)
     extra_guests = max(guest - included_capacity, 0)

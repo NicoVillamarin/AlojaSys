@@ -154,6 +154,9 @@ const RoomMap = ({
   const [hoveredRoom, setHoveredRoom] = useState(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const hoverTimeoutRef = useRef(null);
+  // Compat: algunas funciones aún chequean dragRef (drag-select fue removido).
+  // Lo dejamos definido para evitar ReferenceError.
+  const dragRef = useRef({ active: false });
   // Drag-select removido (preferimos checkbox manual).
   const [internalSelectedIds, setInternalSelectedIds] = useState(() => new Set());
 

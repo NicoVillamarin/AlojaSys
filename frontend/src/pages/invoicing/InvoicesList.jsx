@@ -198,7 +198,11 @@ export default function InvoicesList() {
       right: true, 
       render: (r) => (
         <span className="font-semibold text-green-600">
-          ${r.total?.toLocaleString() || '0'}
+          {(() => {
+            const code = (r?.currency ? String(r.currency).toUpperCase() : "ARS")
+            const number = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseFloat(r.total || 0) || 0)
+            return `$ ${number} ${code}`
+          })()}
         </span>
       ) 
     },

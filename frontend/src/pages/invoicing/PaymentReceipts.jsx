@@ -332,7 +332,11 @@ export default function PaymentReceipts() {
             header: 'Monto', 
             sortable: true, 
             right: true,
-            render: (p) => `$ ${convertToDecimal(p.amount)}`
+            render: (p) => {
+              const code = (p?.currency ? String(p.currency).toUpperCase() : "ARS")
+              const number = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseFloat(p.amount || 0) || 0)
+              return `$ ${number} ${code}`
+            }
           },
           { 
             key: 'method', 

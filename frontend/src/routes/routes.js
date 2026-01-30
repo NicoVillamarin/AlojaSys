@@ -17,6 +17,7 @@ import PlanRates from "src/pages/configurations/rates/PlanRates";
 import RulesRates from "src/pages/configurations/rates/RulesRates";
 import Promos from "src/pages/configurations/rates/Promos";
 import Taxes from "src/pages/configurations/rates/Taxes";
+import Currency from "src/pages/configurations/rates/Currency";
 import PaymentPolicies from "src/pages/configurations/policy/PaymentPolicies";
 import ReservationsCalendar from "src/pages/ReservationsCalendar";
 import CancellationPolicies from "src/pages/configurations/policy/CancellationPolicies";
@@ -64,6 +65,7 @@ export const appRoutes = [
       { path: "settings/rates/rules", element: React.createElement(RulesRates) },
       { path: "settings/rates/promos", element: React.createElement(Promos) },
       { path: "settings/rates/taxes", element: React.createElement(Taxes) },
+      { path: "settings/rates/currency", element: React.createElement(Currency) },
       { path: "settings/payments/policies", element: React.createElement(PaymentPolicies) },
       { path: "settings/policies/cancellation", element: React.createElement(CancellationPolicies) },
       { path: "settings/policies/devolution", element: React.createElement(DevolutionPolicies) },

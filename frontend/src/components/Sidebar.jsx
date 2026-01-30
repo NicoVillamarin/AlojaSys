@@ -113,7 +113,8 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
   const hasViewRateRules = usePermissions("rates.view_raterule");
   const hasViewPromos = usePermissions("rates.view_promorule");
   const hasViewTaxes = usePermissions("rates.view_taxrule");
-  const hasAnyRate = useHasAnyPermission(["rates.view_rateplan", "rates.view_raterule", "rates.view_promorule", "rates.view_taxrule"]);
+  const hasViewCurrencies = usePermissions("core.view_currency");
+  const hasAnyRate = useHasAnyPermission(["rates.view_rateplan", "rates.view_raterule", "rates.view_promorule", "rates.view_taxrule", "core.view_currency"]);
   
   // Permisos para Policies
   const hasViewPaymentPolicies = usePermissions("payments.view_paymentpolicy");
@@ -159,6 +160,7 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
     "otas.view_otaconfig",
     "rooms.view_room",
     "core.view_hotel",
+    "core.view_currency",
     "users.view_userprofile",
     "auth.view_group",
     "locations.view_country",
@@ -511,6 +513,9 @@ export default function Sidebar({ isCollapsed, isMini, onToggleCollapse, onToggl
                     )}
                     {hasViewTaxes && (
                       <Item to="/settings/rates/taxes" onMobileClose={onMobileClose} isMobile={isMobile}>{t('sidebar.taxes')}</Item>
+                    )}
+                    {hasViewCurrencies && (
+                      <Item to="/settings/rates/currency" onMobileClose={onMobileClose} isMobile={isMobile}>Moneda</Item>
                     )}
                   </div>
                 </div>

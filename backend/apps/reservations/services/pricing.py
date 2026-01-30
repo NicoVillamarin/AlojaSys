@@ -16,6 +16,7 @@ def quote_reservation_total(
     channel=None,
     promotion_code: str | None = None,
     voucher_code: str | None = None,
+    price_source: str | None = None,
 ) -> dict:
     """
     Cotización EXACTA (sin persistir nada) usando el mismo motor que se aplica al crear la reserva:
@@ -47,6 +48,7 @@ def quote_reservation_total(
             channel,
             promotion_code,
             voucher_code,
+            price_source,
         )
         nights.append({"date": current, **base_parts})
         current += timedelta(days=1)
@@ -187,10 +189,14 @@ def quote_reservation_total(
     total = sum((Decimal(n["total_night"]) for n in prorated), Decimal("0.00")).quantize(Decimal("0.01"))
     return {"nights": prorated, "nights_count": len(prorated), "total": total}
 
-def compute_nightly_rate(room, guests, on_date=None, channel=None) -> dict:
+def compute_nightly_rate(room, guests, on_date=None, channel=None, price_source: str | None = None) -> dict:
     # Si no se provee fecha, usar lógica anterior como aproximación
     if on_date is None:
-        base = room.base_price or Decimal('0.00')
+        if str(price_source or "").lower() == "secondary" and room.secondary_price is not None:
+            base = room.secondary_price
+        else:
+            base = room.base_price
+        base = base or Decimal("0.00")
         included = room.capacity or 1
         extra_guests = max((guests or 1) - included, 0)
         extra = (room.extra_guest_fee or Decimal('0.00')) * Decimal(extra_guests)
@@ -201,7 +207,7 @@ def compute_nightly_rate(room, guests, on_date=None, channel=None) -> dict:
             'tax': Decimal('0.00'),
             'total_night': (base + extra).quantize(Decimal('0.01')),
         }
-    return compute_rate_for_date(room, guests, on_date, channel)
+    return compute_rate_for_date(room, guests, on_date, channel, price_source=price_source)
 
 def generate_nights_for_reservation(reservation):
     from apps.rates.services.engine import compute_rate_for_date
@@ -216,7 +222,8 @@ def generate_nights_for_reservation(reservation):
             current,
             reservation.channel,
             reservation.promotion_code,
-            getattr(reservation, 'voucher_code', None)
+            getattr(reservation, 'voucher_code', None),
+            getattr(reservation, "price_source", None),
         )
         nights.append({ 'date': current, **base_parts })
         current += timedelta(days=1)

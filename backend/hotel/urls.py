@@ -6,7 +6,7 @@ from django.conf.urls.static import static
 from django.views.static import serve
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from apps.core.views import HotelViewSet, StatusSummaryView, GlobalSummaryView
+from apps.core.views import CurrencyViewSet, HotelViewSet, StatusSummaryView, GlobalSummaryView
 from apps.rooms.views import RoomViewSet
 from apps.reservations.views import ReservationViewSet
 from apps.locations.views import CountryViewSet, StateViewSet, CityViewSet
@@ -15,6 +15,7 @@ from apps.dashboard.views import DashboardMetricsListCreateView, DashboardMetric
 
 router = DefaultRouter()
 router.register(r"hotels", HotelViewSet, basename="hotel")
+router.register(r"currencies", CurrencyViewSet, basename="currency")
 router.register(r"rooms", RoomViewSet, basename="room")
 router.register(r"reservations", ReservationViewSet, basename="reservation")
 router.register(r"countries", CountryViewSet, basename="country")

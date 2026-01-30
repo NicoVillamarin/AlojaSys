@@ -369,7 +369,7 @@ class RefundSerializer(serializers.ModelSerializer):
         model = Refund
         fields = [
             "id", "reservation", "reservation_id", "reservation_display_name", "hotel_name", "hotel_id",
-            "payment", "payment_method_display", "amount", "reason", "reason_display", "status", "status_display",
+            "payment", "payment_method_display", "amount", "currency", "reason", "reason_display", "status", "status_display",
             "refund_method", "processing_days", "external_reference", "notes",
             "processed_at", "created_at", "updated_at", "created_by", "created_by_name",
             "generated_voucher", "receipt_pdf_url", "receipt_number"
@@ -397,7 +397,7 @@ class RefundCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Refund
         fields = [
-            "reservation", "payment", "amount", "reason", "refund_method",
+            "reservation", "payment", "amount", "currency", "reason", "refund_method",
             "processing_days", "notes"
         ]
     

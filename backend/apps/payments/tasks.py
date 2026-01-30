@@ -1130,6 +1130,7 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                     'payment_id': refund.payment.id if refund.payment else None,
                     'reservation_code': f"RES-{refund.reservation.id}",
                     'amount': float(refund.amount),
+                    'currency': getattr(refund, 'currency', None) or 'ARS',
                     'method': refund.method,
                     'date': refund.created_at.strftime("%d/%m/%Y %H:%M:%S"),
                     'reason': refund.reason,
@@ -1154,6 +1155,7 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
                     'payment_id': payment.id,
                     'reservation_code': f"RES-{payment.reservation.id}",
                     'amount': float(payment.amount),
+                    'currency': getattr(payment, 'currency', None) or 'ARS',
                     'method': payment.method,
                     'date': payment.date.strftime("%d/%m/%Y %H:%M:%S"),
                     'receipt_number': payment.receipt_number,
@@ -1180,11 +1182,12 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
         
         # Construir tabla de información
         info_table = []
+        cur = str(payment_data.get('currency') or 'ARS').upper()
         if payment_type == 'refund':
             info_table = [
                 ['Número de Comprobante:', payment_data.get('receipt_number', 'N/A')],
                 ['Código de Reserva:', payment_data.get('reservation_code', 'N/A')],
-                ['Monto del Reembolso:', f"${payment_data.get('amount', 0):,.2f}"],
+                ['Monto del Reembolso:', f"${payment_data.get('amount', 0):,.2f} {cur}"],
                 ['Método de Reembolso:', payment_data.get('method', 'N/A')],
                 ['Fecha del Reembolso:', payment_data.get('date', 'N/A')],
             ]
@@ -1194,7 +1197,7 @@ def generate_payment_receipt_pdf(self, payment_id: int, payment_type: str = 'pay
             info_table = [
                 ['Número de Comprobante:', payment_data.get('receipt_number', 'N/A')],
                 ['Código de Reserva:', payment_data.get('reservation_code', 'N/A')],
-                ['Monto:', f"${payment_data.get('amount', 0):,.2f}"],
+                ['Monto:', f"${payment_data.get('amount', 0):,.2f} {cur}"],
                 ['Método de Pago:', payment_data.get('method', 'N/A')],
                 ['Fecha del Pago:', payment_data.get('date', 'N/A')],
             ]
@@ -1291,6 +1294,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                 refund = Refund.objects.get(id=payment_id)
                 reservation = refund.reservation
                 amount = refund.amount
+                currency = getattr(refund, 'currency', None) or 'ARS'
                 method = refund.method
                 reason = refund.reason
             except Refund.DoesNotExist:
@@ -1301,6 +1305,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                 payment = Payment.objects.get(id=payment_id)
                 reservation = payment.reservation
                 amount = payment.amount
+                currency = getattr(payment, 'currency', None) or 'ARS'
                 method = payment.method
                 reason = None
             except Payment.DoesNotExist:
@@ -1329,6 +1334,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                     refund = Refund.objects.get(id=payment_id)
                     reservation = refund.reservation
                     amount = refund.amount
+                    currency = getattr(refund, 'currency', None) or 'ARS'
                     method = refund.method
                     date = refund.created_at.strftime("%d/%m/%Y %H:%M:%S")
                     reason = refund.reason
@@ -1336,6 +1342,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                     payment = Payment.objects.get(id=payment_id)
                     reservation = payment.reservation
                     amount = payment.amount
+                    currency = getattr(payment, 'currency', None) or 'ARS'
                     method = payment.method
                     date = payment.created_at.strftime("%d/%m/%Y %H:%M:%S")
                     reason = None
@@ -1364,7 +1371,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                     info_table = [
                         ['Número de Comprobante:', refund.receipt_number or 'N/A'],
                         ['Código de Reserva:', f"RES-{reservation.id}"],
-                        ['Monto del Reembolso:', f"${amount:,.2f}"],
+                        ['Monto del Reembolso:', f"${amount:,.2f} {str(currency).upper()}"],
                         ['Método de Reembolso:', method],
                         ['Fecha del Reembolso:', date],
                     ]
@@ -1374,7 +1381,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
                     info_table = [
                         ['Número de Comprobante:', payment.receipt_number or 'N/A'],
                         ['Código de Reserva:', f"RES-{reservation.id}"],
-                        ['Monto:', f"${amount:,.2f}"],
+                        ['Monto:', f"${amount:,.2f} {str(currency).upper()}"],
                         ['Método de Pago:', method],
                         ['Fecha del Pago:', date],
                     ]
@@ -1411,7 +1418,7 @@ def send_payment_receipt_email(self, payment_id: int, payment_type: str = 'payme
             body = f"""
             Estimado/a {guest_info.get('name', 'Huésped')},
             
-            Se adjunta el recibo de reembolso por ${amount:,.2f} para su reserva RES-{reservation.id}.
+            Se adjunta el recibo de reembolso por ${amount:,.2f} {str(currency).upper()} para su reserva RES-{reservation.id}.
             
             Método de reembolso: {method}
             Razón: {reason or 'N/A'}
@@ -1440,7 +1447,7 @@ Su pago completo ha sido procesado exitosamente.
 
 Detalles del pago:
 - Código de reserva: RES-{reservation.id}
-- Monto pagado: ${amount:,.2f}
+- Monto pagado: ${amount:,.2f} {str(currency).upper()}
 - Método de pago: {method}
 - Fecha: {payment.created_at.strftime('%d/%m/%Y %H:%M')}
 
@@ -1461,7 +1468,7 @@ Equipo de {reservation.hotel.name}
                 body = f"""
 Estimado/a {guest_info.get('name', 'Huésped')},
 
-Se adjunta el recibo de seña por ${amount:,.2f} para su reserva RES-{reservation.id}.
+Se adjunta el recibo de seña por ${amount:,.2f} {str(currency).upper()} para su reserva RES-{reservation.id}.
 
 Método de pago: {method}
 

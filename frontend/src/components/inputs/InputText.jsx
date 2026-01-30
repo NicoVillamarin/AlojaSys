@@ -2,7 +2,24 @@ import React from 'react'
 import { useField, useFormikContext } from 'formik'
 import LabelsContainer from './LabelsContainer'
 
-const InputText = ({ title, name, placeholder, type = 'text', disabled = false, autoFocus = false, autoComplete = 'off', className = '', inputClassName = '', onChange, onInput, statusMessage, statusType = 'info', ...props }) => {
+const InputText = ({
+  title,
+  name,
+  placeholder,
+  type = 'text',
+  disabled = false,
+  autoFocus = false,
+  autoComplete = 'off',
+  className = '',
+  inputClassName = '',
+  onChange,
+  onInput,
+  statusMessage,
+  statusType = 'info',
+  multiline = false,
+  rows = 3,
+  ...props
+}) => {
   const [field, meta] = useField(name)
   const { setFieldValue } = useFormikContext()
   const hasError = meta.touched && !!meta.error
@@ -47,27 +64,51 @@ const InputText = ({ title, name, placeholder, type = 'text', disabled = false, 
   return (
     <LabelsContainer title={title}>
       <div className="relative">
-        <input
-          {...field}
-          id={name}
-          name={name}
-          type={type}
-          placeholder={placeholder}
-          disabled={disabled}
-          autoFocus={autoFocus}
-          autoComplete={autoComplete}
-          className={`w-full border rounded-md px-3 py-1.5 outline-none transition focus:ring-2 ${getInputStyles()} ${inputClassName}`}
-          onChange={(e) => {
-            if (onChange) onChange(e)
-            else field.onChange(e)
-          }}
-          onInput={(e) => {
-            // Chrome autofill dispara 'input' en algunos casos; actualizamos Formik
-            setFieldValue(name, e.target.value)
-            if (onInput) onInput(e)
-          }}
-          {...props}
-        />
+        {multiline ? (
+          <textarea
+            {...field}
+            id={name}
+            name={name}
+            placeholder={placeholder}
+            disabled={disabled}
+            autoFocus={autoFocus}
+            autoComplete={autoComplete}
+            rows={rows}
+            className={`w-full border rounded-md px-3 py-2 outline-none transition focus:ring-2 ${getInputStyles()} ${inputClassName}`}
+            onChange={(e) => {
+              if (onChange) onChange(e)
+              else field.onChange(e)
+            }}
+            onInput={(e) => {
+              // Chrome autofill dispara 'input' en algunos casos; actualizamos Formik
+              setFieldValue(name, e.target.value)
+              if (onInput) onInput(e)
+            }}
+            {...props}
+          />
+        ) : (
+          <input
+            {...field}
+            id={name}
+            name={name}
+            type={type}
+            placeholder={placeholder}
+            disabled={disabled}
+            autoFocus={autoFocus}
+            autoComplete={autoComplete}
+            className={`w-full border rounded-md px-3 py-1.5 outline-none transition focus:ring-2 ${getInputStyles()} ${inputClassName}`}
+            onChange={(e) => {
+              if (onChange) onChange(e)
+              else field.onChange(e)
+            }}
+            onInput={(e) => {
+              // Chrome autofill dispara 'input' en algunos casos; actualizamos Formik
+              setFieldValue(name, e.target.value)
+              if (onInput) onInput(e)
+            }}
+            {...props}
+          />
+        )}
         {/* Mensaje de error (comportamiento original) */}
         {hasError && (
           <div className="text-xs text-red-600 mt-0.5">{meta.error}</div>

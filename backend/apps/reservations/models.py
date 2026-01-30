@@ -31,6 +31,10 @@ class ReservationChannel(models.TextChoices):
     OTHER = "other", "Otro"
 
 class Reservation(models.Model):
+    class PriceSource(models.TextChoices):
+        PRIMARY = "primary", "Tarifa principal"
+        SECONDARY = "secondary", "Tarifa secundaria"
+
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="reservations")
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="reservations")
     guests = models.PositiveIntegerField(default=1, help_text="Número de huéspedes")
@@ -46,6 +50,20 @@ class Reservation(models.Model):
     external_id = models.CharField(max_length=255, blank=True, null=True, help_text="ID externo de la reserva (ej: UID de iCal, ID de OTA)")
     promotion_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de promoción aplicado")
     voucher_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de voucher aplicado")
+    price_source = models.CharField(
+        max_length=20,
+        choices=PriceSource.choices,
+        default=PriceSource.PRIMARY,
+        help_text="Define si la reserva se cotiza/paga con tarifa principal o secundaria de la habitación",
+    )
+    pricing_currency = models.ForeignKey(
+        "core.Currency",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="reservations_priced",
+        help_text="Snapshot de moneda usada para cotizar/pagar la reserva",
+    )
     check_in = models.DateField()
     check_out = models.DateField()
     status = models.CharField(max_length=20, choices=ReservationStatus.choices, default=ReservationStatus.PENDING)
@@ -96,6 +114,11 @@ class Reservation(models.Model):
                 raise ValidationError(f"La habitación {self.room.name} tiene una capacidad máxima de {self.room.max_capacity} huéspedes.")
             if self.guests < 1:
                 raise ValidationError("Debe haber al menos 1 huésped.")
+
+        # Validar tarifa secundaria si fue seleccionada
+        if self.room_id and self.price_source == self.PriceSource.SECONDARY:
+            if self.room.secondary_price is None or self.room.secondary_currency_id is None:
+                raise ValidationError({"price_source": "La habitación no tiene tarifa secundaria configurada."})
 
         # Si la reserva tiene external_id, es una reserva importada desde OTA
         # Permitimos solapamientos porque la OTA puede tener reservas que se solapan
@@ -151,10 +174,22 @@ class Reservation(models.Model):
         #   NO debemos pisarlo. Solo hacemos fallback si el total está vacío/0.
         should_autocalculate_total = (not self.external_id) or (self.total_price is None) or (self.total_price == 0)
 
+        # Snapshot de moneda usada (solo si no vino definida)
+        if self.room_id and not self.pricing_currency_id:
+            if self.price_source == self.PriceSource.SECONDARY and getattr(self.room, "secondary_currency_id", None):
+                self.pricing_currency = self.room.secondary_currency
+            else:
+                # base_currency es obligatoria en Room
+                self.pricing_currency = getattr(self.room, "base_currency", None)
+
         if self.room_id and self.check_in and self.check_out and should_autocalculate_total:
             nights = (self.check_out - self.check_in).days
             # Precio base por noche desde la habitación
-            base_nightly = self.room.base_price or Decimal('0.00')
+            if self.price_source == self.PriceSource.SECONDARY and self.room.secondary_price is not None:
+                base_nightly = self.room.secondary_price
+            else:
+                base_nightly = self.room.base_price
+            base_nightly = base_nightly or Decimal('0.00')
             # Extra por huéspedes por encima de la capacidad incluida
             included = self.room.capacity or 1
             extra_guests = max((self.guests or 1) - included, 0)

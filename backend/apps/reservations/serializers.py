@@ -26,6 +26,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     is_ota = serializers.SerializerMethodField()
     paid_by = serializers.CharField(read_only=True)
     overbooking_flag = serializers.BooleanField(read_only=True)
+    pricing_currency_code = serializers.CharField(source="pricing_currency.code", read_only=True)
 
     class Meta:
         model = Reservation
@@ -36,9 +37,23 @@ class ReservationSerializer(serializers.ModelSerializer):
             "check_in", "check_out", "status", "total_price", "balance_due", "total_paid", "notes",
             "channel", "channel_display", "is_ota", "paid_by", "overbooking_flag",
             "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
+            "price_source", "pricing_currency", "pricing_currency_code",
             "display_name", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "total_price", "balance_due", "total_paid", "created_at", "updated_at", "guest_name", "guest_email", "room_data", "display_name"]
+        read_only_fields = [
+            "id",
+            "total_price",
+            "balance_due",
+            "total_paid",
+            "created_at",
+            "updated_at",
+            "guest_name",
+            "guest_email",
+            "room_data",
+            "display_name",
+            "pricing_currency",
+            "pricing_currency_code",
+        ]
 
     @staticmethod
     def _infer_channel_label_from_guests_data(obj) -> str | None:
@@ -100,7 +115,12 @@ class ReservationSerializer(serializers.ModelSerializer):
             "capacity": obj.room.capacity,
             "max_capacity": obj.room.max_capacity,
             "base_price": float(obj.room.base_price),
+            "base_currency": getattr(obj.room, "base_currency_id", None),
+            "base_currency_code": getattr(getattr(obj.room, "base_currency", None), "code", None),
             "extra_guest_fee": float(obj.room.extra_guest_fee),
+            "secondary_price": float(obj.room.secondary_price) if getattr(obj.room, "secondary_price", None) is not None else None,
+            "secondary_currency": getattr(obj.room, "secondary_currency_id", None),
+            "secondary_currency_code": getattr(getattr(obj.room, "secondary_currency", None), "code", None),
             "description": obj.room.description,
             "status": obj.room.status,
             "is_active": obj.room.is_active,
@@ -305,7 +325,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Payment
-        fields = ['id', 'date', 'method', 'amount', 'terminal_id', 'batch_number', 'status', 'notes', 'is_deposit', 'metadata', 'receipt_pdf_url', 'receipt_number']
+        fields = ['id', 'date', 'method', 'amount', 'currency', 'terminal_id', 'batch_number', 'status', 'notes', 'is_deposit', 'metadata', 'receipt_pdf_url', 'receipt_number']
 
 class ChannelCommissionSerializer(serializers.ModelSerializer):
     class Meta:

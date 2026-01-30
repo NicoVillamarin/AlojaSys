@@ -3,9 +3,14 @@ from .models import Room
 from django.utils import timezone
 from apps.reservations.models import ReservationStatus
 from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
+from apps.core.models import Currency
 
 class RoomSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(source="hotel.name", read_only=True)
+    base_currency_code = serializers.CharField(source="base_currency.code", read_only=True)
+    base_currency_name = serializers.CharField(source="base_currency.name", read_only=True)
+    secondary_currency_code = serializers.CharField(source="secondary_currency.code", read_only=True)
+    secondary_currency_name = serializers.CharField(source="secondary_currency.name", read_only=True)
     current_reservation = serializers.SerializerMethodField()
     current_guests = serializers.SerializerMethodField()
     future_reservations = serializers.SerializerMethodField()
@@ -27,6 +32,13 @@ class RoomSerializer(serializers.ModelSerializer):
         required=False
     )
 
+    def validate(self, attrs):
+        # Default defensivo: si no mandan base_currency, usar ARS
+        if getattr(self, "instance", None) is None and not attrs.get("base_currency"):
+            ars, _ = Currency.objects.get_or_create(code="ARS", defaults={"name": "ARS"})
+            attrs["base_currency"] = ars
+        return super().validate(attrs)
+
     class Meta:
         model = Room
         fields = [
@@ -41,6 +53,13 @@ class RoomSerializer(serializers.ModelSerializer):
             "max_capacity", 
             "extra_guest_fee", 
             "base_price", 
+            "base_currency",
+            "base_currency_code",
+            "base_currency_name",
+            "secondary_price",
+            "secondary_currency",
+            "secondary_currency_code",
+            "secondary_currency_name",
             "status",
             "cleaning_status",
             "is_active", 

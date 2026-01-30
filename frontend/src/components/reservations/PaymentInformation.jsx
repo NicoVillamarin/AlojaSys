@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useFormikContext } from 'formik'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO } from 'date-fns'
@@ -19,12 +19,16 @@ const PaymentInformation = () => {
 
   // Función para obtener la cotización de precios
   const ready = !!(values.room && values.guests && values.check_in && values.check_out)
-  const canParams = {
-    room_id: values.room,
-    check_in: values.check_in,
-    check_out: values.check_out,
-    channel: values.channel || 'direct',
-  }
+  // IMPORTANTE: memoizar params para evitar loops de react-query (queryKey cambia por referencia)
+  const canParams = useMemo(
+    () => ({
+      room_id: values.room,
+      check_in: values.check_in,
+      check_out: values.check_out,
+      channel: values.channel || 'direct',
+    }),
+    [values.room, values.check_in, values.check_out, values.channel]
+  )
   const { results: canBookRes, isPending: canPending, refetch: refetchCanBook } = useAction({
     resource: 'reservations',
     action: 'can-book',
@@ -44,15 +48,28 @@ const PaymentInformation = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const quoteParams = {
-    room_id: values.room,
-    check_in: values.check_in,
-    check_out: values.check_out,
-    guests: values.guests || 1,
-    channel: values.channel || 'direct',
-    ...(appliedPromo ? { promotion_code: appliedPromo } : {}),
-    ...(appliedVoucher ? { voucher_code: appliedVoucher } : {}),
-  }
+  const quoteParams = useMemo(
+    () => ({
+      room_id: values.room,
+      check_in: values.check_in,
+      check_out: values.check_out,
+      guests: values.guests || 1,
+      channel: values.channel || 'direct',
+      price_source: values.price_source || 'primary',
+      ...(appliedPromo ? { promotion_code: appliedPromo } : {}),
+      ...(appliedVoucher ? { voucher_code: appliedVoucher } : {}),
+    }),
+    [
+      values.room,
+      values.check_in,
+      values.check_out,
+      values.guests,
+      values.channel,
+      values.price_source,
+      appliedPromo,
+      appliedVoucher,
+    ]
+  )
   const { results: quoteRes, isPending: quotePending, refetch: refetchQuote } = useAction({
     resource: 'reservations',
     action: 'quote-range',
@@ -133,11 +150,26 @@ const PaymentInformation = () => {
     }
   }
 
-  // Formatear moneda
-  const formatCurrency = (amount) => {
+  const roomData = values.room_data
+  const secondaryAvailable = roomData?.secondary_price != null && !!roomData?.secondary_currency_code
+  const selectedPriceSource = values.price_source || 'primary'
+  const quoteCurrencyCode = quoteRes?.currency_code || (selectedPriceSource === 'secondary' ? roomData?.secondary_currency_code : roomData?.base_currency_code) || 'ARS'
+  const selectedBasePrice = selectedPriceSource === 'secondary' && secondaryAvailable ? roomData?.secondary_price : roomData?.base_price
+
+  // Si cambió la habitación y no hay tarifa secundaria, volver a principal
+  useEffect(() => {
+    if (roomData && selectedPriceSource === 'secondary' && !secondaryAvailable) {
+      setFieldValue('price_source', 'primary')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.room, secondaryAvailable])
+
+  // Formatear moneda (dinámica según la tarifa elegida)
+  const formatCurrency = (amount, currencyCode = quoteCurrencyCode) => {
+    const code = currencyCode || 'ARS'
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
-      currency: 'ARS',
+      currency: code,
       minimumFractionDigits: 2,
     }).format(amount)
   }
@@ -204,7 +236,6 @@ const PaymentInformation = () => {
     )
   }
 
-  const roomData = values.room_data
   const anyPromoApplied = !!(pricingData?.nights?.some(n => (
     (Array.isArray(n.applied_promos) && n.applied_promos.length > 0) ||
     (Array.isArray(n.applied_promos_detail) && n.applied_promos_detail.length > 0) ||
@@ -214,6 +245,59 @@ const PaymentInformation = () => {
 
   return (
     <div className="space-y-6">
+      {/* Selección de tarifa (principal / secundaria) */}
+      {roomData && (
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="text-sm font-semibold text-gray-800 mb-3">Tarifa a aplicar</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setFieldValue('price_source', 'primary')}
+              className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                selectedPriceSource === 'primary'
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-gray-200 bg-white hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-sm font-medium text-gray-900">Tarifa principal</div>
+              <div className="text-xs text-gray-600 mt-1">
+                {roomData?.base_currency_code ? `${roomData.base_currency_code} • ` : ''}
+                {formatCurrency(roomData?.base_price || 0, roomData?.base_currency_code || quoteCurrencyCode)}
+                {' '}por noche
+              </div>
+            </button>
+            <button
+              type="button"
+              disabled={!secondaryAvailable}
+              onClick={() => setFieldValue('price_source', 'secondary')}
+              className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                !secondaryAvailable
+                  ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  : selectedPriceSource === 'secondary'
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-gray-200 bg-white hover:bg-gray-50'
+              }`}
+              title={!secondaryAvailable ? 'La habitación no tiene tarifa secundaria configurada' : undefined}
+            >
+              <div className="text-sm font-medium">Tarifa secundaria</div>
+              <div className="text-xs mt-1">
+                {secondaryAvailable ? (
+                  <>
+                    {roomData?.secondary_currency_code ? `${roomData.secondary_currency_code} • ` : ''}
+                    {formatCurrency(roomData?.secondary_price || 0, roomData?.secondary_currency_code || quoteCurrencyCode)}
+                    {' '}por noche
+                  </>
+                ) : (
+                  'No configurada para esta habitación'
+                )}
+              </div>
+            </button>
+          </div>
+          <div className="text-xs text-gray-500 mt-2">
+            La moneda del resumen y del cálculo se ajusta según la tarifa elegida.
+          </div>
+        </div>
+      )}
       {/* Controles de código promo y voucher */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 py-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
@@ -318,7 +402,7 @@ const PaymentInformation = () => {
             <div className="text-right">
               <div className="text-sm text-gray-600">{t('payment_information.base_rate_per_night')}</div>
               <div className="text-xl font-bold text-blue-600">
-                {formatCurrency(roomData.base_price)}
+                {formatCurrency(selectedBasePrice || 0)}
               </div>
               {parseFloat(roomData.extra_guest_fee) > 0 && (
                 <div className="text-xs text-gray-500 mt-1">
@@ -359,7 +443,7 @@ const PaymentInformation = () => {
                   {/* Tarifa base de la habitación */}
                   <div className="flex justify-between">
                     <span>{t('payment_information.base_rate')}</span>
-                    <span>{formatCurrency(roomData?.base_price || 0)}</span>
+                    <span>{formatCurrency(selectedBasePrice || 0)}</span>
                   </div>
                   
                   {/* Regla aplicada (si existe) */}
@@ -372,7 +456,7 @@ const PaymentInformation = () => {
                       <span>
                         {night.rule.price_mode === 'absolute' 
                           ? formatCurrency(night.base_rate)
-                          : `+ ${formatCurrency(night.base_rate - (roomData?.base_price || 0))}`
+                          : `+ ${formatCurrency(night.base_rate - (selectedBasePrice || 0))}`
                         }
                       </span>
                     </div>

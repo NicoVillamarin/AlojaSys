@@ -135,6 +135,19 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         try:
+            # Seguridad: el flujo actual de AFIP está hardcodeado a PES/MonCotiz=1.
+            # Permitimos facturas en otras monedas para registro interno/PDF,
+            # pero no permitimos enviarlas a AFIP hasta implementar tipo de cambio.
+            if str(getattr(invoice, "currency", "ARS") or "ARS").upper() != "ARS":
+                return Response(
+                    {
+                        "error": "Moneda no soportada para AFIP",
+                        "details": "Actualmente solo se permite enviar a AFIP facturas en ARS. Para USD/EUR hace falta definir tipo de cambio (MonCotiz).",
+                        "currency": invoice.currency,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             if not invoice.can_be_resent() and not serializer.validated_data.get('force_send'):
                 return Response({
                     'error': 'La factura no puede ser reenviada',
@@ -485,6 +498,14 @@ class GenerateInvoiceFromPaymentView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 # Calcular total de todos los pagos
+                currencies = set(str(getattr(p, "currency", "") or "").upper() for p in payments)
+                currencies.discard("")
+                if len(currencies) > 1:
+                    return Response(
+                        {"error": "Los pagos seleccionados tienen monedas distintas", "currencies": sorted(list(currencies))},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                currency_code = (next(iter(currencies)) if currencies else "ARS")
                 total_amount = sum(p.amount for p in payments)
                 
                 # Generar número de factura
@@ -517,7 +538,7 @@ class GenerateInvoiceFromPaymentView(APIView):
                     'total': total_amount,
                     'net_amount': total_amount * Decimal('0.83'),  # Aproximado sin IVA
                     'vat_amount': total_amount * Decimal('0.17'),  # Aproximado con IVA
-                    'currency': 'ARS',
+                    'currency': currency_code,
                     'status': 'draft',
                     'created_by': request.user,
                     **customer_data
@@ -544,7 +565,11 @@ class GenerateInvoiceFromPaymentView(APIView):
                     items_data = [{
                         'description': description,
                         'quantity': (payment.reservation.check_out - payment.reservation.check_in).days,
-                        'unit_price': payment.reservation.room.base_price,
+                        'unit_price': (
+                            payment.reservation.room.secondary_price
+                            if getattr(payment.reservation, "price_source", "primary") == "secondary" and getattr(payment.reservation.room, "secondary_price", None) is not None
+                            else payment.reservation.room.base_price
+                        ),
                         'vat_rate': Decimal('21.00'),
                         'afip_code': '1'  # Servicios
                     }]
@@ -703,7 +728,7 @@ class CreateInvoiceFromReservationView(APIView):
                     'total': reservation.total_price,
                     'net_amount': reservation.total_price * Decimal('0.83'),  # Aproximado sin IVA
                     'vat_amount': reservation.total_price * Decimal('0.17'),  # Aproximado con IVA
-                    'currency': 'ARS',
+                    'currency': (reservation.pricing_currency.code if getattr(reservation, "pricing_currency_id", None) else "ARS"),
                     'client_name': client_name,
                     'client_document_type': client_document_type,
                     'client_document_number': client_document_number,
@@ -721,7 +746,11 @@ class CreateInvoiceFromReservationView(APIView):
                     items_data = [{
                         'description': f'Hospedaje - {reservation.room.name}',
                         'quantity': (reservation.check_out - reservation.check_in).days,
-                        'unit_price': reservation.room.base_price,
+                        'unit_price': (
+                            reservation.room.secondary_price
+                            if getattr(reservation, "price_source", "primary") == "secondary" and getattr(reservation.room, "secondary_price", None) is not None
+                            else reservation.room.base_price
+                        ),
                         'vat_rate': Decimal('21.00'),
                         'afip_code': '1'  # Servicios
                     }]

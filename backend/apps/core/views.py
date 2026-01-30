@@ -4,11 +4,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
+from rest_framework.filters import OrderingFilter, SearchFilter
 from django.shortcuts import get_object_or_404
 from datetime import datetime, date
-from .models import Hotel
+from .models import Currency, Hotel
 from .services.business_rules import get_business_rules
-from .serializers import HotelSerializer
+from .serializers import CurrencySerializer, HotelSerializer
 
 
 @api_view(['POST'])
@@ -153,6 +154,28 @@ class HotelViewSet(ModelViewSet):
     def get_queryset(self):
         # Filtrar por usuario autenticado si es necesario
         return Hotel.objects.filter(is_active=True)
+
+
+class CurrencyViewSet(ModelViewSet):
+    """
+    ViewSet para gestionar monedas (free-form).
+    Por defecto lista solo activas; usar ?include_inactive=1 para ver todas.
+    """
+
+    queryset = Currency.objects.all()
+    serializer_class = CurrencySerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["code", "name"]
+    ordering_fields = ["code", "name", "updated_at"]
+    ordering = ["code"]
+
+    def get_queryset(self):
+        qs = Currency.objects.all()
+        include_inactive = self.request.query_params.get("include_inactive")
+        if str(include_inactive).lower() not in ("1", "true", "yes"):
+            qs = qs.filter(is_active=True)
+        return qs
 
 
 class StatusSummaryView(APIView):

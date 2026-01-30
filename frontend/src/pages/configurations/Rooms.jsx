@@ -208,7 +208,7 @@ export default function Rooms() {
               return <span className={`px-2 py-1 rounded text-xs ${meta.className}`}>{meta.label}</span>;
             },
           },
-          { key: "base_price", header: t('rooms.price'), sortable: true, right: true },
+          { key: "base_price", header: t('rooms.price'), sortable: true, right: true, render: (r) => `${r.base_currency_code || '$'} ${r.base_price ?? ''}` },
           { key: "capacity", header: t('rooms.capacity'), sortable: true, right: true },
           { key: "max_capacity", header: t('rooms.max_capacity'), sortable: true, right: true },
           {

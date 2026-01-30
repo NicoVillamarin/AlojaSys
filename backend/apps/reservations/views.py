@@ -1220,7 +1220,13 @@ def can_book(request):
 @api_view(['GET'])
 def quote_range(request):
     """Valida CTA/CTD y min/max stay y, si es válido, devuelve el detalle por noche y totales.
-    Parámetros: room_id, check_in, check_out, guests (opcional, default 1), channel (opcional)
+    Parámetros:
+      - room_id, check_in, check_out
+      - guests (opcional, default 1)
+      - channel (opcional)
+      - promotion_code (opcional)
+      - voucher_code (opcional)
+      - price_source (opcional: "primary" | "secondary"; default "primary")
     """
     try:
         room_id = int(request.query_params.get("room_id"))
@@ -1232,9 +1238,14 @@ def quote_range(request):
 
     channel = request.query_params.get("channel")
     promo_code = request.query_params.get("promotion_code")
+    voucher_code = request.query_params.get("voucher_code")
+    price_source = (request.query_params.get("price_source") or "primary").strip().lower()
     if check_in >= check_out:
         return Response({"detail": "check_in debe ser anterior a check_out."}, status=status.HTTP_400_BAD_REQUEST)
-    room = get_object_or_404(Room.objects.select_related("hotel"), pk=room_id)
+    room = get_object_or_404(
+        Room.objects.select_related("hotel", "base_currency", "secondary_currency"),
+        pk=room_id,
+    )
 
     # Validaciones CTA/CTD / min-max / closed
     start_rule = get_applicable_rule(room, check_in, channel, include_closed=True)
@@ -1256,7 +1267,15 @@ def quote_range(request):
         rule = get_applicable_rule(room, current, channel, include_closed=True)
         if rule and rule.closed:
             return Response({"ok": False, "reason": "closed", "date": current}, status=status.HTTP_200_OK)
-        pricing = compute_rate_for_date(room, guests, current, channel, promo_code)
+        pricing = compute_rate_for_date(
+            room,
+            guests,
+            current,
+            channel,
+            promo_code,
+            voucher_code,
+            price_source,
+        )
         applied_rule = None
         if rule:
             applied_rule = {
@@ -1352,6 +1371,12 @@ def quote_range(request):
             total += d['pricing']['total_night']
 
     adr = (total / Decimal(nights)).quantize(Decimal('0.01')) if nights else Decimal('0.00')
+    # Moneda a mostrar según la tarifa elegida (fallback a tarifa principal)
+    currency_code = None
+    if price_source == "secondary" and getattr(room, "secondary_currency_id", None):
+        currency_code = room.secondary_currency.code
+    else:
+        currency_code = room.base_currency.code if getattr(room, "base_currency_id", None) else None
     return Response({
         "ok": True,
         "room_id": room.id,
@@ -1360,6 +1385,8 @@ def quote_range(request):
         "check_out": check_out,
         "guests": guests,
         "channel": channel,
+        "price_source": price_source,
+        "currency_code": currency_code,
         "nights": nights,
         "days": days,
         "total": total,
@@ -1389,12 +1416,17 @@ def quote(request):
 
     channel = body.get("channel")
     promo_code = body.get("promotion_code")
+    voucher_code = body.get("voucher_code")
+    price_source = str(body.get("price_source") or "primary").strip().lower()
     if guests < 1:
         return Response({"detail": "guests debe ser >= 1"}, status=status.HTTP_400_BAD_REQUEST)
     if check_in >= check_out:
         return Response({"detail": "check_in debe ser anterior a check_out."}, status=status.HTTP_400_BAD_REQUEST)
 
-    room = get_object_or_404(Room.objects.select_related("hotel"), pk=room_id)
+    room = get_object_or_404(
+        Room.objects.select_related("hotel", "base_currency", "secondary_currency"),
+        pk=room_id,
+    )
 
     # Validar capacidad
     if guests > (room.max_capacity or 1):
@@ -1447,7 +1479,15 @@ def quote(request):
         rule = get_applicable_rule(room, current, channel, include_closed=True)
         if rule and rule.closed:
             return Response({"ok": False, "reason": "closed", "date": current}, status=status.HTTP_200_OK)
-        pricing = compute_rate_for_date(room, guests, current, channel, promo_code)
+        pricing = compute_rate_for_date(
+            room,
+            guests,
+            current,
+            channel,
+            promo_code,
+            voucher_code,
+            price_source,
+        )
         applied_rule = None
         if rule:
             applied_rule = {
@@ -1467,6 +1507,11 @@ def quote(request):
         current += timedelta(days=1)
 
     adr = (total / Decimal(nights)).quantize(Decimal('0.01')) if nights else Decimal('0.00')
+    currency_code = None
+    if price_source == "secondary" and getattr(room, "secondary_currency_id", None):
+        currency_code = room.secondary_currency.code
+    else:
+        currency_code = room.base_currency.code if getattr(room, "base_currency_id", None) else None
     return Response({
         "ok": True,
         "room_id": room.id,
@@ -1475,6 +1520,8 @@ def quote(request):
         "check_out": check_out,
         "guests": guests,
         "channel": channel,
+        "price_source": price_source,
+        "currency_code": currency_code,
         "nights": nights,
         "days": days,
         "total": total,

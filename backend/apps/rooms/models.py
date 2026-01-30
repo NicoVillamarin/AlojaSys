@@ -28,6 +28,22 @@ class Room(models.Model):
     number = models.IntegerField()
     description = models.TextField(blank=True, null=True)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
+    base_currency = models.ForeignKey(
+        "core.Currency",
+        on_delete=models.PROTECT,
+        related_name="rooms_base",
+        help_text="Moneda de la tarifa principal"
+    )
+    # Tarifa secundaria opcional (monto + moneda)
+    secondary_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    secondary_currency = models.ForeignKey(
+        "core.Currency",
+        on_delete=models.PROTECT,
+        related_name="rooms_secondary",
+        null=True,
+        blank=True,
+        help_text="Moneda de la tarifa secundaria"
+    )
     capacity = models.PositiveIntegerField(default=1)
     max_capacity = models.PositiveIntegerField(default=1)
     extra_guest_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -86,6 +102,17 @@ class Room(models.Model):
                 raise ValidationError({
                     "max_capacity": "max_capacity no puede ser menor que capacity."
                 })
+        # Consistencia de tarifa secundaria: debe venir completa (monto + moneda)
+        if (self.secondary_price is None) ^ (self.secondary_currency_id is None):
+            raise ValidationError({
+                "secondary_price": "La tarifa secundaria debe tener monto y moneda.",
+                "secondary_currency": "La tarifa secundaria debe tener monto y moneda.",
+            })
+        # Tarifa principal: si hay base_price, debe haber moneda
+        if self.base_price is not None and self.base_currency_id is None:
+            raise ValidationError({
+                "base_currency": "La tarifa principal debe tener moneda.",
+            })
 
     def save(self, *args, **kwargs):
         # Auto-corrección defensiva para datos viejos o formularios incompletos

@@ -57,8 +57,10 @@ const ReviewReservation = () => {
     check_out: values.check_out,
     guests: values.guests || 1,
     channel: 'direct', // Siempre DIRECT para reservas creadas desde el sistema
+    price_source: values.price_source || 'primary',
     ...(values.promotion_code ? { promotion_code: values.promotion_code } : {}),
-  }), [values.room, values.check_in, values.check_out, values.guests, values.promotion_code])
+    ...(values.voucher_code ? { voucher_code: values.voucher_code } : {}),
+  }), [values.room, values.check_in, values.check_out, values.guests, values.promotion_code, values.voucher_code, values.price_source])
 
   const { results: quoteRes, isPending: quotePending } = useAction({
     resource: 'reservations',
@@ -78,6 +80,10 @@ const ReviewReservation = () => {
     const total = Number(quoteRes.total || 0)
     return { base, extra, discount, tax, total, nightsCount: nights.length }
   }, [quoteRes])
+
+  const currencyCode = quoteRes?.currency_code || 'ARS'
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('es-AR', { style: 'currency', currency: currencyCode, minimumFractionDigits: 2 }).format(amount)
 
   return (
     <div className="space-y-6">
@@ -230,31 +236,31 @@ const ReviewReservation = () => {
                 <div className="flex items-center justify-between">
                   <span>{t('review_reservation.subtotal')} ({paymentSummary.nightsCount} {paymentSummary.nightsCount === 1 ? t('reservations_modal.night') : t('reservations_modal.nights')})</span>
                   <span className="font-medium">
-                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.base)}
+                    {formatCurrency(paymentSummary.base)}
                   </span>
                 </div>
                 {paymentSummary.extra > 0 && (
                   <div className="flex items-center justify-between text-blue-700">
                     <span>{t('review_reservation.extra_guests')}</span>
-                    <span className="font-medium">+ {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.extra)}</span>
+                    <span className="font-medium">+ {formatCurrency(paymentSummary.extra)}</span>
                   </div>
                 )}
                 {paymentSummary.discount > 0 && (
                   <div className="flex items-center justify-between text-green-700">
                     <span>{t('review_reservation.discounts')}</span>
-                    <span className="font-medium">- {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.discount)}</span>
+                    <span className="font-medium">- {formatCurrency(paymentSummary.discount)}</span>
                   </div>
                 )}
                 {paymentSummary.tax > 0 && (
                   <div className="flex items-center justify-between">
                     <span>{t('review_reservation.taxes')}</span>
-                    <span className="font-medium">+ {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.tax)}</span>
+                    <span className="font-medium">+ {formatCurrency(paymentSummary.tax)}</span>
                   </div>
                 )}
                 <div className="border-t border-emerald-200 pt-2 mt-2 flex items-center justify-between">
                   <span className="text-lg font-bold">{t('review_reservation.total')}</span>
                   <span className="text-2xl font-extrabold text-emerald-700">
-                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(paymentSummary.total)}
+                    {formatCurrency(paymentSummary.total)}
                   </span>
                 </div>
               </div>

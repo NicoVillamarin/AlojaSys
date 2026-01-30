@@ -8,7 +8,6 @@ import FileImage from 'src/components/inputs/FileImage'
 import * as Yup from 'yup'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
-import SelectBasic from 'src/components/selects/SelectBasic'
 import InputTextTarea from 'src/components/inputs/InputTextTarea'
 
 /**

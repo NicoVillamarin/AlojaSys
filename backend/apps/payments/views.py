@@ -41,7 +41,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = [
-            'id', 'date', 'method', 'amount', 'status', 'is_deposit', 
+            'id', 'date', 'method', 'amount', 'currency', 'status', 'is_deposit', 
             'created_at', 'reservation_id', 'reservation_display_name', 
             'guest_name', 'hotel_name', 'receipt_pdf_url', 'receipt_number', 'notes'
         ]

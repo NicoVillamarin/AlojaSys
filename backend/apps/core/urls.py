@@ -1,9 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import HotelViewSet, StatusSummaryView, GlobalSummaryView, validate_reservation_action, validate_reservation_dates, get_hotel_business_config
+from .views import CurrencyViewSet, HotelViewSet, StatusSummaryView, GlobalSummaryView, validate_reservation_action, validate_reservation_dates, get_hotel_business_config
 
 router = DefaultRouter()
 router.register(r"hotels", HotelViewSet, basename="hotel")
+router.register(r"currencies", CurrencyViewSet, basename="currency")
 
 urlpatterns = [
     path("", include(router.urls)),

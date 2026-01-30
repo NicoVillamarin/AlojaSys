@@ -282,6 +282,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
     channel: reservation?.external_id ? reservation?.channel ?? 'direct' : 'direct',
     promotion_code: reservation?.promotion_code ?? '',
     voucher_code: reservation?.voucher_code ?? '',
+    price_source: reservation?.price_source ?? 'primary',
   }
 
   // Reset modal key when opening for creation
@@ -618,6 +619,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
         status: values.status || 'pending',
         promotion_code: values.promotion_code || undefined,
         voucher_code: values.voucher_code || undefined,
+        price_source: values.price_source || 'primary',
       }
 
       if (isEdit && reservation?.id) {

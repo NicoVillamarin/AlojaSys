@@ -183,7 +183,11 @@ export default function RefundReceipts() {
     {
       key: 'amount',
       header: 'Monto',
-      render: (refund) => `$${convertToDecimal(refund.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+      render: (refund) => {
+        const code = (refund?.currency ? String(refund.currency).toUpperCase() : "ARS")
+        const number = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseFloat(refund.amount || 0) || 0)
+        return `$ ${number} ${code}`
+      }
     },
     {
       key: 'refund_method',

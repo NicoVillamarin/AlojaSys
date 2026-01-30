@@ -1,5 +1,24 @@
 from rest_framework import serializers
-from .models import Hotel
+from .models import Currency, Hotel
+
+
+class CurrencyCodeField(serializers.SlugRelatedField):
+    """
+    Compatibilidad: expone/acepta `currency` como código (string) aunque en DB sea FK.
+    Free-form: si el código no existe, se crea automáticamente.
+    """
+
+    def to_internal_value(self, data):
+        if data is None:
+            raise serializers.ValidationError("currency es requerido")
+        code = str(data).strip().upper()
+        if not code:
+            raise serializers.ValidationError("currency es requerido")
+        try:
+            return Currency.objects.get(code__iexact=code)
+        except Currency.DoesNotExist:
+            # Modo free-form: crear al vuelo
+            return Currency.objects.create(code=code, name=code)
 
 class HotelSerializer(serializers.ModelSerializer):
     enterprise_name = serializers.CharField(source="enterprise.name", read_only=True)
@@ -55,7 +74,7 @@ class HotelSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "whatsapp_api_token": {"write_only": True, "required": False, "allow_blank": True},
         }
-    
+
     def get_logo_url(self, obj):
         """Obtiene la URL completa del logo"""
         if obj.logo:
@@ -114,4 +133,22 @@ class HotelSerializer(serializers.ModelSerializer):
             # No lanzar excepción para no romper el guardado del hotel
 
 
- 
+class CurrencySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Currency
+        fields = [
+            "id",
+            "code",
+            "name",
+            "symbol",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_code(self, value):
+        code = str(value).strip().upper()
+        if not code:
+            raise serializers.ValidationError("code es requerido")
+        return code

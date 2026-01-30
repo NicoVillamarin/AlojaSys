@@ -4,6 +4,38 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 
 
+class Currency(models.Model):
+    """
+    Moneda configurable (free-form) para reutilizar en el sistema.
+
+    `code` suele ser ISO 4217 (ARS, USD, EUR), pero se permite más largo para casos especiales.
+    """
+
+    code = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=80, blank=True)
+    symbol = models.CharField(max_length=10, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "Moneda"
+        verbose_name_plural = "Monedas"
+
+    def __str__(self) -> str:
+        return f"{self.code}{f' - {self.name}' if self.name else ''}"
+
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = str(self.code).strip().upper()
+        if self.name:
+            self.name = str(self.name).strip()
+        if self.symbol:
+            self.symbol = str(self.symbol).strip()
+        super().save(*args, **kwargs)
+
+
 class Hotel(models.Model):
     enterprise = models.ForeignKey("enterprises.Enterprise", on_delete=models.PROTECT, related_name="hotels", null=True, blank=True)
     name = models.CharField(max_length=120, unique=True)

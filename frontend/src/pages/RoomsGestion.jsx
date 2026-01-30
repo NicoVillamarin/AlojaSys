@@ -773,7 +773,7 @@ export default function RoomsGestion() {
               );
             },
           },
-          { key: "base_price", header: t('rooms.price'), sortable: true, render: (r) => `$ ${convertToDecimal(r.base_price)}`, right: true } ,
+          { key: "base_price", header: t('rooms.price'), sortable: true, render: (r) => `${r.base_currency_code || '$'} ${convertToDecimal(r.base_price)}`, right: true } ,
           {
             key: "capacity",
             header: t('rooms.capacity'),

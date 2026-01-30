@@ -70,6 +70,8 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
   const initialValues = {
     hotel: room?.hotel ?? '',
     hotel_name: room?.hotel_name ?? '',
+    base_currency: room?.base_currency ?? '',
+    base_currency_code: room?.base_currency_code ?? '',
     name: room?.name ?? '',
     number: room?.number ?? '',
     floor: room?.floor ?? '',
@@ -77,6 +79,8 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     capacity: room?.capacity ?? '',
     max_capacity: room?.max_capacity ?? '',
     base_price: room?.base_price != null ? String(room.base_price) : '0',
+    secondary_price: room?.secondary_price != null ? String(room.secondary_price) : '',
+    secondary_currency: room?.secondary_currency ?? '',
     // Solo lectura: el precio OTA se gestiona en Smoobu (channel manager) y se publica a OTAs.
     // No lo enviamos en el payload de creaci?n/edici?n de habitaci?n.
     ota_price: room?.ota_price != null ? String(room.ota_price) : '',
@@ -111,7 +115,31 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     .typeError(t('rooms_modal.base_price_number'))
     .moreThan(0, t('rooms_modal.base_price_more_than'))
     .required(t('rooms_modal.base_price_required')),
+    base_currency: Yup.mixed().required('La moneda de la tarifa principal es requerida'),
+    secondary_price: Yup.number()
+      .transform((val, original) => (original === '' ? null : val))
+      .nullable()
+      .typeError('La tarifa secundaria debe ser un número'),
+    secondary_currency: Yup.mixed().nullable(),
     status: Yup.string().required(t('rooms_modal.status_required')),
+  }).test('secondary_tariff_pair', 'Tarifa secundaria inválida', function (values) {
+    const price = values?.secondary_price
+    const currency = values?.secondary_currency
+    const hasPrice = price !== null && price !== undefined
+    const hasCurrency = currency !== null && currency !== undefined && String(currency) !== ''
+
+    if (hasPrice && Number(price) <= 0) {
+      return this.createError({ path: 'secondary_price', message: 'La tarifa secundaria debe ser mayor a 0' })
+    }
+
+    if (hasPrice !== hasCurrency) {
+      // Si hay precio sin moneda, marcar moneda. Si hay moneda sin precio, marcar precio.
+      return this.createError({
+        path: hasPrice ? 'secondary_currency' : 'secondary_price',
+        message: 'Completá precio y moneda de la tarifa secundaria (o dejá ambos vacíos).',
+      })
+    }
+    return true
   })
 
   const [instanceKey, setInstanceKey] = useState(0)
@@ -145,6 +173,9 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             capacity: values.capacity ? Number(values.capacity) : undefined,
             max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
             base_price: values.base_price ? Number(values.base_price) : undefined,
+            base_currency: values.base_currency !== '' ? Number(values.base_currency) : null,
+            secondary_price: values.secondary_price !== '' ? Number(values.secondary_price) : null,
+            secondary_currency: values.secondary_currency !== '' ? Number(values.secondary_currency) : null,
             status: values.status || undefined,
             description: values.description || undefined,
             amenities: Array.isArray(values.amenities) ? values.amenities : undefined,
@@ -212,6 +243,9 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             capacity: values.capacity ? Number(values.capacity) : undefined,
             max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
             base_price: values.base_price ? Number(values.base_price) : undefined,
+            base_currency: values.base_currency !== '' ? Number(values.base_currency) : null,
+            secondary_price: values.secondary_price !== '' ? Number(values.secondary_price) : null,
+            secondary_currency: values.secondary_currency !== '' ? Number(values.secondary_currency) : null,
             status: values.status || undefined,
             description: values.description || undefined,
             amenities: Array.isArray(values.amenities) ? values.amenities : undefined,
@@ -261,7 +295,56 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             />
             <InputText title={`${t('rooms_modal.capacity')} *`} name='capacity' placeholder={t('rooms_modal.capacity_placeholder')} />
             <InputText title={`${t('rooms_modal.max_capacity')} *`} name='max_capacity' placeholder={t('rooms_modal.max_capacity_placeholder')} />
-            <InputText title={`${t('rooms_modal.base_price')} *`} name='base_price' placeholder={t('rooms_modal.base_price_placeholder')} />
+            <div className='lg:col-span-2'>
+              <div className='rounded-lg border border-gray-200 p-4 bg-white'>
+                <div className='text-xs font-semibold text-aloja-gray-800/70 uppercase tracking-wide mb-3'>
+                  Tarifa principal
+                </div>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  <div>
+                    <InputText
+                      title={`${t('rooms_modal.base_price')} *`}
+                      name='base_price'
+                      placeholder={t('rooms_modal.base_price_placeholder')}
+                    />
+                  </div>
+                  <div>
+                    <SelectAsync
+                      title='Moneda'
+                      name='base_currency'
+                      resource='currencies'
+                      placeholder='Seleccioná moneda'
+                      getOptionLabel={(c) => (c?.name ? `${c.code} - ${c.name}` : c?.code)}
+                      getOptionValue={(c) => c?.id}
+                      isClearable={false}
+                      onValueChange={(opt) => setFieldValue('base_currency_code', opt?.code || '')}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className='lg:col-span-2'>
+              <div className='rounded-lg border border-gray-200 p-4 bg-white'>
+                <div className='text-xs font-semibold text-aloja-gray-800/70 uppercase tracking-wide mb-3'>
+                  Tarifa secundaria (opcional)
+                </div>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  <InputText title='Precio secundario' name='secondary_price' placeholder='85.00' />
+                  <SelectAsync
+                    title='Moneda secundaria'
+                    name='secondary_currency'
+                    resource='currencies'
+                    placeholder='Seleccioná moneda'
+                    getOptionLabel={(c) => (c?.name ? `${c.code} - ${c.name}` : c?.code)}
+                    getOptionValue={(c) => c?.id}
+                    isClearable
+                  />
+                </div>
+                <div className='text-xs text-gray-500 mt-2'>
+                  Se guarda como referencia (monto + moneda) y no afecta el cálculo de tarifas actual.
+                </div>
+              </div>
+            </div>
             <InputText
               title={t('rooms_modal.ota_price')}
               name='ota_price'
