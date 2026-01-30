@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import TableGeneric from "src/components/TableGeneric";
 import { useList } from "src/hooks/useList";
 import { getStatusMeta, statusList } from "src/utils/statusList";
+import { getRoomSortKey } from "src/utils/roomSort";
 import RoomsModal from "src/components/modals/RoomsModal";
 import RoomDetailModal from "src/components/modals/RoomDetailModal";
 import EditIcon from "src/assets/icons/EditIcon";
@@ -187,7 +188,8 @@ export default function Rooms() {
             key: "name",
             header: t('rooms.room_number'),
             sortable: true,
-            accessor: (r) => r.name || r.number || `#${r.id}`,
+            // Importante: ordenar “humano” (1,2,3…10) en vez de lexicográfico (1,10,11,2…)
+            accessor: (r) => getRoomSortKey(r),
             render: (r) => (
               <button
                 onClick={() => setDetailRoom(r)}

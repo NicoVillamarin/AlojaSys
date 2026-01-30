@@ -34,6 +34,7 @@ import { listAllResources } from "src/services/listAllResources";
 import { printHtml } from "src/utils/printHtml";
 import { showErrorConfirm } from "src/services/toast";
 import PrintIcon from "src/assets/icons/PrintIcon";
+import { getRoomSortKey } from "src/utils/roomSort";
 
 export default function RoomsGestion() {
   const { t, i18n } = useTranslation();
@@ -729,7 +730,8 @@ export default function RoomsGestion() {
             key: "name",
             header: t('rooms.room_number'),
             sortable: true,
-            accessor: (r) => r.name || r.number || `#${r.id}`,
+            // Importante: ordenar “humano” (1,2,3…10) en vez de lexicográfico (1,10,11,2…)
+            accessor: (r) => getRoomSortKey(r),
             render: (r) => (
               <button
                 onClick={() => setDetailRoom(r)}

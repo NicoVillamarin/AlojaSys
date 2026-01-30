@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { parseISO, isSameDay } from 'date-fns';
 import CleaningIcon from 'src/assets/icons/CleaningIcon';
 import DirtIcon from 'src/assets/icons/DirtIcon';
+import { sortRooms } from 'src/utils/roomSort';
 
 const DoorBadge = ({ children, className = '' }) => (
   <div
@@ -181,6 +182,8 @@ const RoomMap = ({
     if (typeof onSelectedRoomIdsChange === 'function') onSelectedRoomIdsChange(updater);
     else setInternalSelectedIds(updater);
   };
+
+  const sortedRooms = useMemo(() => sortRooms(rooms), [rooms]);
 
   // Limpiar timeout al desmontar
   useEffect(() => {
@@ -389,7 +392,7 @@ const RoomMap = ({
       {/* Flexbox de habitaciones moderno */}
       <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-4 md:p-8 rounded-2xl shadow-inner">
         <div className="flex flex-wrap gap-2 md:gap-4 justify-center relative z-10">
-          {rooms.map((room) => {
+          {sortedRooms.map((room) => {
             const effectiveStatus = getEffectiveStatus(room);
             const isHovered = hoveredRoom?.id === room.id;
             const cleaning = isCleaning(room);
