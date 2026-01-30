@@ -65,6 +65,11 @@ class Room(models.Model):
         blank=True,
         help_text="Lista de características/amenities de la habitación (strings)"
     )
+    amenities_quantities = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Cantidades por amenity (dict: code -> int). Útil para camas (x2, x3, etc.)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
@@ -113,6 +118,34 @@ class Room(models.Model):
             raise ValidationError({
                 "base_currency": "La tarifa principal debe tener moneda.",
             })
+
+        # Amenities quantities: validar dict y consistencia con amenities
+        aq = self.amenities_quantities or {}
+        if aq is None:
+            aq = {}
+        if not isinstance(aq, dict):
+            raise ValidationError({"amenities_quantities": "Debe ser un objeto (dict) con cantidades por amenity."})
+        amenities_list = self.amenities or []
+        if amenities_list is None:
+            amenities_list = []
+        # Normalizar lista a strings
+        try:
+            amenities_set = set(str(a).strip() for a in amenities_list if str(a).strip())
+        except Exception:
+            amenities_set = set()
+
+        for k, v in aq.items():
+            code = str(k).strip()
+            if not code:
+                raise ValidationError({"amenities_quantities": "Hay un código de amenity vacío en quantities."})
+            if code not in amenities_set:
+                raise ValidationError({"amenities_quantities": f"'{code}' tiene cantidad pero no está seleccionado en amenities."})
+            try:
+                iv = int(v)
+            except Exception:
+                raise ValidationError({"amenities_quantities": f"Cantidad inválida para '{code}'."})
+            if iv < 1:
+                raise ValidationError({"amenities_quantities": f"La cantidad de '{code}' debe ser >= 1."})
 
     def save(self, *args, **kwargs):
         # Auto-corrección defensiva para datos viejos o formularios incompletos

@@ -39,6 +39,25 @@ class RoomSerializer(serializers.ModelSerializer):
             attrs["base_currency"] = ars
         return super().validate(attrs)
 
+    def validate_amenities_quantities(self, value):
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("amenities_quantities debe ser un objeto (dict).")
+        cleaned = {}
+        for k, v in value.items():
+            code = str(k).strip()
+            if not code:
+                continue
+            try:
+                iv = int(v)
+            except Exception:
+                raise serializers.ValidationError(f"Cantidad inválida para '{code}'.")
+            if iv < 1:
+                raise serializers.ValidationError(f"La cantidad de '{code}' debe ser >= 1.")
+            cleaned[code] = iv
+        return cleaned
+
     class Meta:
         model = Room
         fields = [
@@ -65,6 +84,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "is_active", 
             "description", 
             "amenities",
+            "amenities_quantities",
             "primary_image",
             "primary_image_url",
             "images",

@@ -13,6 +13,11 @@ import LabelsContainer from 'src/components/inputs/LabelsContainer'
 import { ROOM_AMENITIES, ROOM_AMENITY_CATEGORIES, getAmenityLabel } from 'src/utils/roomAmenities'
 import * as Yup from 'yup'
 
+const isQuantifiableAmenity = (code) => {
+  const found = ROOM_AMENITIES.find((a) => a.code === code)
+  return found?.categoryKey === 'beds'
+}
+
 
 /**
  * RoomsModal: crear/editar habitaci?n
@@ -87,6 +92,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     status: room?.status ?? 'available',
     description: room?.description ?? '',
     amenities: Array.isArray(room?.amenities) ? room.amenities : [],
+    amenities_quantities: room?.amenities_quantities && typeof room.amenities_quantities === 'object' ? room.amenities_quantities : {},
     images: [], // Array de archivos de im?genes nuevas
     imagesToDelete: [], // ?ndices de im?genes existentes a eliminar
     primaryImageIndex: null, // ?ndice de la imagen principal si se cambi?
@@ -179,6 +185,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             status: values.status || undefined,
             description: values.description || undefined,
             amenities: Array.isArray(values.amenities) ? values.amenities : undefined,
+            amenities_quantities: values.amenities_quantities && typeof values.amenities_quantities === 'object' ? values.amenities_quantities : undefined,
           }
 
           // Procesar im?genes
@@ -431,13 +438,21 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
                           className='inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-100 text-gray-800 text-xs border border-gray-200'
                           title={code}
                         >
-                          <span className='font-medium'>{getAmenityLabel(t, code)}</span>
+                          <span className='font-medium'>
+                            {getAmenityLabel(t, code)}
+                            {isQuantifiableAmenity(code) && values?.amenities_quantities?.[code] > 1 ? ` x${values.amenities_quantities[code]}` : ''}
+                          </span>
                           <button
                             type='button'
                             className='text-gray-500 hover:text-gray-800'
                             onClick={() => {
                               const next = values.amenities.filter((c) => c !== code)
                               setFieldValue('amenities', next)
+                              if (values?.amenities_quantities?.[code] != null) {
+                                const nextQ = { ...(values.amenities_quantities || {}) }
+                                delete nextQ[code]
+                                setFieldValue('amenities_quantities', nextQ)
+                              }
                             }}
                             aria-label={t('rooms_modal.amenities.remove', 'Quitar')}
                           >
@@ -471,21 +486,54 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
                             {items.map((a) => {
                               const checked = Array.isArray(values.amenities) && values.amenities.includes(a.code)
                               return (
-                                <label key={a.code} className='flex items-center gap-2 text-sm text-gray-800'>
-                                  <input
-                                    type='checkbox'
-                                    checked={checked}
-                                    onChange={() => {
-                                      const current = Array.isArray(values.amenities) ? values.amenities : []
-                                      if (current.includes(a.code)) {
-                                        setFieldValue('amenities', current.filter((c) => c !== a.code))
-                                      } else {
-                                        setFieldValue('amenities', [...current, a.code])
-                                      }
-                                    }}
-                                  />
-                                  <span>{t(a.i18nKey)}</span>
-                                </label>
+                                <div key={a.code} className='flex items-center justify-between gap-3'>
+                                  <label className='flex items-center gap-2 text-sm text-gray-800'>
+                                    <input
+                                      type='checkbox'
+                                      checked={checked}
+                                      onChange={() => {
+                                        const current = Array.isArray(values.amenities) ? values.amenities : []
+                                        const isOn = current.includes(a.code)
+                                        if (isOn) {
+                                          setFieldValue('amenities', current.filter((c) => c !== a.code))
+                                          if (values?.amenities_quantities?.[a.code] != null) {
+                                            const nextQ = { ...(values.amenities_quantities || {}) }
+                                            delete nextQ[a.code]
+                                            setFieldValue('amenities_quantities', nextQ)
+                                          }
+                                        } else {
+                                          setFieldValue('amenities', [...current, a.code])
+                                          if (isQuantifiableAmenity(a.code)) {
+                                            const nextQ = { ...(values.amenities_quantities || {}) }
+                                            if (!nextQ[a.code]) nextQ[a.code] = 1
+                                            setFieldValue('amenities_quantities', nextQ)
+                                          }
+                                        }
+                                      }}
+                                    />
+                                    <span>{t(a.i18nKey)}</span>
+                                  </label>
+
+                                  {checked && isQuantifiableAmenity(a.code) ? (
+                                    <div className='flex items-center gap-2'>
+                                      <span className='text-xs text-gray-500'>x</span>
+                                      <input
+                                        type='number'
+                                        min='1'
+                                        value={values?.amenities_quantities?.[a.code] ?? 1}
+                                        onChange={(e) => {
+                                          const raw = Number(e.target.value)
+                                          const qty = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1
+                                          const nextQ = { ...(values.amenities_quantities || {}) }
+                                          nextQ[a.code] = qty
+                                          setFieldValue('amenities_quantities', nextQ)
+                                        }}
+                                        className='w-16 border border-gray-200 rounded-md px-2 py-1 text-sm'
+                                        aria-label={`Cantidad de ${t(a.i18nKey)}`}
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
                               )
                             })}
                           </div>

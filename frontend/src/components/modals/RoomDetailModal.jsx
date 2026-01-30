@@ -156,6 +156,7 @@ const RoomDetailModal = ({ isOpen, onClose, room }) => {
                   title={code}
                 >
                   {getAmenityLabel(t, code)}
+                  {room?.amenities_quantities?.[code] > 1 ? ` x${room.amenities_quantities[code]}` : ''}
                 </span>
               ))}
             </div>
