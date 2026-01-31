@@ -30,6 +30,7 @@ const SelectAsync = ({
   autoSelectSingle = true,
   disableIfSingle = false,
   extraParams = {},
+  transformOptions = (opts) => opts,
   getOptionLabel = (o) => o?.name ?? o?.title ?? o?.label ?? String(o?.id ?? ''),
   getOptionValue = (o) => o?.id ?? o?.value ?? '',
   onValueChange,
@@ -56,7 +57,7 @@ const SelectAsync = ({
     return () => clearTimeout(id)
   }, [query, refetch])
 
-  const options = useMemo(() => results || [], [results])
+  const options = useMemo(() => transformOptions(results || []), [results, transformOptions])
   
   // Auto-seleccionar si solo hay una opción y el campo está vacío
   useEffect(() => {

@@ -47,6 +47,35 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
   const { hotelIdsString, isSuperuser } = useUserHotels()
   const [payOpen, setPayOpen] = useState(false)
   const [payInfo, setPayInfo] = useState(null)
+  const roomNameCollator = useMemo(() => new Intl.Collator('es', { numeric: true, sensitivity: 'base' }), [])
+
+  const getRoomDisplayName = (room) => {
+    return (
+      room?.name ??
+      room?.number ??
+      room?.room_number ??
+      room?.code ??
+      (room?.id != null ? t('reservations_modal.room_name', { id: room.id }) : '')
+    )
+  }
+
+  const getRoomTypeLabel = (room) => {
+    return (
+      room?.room_type_name ??
+      room?.room_type_display ??
+      room?.room_type?.name ??
+      room?.room_type ??
+      room?.type?.name ??
+      room?.type
+    )
+  }
+
+  const getRoomOptionLabel = (room) => {
+    const name = getRoomDisplayName(room)
+    const type = getRoomTypeLabel(room)
+    if (name && type) return `${name} - ${type}`
+    return name || (room?.id != null ? t('reservations_modal.room_name', { id: room.id }) : '')
+  }
 
   // Función helper para formatear fechas correctamente
   const formatDate = (dateString, formatStr = 'dd MMM') => {
@@ -1105,7 +1134,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       {lockRoom ? (
                         <LabelsContainer title={`${t('reservations_modal.room')} *`}>
                           <div className="w-full border border-gray-200 rounded-md px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed">
-                            {values.room_data?.name || values.room_data?.number || (values.room ? `#${values.room}` : '—')}
+                            {values.room_data ? getRoomOptionLabel(values.room_data) : (values.room ? `#${values.room}` : '—')}
                           </div>
                         </LabelsContainer>
                       ) : (
@@ -1125,7 +1154,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                                   plural: values.guests > 1 ? 'es' : '' 
                                 })
                           }
-                          getOptionLabel={(r) => r?.name || t('reservations_modal.room_name', { id: r?.id })}
+                          transformOptions={(opts) => {
+                            const sorted = Array.isArray(opts) ? [...opts] : []
+                            sorted.sort((a, b) => roomNameCollator.compare(getRoomDisplayName(a), getRoomDisplayName(b)))
+                            return sorted
+                          }}
+                          getOptionLabel={(r) => getRoomOptionLabel(r)}
                           getOptionValue={(r) => r?.id}
                           extraParams={{
                             hotel: values.hotel || undefined,
