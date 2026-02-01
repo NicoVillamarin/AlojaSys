@@ -1,0 +1,60 @@
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient for cloud outline -->
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="25%" style="stop-color:#d3d3d3;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#808080;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffd700;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradient for the A letter -->
+    <linearGradient id="letterGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4169e1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#000080;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Cloud shape outline -->
+  <path d="M 80 120 
+           C 60 100, 40 90, 20 110
+           C 10 130, 20 150, 40 160
+           C 50 180, 70 190, 90 185
+           C 110 200, 130 195, 150 185
+           C 170 190, 190 180, 200 160
+           C 220 150, 230 130, 220 110
+           C 200 90, 180 100, 160 120
+           C 140 100, 120 90, 100 100
+           Z" 
+        fill="url(#cloudGradient)" 
+        stroke="none"/>
+  
+  <!-- Letter A -->
+  <path d="M 120 180
+           L 140 140
+           L 160 180
+           M 130 160
+           L 150 160" 
+        stroke="url(#letterGradient)" 
+        stroke-width="8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+  
+  <!-- Infinity symbol -->
+  <path d="M 100 160
+           C 90 150, 80 150, 70 160
+           C 60 170, 70 180, 80 180
+           C 90 190, 100 190, 110 180
+           C 120 170, 130 170, 140 180
+           C 150 190, 160 190, 170 180
+           C 180 170, 170 160, 160 160
+           C 150 150, 140 150, 130 160" 
+        stroke="#ffd700" 
+        stroke-width="6" 
+        fill="none"/>
+  
+  <!-- Small star in bottom right -->
+  <polygon points="350,250 355,240 360,250 350,245 360,245" 
+           fill="#d3d3d3"/>
+</svg>
