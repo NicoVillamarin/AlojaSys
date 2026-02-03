@@ -66,6 +66,29 @@ select:-webkit-autofill {
 .animate-intro-pop { animation: intro-pop 900ms cubic-bezier(.22,.61,.36,1) forwards; }
 .animate-window-blink { animation: window-blink 1200ms ease-in-out infinite alternate; }
 
+/* Login: entrada escalonada */
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.login-stagger-0 { animation: login-fade-up 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; }
+.login-stagger-1 { animation: login-fade-up 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.08s forwards; opacity: 0; }
+.login-stagger-2 { animation: login-fade-up 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.16s forwards; opacity: 0; }
+.login-stagger-3 { animation: login-fade-up 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.24s forwards; opacity: 0; }
+.login-stagger-4 { animation: login-fade-up 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.32s forwards; opacity: 0; }
+
+/* Contenedor del logo: solo padding, sin caja (el borde va en el logo) */
+.logo-login-wrapper {
+  padding: 1.5rem;
+}
+
+/* Logo: sombreado sutil negro (sin borde, solo sombra suave) */
+.logo-login-power {
+  filter:
+    drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2))
+    drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+}
+
 /* Animación para selección de item en sidebar */
 @keyframes sidebar-select {
   0% { transform: translateX(-6px); opacity: 0.6; }

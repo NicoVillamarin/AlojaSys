@@ -86,6 +86,20 @@ export default function Sidebar({
   });
   const { data: me } = useMe();
   const isSuperuser = me?.is_superuser || false;
+  const isAdministradorGroup =
+    Array.isArray(me?.groups) &&
+    me.groups.some((g) => {
+      const name = String(g?.name ?? "").trim().toLowerCase();
+      // Cubrimos variantes comunes: "Administrador", "Admin", "Administrador (Hotel)", etc.
+      return name === "admin" || name.includes("administrador");
+    });
+  const isAdministradorByPosition = /administrador/i.test(
+    String(me?.profile?.position ?? "").trim()
+  );
+  // Si NO es superuser y es "Administrador" (por grupo o por posición), limitamos el menú
+  // de Configuración a lo estrictamente necesario (Tarifas y Políticas), aunque tenga permisos sueltos.
+  const isLimitedAdministrador =
+    !isSuperuser && (isAdministradorGroup || isAdministradorByPosition);
   const { hasSingleHotel, singleHotelId } = useUserHotels();
   const { housekeepingEnabled } = usePlanFeatures();
 
@@ -653,7 +667,11 @@ export default function Sidebar({
           {!isOnlyHousekeepingStaff &&
             !isMini &&
             hasAnySettings &&
-            isSuperuser && (
+            (isSuperuser ||
+              isAdministradorGroup ||
+              // Para admins "no superuser": si tiene permisos de Tarifas/Políticas, debe ver Configuraciones
+              hasAnyRate ||
+              hasAnyPolicy) && (
               <div className="mt-1">
                 <button
                   type="button"
@@ -679,190 +697,208 @@ export default function Sidebar({
                   }`}
                 >
                   {hasViewEnterprises && (
-                    <Item
-                      to="/settings/enterprises"
-                      onMobileClose={onMobileClose}
-                      isMobile={isMobile}
-                    >
-                      {t("sidebar.enterprises")}
-                    </Item>
+                    !isLimitedAdministrador && (
+                      <Item
+                        to="/settings/enterprises"
+                        onMobileClose={onMobileClose}
+                        isMobile={isMobile}
+                      >
+                        {t("sidebar.enterprises")}
+                      </Item>
+                    )
                   )}
                   {hasViewOTAsConfig && (
-                    <Item
-                      to="/settings/otas"
-                      onMobileClose={onMobileClose}
-                      isMobile={isMobile}
-                    >
-                      {t("sidebar.otas")}
-                    </Item>
+                    !isLimitedAdministrador && (
+                      <Item
+                        to="/settings/otas"
+                        onMobileClose={onMobileClose}
+                        isMobile={isMobile}
+                      >
+                        {t("sidebar.otas")}
+                      </Item>
+                    )
                   )}
                   {hasViewRoomsConfig && (
-                    <Item
-                      to="/settings/rooms"
-                      onMobileClose={onMobileClose}
-                      isMobile={isMobile}
-                    >
-                      {t("sidebar.rooms")}
-                    </Item>
+                    !isLimitedAdministrador && (
+                      <Item
+                        to="/settings/rooms"
+                        onMobileClose={onMobileClose}
+                        isMobile={isMobile}
+                      >
+                        {t("sidebar.rooms")}
+                      </Item>
+                    )
                   )}
                   {hasViewHotels && (
-                    <>
-                      <Item
-                        to="/settings/hotels"
-                        onMobileClose={onMobileClose}
-                        isMobile={isMobile}
-                      >
-                        {t("sidebar.hotels")}
-                      </Item>
-                      <Item
-                        to="/settings/whatsapp"
-                        onMobileClose={onMobileClose}
-                        isMobile={isMobile}
-                      >
-                        {t("sidebar.whatsapp")}
-                      </Item>
-                    </>
+                    !isLimitedAdministrador && (
+                      <>
+                        <Item
+                          to="/settings/hotels"
+                          onMobileClose={onMobileClose}
+                          isMobile={isMobile}
+                        >
+                          {t("sidebar.hotels")}
+                        </Item>
+                        <Item
+                          to="/settings/whatsapp"
+                          onMobileClose={onMobileClose}
+                          isMobile={isMobile}
+                        >
+                          {t("sidebar.whatsapp")}
+                        </Item>
+                      </>
+                    )
                   )}
                   {hasViewUsers && (
-                    <Item
-                      to="/settings/users"
-                      onMobileClose={onMobileClose}
-                      isMobile={isMobile}
-                    >
-                      {t("sidebar.users")}
-                    </Item>
+                    !isLimitedAdministrador && (
+                      <Item
+                        to="/settings/users"
+                        onMobileClose={onMobileClose}
+                        isMobile={isMobile}
+                      >
+                        {t("sidebar.users")}
+                      </Item>
+                    )
                   )}
                   {hasViewRoles && (
+                    !isLimitedAdministrador && (
+                      <Item
+                        to="/settings/roles"
+                        onMobileClose={onMobileClose}
+                        isMobile={isMobile}
+                      >
+                        {t("sidebar.roles")}
+                      </Item>
+                    )
+                  )}
+                  {/* Fiscal - por ahora sin permiso específico, se puede agregar después */}
+                  {!isLimitedAdministrador && (
                     <Item
-                      to="/settings/roles"
+                      to="/settings/fiscal"
                       onMobileClose={onMobileClose}
                       isMobile={isMobile}
                     >
-                      {t("sidebar.roles")}
+                      Configuración Fiscal
                     </Item>
                   )}
-                  {/* Fiscal - por ahora sin permiso específico, se puede agregar después */}
-                  <Item
-                    to="/settings/fiscal"
-                    onMobileClose={onMobileClose}
-                    isMobile={isMobile}
-                  >
-                    Configuración Fiscal
-                  </Item>
                   {canShowHousekeepingConfig && (
-                    <div className="mt-1 ml-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleGroup("housekeeping")}
-                        className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
-                          openGroups.housekeeping
-                            ? "text-white bg-white/5"
-                            : "text-white/80 hover:text-white hover:bg-white/5"
-                        }`}
-                        aria-expanded={openGroups.housekeeping}
-                      >
-                        <span>{t("sidebar.housekeeping_config")}</span>
-                        <Chevron open={openGroups.housekeeping} />
-                      </button>
-                      <div
-                        className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
-                          openGroups.housekeeping
-                            ? "max-h-48 opacity-100"
-                            : "max-h-0 opacity-0"
-                        }`}
-                      >
-                        <Item
-                          to="/settings/housekeeping"
-                          onMobileClose={onMobileClose}
-                          isMobile={isMobile}
-                          exact={true}
+                    !isLimitedAdministrador && (
+                      <div className="mt-1 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup("housekeeping")}
+                          className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
+                            openGroups.housekeeping
+                              ? "text-white bg-white/5"
+                              : "text-white/80 hover:text-white hover:bg-white/5"
+                          }`}
+                          aria-expanded={openGroups.housekeeping}
                         >
-                          {t("housekeeping.config.title")}
-                        </Item>
-                        <Item
-                          to="/settings/housekeeping/zones"
-                          onMobileClose={onMobileClose}
-                          isMobile={isMobile}
+                          <span>{t("sidebar.housekeeping_config")}</span>
+                          <Chevron open={openGroups.housekeeping} />
+                        </button>
+                        <div
+                          className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
+                            openGroups.housekeeping
+                              ? "max-h-48 opacity-100"
+                              : "max-h-0 opacity-0"
+                          }`}
                         >
-                          {t("housekeeping.zones.title")}
-                        </Item>
-                        <Item
-                          to="/settings/housekeeping/staff"
-                          onMobileClose={onMobileClose}
-                          isMobile={isMobile}
-                        >
-                          {t("housekeeping.staff.title")}
-                        </Item>
-                        <Item
-                          to="/settings/housekeeping/templates"
-                          onMobileClose={onMobileClose}
-                          isMobile={isMobile}
-                        >
-                          {t("housekeeping.templates.title")}
-                        </Item>
-                        {canSeeHousekeepingChecklistsMenu && (
                           <Item
-                            to="/settings/housekeeping/checklists"
+                            to="/settings/housekeeping"
+                            onMobileClose={onMobileClose}
+                            isMobile={isMobile}
+                            exact={true}
+                          >
+                            {t("housekeeping.config.title")}
+                          </Item>
+                          <Item
+                            to="/settings/housekeeping/zones"
                             onMobileClose={onMobileClose}
                             isMobile={isMobile}
                           >
-                            {t("housekeeping.checklists.title")}
+                            {t("housekeeping.zones.title")}
                           </Item>
-                        )}
+                          <Item
+                            to="/settings/housekeeping/staff"
+                            onMobileClose={onMobileClose}
+                            isMobile={isMobile}
+                          >
+                            {t("housekeeping.staff.title")}
+                          </Item>
+                          <Item
+                            to="/settings/housekeeping/templates"
+                            onMobileClose={onMobileClose}
+                            isMobile={isMobile}
+                          >
+                            {t("housekeeping.templates.title")}
+                          </Item>
+                          {canSeeHousekeepingChecklistsMenu && (
+                            <Item
+                              to="/settings/housekeeping/checklists"
+                              onMobileClose={onMobileClose}
+                              isMobile={isMobile}
+                            >
+                              {t("housekeeping.checklists.title")}
+                            </Item>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )
                   )}
                   {hasAnyLocation && (
-                    <div className="mt-1 ml-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleGroup("locations")}
-                        className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
-                          openGroups.locations
-                            ? "text-white bg-white/5"
-                            : "text-white/80 hover:text-white hover:bg-white/5"
-                        }`}
-                        aria-expanded={openGroups.locations}
-                      >
-                        <span>{t("sidebar.locations")}</span>
-                        <Chevron open={openGroups.locations} />
-                      </button>
-                      <div
-                        className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
-                          openGroups.locations
-                            ? "max-h-48 opacity-100"
-                            : "max-h-0 opacity-0"
-                        }`}
-                      >
-                        {hasViewCountries && (
-                          <Item
-                            to="/settings/locations/countries"
-                            onMobileClose={onMobileClose}
-                            isMobile={isMobile}
-                          >
-                            {t("sidebar.countries")}
-                          </Item>
-                        )}
-                        {hasViewStates && (
-                          <Item
-                            to="/settings/locations/states"
-                            onMobileClose={onMobileClose}
-                            isMobile={isMobile}
-                          >
-                            {t("sidebar.states")}
-                          </Item>
-                        )}
-                        {hasViewCities && (
-                          <Item
-                            to="/settings/locations/cities"
-                            onMobileClose={onMobileClose}
-                            isMobile={isMobile}
-                          >
-                            {t("sidebar.cities")}
-                          </Item>
-                        )}
+                    !isLimitedAdministrador && (
+                      <div className="mt-1 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup("locations")}
+                          className={`w-full flex items-center justify-between h-9 px-3 text-sm rounded-md transition-colors ${
+                            openGroups.locations
+                              ? "text-white bg-white/5"
+                              : "text-white/80 hover:text-white hover:bg-white/5"
+                          }`}
+                          aria-expanded={openGroups.locations}
+                        >
+                          <span>{t("sidebar.locations")}</span>
+                          <Chevron open={openGroups.locations} />
+                        </button>
+                        <div
+                          className={`mt-1 ml-4 flex flex-col gap-1 overflow-hidden transition-all duration-200 ${
+                            openGroups.locations
+                              ? "max-h-48 opacity-100"
+                              : "max-h-0 opacity-0"
+                          }`}
+                        >
+                          {hasViewCountries && (
+                            <Item
+                              to="/settings/locations/countries"
+                              onMobileClose={onMobileClose}
+                              isMobile={isMobile}
+                            >
+                              {t("sidebar.countries")}
+                            </Item>
+                          )}
+                          {hasViewStates && (
+                            <Item
+                              to="/settings/locations/states"
+                              onMobileClose={onMobileClose}
+                              isMobile={isMobile}
+                            >
+                              {t("sidebar.states")}
+                            </Item>
+                          )}
+                          {hasViewCities && (
+                            <Item
+                              to="/settings/locations/cities"
+                              onMobileClose={onMobileClose}
+                              isMobile={isMobile}
+                            >
+                              {t("sidebar.cities")}
+                            </Item>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )
                   )}
                   {hasAnyRate && (
                     <div className="mt-1 ml-2">
