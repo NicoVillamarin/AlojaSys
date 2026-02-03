@@ -5,7 +5,7 @@ import { showErrorConfirm, showSuccess } from "src/services/toast";
 import fondo from "../assets/img/fondo.png";
 import fondo2 from "../assets/img/fondo_2.png";
 import fondo3 from "../assets/img/fondo_3.png";
-import logo from "../assets/img/logo_complet_black_tranparent_2.png";
+import logo from "../assets/img/logo_complet_black_tranparent_2.PNG";
 import SpinnerLoading from "src/components/SpinnerLoading";
 import EyeIcon from "../assets/icons/EyeIcon";
 import EyeSlashIcon from "../assets/icons/EyeSlashIcon";
