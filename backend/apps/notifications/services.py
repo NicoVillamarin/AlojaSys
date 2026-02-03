@@ -266,6 +266,46 @@ class NotificationService:
             reservation_id=reservation_id,
             metadata=metadata
         )
+
+    @staticmethod
+    def create_website_reservation_notification(
+        reservation_code: str,
+        room_name: str,
+        check_in_date: str,
+        check_out_date: str,
+        guest_name: str = "",
+        hotel_id: Optional[int] = None,
+        reservation_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+    ) -> Notification:
+        """Crea notificación cuando se recibe una reserva desde el sitio web externo."""
+        title = f"Nueva reserva desde Sitio Web - {room_name}"
+        parts = [
+            "Nueva reserva recibida desde Sitio Web",
+            f"Reserva: #{reservation_code}",
+            f"Habitación: {room_name}",
+            f"Check-in: {check_in_date}",
+            f"Check-out: {check_out_date}",
+        ]
+        if guest_name:
+            parts.insert(2, f"Huésped: {guest_name}")
+        message = "\n".join(parts)
+        return NotificationService.create(
+            notification_type=NotificationType.WEBSITE_RESERVATION_RECEIVED,
+            title=title,
+            message=message,
+            user_id=user_id,
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            metadata={
+                "source": "website",
+                "reservation_code": reservation_code,
+                "room_name": room_name,
+                "check_in": check_in_date,
+                "check_out": check_out_date,
+                "guest_name": guest_name,
+            },
+        )
     
     @staticmethod
     def create_bulk_notification(

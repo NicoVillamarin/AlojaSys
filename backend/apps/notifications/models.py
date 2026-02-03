@@ -14,6 +14,7 @@ class NotificationType(models.TextChoices):
     OTA_RESERVATION_RECEIVED = "ota_reservation_received", "Nueva Reserva OTA"
     HOUSEKEEPING_TASK_CREATED = "housekeeping_task_created", "Tarea de Limpieza Creada"
     WHATSAPP_RESERVATION_RECEIVED = "whatsapp_reservation_received", "Reserva vía WhatsApp"
+    WEBSITE_RESERVATION_RECEIVED = "website_reservation_received", "Reserva vía Sitio Web"
 
 
 class Notification(models.Model):

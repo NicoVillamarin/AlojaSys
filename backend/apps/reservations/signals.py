@@ -131,6 +131,36 @@ def reservation_post_save_log(sender, instance: Reservation, created, **kwargs):
 
 
 @receiver(post_save, sender=Reservation)
+def reservation_created_notifications(sender, instance: Reservation, created, **kwargs):
+    """
+    Notificaciones in-app al crear reservas por canal.
+    - OTA: se manejan en servicios de OTAs (no aquí).
+    - WhatsApp: se maneja en apps.chatbot.
+    - Sitio Web: se crea aquí (reservas creadas vía API externa).
+    """
+    if not created:
+        return
+    try:
+        if instance.channel != ReservationChannel.WEBSITE:
+            return
+        from apps.notifications.services import NotificationService
+
+        room_name = getattr(getattr(instance, "room", None), "name", "Habitación")
+        NotificationService.create_website_reservation_notification(
+            reservation_code=str(instance.id),
+            room_name=room_name,
+            check_in_date=str(instance.check_in),
+            check_out_date=str(instance.check_out),
+            guest_name=instance.guest_name or "",
+            hotel_id=getattr(instance, "hotel_id", None),
+            reservation_id=getattr(instance, "id", None),
+            user_id=None,  # broadcast
+        )
+    except Exception:
+        # No bloquear creación de reserva por fallas en notificaciones
+        return
+
+@receiver(post_save, sender=Reservation)
 def reservation_export_to_google(sender, instance: Reservation, created, **kwargs):
     """Exporta reservas a Google Calendar cuando se crean/actualizan."""
     import logging

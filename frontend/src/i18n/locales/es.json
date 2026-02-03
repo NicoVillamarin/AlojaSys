@@ -44,6 +44,7 @@
     "refunds_history": "Histórico de Reembolsos",
     "vouchers": "Vouchers",
     "bank_reconciliation": "Conciliación Bancaria",
+    "cashbox": "Caja",
     "invoicing": "Facturación",
     "invoicing_electronic": "Factura Electrónica",
     "invoicing_receipts": "Comprobante de Pago",
@@ -53,6 +54,12 @@
     "housekeeping": "Gestión de Limpieza",
     "housekeeping_config": "Limpieza",
     "housekeeping_historical": "Histórico de Limpieza"
+  },
+  "cashbox": {
+    "tabs": {
+      "general": "General",
+      "historical": "Histórico"
+    }
   },
   "vouchers_modal": {
     "create_voucher": "Crear Voucher",

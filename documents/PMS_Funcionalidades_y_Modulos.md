@@ -9,6 +9,10 @@
    - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
    - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
    - [3.4.1 Sistema de Vouchers de Crédito](#341-sistema-de-vouchers-de-crédito)
+   - [3.4.2 Transferencias Bancarias con OCR](#341-transferencias-bancarias-con-ocr-v22)
+   - [3.4.3 Módulo de Cobros](#342-módulo-de-cobros-v22)
+   - [3.4.4 Conciliación Bancaria Automática](#343-conciliación-bancaria-automática-v23)
+   - [3.4.5 Apertura y Cierre de Caja](#apertura-y-cierre-de-caja-caja)
    - [3.5 Políticas de Cancelación](#35-políticas-de-cancelación)
    - [3.6 Políticas de Devolución](#36-políticas-de-devolución)
    - [3.7 Gestión de Tarifas](#37-gestión-de-tarifas)
@@ -20,32 +24,6 @@
    - [3.13 Facturación Electrónica Argentina](#313-facturación-electrónica-argentina)
    - [3.14 Facturación Electrónica Argentina](#314-facturación-electrónica-argentina)
    - [3.15 Comprobantes de Señas y Devoluciones](#315-comprobantes-de-señas-y-devoluciones)
-   - [3.16 Integraciones con OTAs (Channel Manager)](#316-integraciones-con-otas-channel-manager)
-   - [3.17 Gestión de Limpieza (Housekeeping)](#317-gestión-de-limpieza-housekeeping)
-4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
-5. [Casos de Uso Reales](#casos-de-uso-reales)
-6. [Beneficios del Sistema](#beneficios-del-sistema)
-1. [¿Qué es AlojaSys?](#qué-es-alojasys)
-2. [¿Cómo Funciona el Sistema?](#cómo-funciona-el-sistema)
-3. [Módulos y Funcionalidades](#módulos-y-funcionalidades)
-   - [3.1 Gestión de Hoteles](#31-gestión-de-hoteles)
-   - [3.2 Gestión de Habitaciones](#32-gestión-de-habitaciones)
-   - [3.3 Gestión de Reservas](#33-gestión-de-reservas)
-   - [3.4 Sistema de Pagos](#34-sistema-de-pagos)
-   - [3.4.1 Transferencias Bancarias con OCR](#341-transferencias-bancarias-con-ocr-v22)
-   - [3.4.2 Módulo de Cobros](#342-módulo-de-cobros-v22)
-   - [3.4.3 Conciliación Bancaria Automática](#343-conciliación-bancaria-automática-v23)
-   - [3.5 Políticas de Cancelación](#35-políticas-de-cancelación)
-   - [3.6 Políticas de Devolución](#36-políticas-de-devolución)
-   - [3.7 Gestión de Tarifas](#37-gestión-de-tarifas)
-   - [3.8 Dashboard y Reportes](#38-dashboard-y-reportes)
-   - [3.9 Calendario de Reservas](#39-calendario-de-reservas)
-   - [3.10 Gestión de Usuarios](#310-gestión-de-usuarios)
-   - [3.11 Gestión de Empresas](#311-gestión-de-empresas)
-   - [3.12 Sistema de Notificaciones](#312-sistema-de-notificaciones)
-   - [3.13 Procesamiento Automático de Reembolsos](#313-procesamiento-automático-de-reembolsos)
-   - [3.14 Facturación Electrónica Argentina](#314-facturación-electrónica-argentina)
-   - [3.15 Comprobantes de Señas y Pagos Parciales](#315-comprobantes-de-señas-y-pagos-parciales)
    - [3.16 Integraciones con OTAs (Channel Manager)](#316-integraciones-con-otas-channel-manager)
    - [3.17 Gestión de Limpieza (Housekeeping)](#317-gestión-de-limpieza-housekeeping)
 4. [Flujos de Trabajo del Día a Día](#flujos-de-trabajo-del-día-a-día)
@@ -66,6 +44,7 @@
 - 🧾 **Generar comprobantes** de señas automáticamente
 - 🤖 **Procesar reembolsos** automáticamente 24/7
 - 🏦 **Conciliar bancos** automáticamente con extractos
+- 📦 **Abrir y cerrar caja** del día con control de efectivo y diferencias
 - 📊 **Generar reportes** y métricas del negocio
 - 👥 **Gestionar usuarios** y permisos del personal
 - 🏢 **Administrar múltiples hoteles** desde una sola plataforma
@@ -114,6 +93,7 @@ Permite configurar y administrar la información básica de cada hotel en el sis
 - **Ubicación**: País, provincia, ciudad
 - **Horarios**: Hora de check-in y check-out
 - **Zona Horaria**: Para manejar reservas en diferentes zonas
+- **Moneda Principal**: Moneda en la que el hotel trabaja y se muestran las tarifas (ej: ARS, USD, EUR)
 - **Auto Check-in**: Configuración para marcar automáticamente reservas como check-in al llegar la fecha de entrada
 - **Auto Check-out**: Configuración para hacer check-out automático cuando pasa la fecha de salida (habilitado por defecto)
 - **Auto No-Show**: Configuración para marcar automáticamente reservas como no-show
@@ -122,6 +102,7 @@ Permite configurar y administrar la información básica de cada hotel en el sis
 ```
 Hotel: "Hotel Plaza Central"
 Dirección: "Av. Corrientes 1234, Buenos Aires"
+Moneda: ARS
 Check-in: 15:00 hs
 Check-out: 11:00 hs
 Zona horaria: America/Argentina/Buenos_Aires
@@ -135,6 +116,7 @@ Auto no-show: Habilitado
 - ✅ **Configuración flexible** de horarios
 - ✅ **Soporte multi-hotel** desde una sola plataforma
 - ✅ **Datos legales** para facturación
+- ✅ **Claridad en precios**: las tarifas se identifican con la moneda del hotel
 - ✅ **Auto check-in configurable** por hotel
 - ✅ **Auto check-out configurable** por hotel (habilitado por defecto para mayor eficiencia)
 - ✅ **Auto no-show configurable** por hotel
@@ -718,6 +700,48 @@ fecha,descripcion,importe,moneda,referencia
 - ✅ **Reducción de Errores**: Algoritmos precisos de matching
 - ✅ **Escalabilidad**: Maneja grandes volúmenes de transacciones
 - ✅ **Flexibilidad**: Configuración por hotel y moneda
+
+### 📦 Apertura y Cierre de Caja (Caja)
+
+#### ¿Qué es la Caja?
+Es el módulo que permite **abrir y cerrar la caja del día** (o del turno) con un control claro del efectivo: fondo inicial, cobros en efectivo, ingresos y egresos manuales, y al cierre comparar lo **esperado** con lo **contado** para ver si hay diferencia.
+
+#### ¿Dónde está?
+En el menú **Financiero → Caja**. Hay dos solapas: **General** (operación del día) e **Histórico** (ver todas las cajas pasadas).
+
+#### ¿Cómo funciona?
+
+##### 1. Apertura de caja
+- Al iniciar el turno, se **abre la caja** con un **fondo inicial** (cambio).
+- Solo puede haber una caja abierta por hotel y moneda a la vez.
+
+##### 2. Durante el turno
+- Los **pagos en efectivo** de las reservas se suman automáticamente al “esperado”.
+- Podés registrar **movimientos manuales**: ingresos (ej. venta menor) o egresos (ej. compra, retiro), con monto y detalle.
+- En pantalla se ve en tiempo real: Apertura, Efectivo cobrado, Ingresos, Egresos y **Esperado**.
+
+##### 3. Cierre de caja
+- Al terminar el turno, ingresás el **efectivo contado** (lo que realmente hay en caja).
+- El sistema calcula la **diferencia** (contado − esperado) y guarda la sesión cerrada.
+- Si la diferencia es distinta de cero, queda registrada para revisión.
+
+##### 4. Histórico
+- En la solapa **Histórico** podés filtrar por fechas y estado (abierta/cerrada).
+- Al elegir una caja se ve el detalle: esperado, contado, diferencia y lista de movimientos manuales de esa sesión.
+
+#### Beneficios
+- ✅ **Control diario**: Saber cuánto entró en efectivo y si “cierra” con lo contado.
+- ✅ **Trazabilidad**: Quién abrió, quién cerró y qué movimientos se registraron.
+- ✅ **Auditoría**: Histórico de todas las cajas con apertura, cierre y diferencia.
+- ✅ **Sin mezclar con otros pagos**: Solo efectivo y movimientos manuales de caja.
+
+#### Ejemplo rápido
+```
+08:00 — Abrís caja con $ 20.000 de cambio.
+Durante el día — Cobrás $ 48.400 en efectivo (reservas) + ingresás $ 10.000 (venta) − egresás $ 5.000 (compras).
+Esperado = 20.000 + 48.400 + 10.000 − 5.000 = $ 73.400.
+22:00 — Contás $ 73.400 en caja → Cerrás con diferencia $ 0.
+```
 
 #### 🎯 Mejoras Implementadas (v2.3)
 

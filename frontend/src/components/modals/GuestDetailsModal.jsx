@@ -33,7 +33,13 @@ function normalizeGuestsFromReservation(reservation) {
     const doc = (g.document || '').trim()
     const email = (g.email || '').trim().toLowerCase()
     const name = (g.name || '').trim().toLowerCase()
-    return doc || email || name || JSON.stringify(g)
+    // Importante:
+    // - No deduplicar SOLO por email, porque puede repetirse (ej: el mismo email de contacto para varios huéspedes).
+    // - Preferimos deduplicar por combinación estable (doc/email/nombre/teléfono).
+    const phone = (g.phone || '').trim()
+    if (doc) return `doc:${doc}`
+    if (name || email || phone) return `mix:${name}|${email}|${phone}`
+    return `raw:${JSON.stringify(g)}`
   }
 
   const uniq = []

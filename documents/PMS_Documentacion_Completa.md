@@ -16,11 +16,12 @@
    - [3.10 Módulo Notifications](#310-módulo-notifications)
    - [3.11 Módulo Cobros](#311-módulo-cobros-payment-collections)
    - [3.12 Módulo Conciliación Bancaria](#312-módulo-conciliación-bancaria)
-   - [3.13 Módulo Facturación Electrónica](#313-módulo-facturación-electrónica)
-   - [3.14 Módulo Comprobantes de Pagos](#314-módulo-comprobantes-de-pagos-payment-receipts)
-   - [3.15 Módulo OTAs (Channel Manager)](#315-módulo-otas-channel-manager)
-   - [3.16 Módulo Housekeeping (Gestión de Limpieza)](#316-módulo-housekeeping-gestión-de-limpieza)
-   - [3.17 Módulo Chatbot & WhatsApp](#317-módulo-chatbot--whatsapp)
+   - [3.13 Módulo Caja (Cashbox)](#313-módulo-caja-cashbox)
+   - [3.14 Módulo Facturación Electrónica](#314-módulo-facturación-electrónica)
+   - [3.15 Módulo Comprobantes de Pagos](#315-módulo-comprobantes-de-pagos-payment-receipts)
+   - [3.16 Módulo OTAs (Channel Manager)](#316-módulo-otas-channel-manager)
+   - [3.17 Módulo Housekeeping (Gestión de Limpieza)](#317-módulo-housekeeping-gestión-de-limpieza)
+   - [3.18 Módulo Chatbot & WhatsApp](#318-módulo-chatbot--whatsapp)
 4. [Flujos de Trabajo Principales](#flujos-de-trabajo-principales)
 5. [APIs y Endpoints](#apis-y-endpoints)
 6. [Configuraciones y Políticas](#configuraciones-y-políticas)
@@ -55,6 +56,7 @@
 - ✅ Facturación electrónica argentina con integración AFIP
 - ✅ Generación automática de facturas desde reservas
 - ✅ PDFs fiscales con diseño oficial AFIP
+- ✅ **Apertura y cierre de caja diario**: sesiones por hotel/moneda, fondo inicial, movimientos manuales (ingresos/egresos), efectivo esperado vs. contado y histórico con detalle
 
 ---
 
@@ -105,6 +107,7 @@ class Hotel(models.Model):
     state = ForeignKey(State)            # Provincia/Estado
     city = ForeignKey(City)              # Ciudad
     timezone = CharField(60)             # Zona horaria
+    currency = CharField(3, default='ARS') # Moneda principal (ISO 4217: ARS, USD, EUR)
     check_in_time = TimeField()          # Hora de check-in
     check_out_time = TimeField()         # Hora de check-out
     auto_check_in_enabled = BooleanField # Check-in automático
@@ -117,6 +120,7 @@ class Hotel(models.Model):
 - ✅ Gestión de información básica del hotel
 - ✅ Configuración de horarios de check-in/check-out
 - ✅ Gestión de zona horaria
+- ✅ Configuración de moneda principal del hotel (`currency`, ISO 4217)
 - ✅ Configuración de check-in automático (`auto_check_in_enabled`)
 - ✅ Configuración de check-out automático (`auto_check_out_enabled`, default=True)
 - ✅ Configuración de auto no-show automático (`auto_no_show_enabled`)
@@ -127,6 +131,10 @@ class Hotel(models.Model):
 - Los horarios de check-in y check-out no pueden ser iguales
 - Nombre del hotel debe ser único
 - Campos obligatorios: nombre, email, teléfono
+
+### Notas de Migraciones (importante)
+- Al agregar `Hotel.currency`, es **obligatorio** aplicar migraciones; si no, el endpoint `GET /api/hotels/` puede fallar con `ProgrammingError: column core_hotel.currency does not exist`.
+- Migración: `apps.core.migrations.0015_hotel_currency`.
 
 ---
 
@@ -3650,7 +3658,51 @@ def process_bank_reconciliation(reconciliation_id):
 
 ---
 
-## 3.13 Módulo Facturación Electrónica
+## 3.13 Módulo Caja (Cashbox)
+
+**Propósito**: Apertura y cierre de caja por turno/día, con fondo inicial, movimientos manuales (ingresos/egresos), y cálculo de efectivo esperado vs. contado para auditoría y control de diferencias.
+
+### Ubicación en el sistema
+- **Backend**: `apps.cashbox` (Django)
+- **Frontend**: Menú **Financiero → Caja** (`/cashbox`), solapas **General** e **Histórico**
+  - **General**: sesión actual (abrir/cerrar), tarjetas de métricas (Apertura, Efectivo cobrado, Ingresos, Egresos, Esperado), formulario de movimientos (ingreso/egreso), panel de movimientos recientes.
+  - **Histórico**: filtros por fechas y estado (abierta/cerrada), listado de sesiones; al seleccionar una sesión se muestra el detalle (totales, diferencia) y la lista de movimientos de esa sesión.
+- **API base**: `GET/POST /api/cashbox/sessions/`, `POST /api/cashbox/sessions/{id}/close/`, `GET/POST /api/cashbox/movements/`
+
+### Modelos principales
+
+#### CashSession
+- **hotel**, **status** (open | closed | cancelled), **currency**
+- **opened_at**, **opened_by**, **opening_amount** (fondo inicial)
+- **closed_at**, **closed_by**, **closing_amount** (efectivo contado al cierre)
+- **expected_amount** (snapshot calculado al cerrar), **difference_amount** (closing - expected)
+- **notes**
+- Permisos: `open_cashsession`, `close_cashsession`, `view_cashbox_reports`
+
+#### CashMovement
+- **session**, **hotel**, **movement_type** (in | out), **currency**, **amount**, **description**
+- **created_by**, **created_at**
+
+### Cálculo del efectivo esperado
+- **Esperado** = `opening_amount` + suma de pagos en efectivo (`Payment.method='cash'`, mismo hotel y moneda, `created_at` entre apertura y cierre) + suma de movimientos tipo **in** − suma de movimientos tipo **out**.
+- Al cerrar se guarda snapshot en `expected_amount` y `difference_amount = closing_amount - expected_amount`.
+
+### Endpoints principales (IA/DEV)
+- `GET /api/cashbox/sessions/current/?hotel_id=&currency=` — Sesión abierta actual (404 si no hay).
+- `POST /api/cashbox/sessions/` — Abrir caja: body `{ "hotel_id", "opening_amount", "currency", "notes" }`.
+- `POST /api/cashbox/sessions/{id}/close/` — Cerrar caja: body `{ "closing_amount", "notes" }`.
+- `GET /api/cashbox/sessions/?hotel_id=&status=` — Listar sesiones (para Histórico).
+- `GET /api/cashbox/sessions/{id}/` — Detalle de sesión (incluye totales calculados).
+- `GET /api/cashbox/movements/?hotel_id=&session_id=` — Movimientos de una sesión.
+- `POST /api/cashbox/movements/` — Crear movimiento: body `{ "session", "hotel", "movement_type", "amount", "currency", "description" }`.
+
+### Permisos Django
+- `cashbox.open_cashsession`, `cashbox.close_cashsession`, `cashbox.view_cashbox_reports`
+- CRUD estándar: `view_cashsession`, `add_cashsession`, `change_cashsession`, etc.
+
+---
+
+## 3.14 Módulo Facturación Electrónica
 
 **Propósito**: Generación y gestión de facturas electrónicas argentinas con integración AFIP, cumpliendo normativas fiscales locales.
 
@@ -4198,6 +4250,15 @@ def validate_voucher(voucher_code, reservation_amount):
 - `POST /api/auth/logout/` - Cerrar sesión
 - `POST /api/auth/refresh/` - Renovar token JWT
 
+### Hoteles
+- `GET /api/hotels/` - Listar hoteles
+- `POST /api/hotels/` - Crear hotel
+- `GET /api/hotels/{id}/` - Obtener hotel
+- `PUT /api/hotels/{id}/` - Actualizar hotel
+- `PATCH /api/hotels/{id}/` - Actualización parcial
+- `DELETE /api/hotels/{id}/` - Eliminar hotel (si aplica en entorno/permiso)
+  - Nota: el payload/response incluye `currency` (código ISO 4217, ej: `ARS`, `USD`, `EUR`).
+
 ### Reservas
 - `GET /api/reservations/` - Listar reservas (con filtros)
 - `POST /api/reservations/` - Crear reserva
@@ -4392,7 +4453,7 @@ Esta integración permite conectar **AlojaSys** con canales de venta externos (O
 - `SMOOBU_PUSH_RATES`: habilita push de tarifas hacia Smoobu.
 - `SMOOBU_DRY_RUN`: fuerza modo simulación del cliente Smoobu (no hace HTTP real).
 
-## 3.15 Módulo OTAs (Channel Manager)
+## 3.16 Módulo OTAs (Channel Manager)
 
 **Propósito**: Sincronización bidireccional de disponibilidad, tarifas y reservas con plataformas OTA (Online Travel Agencies) como Booking.com y Airbnb.
 
@@ -8182,7 +8243,7 @@ def test_idempotency_key_generation(self):
 
 ---
 
-## 3.14 Módulo Comprobantes de Pagos (Payment Receipts)
+## 3.15 Módulo Comprobantes de Pagos (Payment Receipts)
 
 **Propósito**: Generación, gestión y almacenamiento de comprobantes de pago para señas, pagos parciales y devoluciones, con integración completa al sistema de facturación.
 
@@ -8495,7 +8556,7 @@ logger.info(f"Usuario {user.id} accedió a comprobante {payment.id}")
 
 ---
 
-## 3.16 Módulo Housekeeping (Gestión de Limpieza)
+## 3.17 Módulo Housekeeping (Gestión de Limpieza)
 
 **Propósito**: Sistema completo de gestión de tareas de limpieza y mantenimiento de habitaciones, con asignación automática de personal, generación de tareas programadas, y seguimiento de checklists.
 

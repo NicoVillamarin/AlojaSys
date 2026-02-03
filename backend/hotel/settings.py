@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.rates",
     "apps.payments",
+    "apps.cashbox",
     "apps.calendar",
     "apps.notifications",
     "apps.invoicing",

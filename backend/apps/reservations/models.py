@@ -24,6 +24,7 @@ class RoomBlockType(models.TextChoices):
 
 class ReservationChannel(models.TextChoices):
     DIRECT = "direct", "Directo"
+    WEBSITE = "website", "Sitio Web"
     WHATSAPP = "whatsapp", "WhatsApp"
     BOOKING = "booking", "Booking"
     EXPEDIA = "expedia", "Expedia"
@@ -95,10 +96,9 @@ class Reservation(models.Model):
 
     def clean(self):
         # Normalización de canal/origen
-        # - Si no hay external_id, forzar canal DIRECT (reservas internas)
+        # - Si no hay external_id, permitimos canales internos (direct/whatsapp/website, etc.)
+        #   y/o canales informativos (booking/airbnb/expedia) para carga manual.
         # - Si hay external_id, no permitir canal DIRECT (debe ser una reserva de OTA)
-        if not self.external_id and self.channel != ReservationChannel.DIRECT:
-            self.channel = ReservationChannel.DIRECT
         if self.external_id and self.channel == ReservationChannel.DIRECT:
             raise ValidationError({"channel": "Reservas con external_id deben tener canal distinto de DIRECT."})
 

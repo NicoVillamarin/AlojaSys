@@ -43,6 +43,7 @@
     "refunds_history": "Refunds History",
     "vouchers": "Vouchers",
     "bank_reconciliation": "Bank Reconciliation",
+    "cashbox": "Cashbox",
     "invoicing": "Invoicing",
     "invoicing_electronic": "Electronic Invoicing",
     "invoicing_receipts": "Payment Receipts",
@@ -52,6 +53,12 @@
     "housekeeping": "Housekeeping Management",
     "housekeeping_config": "Housekeeping",
     "housekeeping_historical": "Housekeeping Historical"
+  },
+  "cashbox": {
+    "tabs": {
+      "general": "General",
+      "historical": "History"
+    }
   },
   "vouchers_modal": {
     "create_voucher": "Create Voucher",

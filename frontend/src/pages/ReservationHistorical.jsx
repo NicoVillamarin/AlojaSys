@@ -16,6 +16,8 @@ import { convertToDecimal, getStatusLabel, getResStatusList } from './utils'
 import Filter from 'src/components/Filter'
 import { useUserHotels } from 'src/hooks/useUserHotels'
 import Badge from 'src/components/Badge'
+import WhatsappIcon from 'src/assets/icons/WhatsappIcon'
+import GlobalIcon from 'src/assets/icons/GlobalIcon'
 import fetchWithAuth from 'src/services/fetchWithAuth'
 import { getApiURL } from 'src/services/utils'
 import { usePermissions } from 'src/hooks/usePermissions'
@@ -478,6 +480,20 @@ export default function ReservationHistorical() {
               // Colores según el canal
               const getChannelBadge = () => {
                 if (!isOta) {
+                  if (channelValue === 'whatsapp') {
+                    return (
+                      <Badge variant="warning" size="sm" icon={WhatsappIcon}>
+                        WhatsApp
+                      </Badge>
+                    )
+                  }
+                  if (channelValue === 'website') {
+                    return (
+                      <Badge variant="info" size="sm" icon={GlobalIcon}>
+                        Sitio Web
+                      </Badge>
+                    )
+                  }
                   return (
                     <Badge variant="directo" size="sm">
                       Directo

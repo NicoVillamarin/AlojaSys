@@ -246,7 +246,10 @@ class ReservationSerializer(serializers.ModelSerializer):
                 setattr(instance, key, value)
 
             if not external_id_final:
-                instance.channel = ReservationChannel.DIRECT
+                # Reservas internas (sin external_id): permitir canales internos (direct/whatsapp/website, etc.)
+                # Si no mandan canal, mantener el existente; fallback defensivo a DIRECT.
+                new_channel = validated_data.get('channel', instance.channel)
+                instance.channel = new_channel or ReservationChannel.DIRECT
             else:
                 # Si viene DIRECT por error, forzar a OTHER como seguro por defecto
                 new_channel = validated_data.get('channel', instance.channel)

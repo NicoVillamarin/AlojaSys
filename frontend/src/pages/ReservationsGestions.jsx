@@ -26,6 +26,7 @@ import PaymentModal from "src/components/modals/PaymentModal";
 import CancellationModal from "src/components/modals/CancellationModal";
 import Badge from "src/components/Badge";
 import WhatsappIcon from "src/assets/icons/WhatsappIcon";
+import GlobalIcon from "src/assets/icons/GlobalIcon";
 import { useAuthStore } from "src/stores/useAuthStore";
 import AutoNoShowButton from "src/components/AutoNoShowButton";
 import AlertSwal from "src/components/AlertSwal";
@@ -1501,6 +1502,13 @@ export default function ReservationsGestions() {
                     return (
                       <Badge variant="warning" size="sm" icon={WhatsappIcon}>
                         WhatsApp
+                      </Badge>
+                    );
+                  }
+                  if (channelValue === "website") {
+                    return (
+                      <Badge variant="info" size="sm" icon={GlobalIcon}>
+                        Sitio Web
                       </Badge>
                     );
                   }
