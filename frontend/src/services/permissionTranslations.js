@@ -11,6 +11,7 @@ const APP_LABEL_TRANSLATIONS = {
   'sessions': 'Sesiones',
   'core': 'Núcleo',
   'enterprises': 'Empresas',
+  'cashbox': 'Caja',
   'rooms': 'Habitaciones',
   'reservations': 'Reservas',
   'locations': 'Ubicaciones',

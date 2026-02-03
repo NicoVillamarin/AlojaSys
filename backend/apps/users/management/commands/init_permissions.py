@@ -25,7 +25,7 @@ class Command(BaseCommand):
         groups_config = {
             'Administrador': {
                 'description': 'Acceso completo al sistema',
-                'apps': ['core', 'rooms', 'reservations', 'payments', 'rates', 'users', 'enterprises', 'invoicing', 'notifications'],
+                'apps': ['core', 'rooms', 'reservations', 'payments', 'rates', 'users', 'enterprises', 'invoicing', 'notifications', 'cashbox'],
                 'all_permissions': True,  # Todos los permisos
             },
             'Recepcionista': {
