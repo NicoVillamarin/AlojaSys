@@ -517,7 +517,7 @@ def send_payment_link_whatsapp(request):
     return Response(
         {
             "success": True,
-            "sent_to": re.sub(r\"\\D\", \"\", to_phone or \"\"),
+            "sent_to": re.sub(r"\D", "", to_phone or ""),
             "init_point": init_point,
             "preference_id": pref.get("id"),
         },
