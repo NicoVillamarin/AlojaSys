@@ -391,11 +391,20 @@ def process_webhook_post_processing(self, payment_intent_id: int, webhook_data: 
             try:
                 # Buscar el Payment asociado al PaymentIntent
                 from apps.reservations.models import Payment
-                payment = Payment.objects.filter(
-                    reservation=payment_intent.reservation,
-                    method='online',
-                    amount=payment_intent.amount
-                ).first()
+                mp_payment_id = str(webhook_data.get("id") or payment_intent.mp_payment_id or "")
+                payment = None
+                if mp_payment_id:
+                    payment = Payment.objects.filter(
+                        reservation=payment_intent.reservation,
+                        external_reference=mp_payment_id,
+                    ).first()
+                if not payment:
+                    # Fallback por compatibilidad: buscar por monto y fuente online
+                    payment = Payment.objects.filter(
+                        reservation=payment_intent.reservation,
+                        amount=payment_intent.amount,
+                        payment_source=Payment.PaymentSource.ONLINE_GATEWAY,
+                    ).order_by("-created_at").first()
                 
                 if payment:
                     # Generar PDF de recibo asíncronamente

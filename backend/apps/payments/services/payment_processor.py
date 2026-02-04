@@ -15,6 +15,60 @@ logger = logging.getLogger(__name__)
 
 class PaymentProcessorService:
     """Servicio para procesar pagos de forma atómica y segura"""
+
+    @staticmethod
+    def _ensure_reservation_payment_for_approved(payment_intent: PaymentIntent, raw_payment_data: Dict[str, Any]) -> None:
+        """
+        Cuando un pago online se APRUEBA vía webhook (Checkout Pro/MP),
+        necesitamos reflejarlo en `reservations.Payment` para que la UI de reservas
+        (que consume /api/reservations/<id>/payments/) deje de mostrar "Sin pagos".
+        """
+        try:
+            from apps.reservations.models import Payment, ReservationStatus
+
+            reservation = payment_intent.reservation
+            mp_payment_id = str(raw_payment_data.get("id") or payment_intent.mp_payment_id or "")
+            if not mp_payment_id:
+                return
+
+            # Idempotencia: no duplicar pagos si llega el webhook varias veces
+            if Payment.objects.filter(reservation=reservation, external_reference=mp_payment_id).exists():
+                return
+
+            # Heurística de seña: si el monto es menor al total, considerarlo depósito
+            is_deposit_flag = False
+            try:
+                is_deposit_flag = float(payment_intent.amount) + 0.01 < float(reservation.total_price)
+            except Exception:
+                is_deposit_flag = False
+
+            Payment.objects.create(
+                reservation=reservation,
+                date=timezone.now().date(),
+                method="mercadopago",
+                amount=payment_intent.amount,
+                currency=getattr(payment_intent, "currency", "ARS") or "ARS",
+                status="approved",
+                is_deposit=is_deposit_flag,
+                payment_source=Payment.PaymentSource.ONLINE_GATEWAY,
+                provider="mercadopago",
+                external_reference=mp_payment_id,
+                metadata={
+                    "mp_payment_id": mp_payment_id,
+                    "mp_preference_id": payment_intent.mp_preference_id,
+                    "external_reference": payment_intent.external_reference,
+                    "status_detail": raw_payment_data.get("status_detail"),
+                    "payment_type_id": raw_payment_data.get("payment_type_id"),
+                },
+            )
+
+            # Confirmar reserva si estaba pendiente
+            if reservation.status == ReservationStatus.PENDING:
+                reservation.status = ReservationStatus.CONFIRMED
+                reservation.save(update_fields=["status", "updated_at"])
+        except Exception as e:
+            # No romper el webhook si falla el espejo a Payment
+            logger.error("Error creando Payment para reserva desde webhook: %s", e, exc_info=True)
     
     @staticmethod
     @transaction.atomic
@@ -54,6 +108,10 @@ class PaymentProcessorService:
             payment_intent.save(update_fields=[
                 'status', 'mp_payment_id', 'external_reference', 'updated_at'
             ])
+
+            # Si el pago se aprobó por webhook, reflejarlo en Reservation.payments
+            if new_status == PaymentIntentStatus.APPROVED and raw_payment_data:
+                PaymentProcessorService._ensure_reservation_payment_for_approved(payment_intent, raw_payment_data)
             
             # Emitir evento interno según el nuevo estado
             # TODO: Implementar emit_payment_event cuando se resuelva el circular import
