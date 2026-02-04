@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import PrivateRoute from "src/routes/PrivateRoute"
 import PublicRoute from "src/routes/PublicRoute"
 import Login from "src/pages/Login"
+import PaymentReturn from "src/pages/PaymentReturn"
 import LoadingScreen from "src/components/LoadingScreen"
 import { appRoutes } from "src/routes/routes"
 import { ToastContainer } from "react-toastify"
@@ -44,6 +45,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          {/* Rutas públicas para retorno de Mercado Pago (no requieren sesión) */}
+          <Route path="/payment/:result" element={<PaymentReturn />} />
           <Route path="/*" element={<PrivateRoute><AppRoutes /></PrivateRoute>} />
         </Routes>
       </BrowserRouter>
