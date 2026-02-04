@@ -325,6 +325,11 @@ export default function PaymentModal({
             onPaid?.({ ok: true });
             onClose?.();
         }
+        // Si solo abrimos link / enviamos email (in_process), cerrar el modal de pago igualmente.
+        // El pago real se reflejará luego por webhook / auto-refresh.
+        if (resultData?.status === "in_process") {
+            onClose?.();
+        }
         setShowResultAlert(false);
         setResultData(null);
     };
