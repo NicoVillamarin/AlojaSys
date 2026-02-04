@@ -474,17 +474,17 @@ def webhook(request):
         pay_resp = sdk.payment().get(payment_id)
         if pay_resp.get("status") != 200:
             logger.warning(
-                "Mercado Pago payment().get() falló",
-                extra={
-                    "payment_id": payment_id,
-                    "mp_status": pay_resp.get("status"),
-                    "mp_response": pay_resp.get("response"),
-                },
+                "Mercado Pago payment().get() falló | payment_id=%s mp_status=%s mp_response=%s",
+                payment_id,
+                pay_resp.get("status"),
+                pay_resp.get("response"),
             )
             return Response({
                 "success": False,
                 "error": "No se pudo consultar el pago",
                 "code": "MP_API_ERROR",
+                "payment_id": payment_id,
+                "mp_status": pay_resp.get("status"),
                 "mp_response": pay_resp.get("response")
             }, status=status.HTTP_502_BAD_GATEWAY)
         
