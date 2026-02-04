@@ -4,6 +4,7 @@ from .views import (
     ping, create_checkout_preference, create_brick_intent, process_card_payment, webhook, get_reservation_payments,
     PaymentMethodViewSet, PaymentPolicyViewSet, CancellationPolicyViewSet, RefundPolicyViewSet, RefundViewSet, RefundVoucherViewSet, process_deposit_payment, process_full_payment, rotate_payment_tokens,
     BankTransferPaymentViewSet, upload_bank_transfer_receipt, create_deposit, generate_invoice_from_payment_extended, PaymentViewSet, generate_receipt_from_payment, generate_receipt_from_refund,
+    send_payment_link_whatsapp,
 )
 from .views_collections import PaymentCollectionViewSet
 from .views_reconciliation import BankReconciliationViewSet, ReconciliationMatchViewSet, BankReconciliationConfigViewSet
@@ -28,6 +29,7 @@ urlpatterns = [
     path("checkout-preference/", create_checkout_preference, name="payments-checkout-preference"),
     path("brick-intent/", create_brick_intent, name="payments-brick-intent"),
     path("webhook/", webhook, name="payments-webhook"),
+    path("send-payment-link-whatsapp/", send_payment_link_whatsapp, name="payments-send-payment-link-whatsapp"),
     path("process-card/", process_card_payment, name="payments-process-card"),
     path("process-deposit/", process_deposit_payment, name="payments-process-deposit"),
     path("process-full-payment/", process_full_payment, name="payments-process-full-payment"),

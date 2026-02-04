@@ -33,4 +33,18 @@ export async function openCheckoutPro({ reservationId, amount }) {
   return pref;
 }
 
+export async function sendPaymentLinkWhatsApp({ reservationId, amount, message }) {
+  if (!reservationId) throw new Error("reservationId es requerido");
+  const url = `${base()}/send-payment-link-whatsapp/`;
+  const body = {
+    reservation_id: reservationId,
+    ...(amount != null ? { amount } : {}),
+    ...(message ? { message } : {}),
+  };
+  return await fetchWithAuth(url, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 

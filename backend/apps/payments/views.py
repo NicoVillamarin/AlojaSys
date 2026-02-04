@@ -12,6 +12,7 @@ from uuid import uuid4
 from rest_framework import serializers
 from django.utils import timezone
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -369,6 +370,158 @@ def create_checkout_preference(request):
             "amount": str(amount),
         },
         status=status.HTTP_201_CREATED,
+    )
+
+
+def _extract_primary_guest_phone(reservation: Reservation) -> str:
+    """
+    Intenta extraer el teléfono del huésped principal desde guests_data.
+    Se espera (ideal) formato E.164, pero no lo exigimos estrictamente acá.
+    """
+    primary = None
+    try:
+        primary = reservation.get_primary_guest() or None
+    except Exception:
+        primary = None
+    if not isinstance(primary, dict):
+        return ""
+    for k in ("phone", "phone_number", "guest_phone", "whatsapp", "whatsapp_phone", "telefono", "tel"):
+        v = primary.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def send_payment_link_whatsapp(request):
+    """
+    Crea un link de pago (Checkout Pro / init_point) y lo envía por WhatsApp
+    al huésped principal de la reserva.
+
+    Requiere que el hotel tenga configuración de WhatsApp (Meta/Twilio) y que
+    el teléfono esté cargado en guests_data del huésped principal.
+    """
+    body = request.data or {}
+    reservation_id = body.get("reservation_id")
+    amount_raw = body.get("amount")
+    custom_message = body.get("message")
+
+    if not reservation_id:
+        return Response({"detail": "reservation_id es requerido"}, status=400)
+
+    reservation = get_object_or_404(Reservation, pk=reservation_id)
+    hotel = reservation.hotel
+    gateway = _resolve_gateway_for_hotel(hotel)
+    if not gateway:
+        return Response({"detail": "Configuración de pasarela no disponible"}, status=400)
+
+    try:
+        amount = Decimal(str(amount_raw)) if amount_raw is not None else reservation.total_price
+    except Exception:
+        return Response({"detail": "amount inválido"}, status=400)
+
+    currency = getattr(gateway, "currency_code", None) or (hotel.country.currency_code if getattr(hotel, "country", None) else None) or "ARS"
+    title = f"Reserva {reservation.id}"
+    if getattr(reservation, "room", None):
+        title = f"Reserva {reservation.id} - {reservation.room.name}"
+    external_reference = f"reservation:{reservation.id}|hotel:{hotel.id}"
+    notification_url = os.environ.get("MP_WEBHOOK_URL")
+
+    sdk = mercadopago.SDK(gateway.access_token)
+    payer_email = getattr(reservation, "guest_email", "") or "test_user@example.com"
+    preference_data = {
+        "items": [
+            {
+                "title": title,
+                "quantity": 1,
+                "unit_price": float(amount),
+                "currency_id": currency,
+            }
+        ],
+        "payer": {"email": payer_email},
+        "external_reference": external_reference,
+        "binary_mode": True,
+        "metadata": {
+            "reservation_id": str(reservation.id),
+            "hotel_id": str(hotel.id),
+            "sent_via": "whatsapp",
+        },
+    }
+    frontend_url = os.environ.get("FRONTEND_URL")
+    if isinstance(frontend_url, str) and frontend_url.startswith("http"):
+        preference_data["back_urls"] = {
+            "success": frontend_url.rstrip("/") + "/payment/success",
+            "failure": frontend_url.rstrip("/") + "/payment/failure",
+            "pending": frontend_url.rstrip("/") + "/payment/pending",
+        }
+        preference_data["auto_return"] = "approved"
+    if notification_url:
+        preference_data["notification_url"] = notification_url
+
+    pref_response = sdk.preference().create(preference_data)
+    if pref_response.get("status") not in (201, 200):
+        return Response({"detail": "Error creando preferencia", "mp": pref_response.get("response")}, status=status.HTTP_502_BAD_GATEWAY)
+
+    pref = pref_response.get("response", {}) or {}
+    init_point = pref.get("init_point") or pref.get("sandbox_init_point")
+    if not init_point:
+        return Response({"detail": "No se obtuvo init_point"}, status=502)
+
+    with transaction.atomic():
+        PaymentIntent.objects.create(
+            reservation=reservation,
+            hotel=hotel,
+            enterprise=hotel.enterprise if getattr(hotel, "enterprise", None) else None,
+            amount=amount,
+            currency=currency,
+            description=title,
+            mp_preference_id=pref.get("id", ""),
+            external_reference=external_reference,
+            status=PaymentIntentStatus.CREATED,
+        )
+
+    to_phone = _extract_primary_guest_phone(reservation)
+    if not to_phone:
+        return Response(
+            {"detail": "La reserva no tiene teléfono del huésped principal cargado (guests_data)."},
+            status=400,
+        )
+
+    # Construir mensaje
+    guest_name = reservation.guest_name or "Hola"
+    default_message = (
+        f"{guest_name}, te compartimos el link de Mercado Pago para abonar la reserva RES-{reservation.id} "
+        f"por {currency} {amount}: {init_point}"
+    )
+    message = custom_message.strip() if isinstance(custom_message, str) and custom_message.strip() else default_message
+
+    # Enviar por proveedor WhatsApp del hotel (si existe)
+    try:
+        from apps.chatbot.services import WhatsappChatbotService
+        from apps.chatbot.providers.registry import get_adapter_for_config
+
+        service = WhatsappChatbotService()
+        cfg = service._build_provider_config(hotel)
+        if not cfg:
+            return Response({"detail": "El hotel no tiene proveedor WhatsApp configurado."}, status=400)
+        adapter = get_adapter_for_config(cfg)
+        if not adapter:
+            return Response({"detail": "No se pudo resolver el adaptador de WhatsApp."}, status=400)
+
+        adapter.send_message(to_phone, message)
+    except Exception as e:
+        logger.exception("Error enviando link de pago por WhatsApp")
+        return Response({"detail": "No se pudo enviar el mensaje por WhatsApp."}, status=502)
+
+    return Response(
+        {
+            "success": True,
+            "sent_to": re.sub(r\"\\D\", \"\", to_phone or \"\"),
+            "init_point": init_point,
+            "preference_id": pref.get("id"),
+        },
+        status=200,
     )
 
 

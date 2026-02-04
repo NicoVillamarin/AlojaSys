@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ModalLayout from "src/layouts/ModalLayout";
-import { createPreference } from "src/services/payments";
+import { createPreference, openCheckoutPro, sendPaymentLinkWhatsApp } from "src/services/payments";
 import Swal from "sweetalert2";
 import "animate.css";
 import fetchWithAuth from "src/services/fetchWithAuth";
@@ -258,7 +258,7 @@ export default function PaymentModal({
             cc_rejected_insufficient_amount: "Fondos insuficientes",
             cc_rejected_bad_filled_card_number: "Número de tarjeta inválido",
             cc_rejected_bad_filled_date: "Fecha de vencimiento inválida",
-            cc_rejected_bad_filled_other: "Datos incompletos o inválidos",
+            cc_rejected_bad_filled_other: "El banco rechazó el pago. Probá con otra tarjeta o contactá a tu banco para habilitar compras online.",
             cc_rejected_bad_filled_security_code: "Código de seguridad inválido",
             cc_rejected_high_risk: "Pago rechazado por política de seguridad",
             cc_rejected_blacklist: "Pago rechazado por prevención de fraude",
@@ -289,6 +289,34 @@ export default function PaymentModal({
             tone: cfg.tone
         });
         setShowResultAlert(true);
+    };
+
+    const getMpAmountForLink = () => {
+        if (isBalancePayment) return balanceInfo?.balance_due;
+        if (payAmount !== null) return payAmount;
+        return undefined; // total
+    };
+
+    const openMpLink = async () => {
+        try {
+            setError("");
+            await openCheckoutPro({ reservationId, amount: getMpAmountForLink() });
+            showResult("in_process", "Se abrió Mercado Pago en una nueva pestaña.");
+        } catch (e) {
+            setError(e?.message || "No se pudo abrir Mercado Pago");
+            showResult("error", e?.message || "No se pudo abrir Mercado Pago");
+        }
+    };
+
+    const sendMpLinkByWhatsApp = async () => {
+        try {
+            setError("");
+            await sendPaymentLinkWhatsApp({ reservationId, amount: getMpAmountForLink() });
+            showResult("approved", "Link enviado por WhatsApp al huésped principal.");
+        } catch (e) {
+            setError(e?.message || "No se pudo enviar el link por WhatsApp");
+            showResult("error", e?.detail || e?.message || "No se pudo enviar el link por WhatsApp");
+        }
     };
 
     // Función para manejar la confirmación del resultado
@@ -612,6 +640,38 @@ export default function PaymentModal({
                                         <div className="flex-1 text-left">
                                             <div className="font-medium">Tarjeta Online</div>
                                             <div className="text-sm text-gray-500">Visa, Mastercard, American Express</div>
+                                        </div>
+                                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+
+                                    <button
+                                        onClick={openMpLink}
+                                        className="w-full flex items-center cursor-pointer p-3 border rounded-lg border-aloja-gray-100 shadow-sm hover:scale-103 hover:bg-blue-50 transition-all duration-200"
+                                    >
+                                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                            <span className="text-blue-700 font-bold">MP</span>
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <div className="font-medium">Mercado Pago (Link)</div>
+                                            <div className="text-sm text-gray-500">Abrir Checkout Pro en una nueva pestaña</div>
+                                        </div>
+                                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+
+                                    <button
+                                        onClick={sendMpLinkByWhatsApp}
+                                        className="w-full flex items-center cursor-pointer p-3 border rounded-lg border-aloja-gray-100 shadow-sm hover:scale-103 hover:bg-green-50 transition-all duration-200"
+                                    >
+                                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                                            <span className="text-green-700 font-bold">WA</span>
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <div className="font-medium">Enviar link por WhatsApp</div>
+                                            <div className="text-sm text-gray-500">Al huésped principal (teléfono en la reserva)</div>
                                         </div>
                                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

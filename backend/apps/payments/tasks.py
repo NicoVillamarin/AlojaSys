@@ -457,9 +457,8 @@ def _send_webhook_notifications(payment_intent: PaymentIntent, webhook_data: Dic
             _send_payment_rejected_notification(payment_intent, webhook_data)
         elif status == 'pending':
             _send_payment_pending_notification(payment_intent, webhook_data)
-        
-        # Notificación general de webhook procesado
-        _send_webhook_processed_notification(payment_intent, webhook_data, notification_id)
+        # Nota: NO enviamos una notificación genérica de "webhook procesado" porque no aporta valor
+        # al usuario final y genera duplicados/confusión. La trazabilidad queda en logs/auditoría.
         
     except Exception as e:
         logger.error(f"Error enviando notificaciones de webhook: {e}")
@@ -491,12 +490,25 @@ def _send_payment_rejected_notification(payment_intent: PaymentIntent, webhook_d
     """Envía notificación cuando un pago es rechazado"""
     try:
         status_detail = webhook_data.get('status_detail', 'Razón no especificada')
+
+        # Texto más claro para humanos (manteniendo el código técnico para soporte)
+        human_map = {
+            "cc_rejected_insufficient_amount": "Fondos insuficientes.",
+            "cc_rejected_bad_filled_card_number": "Número de tarjeta inválido.",
+            "cc_rejected_bad_filled_date": "Fecha de vencimiento inválida.",
+            "cc_rejected_bad_filled_security_code": "Código de seguridad inválido.",
+            "cc_rejected_bad_filled_other": "El banco rechazó el pago. Probá con otra tarjeta o contactá a tu banco.",
+            "cc_rejected_high_risk": "Rechazado por políticas de seguridad.",
+            "cc_rejected_blacklist": "Rechazado por prevención de fraude.",
+            "cc_rejected_other_reason": "Rechazado por el emisor.",
+        }
+        human_reason = human_map.get(status_detail, None)
         
         NotificationService.create(
             notification_type='payment_rejected',
             title=f"❌ Pago Rechazado - ${payment_intent.amount}",
             message=f"El pago de la reserva RES-{payment_intent.reservation.id} fue rechazado. "
-                   f"Razón: {status_detail}",
+                   f"Razón: {(human_reason + ' ') if human_reason else ''}({status_detail})",
             hotel_id=payment_intent.hotel.id,
             reservation_id=payment_intent.reservation.id,
             metadata={
