@@ -473,6 +473,14 @@ def webhook(request):
         sdk = mercadopago.SDK(access_token)
         pay_resp = sdk.payment().get(payment_id)
         if pay_resp.get("status") != 200:
+            logger.warning(
+                "Mercado Pago payment().get() falló",
+                extra={
+                    "payment_id": payment_id,
+                    "mp_status": pay_resp.get("status"),
+                    "mp_response": pay_resp.get("response"),
+                },
+            )
             return Response({
                 "success": False,
                 "error": "No se pudo consultar el pago",
@@ -483,7 +491,7 @@ def webhook(request):
         payment_data = pay_resp.get("response", {})
         
     except Exception as e:
-        logger.error(f"Error consultando pago en Mercado Pago: {e}")
+        logger.exception("Error consultando pago en Mercado Pago")
         return Response({
             "success": False,
             "error": "Error consultando pago",
