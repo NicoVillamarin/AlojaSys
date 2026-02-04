@@ -545,6 +545,10 @@ def process_card_payment(request):
     payment_method_id = body.get("payment_method_id")
     installments = int(body.get("installments", 1))
     amount_raw = body.get("amount")
+    issuer_id = body.get("issuer_id")
+    payer_email = body.get("payer_email")
+    doc_type = body.get("doc_type") or body.get("docType")
+    doc_number = body.get("doc_number") or body.get("docNumber")
 
     if not reservation_id or not token or not payment_method_id:
         return Response({"detail": "reservation_id, token y payment_method_id son requeridos"}, status=400)
@@ -568,6 +572,18 @@ def process_card_payment(request):
 
     sdk = mercadopago.SDK(gateway.access_token)
     headers = {"X-Idempotency-Key": f"res-{reservation.id}-{uuid4()}"}
+
+    # Débito no acepta cuotas > 1
+    try:
+        if isinstance(payment_method_id, str) and payment_method_id.lower().startswith("deb"):
+            installments = 1
+    except Exception:
+        pass
+
+    payer = {"email": payer_email or reservation.guest_email or "test_user@example.com"}
+    if doc_number:
+        payer["identification"] = {"type": doc_type or "DNI", "number": str(doc_number)}
+
     payment_data = {
         "token": token,
         "transaction_amount": float(amount),
@@ -575,8 +591,10 @@ def process_card_payment(request):
         "payment_method_id": payment_method_id,
         "description": title,
         "external_reference": external_reference,
-        "payer": {"email": reservation.guest_email or "test_user@example.com"},
+        "payer": payer,
     }
+    if issuer_id:
+        payment_data["issuer_id"] = issuer_id
 
     # El SDK oficial (v2) acepta headers como segundo argumento en algunas versiones.
     # Si no está soportado, usamos la API HTTP directa.

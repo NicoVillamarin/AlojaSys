@@ -105,6 +105,11 @@ export default function PaymentBrick({ reservationId, amount, onSuccess, onError
               payment_method_id: cardFormData.payment_method_id,
               installments: cardFormData.installments || 1,
               amount: amount,
+              // Opcionales: ayudan a evitar rechazos por "falta de información" (especialmente débito)
+              issuer_id: cardFormData.issuer_id,
+              payer_email: cardFormData.payer?.email,
+              doc_type: cardFormData.payer?.identification?.type,
+              doc_number: cardFormData.payer?.identification?.number,
             };
             const url = `${getApiURL()}/api/payments/process-card/`;
             const resp = await fetchWithAuth(url, { method: "POST", body: JSON.stringify(payload) });
