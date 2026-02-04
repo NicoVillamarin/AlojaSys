@@ -379,12 +379,16 @@ def create_brick_intent(request):
     return Response({"note": "Próximamente: Payment Brick"}, status=status.HTTP_200_OK)
 
 
-@api_view(["POST"])
+@api_view(["GET", "POST"])
 @permission_classes([AllowAny])
 def webhook(request):
     """
     Webhook mejorado con verificación HMAC, idempotencia y actualizaciones atómicas
     """
+    # Healthcheck / validación de URL (algunos paneles validan con GET)
+    if request.method == "GET":
+        return Response({"ok": True, "webhook": "mercadopago"}, status=200)
+
     from apps.payments.services.webhook_security import WebhookSecurityService
     from apps.payments.services.payment_processor import PaymentProcessorService
     

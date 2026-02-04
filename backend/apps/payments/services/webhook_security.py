@@ -36,40 +36,87 @@ class WebhookSecurityService:
             logger.error("Webhook secret ausente en producción, rechazando webhook.")
             return False
         
-        # Obtener la firma del header
-        signature = request.headers.get('X-Signature')
-        if not signature:
-            logger.warning("Webhook sin firma HMAC en header X-Signature")
+        # Mercado Pago envía la firma como header `x-signature` con el formato: `ts=...,v1=...`
+        # y el HMAC se calcula sobre el "manifest" (no sobre el body).
+        # Doc: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks#bookmark_validar_origen_de_una_notificación
+        x_signature = request.headers.get('x-signature') or request.headers.get('X-Signature')
+        if not x_signature:
+            logger.warning("Webhook sin firma en header x-signature")
             return False
-        
-        # Obtener el body del request
-        if hasattr(request, '_body'):
-            body = request._body
-        else:
-            body = request.body
-        
-        if not body:
-            logger.warning("Webhook con body vacío")
-            return False
-        
+
+        # Extraer ts y v1 desde x-signature
+        ts = None
+        v1 = None
         try:
-            # Calcular la firma esperada
+            parts = [p.strip() for p in x_signature.split(",") if p.strip()]
+            for part in parts:
+                if "=" not in part:
+                    continue
+                k, v = part.split("=", 1)
+                k = k.strip()
+                v = v.strip()
+                if k == "ts":
+                    ts = v
+                elif k == "v1":
+                    v1 = v
+        except Exception as e:
+            logger.warning(f"Error parseando x-signature: {e}")
+            return False
+
+        if not ts or not v1:
+            logger.warning("x-signature inválido (falta ts o v1)")
+            return False
+
+        x_request_id = request.headers.get('x-request-id') or request.headers.get('X-Request-Id') or request.headers.get('X-Request-ID')
+
+        # Según la documentación, `data.id` debe tomarse de los query params de la URL (`data.id_url`).
+        # En la práctica, el simulador puede enviar el id solo en el body, así que hacemos fallback seguro.
+        data_id = request.query_params.get("data.id") or request.query_params.get("id") or ""
+        if not data_id:
+            try:
+                if isinstance(getattr(request, "data", None), dict):
+                    data_id = (request.data.get("data", {}) or {}).get("id") or request.data.get("id") or ""
+            except Exception:
+                data_id = ""
+        if isinstance(data_id, str) and data_id and data_id.isalnum():
+            # Si el id es alfanumérico, MP pide enviarlo en minúsculas para el manifest.
+            data_id = data_id.lower()
+
+        # Construir manifest según template y removiendo campos ausentes si no están presentes.
+        # template: id:[data.id_url];request-id:[x-request-id_header];ts:[ts_header];
+        manifest = ""
+        if data_id:
+            manifest += f"id:{data_id};"
+        if x_request_id:
+            manifest += f"request-id:{x_request_id};"
+        if ts:
+            manifest += f"ts:{ts};"
+
+        if not manifest:
+            logger.warning("No se pudo construir manifest para validar firma (faltan datos).")
+            return False
+
+        try:
+            # Calcular el HMAC SHA256 hex del manifest usando el webhook_secret como clave
             expected_signature = hmac.new(
-                webhook_secret.encode('utf-8'),
-                body,
-                hashlib.sha256
+                webhook_secret.encode("utf-8"),
+                manifest.encode("utf-8"),
+                hashlib.sha256,
             ).hexdigest()
             
             # Comparar firmas de forma segura
-            is_valid = hmac.compare_digest(signature, expected_signature)
+            is_valid = hmac.compare_digest(v1, expected_signature)
             
             if not is_valid:
                 logger.warning(
                     "Firma HMAC inválida",
                     extra={
-                        'received_signature': signature,
+                        'received_signature': v1,
                         'expected_signature': expected_signature,
-                        'webhook_secret_length': len(webhook_secret)
+                        'webhook_secret_length': len(webhook_secret),
+                        'ts': ts,
+                        'has_x_request_id': bool(x_request_id),
+                        'has_data_id': bool(data_id),
                     }
                 )
             
