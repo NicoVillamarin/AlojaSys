@@ -5,8 +5,9 @@
     const isLocal = host === 'localhost' || host === '127.0.0.1';
     if (!isLocal) {
       window.__API_URL__ = window.__API_URL__;
-      // Configuración de MercadoPago para producción
-      window.__MP_PUBLIC_KEY__ = window.__MP_PUBLIC_KEY__ || 'TEST-7b6a1b69-18e6-40e2-b047-e1d3851a85a7';
+      // Mercado Pago:
+      // No seteamos una public key por defecto acá para evitar mezclar ambientes (TEST vs PROD).
+      // En producción, configurá `VITE_MP_PUBLIC_KEY` (build-time) o inyectá `window.__MP_PUBLIC_KEY__` en runtime.
     }
   } catch (_) {
     // noop
