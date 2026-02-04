@@ -27,7 +27,8 @@ export async function createBrickIntent({ reservationId, amount }) {
 // Utilidad opcional: obtener init_point y abrirlo en nueva pestaña (Checkout Pro)
 export async function openCheckoutPro({ reservationId, amount }) {
   const pref = await createPreference({ reservationId, amount });
-  const url = pref?.sandbox_init_point || pref?.init_point;
+  // En producción siempre preferir init_point (sandbox solo si no existe)
+  const url = pref?.init_point || pref?.sandbox_init_point;
   if (!url) throw new Error("No se obtuvo init_point");
   window.open(url, "_blank");
   return pref;

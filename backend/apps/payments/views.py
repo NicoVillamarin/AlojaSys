@@ -464,6 +464,7 @@ def send_payment_link_whatsapp(request):
         return Response({"detail": "Error creando preferencia", "mp": pref_response.get("response")}, status=status.HTTP_502_BAD_GATEWAY)
 
     pref = pref_response.get("response", {}) or {}
+    # Preferir init_point (prod) por sobre sandbox_init_point
     init_point = pref.get("init_point") or pref.get("sandbox_init_point")
     if not init_point:
         return Response({"detail": "No se obtuvo init_point"}, status=502)
