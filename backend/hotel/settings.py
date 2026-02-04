@@ -196,11 +196,33 @@ LOGGING = {
             'formatter': 'verbose',
         },
     },
+    # Root logger para que se vean logs aunque no haya un logger específico configurado.
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
     'loggers': {
         # WhatsApp / Chatbot (necesario para ver logs del webhook en producción)
         'apps.chatbot': {
             'handlers': ['console'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        # Pagos / Webhooks Mercado Pago
+        'apps.payments': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps.payments.services.webhook_security': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Requests con error (útil para ver 400/500 y su causa)
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': False,
         },
         'apps.invoicing.services.afip_auth_service': {
