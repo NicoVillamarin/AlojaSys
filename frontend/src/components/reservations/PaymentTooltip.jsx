@@ -28,7 +28,7 @@ const PaymentTooltip = ({ reservationId, reservationData }) => {
     }
 
     loadPayments()
-  }, [reservationId])
+  }, [reservationId, reservationData?.total_price, reservationData?.total_paid])
 
   if (loading) {
     return (

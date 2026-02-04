@@ -594,6 +594,20 @@ export default function ReservationsGestions() {
     };
   }, [filters.hotel, refetch]);
 
+  // Auto-refresh liviano para reflejar pagos/webhooks sin recargar la pestaña.
+  // (La tabla muestra estado de pagos por reserva y, si no refrescamos, queda "Sin pagos" hasta navegar.)
+  useEffect(() => {
+    if (!canViewReservation) return;
+    const intervalMs = 12000; // 12s: suficiente para que llegue el webhook y sin sobrecargar
+    const id = setInterval(() => {
+      try {
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      } catch {}
+      refetch();
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [canViewReservation, refetch]);
+
   const hasOverbooking = (r) => !!r.overbooking_flag;
   const isOtaReservation = (r) => {
     const ext = r?.external_id;
