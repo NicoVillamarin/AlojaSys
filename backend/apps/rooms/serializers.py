@@ -4,6 +4,7 @@ from django.utils import timezone
 from apps.reservations.models import ReservationStatus
 from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
 from apps.core.models import Currency
+from django.db.utils import OperationalError, ProgrammingError
 
 
 class RoomTypeSerializer(serializers.ModelSerializer):
@@ -13,6 +14,7 @@ class RoomTypeSerializer(serializers.ModelSerializer):
             "id",
             "code",
             "name",
+            "alias",
             "description",
             "sort_order",
             "is_active",
@@ -31,6 +33,7 @@ class RoomSerializer(serializers.ModelSerializer):
     current_guests = serializers.SerializerMethodField()
     future_reservations = serializers.SerializerMethodField()
     room_type_name = serializers.SerializerMethodField()
+    room_type_alias = serializers.SerializerMethodField()
     primary_image_url = serializers.SerializerMethodField()
     images_urls = serializers.SerializerMethodField()
     # Campos write-only para recibir imágenes en base64
@@ -79,6 +82,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "floor",
             "room_type", 
             "room_type_name",
+            "room_type_alias",
             "capacity", 
             "max_capacity", 
             "extra_guest_fee", 
@@ -119,6 +123,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "current_guests",
             "future_reservations",
             "room_type_name",
+            "room_type_alias",
             "primary_image_url",
             "images_urls"
         ]
@@ -128,6 +133,16 @@ class RoomSerializer(serializers.ModelSerializer):
             return None
         rt = RoomType.objects.only("name").filter(code=obj.room_type).first()
         return rt.name if rt else obj.room_type
+
+    def get_room_type_alias(self, obj):
+        if not getattr(obj, "room_type", None):
+            return None
+        try:
+            rt = RoomType.objects.only("alias").filter(code=obj.room_type).first()
+        except (ProgrammingError, OperationalError):
+            # DB aún no migrada (columna alias inexistente) u otro problema de esquema
+            return None
+        return (rt.alias or None) if rt else None
 
     def validate_room_type(self, value):
         if not value:

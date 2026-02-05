@@ -379,19 +379,28 @@ const ReservationsCalendar = () => {
   // Convertir habitaciones a recursos para la vista de habitaciones
   const calendarResources = useMemo(() => {
     if (!rooms) return []
-    
-    return rooms.map(room => ({
-      id: room.id.toString(),
-      title: room.name || `HAB-${room.number || room.id}`,
-      group: room.floor ? `Piso ${room.floor}` : 'Sin piso',
-      extendedProps: {
-        room: room,
-        floor: room.floor,
-        room_type: room.room_type,
-        capacity: room.capacity
+    const types = {
+      single: t('rooms_modal.room_types.single', 'Single'),
+      double: t('rooms_modal.room_types.double', 'Doble'),
+      triple: t('rooms_modal.room_types.triple', 'Triple'),
+      suite: t('rooms_modal.room_types.suite', 'Suite'),
+    }
+    return rooms.map(room => {
+      const typeDisplay = room?.room_type_alias ?? room?.room_type_name ?? (types[room?.room_type] || room?.room_type || '')
+      return {
+        id: room.id.toString(),
+        title: room.name || `HAB-${room.number || room.id}`,
+        group: room.floor ? `Piso ${room.floor}` : 'Sin piso',
+        extendedProps: {
+          room: room,
+          floor: room.floor,
+          room_type: room.room_type,
+          room_type_display: typeDisplay,
+          capacity: room.capacity
+        }
       }
-    }))
-  }, [rooms])
+    })
+  }, [rooms, t])
 
   // Convertir reservas a eventos del calendario (usando API de reservas directamente)
   const fullCalendarEvents = useMemo(() => {
@@ -1150,7 +1159,7 @@ const ReservationsCalendar = () => {
                 headerContent: 'Piso'
               },
               {
-                field: 'extendedProps.room_type',
+                field: 'extendedProps.room_type_display',
                 headerContent: 'Tipo'
               }
             ]

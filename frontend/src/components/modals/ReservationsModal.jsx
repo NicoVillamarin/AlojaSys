@@ -61,6 +61,7 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
 
   const getRoomTypeLabel = (room) => {
     return (
+      room?.room_type_alias ??
       room?.room_type_name ??
       room?.room_type_display ??
       room?.room_type?.name ??

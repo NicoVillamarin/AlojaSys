@@ -15,6 +15,12 @@ class RoomType(models.Model):
         help_text="Código único (ej: single, double). Se usa en Room.room_type",
     )
     name = models.CharField(max_length=120, help_text="Nombre visible del tipo (ej: Doble)")
+    alias = models.CharField(
+        max_length=120,
+        blank=True,
+        null=True,
+        help_text="Nombre de fantasía / abreviatura (ej: OI, II). Opcional.",
+    )
     description = models.TextField(blank=True, null=True)
     sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)

@@ -29,6 +29,7 @@ const RoomTypeModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
   const initialValues = {
     code: row?.code ?? '',
     name: row?.name ?? '',
+    alias: row?.alias ?? '',
     description: row?.description ?? '',
     sort_order: row?.sort_order != null ? String(row.sort_order) : '0',
     is_active: row?.is_active ?? true,
@@ -44,6 +45,10 @@ const RoomTypeModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
       .transform((v) => (v ? String(v).trim() : ''))
       .max(120, t('room_types.validation.name_max', 'Máximo 120 caracteres.'))
       .required(t('room_types.validation.name_required', 'El nombre es requerido.')),
+    alias: Yup.string()
+      .transform((v) => (v ? String(v).trim() : ''))
+      .max(120, t('room_types.validation.alias_max', 'Máximo 120 caracteres.'))
+      .nullable(),
     description: Yup.string()
       .transform((v) => (v ? String(v).trim() : ''))
       .max(2000, t('room_types.validation.description_max', 'Máximo 2000 caracteres.'))
@@ -64,6 +69,7 @@ const RoomTypeModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
         const payload = {
           code: (values.code || '').trim().toLowerCase(),
           name: (values.name || '').trim(),
+          alias: (values.alias || '').trim() || null,
           description: (values.description || '').trim() || null,
           sort_order: values.sort_order === '' ? 0 : Number(values.sort_order),
           is_active: !!values.is_active,
@@ -92,6 +98,12 @@ const RoomTypeModal = ({ isOpen, onClose, isEdit = false, row, onSuccess }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
             <InputText title={`${t('room_types.fields.code', 'Código')} *`} name="code" placeholder="single" />
             <InputText title={`${t('room_types.fields.name', 'Nombre')} *`} name="name" placeholder="Doble" />
+            <InputText
+              title={t('room_types.fields.alias', 'Nombre fantasía (opcional)')}
+              name="alias"
+              placeholder="OI"
+            />
+            <div className="hidden lg:block" />
             <div className="lg:col-span-2">
               <InputText
                 title={t('room_types.fields.description', 'Descripción')}

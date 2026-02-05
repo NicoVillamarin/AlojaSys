@@ -32,9 +32,10 @@ export default function RoomsType() {
     return (results || []).filter((r) => {
       const code = String(r?.code ?? '').toLowerCase()
       const name = String(r?.name ?? '').toLowerCase()
+      const alias = String(r?.alias ?? '').toLowerCase()
       const description = String(r?.description ?? '').toLowerCase()
       const sortOrder = String(r?.sort_order ?? '').toLowerCase()
-      return code.includes(q) || name.includes(q) || description.includes(q) || sortOrder.includes(q)
+      return code.includes(q) || name.includes(q) || alias.includes(q) || description.includes(q) || sortOrder.includes(q)
     })
   }, [results, filters.search])
 
@@ -117,6 +118,7 @@ export default function RoomsType() {
         columns={[
           { key: 'code', header: t('room_types.table.code', 'Código'), sortable: true },
           { key: 'name', header: t('room_types.table.name', 'Nombre'), sortable: true },
+          { key: 'alias', header: t('room_types.table.alias', 'Fantasía'), sortable: true },
           { key: 'sort_order', header: t('room_types.table.sort_order', 'Orden'), sortable: true, right: true },
           {
             key: 'is_active',
