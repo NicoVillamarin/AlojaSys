@@ -162,6 +162,7 @@ export default function Sidebar({
   const hasViewEnterprises = usePermissions("enterprises.view_enterprise");
   const hasViewOTAsConfig = usePermissions("otas.view_otaconfig");
   const hasViewRoomsConfig = usePermissions("rooms.view_room");
+  const hasViewRoomTypesConfig = usePermissions("rooms.view_roomtype");
   const hasViewHotels = usePermissions("core.view_hotel");
   const hasViewUsers = usePermissions("users.view_userprofile");
   const hasViewRoles = usePermissions("auth.view_group");
@@ -249,6 +250,7 @@ export default function Sidebar({
     "enterprises.view_enterprise",
     "otas.view_otaconfig",
     "rooms.view_room",
+    "rooms.view_roomtype",
     "core.view_hotel",
     "core.view_currency",
     "users.view_userprofile",
@@ -726,6 +728,17 @@ export default function Sidebar({
                         isMobile={isMobile}
                       >
                         {t("sidebar.rooms")}
+                      </Item>
+                    )
+                  )}
+                  {(hasViewRoomTypesConfig || hasViewRoomsConfig) && (
+                    !isLimitedAdministrador && (
+                      <Item
+                        to="/settings/room-types"
+                        onMobileClose={onMobileClose}
+                        isMobile={isMobile}
+                      >
+                        {t("sidebar.room_types", "Tipos de habitación")}
                       </Item>
                     )
                   )}

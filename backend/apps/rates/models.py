@@ -1,7 +1,7 @@
 from django.db import models
 from decimal import Decimal
 from apps.core.models import Hotel
-from apps.rooms.models import Room, RoomType
+from apps.rooms.models import Room
 
 class PriceMode(models.TextChoices):
     ABSOLUTE = "absolute", "Absoluto"
@@ -45,7 +45,12 @@ class RateRule(models.Model):
 
     # Target (uno de estos, o ninguno para aplicar a todos)
     target_room = models.ForeignKey(Room, on_delete=models.CASCADE, null=True, blank=True, related_name="rate_rules")
-    target_room_type = models.CharField(max_length=30, choices=RoomType.choices, null=True, blank=True)
+    target_room_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Código de tipo de habitación (rooms.RoomType.code)",
+    )
 
     # Canal
     channel = models.CharField(max_length=50, null=True, blank=True)
@@ -146,7 +151,12 @@ class PromoRule(models.Model):
     apply_sun = models.BooleanField(default=True)
 
     target_room = models.ForeignKey(Room, on_delete=models.CASCADE, null=True, blank=True, related_name="promo_rules")
-    target_room_type = models.CharField(max_length=30, choices=RoomType.choices, null=True, blank=True)
+    target_room_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Código de tipo de habitación (rooms.RoomType.code)",
+    )
     channel = models.CharField(max_length=50, null=True, blank=True)
 
     priority = models.PositiveIntegerField(default=100)

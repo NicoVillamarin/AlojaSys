@@ -42,6 +42,7 @@ import Checklists from "src/pages/configurations/housekeeping/Checklists";
 import HousekeepingConfig from "src/pages/configurations/housekeeping/HousekeepingConfig";
 import HousekeepingHistorical from "src/pages/HousekeepingHistorical";
 import Whatsapp from "src/pages/configurations/Whatsapp";
+import RoomsType from "src/pages/configurations/RoomsType";
 
 
 export const appRoutes = [
@@ -56,6 +57,7 @@ export const appRoutes = [
       { path: "reservations/:id/history", element: React.createElement(ReservationHistorical) },
       { path: "payments", element: React.createElement(Payments) },
       { path: "settings/rooms", element: React.createElement(Rooms) },
+      { path: "settings/room-types", element: React.createElement(RoomsType) },
       { path: "settings/hotels", element: React.createElement(Hotels) },
       { path: "settings/enterprises", element: React.createElement(Enterprises) },
       { path: "settings/users", element: React.createElement(Users) },

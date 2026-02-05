@@ -1,9 +1,25 @@
 from rest_framework import serializers
-from .models import Room
+from .models import Room, RoomType
 from django.utils import timezone
 from apps.reservations.models import ReservationStatus
 from apps.housekeeping.feature import is_housekeeping_enabled_for_hotel
 from apps.core.models import Currency
+
+
+class RoomTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomType
+        fields = [
+            "id",
+            "code",
+            "name",
+            "description",
+            "sort_order",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 class RoomSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(source="hotel.name", read_only=True)
@@ -14,6 +30,7 @@ class RoomSerializer(serializers.ModelSerializer):
     current_reservation = serializers.SerializerMethodField()
     current_guests = serializers.SerializerMethodField()
     future_reservations = serializers.SerializerMethodField()
+    room_type_name = serializers.SerializerMethodField()
     primary_image_url = serializers.SerializerMethodField()
     images_urls = serializers.SerializerMethodField()
     # Campos write-only para recibir imágenes en base64
@@ -31,13 +48,6 @@ class RoomSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
-
-    def validate(self, attrs):
-        # Default defensivo: si no mandan base_currency, usar ARS
-        if getattr(self, "instance", None) is None and not attrs.get("base_currency"):
-            ars, _ = Currency.objects.get_or_create(code="ARS", defaults={"name": "ARS"})
-            attrs["base_currency"] = ars
-        return super().validate(attrs)
 
     def validate_amenities_quantities(self, value):
         if value is None:
@@ -68,6 +78,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "number", 
             "floor",
             "room_type", 
+            "room_type_name",
             "capacity", 
             "max_capacity", 
             "extra_guest_fee", 
@@ -107,9 +118,23 @@ class RoomSerializer(serializers.ModelSerializer):
             "current_reservation", 
             "current_guests",
             "future_reservations",
+            "room_type_name",
             "primary_image_url",
             "images_urls"
         ]
+
+    def get_room_type_name(self, obj):
+        if not getattr(obj, "room_type", None):
+            return None
+        rt = RoomType.objects.only("name").filter(code=obj.room_type).first()
+        return rt.name if rt else obj.room_type
+
+    def validate_room_type(self, value):
+        if not value:
+            raise serializers.ValidationError("room_type es obligatorio.")
+        if not RoomType.objects.filter(code=value, is_active=True).exists():
+            raise serializers.ValidationError(f"Tipo de habitación inválido: '{value}'.")
+        return value
 
     def get_future_reservations(self, obj):
         today = timezone.localdate()
@@ -243,6 +268,11 @@ class RoomSerializer(serializers.ModelSerializer):
           manualmente desde gestión de habitaciones para evitar inconsistencias.
         - Si housekeeping está DESACTIVADO, sí se permite editar cleaning_status.
         """
+        # Default defensivo: si no mandan base_currency, usar ARS (solo en create)
+        if getattr(self, "instance", None) is None and not attrs.get("base_currency"):
+            ars, _ = Currency.objects.get_or_create(code="ARS", defaults={"name": "ARS"})
+            attrs["base_currency"] = ars
+
         if "cleaning_status" in attrs:
             hotel = None
             # En updates, podemos tomar hotel desde la instancia (lo normal en gestión de rooms)

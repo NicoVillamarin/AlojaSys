@@ -2,7 +2,6 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.core.models import Hotel
 from apps.housekeeping.models import TaskTemplate, Checklist, ChecklistItem, TaskType
-from apps.rooms.models import RoomType
 
 
 class Command(BaseCommand):
@@ -39,7 +38,7 @@ class Command(BaseCommand):
         templates_data = [
             # Suite - Tareas diarias
             {
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.DAILY,
                 "name": "Cambio de sábanas",
                 "description": "Cambiar sábanas y fundas de almohadas",
@@ -48,7 +47,7 @@ class Command(BaseCommand):
                 "order": 1,
             },
             {
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.DAILY,
                 "name": "Reposición de minibar",
                 "description": "Verificar y reponer productos del minibar",
@@ -57,7 +56,7 @@ class Command(BaseCommand):
                 "order": 2,
             },
             {
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.DAILY,
                 "name": "Limpieza de baño completo",
                 "description": "Limpieza profunda de baño, sanitarios y espejos",
@@ -66,7 +65,7 @@ class Command(BaseCommand):
                 "order": 3,
             },
             {
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.DAILY,
                 "name": "Aspirado y limpieza de pisos",
                 "description": "Aspirar alfombras y limpiar pisos",
@@ -76,7 +75,7 @@ class Command(BaseCommand):
             },
             # Suite - Checkout
             {
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.CHECKOUT,
                 "name": "Limpieza profunda completa",
                 "description": "Limpieza exhaustiva de toda la suite",
@@ -85,7 +84,7 @@ class Command(BaseCommand):
                 "order": 1,
             },
             {
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.CHECKOUT,
                 "name": "Revisión de inventario",
                 "description": "Verificar que todos los elementos estén presentes",
@@ -95,7 +94,7 @@ class Command(BaseCommand):
             },
             # Double - Tareas diarias
             {
-                "room_type": RoomType.DOUBLE,
+                "room_type": "double",
                 "task_type": TaskType.DAILY,
                 "name": "Cambio de sábanas",
                 "description": "Cambiar sábanas y fundas",
@@ -104,7 +103,7 @@ class Command(BaseCommand):
                 "order": 1,
             },
             {
-                "room_type": RoomType.DOUBLE,
+                "room_type": "double",
                 "task_type": TaskType.DAILY,
                 "name": "Limpieza de baño",
                 "description": "Limpieza básica de baño",
@@ -113,7 +112,7 @@ class Command(BaseCommand):
                 "order": 2,
             },
             {
-                "room_type": RoomType.DOUBLE,
+                "room_type": "double",
                 "task_type": TaskType.DAILY,
                 "name": "Aspirado",
                 "description": "Aspirar habitación",
@@ -123,7 +122,7 @@ class Command(BaseCommand):
             },
             # Single - Tareas diarias
             {
-                "room_type": RoomType.SINGLE,
+                "room_type": "single",
                 "task_type": TaskType.DAILY,
                 "name": "Cambio de sábanas",
                 "description": "Cambiar sábanas",
@@ -132,7 +131,7 @@ class Command(BaseCommand):
                 "order": 1,
             },
             {
-                "room_type": RoomType.SINGLE,
+                "room_type": "single",
                 "task_type": TaskType.DAILY,
                 "name": "Limpieza de baño",
                 "description": "Limpieza básica",
@@ -153,7 +152,14 @@ class Command(BaseCommand):
             )
             if created:
                 created_templates += 1
-                room_type_display = dict(RoomType.choices).get(template.room_type, template.room_type)
+                room_type_display = template.room_type
+                try:
+                    from apps.rooms.models import RoomType as RoomTypeModel
+                    rt = RoomTypeModel.objects.only("name").filter(code=template.room_type).first()
+                    if rt:
+                        room_type_display = rt.name
+                except Exception:
+                    pass
                 self.stdout.write(f"  ✓ Plantilla creada: {template.name} ({room_type_display})")
 
         self.stdout.write(self.style.SUCCESS(f"\n✓ {created_templates} plantillas de tareas creadas"))
@@ -178,7 +184,7 @@ class Command(BaseCommand):
             {
                 "name": "Checklist de Checkout - Suite",
                 "description": "Checklist específico para limpieza de suites en checkout",
-                "room_type": RoomType.SUITE,
+                "room_type": "suite",
                 "task_type": TaskType.CHECKOUT,
                 "is_default": False,
                 "items": [

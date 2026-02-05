@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from apps.core.models import Hotel
-from apps.rooms.models import Room, RoomType, RoomStatus
+from apps.rooms.models import Room, RoomStatus
 from decimal import Decimal
 import random
 
@@ -27,13 +27,17 @@ class Command(BaseCommand):
 
         # Definición de plantas y tipos, con distribución básica
         floors = [1, 1, 1, 2, 2, 2, 3, 3, 4, 5]
+        single = "single"
+        double = "double"
+        triple = "triple"
+        suite = "suite"
         room_types_weighted = [
-            RoomType.SINGLE,
-            RoomType.SINGLE,
-            RoomType.DOUBLE,
-            RoomType.DOUBLE,
-            RoomType.TRIPLE,
-            RoomType.SUITE,
+            single,
+            single,
+            double,
+            double,
+            triple,
+            suite,
         ]
 
         created = 0
@@ -47,25 +51,25 @@ class Command(BaseCommand):
 
         # Configuración de capacidades y precios (opcional ARS)
         capacity_by_type = {
-            RoomType.SINGLE: 1,
-            RoomType.DOUBLE: 2,
-            RoomType.TRIPLE: 3,
-            RoomType.SUITE: 2,
+            single: 1,
+            double: 2,
+            triple: 3,
+            suite: 2,
         }
         if options.get("ars"):
             # Valores típicos en ARS (ajustables)
             base_price_by_type = {
-                RoomType.SINGLE: Decimal("40000.00"),
-                RoomType.DOUBLE: Decimal("65000.00"),
-                RoomType.TRIPLE: Decimal("90000.00"),
-                RoomType.SUITE: Decimal("150000.00"),
+                single: Decimal("40000.00"),
+                double: Decimal("65000.00"),
+                triple: Decimal("90000.00"),
+                suite: Decimal("150000.00"),
             }
         else:
             base_price_by_type = {
-                RoomType.SINGLE: Decimal("50.00"),
-                RoomType.DOUBLE: Decimal("80.00"),
-                RoomType.TRIPLE: Decimal("110.00"),
-                RoomType.SUITE: Decimal("180.00"),
+                single: Decimal("50.00"),
+                double: Decimal("80.00"),
+                triple: Decimal("110.00"),
+                suite: Decimal("180.00"),
             }
 
         for i in range(count):

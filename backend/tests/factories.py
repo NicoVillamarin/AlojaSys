@@ -9,6 +9,7 @@ from factory.django import DjangoModelFactory
 from factory.fuzzy import FuzzyDecimal, FuzzyDate, FuzzyChoice
 
 from apps.core.models import Hotel
+from apps.core.models import Currency
 from apps.rooms.models import Room, RoomType
 from apps.enterprises.models import Enterprise
 from apps.reservations.models import Reservation, ReservationStatus, Payment, ReservationChannel
@@ -52,15 +53,26 @@ class HotelFactory(DjangoModelFactory):
     auto_no_show_enabled = True
 
 
+class CurrencyFactory(DjangoModelFactory):
+    class Meta:
+        model = Currency
+        django_get_or_create = ("code",)
+
+    code = "ARS"
+    name = "ARS"
+    symbol = "$"
+    is_active = True
+
+
 class RoomTypeFactory(DjangoModelFactory):
     class Meta:
         model = RoomType
+        django_get_or_create = ("code",)
 
-    name = factory.Sequence(lambda n: f"Tipo Habitación {n}")
+    code = "single"
+    name = "Single"
     description = "Tipo de habitación para tests"
-    max_capacity = 2
-    base_price = FuzzyDecimal(100.00, 500.00, 2)
-    extra_guest_fee = FuzzyDecimal(20.00, 50.00, 2)
+    sort_order = 0
     is_active = True
 
 
@@ -69,11 +81,14 @@ class RoomFactory(DjangoModelFactory):
         model = Room
 
     name = factory.Sequence(lambda n: f"Habitación {n}")
-    room_type = factory.SubFactory(RoomTypeFactory)
+    room_type = factory.LazyAttribute(lambda obj: RoomTypeFactory().code)
     hotel = factory.SubFactory(HotelFactory)
+    floor = 1
+    number = factory.Sequence(lambda n: 100 + n)
     capacity = 2
     max_capacity = 4
     base_price = FuzzyDecimal(100.00, 500.00, 2)
+    base_currency = factory.SubFactory(CurrencyFactory)
     extra_guest_fee = FuzzyDecimal(20.00, 50.00, 2)
     is_active = True
 

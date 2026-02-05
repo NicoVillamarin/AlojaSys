@@ -1,11 +1,37 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from typing import Optional
 
-class RoomType(models.TextChoices):
-    SINGLE = "single", "Single"
-    DOUBLE = "double", "Doble"
-    TRIPLE = "triple", "Triple"
-    SUITE = "suite", "Suite"
+class RoomType(models.Model):
+    """
+    Catálogo configurable de tipos de habitación.
+
+    NOTA: `Room.room_type` almacena el `code` (string) para mantener compatibilidad
+    con el resto del sistema que hoy compara por código.
+    """
+    code = models.SlugField(
+        max_length=50,
+        unique=True,
+        help_text="Código único (ej: single, double). Se usa en Room.room_type",
+    )
+    name = models.CharField(max_length=120, help_text="Nombre visible del tipo (ej: Doble)")
+    description = models.TextField(blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        verbose_name = "Tipo de habitación"
+        verbose_name_plural = "Tipos de habitación"
+        indexes = [
+            models.Index(fields=["code"]),
+            models.Index(fields=["is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
 
 class RoomStatus(models.TextChoices):
     AVAILABLE = "available", "Disponible"
@@ -24,7 +50,11 @@ class Room(models.Model):
     name = models.CharField(max_length=255, unique=True)
     hotel = models.ForeignKey("core.Hotel", on_delete=models.CASCADE, related_name="rooms")
     floor = models.IntegerField()
-    room_type = models.CharField(max_length=255, choices=RoomType.choices, default=RoomType.SINGLE)
+    room_type = models.CharField(
+        max_length=50,
+        default="single",
+        help_text="Código del tipo de habitación (configurable en rooms.RoomType)",
+    )
     number = models.IntegerField()
     description = models.TextField(blank=True, null=True)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -95,13 +125,29 @@ class Room(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.name} - {self.get_room_type_display()}"
+        return f"{self.name} - {self.room_type_label or self.room_type}"
+
+    @property
+    def room_type_label(self) -> Optional[str]:
+        """
+        Nombre visible del tipo de habitación según catálogo `RoomType`.
+        Evita depender de `choices` hardcodeados.
+        """
+        try:
+            rt = RoomType.objects.only("name").filter(code=self.room_type).first()
+            return rt.name if rt else None
+        except Exception:
+            return None
 
     def clean(self):
         """
         Mantener consistencia: max_capacity debe ser >= capacity.
         """
         super().clean()
+        # Validar que room_type exista (si se mantiene el catálogo activo)
+        if self.room_type:
+            if not RoomType.objects.filter(code=self.room_type, is_active=True).exists():
+                raise ValidationError({"room_type": f"Tipo de habitación inválido: '{self.room_type}'."})
         if self.capacity is not None and self.max_capacity is not None:
             if self.max_capacity < self.capacity:
                 raise ValidationError({

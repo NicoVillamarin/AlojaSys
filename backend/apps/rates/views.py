@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from apps.rooms.models import Room
+from apps.rooms.models import Room, RoomType
 from apps.rates.services.engine import compute_rate_for_date
 from apps.reservations.models import ReservationChannel
 from decimal import Decimal
@@ -92,7 +92,10 @@ def preview_rate(request):
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def rate_choices(request):
-    room_types = [{"value": v, "label": l} for v, l in Room._meta.get_field("room_type").choices]
+    room_types = [
+        {"value": rt.code, "label": rt.name}
+        for rt in RoomType.objects.filter(is_active=True).order_by("sort_order", "name").only("code", "name")
+    ]
     price_modes = [{"value": v, "label": l} for v, l in PriceMode.choices]
     channels = [{"value": v, "label": l} for v, l in ReservationChannel.choices]
     deposit_types = [

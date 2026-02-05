@@ -2,8 +2,9 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from datetime import date
 from .models import Room, RoomStatus
-from .serializers import RoomSerializer
+from .serializers import RoomSerializer, RoomTypeSerializer
 from apps.reservations.models import ReservationStatus
+from .models import RoomType
 
 class RoomViewSet(viewsets.ModelViewSet):
     serializer_class = RoomSerializer
@@ -92,3 +93,20 @@ class RoomViewSet(viewsets.ModelViewSet):
         room.is_active = False
         room.save(update_fields=["is_active", "updated_at"]) if hasattr(room, "updated_at") else room.save(update_fields=["is_active"]) 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RoomTypeViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de Tipos de Habitación (configurable desde el sistema).
+    """
+    serializer_class = RoomTypeSerializer
+
+    def get_queryset(self):
+        qs = RoomType.objects.all().order_by("sort_order", "name")
+        is_active = self.request.query_params.get("is_active")
+        if is_active is not None:
+            if str(is_active).lower() in ("1", "true", "yes"):
+                qs = qs.filter(is_active=True)
+            elif str(is_active).lower() in ("0", "false", "no"):
+                qs = qs.filter(is_active=False)
+        return qs

@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 
 from apps.chatbot.models import ChatSession
 from apps.core.models import Hotel
-from apps.rooms.models import Room, RoomType
+from apps.rooms.models import Room
 from apps.reservations.models import Reservation, ReservationStatus
 
 
@@ -35,7 +35,7 @@ class WhatsappChatbotBasicFlowTests(APITestCase):
             name="101",
             hotel=self.hotel,
             floor=1,
-            room_type=RoomType.SINGLE,
+            room_type="single",
             number=101,
             description="Test room",
             base_price=100,

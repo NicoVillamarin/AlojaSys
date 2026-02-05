@@ -254,7 +254,15 @@ class TaskTemplate(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.name} ({self.get_room_type_display()} - {self.get_task_type_display()})"
+        room_type_label = self.room_type
+        try:
+            from apps.rooms.models import RoomType as RoomTypeModel
+            rt = RoomTypeModel.objects.only("name").filter(code=self.room_type).first() if self.room_type else None
+            if rt:
+                room_type_label = rt.name
+        except Exception:
+            pass
+        return f"{self.name} ({room_type_label} - {self.get_task_type_display()})"
 
 
 class Checklist(models.Model):

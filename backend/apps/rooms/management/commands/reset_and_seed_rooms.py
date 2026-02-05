@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from apps.core.models import Hotel
-from apps.rooms.models import Room, RoomType, RoomStatus
+from apps.rooms.models import Room, RoomStatus
 from apps.reservations.models import Reservation, RoomBlock
 from decimal import Decimal
 import random
@@ -72,37 +72,41 @@ class Command(BaseCommand):
         created = 0
         
         # Distribución de tipos de habitación (más realista)
+        single = "single"
+        double = "double"
+        triple = "triple"
+        suite = "suite"
         room_types_distribution = [
-            (RoomType.SINGLE, 0.3),    # 30% individuales
-            (RoomType.DOUBLE, 0.4),    # 40% dobles
-            (RoomType.TRIPLE, 0.2),    # 20% triples
-            (RoomType.SUITE, 0.1),     # 10% suites
+            (single, 0.3),    # 30% individuales
+            (double, 0.4),    # 40% dobles
+            (triple, 0.2),    # 20% triples
+            (suite, 0.1),     # 10% suites
         ]
         
         # Configuración por tipo de habitación
         room_config = {
-            RoomType.SINGLE: {
+            single: {
                 "capacity": 1,
                 "max_capacity": 2,
                 "base_price": Decimal("50.00"),
                 "extra_guest_fee": Decimal("15.00"),
                 "description": "Habitación individual con cama simple, ideal para viajeros de negocios"
             },
-            RoomType.DOUBLE: {
+            double: {
                 "capacity": 2,
                 "max_capacity": 3,
                 "base_price": Decimal("80.00"),
                 "extra_guest_fee": Decimal("20.00"),
                 "description": "Habitación doble con cama matrimonial, perfecta para parejas"
             },
-            RoomType.TRIPLE: {
+            triple: {
                 "capacity": 3,
                 "max_capacity": 4,
                 "base_price": Decimal("110.00"),
                 "extra_guest_fee": Decimal("25.00"),
                 "description": "Habitación triple con múltiples camas, ideal para familias pequeñas"
             },
-            RoomType.SUITE: {
+            suite: {
                 "capacity": 2,
                 "max_capacity": 4,
                 "base_price": Decimal("180.00"),

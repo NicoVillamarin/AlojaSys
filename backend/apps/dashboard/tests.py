@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from apps.core.models import Hotel
-from apps.rooms.models import Room, RoomType, RoomStatus
+from apps.rooms.models import Room, RoomStatus
 from apps.reservations.models import Reservation, ReservationStatus
 from .models import DashboardMetrics
 
@@ -21,7 +21,7 @@ class DashboardMetricsModelTest(TestCase):
             name="101",
             hotel=self.hotel,
             floor=1,
-            room_type=RoomType.SINGLE,
+            room_type="single",
             number=101,
             base_price=Decimal('100.00'),
             capacity=1,
@@ -33,7 +33,7 @@ class DashboardMetricsModelTest(TestCase):
             name="102",
             hotel=self.hotel,
             floor=1,
-            room_type=RoomType.DOUBLE,
+            room_type="double",
             number=102,
             base_price=Decimal('150.00'),
             capacity=2,
@@ -122,7 +122,7 @@ class DashboardMetricsViewTest(TestCase):
             name="101",
             hotel=self.hotel,
             floor=1,
-            room_type=RoomType.SINGLE,
+            room_type="single",
             number=101,
             base_price=Decimal('100.00'),
             capacity=1,

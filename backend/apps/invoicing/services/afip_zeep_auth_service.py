@@ -16,8 +16,6 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.serialization import pkcs7
 
-from zeep import Client
-from zeep.transports import Transport
 import requests
 import xml.etree.ElementTree as ET
 
@@ -114,6 +112,16 @@ class AfipZeepAuthService:
         return None
 
     def _request_ta_with_zeep(self) -> Tuple[str, str, Optional[datetime], Optional[datetime]]:
+        # Import diferido: evita romper el arranque del proyecto si `zeep`
+        # no está instalado o no es compatible con la versión de Python local.
+        try:
+            from zeep import Client  # type: ignore
+            from zeep.transports import Transport  # type: ignore
+        except Exception as e:
+            raise AfipZeepAuthError(
+                f"No se pudo importar Zeep (SOAP). Instala/ajusta dependencias para AFIP. Detalle: {e}"
+            )
+
         # Construir TRA
         now = datetime.now(dt_timezone.utc)
         generation_time = (now - timedelta(minutes=10)).astimezone().isoformat(timespec='seconds')

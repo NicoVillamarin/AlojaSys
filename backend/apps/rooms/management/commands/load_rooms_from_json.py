@@ -46,7 +46,7 @@ class Command(BaseCommand):
                 raise CommandError(f"Habitación {index}: falta el campo requerido '{field}'")
         
         # Validar room_type
-        valid_types = [choice[0] for choice in RoomType.choices]
+        valid_types = list(RoomType.objects.filter(is_active=True).values_list("code", flat=True))
         if data['room_type'] not in valid_types:
             raise CommandError(
                 f"Habitación {index}: room_type '{data['room_type']}' inválido. "
