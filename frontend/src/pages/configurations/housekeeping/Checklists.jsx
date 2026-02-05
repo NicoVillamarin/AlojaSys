@@ -12,6 +12,7 @@ import ChecklistModal from 'src/components/modals/ChecklistModal'
 import Filter from 'src/components/Filter'
 import EditIcon from 'src/assets/icons/EditIcon'
 import { usePlanFeatures } from 'src/hooks/usePlanFeatures'
+import { useRoomTypes } from 'src/hooks/useRoomTypes'
 
 export default function Checklists() {
   const { t } = useTranslation()
@@ -55,13 +56,10 @@ export default function Checklists() {
   }, [filters.hotel, filters.room_type, filters.task_type, refetch])
 
   const displayResults = useMemo(() => results || [], [results])
-
-  const ROOM_TYPES = [
-    { value: 'single', label: t('rooms_modal.room_types.single') },
-    { value: 'double', label: t('rooms_modal.room_types.double') },
-    { value: 'triple', label: t('rooms_modal.room_types.triple') },
-    { value: 'suite', label: t('rooms_modal.room_types.suite') },
-  ]
+  const { roomTypeOptions, getRoomTypeLabel } = useRoomTypes({
+    includeInactive: true,
+    enabled: housekeepingEnabled,
+  })
 
   const TASK_TYPES = [
     { value: 'daily', label: t('housekeeping.types.daily') },
@@ -114,11 +112,11 @@ export default function Checklists() {
             title={t('housekeeping.checklists.room_type')}
             value={
               filters.room_type
-                ? ROOM_TYPES.find((rt) => rt.value === filters.room_type)
+                ? roomTypeOptions.find((rt) => rt.value === filters.room_type) || { value: filters.room_type, label: getRoomTypeLabel(filters.room_type) }
                 : null
             }
             onChange={(opt) => setFilters((f) => ({ ...f, room_type: opt ? opt.value : '' }))}
-            options={ROOM_TYPES}
+            options={roomTypeOptions}
             placeholder={t('common.all')}
             isClearable
             isSearchable={false}
@@ -147,7 +145,7 @@ export default function Checklists() {
           { key: 'id', header: 'ID', sortable: true, accessor: (r) => r.id },
           { key: 'hotel', header: t('common.hotel'), sortable: true, render: (r) => r.hotel_name || r.hotel },
           { key: 'name', header: t('housekeeping.checklists.name'), sortable: true, render: (r) => r.name },
-          { key: 'room_type', header: t('housekeeping.checklists.room_type'), sortable: true, render: (r) => r.room_type ? t(`rooms_modal.room_types.${r.room_type}`) : '-' },
+          { key: 'room_type', header: t('housekeeping.checklists.room_type'), sortable: true, render: (r) => r.room_type ? getRoomTypeLabel(r.room_type) : '-' },
           { key: 'task_type', header: t('housekeeping.task_type'), sortable: true, render: (r) => r.task_type ? t(`housekeeping.types.${r.task_type}`) : '-' },
           { key: 'items_count', header: t('housekeeping.checklists.items_count'), sortable: false, render: (r) => r.items?.length || 0 },
           { key: 'is_default', header: t('housekeeping.checklists.is_default'), sortable: true, render: (r) => r.is_default ? t('common.yes') : t('common.no') },

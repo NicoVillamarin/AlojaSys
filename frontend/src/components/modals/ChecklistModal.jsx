@@ -13,6 +13,7 @@ import { useUserHotels } from 'src/hooks/useUserHotels'
 import { useList } from 'src/hooks/useList'
 import Button from 'src/components/Button'
 import XIcon from 'src/assets/icons/Xicon'
+import { useRoomTypes } from 'src/hooks/useRoomTypes'
 
 const validationSchema = (t) => Yup.object().shape({
   hotel: Yup.number().required(t('housekeeping.checklists.validations.hotel_required')),
@@ -23,6 +24,19 @@ const ChecklistModal = ({ isOpen, onClose, isEdit = false, checklist, onSuccess 
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
   const [instanceKey, setInstanceKey] = useState(0)
+
+  const { roomTypeOptions, roomTypesLoading, getRoomTypeLabel } = useRoomTypes({
+    includeInactive: true,
+    enabled: !!isOpen,
+  })
+
+  const roomTypeOptionsWithCurrent = React.useMemo(() => {
+    const current = checklist?.room_type
+    const base = [{ value: '', label: t('common.all') }, ...roomTypeOptions]
+    if (!current) return base
+    if (base.some((o) => String(o.value) === String(current))) return base
+    return [{ value: current, label: getRoomTypeLabel(current) }, ...base]
+  }, [roomTypeOptions, checklist?.room_type, getRoomTypeLabel, t])
 
   const initialValues = {
     hotel: checklist?.hotel ?? (hasSingleHotel ? singleHotelId : ''),
@@ -191,15 +205,10 @@ const ChecklistModal = ({ isOpen, onClose, isEdit = false, checklist, onSuccess 
               <SelectBasic
                 title={t('housekeeping.checklists.room_type')}
                 name='room_type'
-                options={[
-                  { value: '', label: t('common.all') },
-                  { value: 'single', label: t('rooms_modal.room_types.single') },
-                  { value: 'double', label: t('rooms_modal.room_types.double') },
-                  { value: 'triple', label: t('rooms_modal.room_types.triple') },
-                  { value: 'suite', label: t('rooms_modal.room_types.suite') },
-                ]}
-                placeholder={t('common.select_placeholder')}
+                options={roomTypeOptionsWithCurrent}
+                placeholder={roomTypesLoading ? t('common.loading', 'Cargando…') : t('common.select_placeholder')}
                 isClearable
+                isSearchable
               />
               <SelectBasic
                 title={t('housekeeping.task_type')}

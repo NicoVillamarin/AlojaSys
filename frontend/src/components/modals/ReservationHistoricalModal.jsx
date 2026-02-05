@@ -722,7 +722,9 @@ export default function ReservationHistoricalModal({ reservationId, onClose, isD
         </div>
         <div className="flex justify-between">
           <span className="text-gray-700">Tipo de Habitación:</span>
-          <span className="font-semibold text-gray-900">{reservationData.room_type}</span>
+          <span className="font-semibold text-gray-900">
+            {reservationData.room_type_alias || reservationData.room_type_name || reservationData.room_type}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-700">Número de Habitación:</span>

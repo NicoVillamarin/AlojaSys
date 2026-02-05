@@ -579,7 +579,8 @@ const RoomMap = ({
               <span className="font-medium">Número:</span> {hoveredRoom.number || hoveredRoom.id}
             </div>
             <div className="text-xs text-gray-600">
-              <span className="font-medium">Tipo:</span> {hoveredRoom.room_type || 'N/A'}
+              <span className="font-medium">Tipo:</span>{' '}
+              {hoveredRoom.room_type_alias || hoveredRoom.room_type_name || hoveredRoom.room_type || 'N/A'}
             </div>
             {hoveredRoom.capacity && (
               <div className="text-xs text-gray-600">

@@ -244,17 +244,6 @@ const ReservationsCalendar = () => {
     return rank[String(status || '').toLowerCase()] ?? 99
   }
 
-  // Etiqueta amigable para tipo de habitación (para el sidebar de recursos)
-  const getRoomTypeLabel = (type) => {
-    const types = {
-      single: t('rooms_modal.room_types.single', 'Single'),
-      double: t('rooms_modal.room_types.double', 'Doble'),
-      triple: t('rooms_modal.room_types.triple', 'Triple'),
-      suite: t('rooms_modal.room_types.suite', 'Suite'),
-    }
-    return types[type] || (type ? String(type) : '')
-  }
-
   // Crear leyenda de colores
   const colorLegend = useMemo(() => [
     { status: 'pending', label: 'Pendiente', color: '#F59E0B', description: 'Reserva pendiente de confirmación' },
@@ -379,14 +368,11 @@ const ReservationsCalendar = () => {
   // Convertir habitaciones a recursos para la vista de habitaciones
   const calendarResources = useMemo(() => {
     if (!rooms) return []
-    const types = {
-      single: t('rooms_modal.room_types.single', 'Single'),
-      double: t('rooms_modal.room_types.double', 'Doble'),
-      triple: t('rooms_modal.room_types.triple', 'Triple'),
-      suite: t('rooms_modal.room_types.suite', 'Suite'),
-    }
     return rooms.map(room => {
-      const typeDisplay = room?.room_type_alias ?? room?.room_type_name ?? (types[room?.room_type] || room?.room_type || '')
+      const typeDisplay =
+        room?.room_type_alias ??
+        room?.room_type_name ??
+        (room?.room_type ? String(room.room_type) : '')
       return {
         id: room.id.toString(),
         title: room.name || `HAB-${room.number || room.id}`,
@@ -400,7 +386,7 @@ const ReservationsCalendar = () => {
         }
       }
     })
-  }, [rooms, t])
+  }, [rooms])
 
   // Convertir reservas a eventos del calendario (usando API de reservas directamente)
   const fullCalendarEvents = useMemo(() => {
@@ -1127,7 +1113,9 @@ const ReservationsCalendar = () => {
             resourceLabelContent: (args) => {
               const title = args?.resource?.title || ''
               const roomType = args?.resource?.extendedProps?.room_type
-              const subtitle = getRoomTypeLabel(roomType)
+              const subtitle =
+                args?.resource?.extendedProps?.room_type_display ||
+                (roomType ? String(roomType) : '')
 
               const container = document.createElement('div')
               container.className = 'flex flex-col leading-tight min-w-0'

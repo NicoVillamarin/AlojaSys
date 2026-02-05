@@ -393,7 +393,10 @@ const PaymentInformation = () => {
             <div>
               <h4 className="font-semibold text-gray-800 text-lg">{roomData.name}</h4>
               <p className="text-sm text-gray-600">
-                {t('payment_information.room_type')} {roomData.room_type} • {t('payment_information.floor')} {roomData.floor} • {t('payment_information.room_number')}{roomData.number}
+                {t('payment_information.room_type')}{' '}
+                {roomData.room_type_alias || roomData.room_type_name || roomData.room_type}{' '}
+                • {t('payment_information.floor')} {roomData.floor} • {t('payment_information.room_number')}
+                {roomData.number}
               </p>
               <p className="text-sm text-gray-600 mt-1">
                 {t('payment_information.capacity')} {roomData.capacity} {t('payment_information.guests_included')} {roomData.max_capacity})

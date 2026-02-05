@@ -317,7 +317,7 @@ const GuestInformation = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   {t('guest_information.room_info', { 
                     name: values.room_data.name, 
-                    type: values.room_data.room_type 
+                    type: values.room_data.room_type_alias || values.room_data.room_type_name || values.room_data.room_type 
                   })}
                 </p>
               )}

@@ -973,7 +973,12 @@ const ReservationsModal = ({ isOpen, onClose, onSuccess, isEdit = false, reserva
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Tipo</p>
-                        <p className="font-medium">{reservation?.room_data?.room_type || 'No especificado'}</p>
+                        <p className="font-medium">
+                          {reservation?.room_data?.room_type_alias ||
+                            reservation?.room_data?.room_type_name ||
+                            reservation?.room_data?.room_type ||
+                            'No especificado'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Capacidad</p>

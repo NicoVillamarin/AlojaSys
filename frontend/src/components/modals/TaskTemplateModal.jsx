@@ -10,6 +10,7 @@ import SelectBasic from 'src/components/selects/SelectBasic'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
 import { useUserHotels } from 'src/hooks/useUserHotels'
+import { useRoomTypes } from 'src/hooks/useRoomTypes'
 
 const validationSchema = (t) => Yup.object().shape({
   hotel: Yup.number().required(t('housekeeping.templates.validations.hotel_required')),
@@ -23,6 +24,18 @@ const TaskTemplateModal = ({ isOpen, onClose, isEdit = false, template, onSucces
   const { t } = useTranslation()
   const { hasSingleHotel, singleHotelId } = useUserHotels()
   const [instanceKey, setInstanceKey] = useState(0)
+
+  const { roomTypeOptions, roomTypesLoading, getRoomTypeLabel } = useRoomTypes({
+    includeInactive: true,
+    enabled: !!isOpen,
+  })
+
+  const roomTypeOptionsWithCurrent = React.useMemo(() => {
+    const current = template?.room_type
+    if (!current) return roomTypeOptions
+    if (roomTypeOptions.some((o) => String(o.value) === String(current))) return roomTypeOptions
+    return [{ value: current, label: getRoomTypeLabel(current) }, ...roomTypeOptions]
+  }, [roomTypeOptions, template?.room_type, getRoomTypeLabel])
 
   const initialValues = {
     hotel: template?.hotel ?? (hasSingleHotel ? singleHotelId : ''),
@@ -102,13 +115,9 @@ const TaskTemplateModal = ({ isOpen, onClose, isEdit = false, template, onSucces
             <SelectBasic
               title={`${t('housekeeping.templates.room_type')} *`}
               name='room_type'
-              options={[
-                { value: 'single', label: t('rooms_modal.room_types.single') },
-                { value: 'double', label: t('rooms_modal.room_types.double') },
-                { value: 'triple', label: t('rooms_modal.room_types.triple') },
-                { value: 'suite', label: t('rooms_modal.room_types.suite') },
-              ]}
-              placeholder={t('common.select_placeholder')}
+              options={roomTypeOptionsWithCurrent}
+              placeholder={roomTypesLoading ? t('common.loading', 'Cargando…') : t('common.select_placeholder')}
+              isSearchable
             />
             <SelectBasic
               title={`${t('housekeeping.task_type')} *`}

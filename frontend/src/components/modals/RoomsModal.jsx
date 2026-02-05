@@ -1,9 +1,10 @@
 import { Formik } from 'formik'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import { useCreate } from 'src/hooks/useCreate'
 import { useUpdate } from 'src/hooks/useUpdate'
+import { useList } from 'src/hooks/useList'
 import InputText from 'src/components/inputs/InputText'
 import InputTextTarea from 'src/components/inputs/InputTextTarea'
 import SelectBasic from 'src/components/selects/SelectBasic'
@@ -32,6 +33,39 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
   const { t } = useTranslation()
   const [amenitySearch, setAmenitySearch] = useState('')
   const [customAmenity, setCustomAmenity] = useState('')
+
+  const { results: roomTypes, isPending: roomTypesLoading } = useList({
+    resource: 'room-types',
+    params: {}, // traemos todos para poder mostrar el actual aunque esté inactivo
+    enabled: !!isOpen,
+  })
+
+  const roomTypeOptions = useMemo(() => {
+    const list = Array.isArray(roomTypes) ? [...roomTypes] : []
+    list.sort((a, b) => {
+      const ao = Number(a?.sort_order ?? 0)
+      const bo = Number(b?.sort_order ?? 0)
+      if (ao !== bo) return ao - bo
+      return String(a?.name ?? '').localeCompare(String(b?.name ?? ''))
+    })
+
+    const opts = list.map((rt) => {
+      const code = rt?.code
+      const name = rt?.name || code
+      const alias = rt?.alias
+      const isActive = rt?.is_active !== false
+      let label = alias ? `${alias} — ${name}` : String(name ?? '')
+      if (!isActive) label = `${label} (inactivo)`
+      return { value: code, label }
+    }).filter((o) => !!o.value)
+
+    // Si estamos editando y el room_type actual no está en la lista (raro), lo agregamos como fallback
+    const currentCode = room?.room_type
+    if (currentCode && !opts.some((o) => String(o.value) === String(currentCode))) {
+      opts.unshift({ value: currentCode, label: String(currentCode) })
+    }
+    return opts
+  }, [roomTypes, room?.room_type])
   
   // Funci?n para convertir archivo a base64
   const convertFileToBase64 = (file) => {
@@ -292,13 +326,13 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             <SelectBasic
               title={`${t('rooms_modal.type')} *`}
               name='room_type'
-              placeholder={t('rooms_modal.type_placeholder')}
-              options={[
-                { value: 'single', label: t('rooms_modal.room_types.single') },
-                { value: 'double', label: t('rooms_modal.room_types.double') },
-                { value: 'triple', label: t('rooms_modal.room_types.triple') },
-                { value: 'suite', label: t('rooms_modal.room_types.suite') },
-              ]}
+              placeholder={
+                roomTypesLoading
+                  ? t('common.loading', 'Cargando…')
+                  : t('rooms_modal.type_placeholder')
+              }
+              options={roomTypeOptions}
+              isSearchable
             />
             <InputText title={`${t('rooms_modal.capacity')} *`} name='capacity' placeholder={t('rooms_modal.capacity_placeholder')} />
             <InputText title={`${t('rooms_modal.max_capacity')} *`} name='max_capacity' placeholder={t('rooms_modal.max_capacity_placeholder')} />

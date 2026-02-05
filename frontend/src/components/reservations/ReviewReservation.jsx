@@ -160,7 +160,9 @@ const ReviewReservation = () => {
               {values.room_data && (
                 <div>
                   <span className="text-sm text-gray-600">{t('review_reservation.type')} </span>
-                  <span className="font-medium">{values.room_data.room_type}</span>
+                  <span className="font-medium">
+                    {values.room_data.room_type_alias || values.room_data.room_type_name || values.room_data.room_type}
+                  </span>
                 </div>
               )}
             </div>

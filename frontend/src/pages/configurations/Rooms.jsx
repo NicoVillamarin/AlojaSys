@@ -53,7 +53,7 @@ export default function Rooms() {
       const idStr = String(r.id ?? "");
       const numberStr = String(r.number ?? "");
       const nameStr = String(r.name ?? "");
-      const typeStr = String(r.room_type ?? "");
+      const typeStr = String(r.room_type_alias ?? r.room_type_name ?? r.room_type ?? "");
       const statusStr = String(r.status ?? "");
       return (
         idStr.includes(q) ||
@@ -199,7 +199,12 @@ export default function Rooms() {
               </button>
             ),
           },
-          { key: "room_type", header: t('rooms.room_type'), sortable: true },
+          {
+            key: "room_type",
+            header: t('rooms.room_type'),
+            sortable: true,
+            render: (r) => r?.room_type_alias ?? r?.room_type_name ?? r?.room_type ?? '',
+          },
           {
             key: "status",
             header: t('common.status'),

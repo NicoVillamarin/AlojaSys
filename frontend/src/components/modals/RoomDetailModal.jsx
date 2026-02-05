@@ -32,16 +32,7 @@ const RoomDetailModal = ({ isOpen, onClose, room }) => {
 
   const statusMeta = getStatusMeta(room.status, t)
 
-  // Obtener tipo de habitación traducido
-  const getRoomTypeLabel = (type) => {
-    const types = {
-      single: t('rooms_modal.room_types.single'),
-      double: t('rooms_modal.room_types.double'),
-      triple: t('rooms_modal.room_types.triple'),
-      suite: t('rooms_modal.room_types.suite'),
-    }
-    return types[type] || type
-  }
+  const roomTypeLabel = room?.room_type_alias || room?.room_type_name || room?.room_type || '-'
 
   return (
     <ModalLayout
@@ -87,7 +78,7 @@ const RoomDetailModal = ({ isOpen, onClose, room }) => {
                 {t('rooms_modal.type')}
               </label>
               <p className="text-sm font-medium text-aloja-gray-800">
-                {getRoomTypeLabel(room.room_type)}
+                {roomTypeLabel}
               </p>
             </div>
             <div>

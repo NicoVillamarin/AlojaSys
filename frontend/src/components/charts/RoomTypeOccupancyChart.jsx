@@ -2,6 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import Chart from 'react-apexcharts'
 import SpinnerLoading from 'src/components/SpinnerLoading'
+import { useRoomTypes } from 'src/hooks/useRoomTypes'
 
 const RoomTypeOccupancyChart = ({ 
   rooms = [], 
@@ -10,6 +11,7 @@ const RoomTypeOccupancyChart = ({
   occupancyByType = null
 }) => {
   const { t } = useTranslation()
+  const { getRoomTypeLabel } = useRoomTypes({ includeInactive: true, enabled: true })
   // Procesar datos para gráfico de ocupación por tipo de habitación
   const getRoomTypeOccupancyData = () => {
     // Si llega ocupación desde el dashboard, priorizarla (global u hotel)
@@ -23,13 +25,7 @@ const RoomTypeOccupancyChart = ({
           { name: t('dashboard.charts.available'), data: totalData.map((t, i) => Math.max(t - occupiedData[i], 0)) }
         ],
         labels: labels.map(type => {
-          const typeNames = { 
-            single: t('dashboard.charts.room_types.single'), 
-            double: t('dashboard.charts.room_types.double'), 
-            triple: t('dashboard.charts.room_types.triple'), 
-            suite: t('dashboard.charts.room_types.suite') 
-          }
-          return typeNames[type] || type
+          return getRoomTypeLabel(type) || type
         })
       }
     }
@@ -64,13 +60,7 @@ const RoomTypeOccupancyChart = ({
         }
       ],
       labels: labels.map(type => {
-        const typeNames = {
-          'single': t('dashboard.charts.room_types.single'),
-          'double': t('dashboard.charts.room_types.double'),
-          'triple': t('dashboard.charts.room_types.triple'),
-          'suite': t('dashboard.charts.room_types.suite')
-        }
-        return typeNames[type] || type
+        return getRoomTypeLabel(type) || type
       })
     }
   }

@@ -4,9 +4,11 @@ import ModalLayout from 'src/layouts/ModalLayout'
 import { useGet } from 'src/hooks/useGet'
 import { useList } from 'src/hooks/useList'
 import SpinnerData from 'src/components/SpinnerData'
+import { useRoomTypes } from 'src/hooks/useRoomTypes'
 
 const ChecklistDetailModal = ({ isOpen, onClose, checklistId }) => {
   const { t } = useTranslation()
+  const { getRoomTypeLabel } = useRoomTypes({ includeInactive: true, enabled: isOpen })
 
   // Obtener el checklist completo
   const { results: checklistData, isPending: loadingChecklist } = useGet({
@@ -107,7 +109,7 @@ const ChecklistDetailModal = ({ isOpen, onClose, checklistId }) => {
                 {checklistData.room_type && (
                   <div>
                     <span className="text-gray-600">{t('housekeeping.checklists.room_type')}:</span>
-                    <span className="ml-2 font-medium">{t(`rooms_modal.room_types.${checklistData.room_type}`)}</span>
+                    <span className="ml-2 font-medium">{getRoomTypeLabel(checklistData.room_type)}</span>
                   </div>
                 )}
                 {checklistData.task_type && (

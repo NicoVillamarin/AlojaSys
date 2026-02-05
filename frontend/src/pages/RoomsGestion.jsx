@@ -223,7 +223,7 @@ export default function RoomsGestion() {
                   <tr>
                     <td class="center">${escapeHtml(r?.floor ?? "")}</td>
                     <td>${escapeHtml(roomLabel)}</td>
-                    <td>${escapeHtml(r?.room_type ?? "")}</td>
+                    <td>${escapeHtml(r?.room_type_alias ?? r?.room_type_name ?? r?.room_type ?? "")}</td>
                     <td>
                       <div><strong>${escapeHtml(hasCurrentReservation ? t("common.yes", "Sí") : t("common.no", "No"))}</strong></div>
                       ${
@@ -487,7 +487,7 @@ export default function RoomsGestion() {
       const idStr = String(r.id ?? "");
       const numberStr = String(r.number ?? "");
       const nameStr = String(r.name ?? "");
-      const typeStr = String(r.room_type ?? "");
+      const typeStr = String(r.room_type_alias ?? r.room_type_name ?? r.room_type ?? "");
       const statusStr = String(r.status ?? "");
       return (
         idStr.includes(q) ||
@@ -741,7 +741,12 @@ export default function RoomsGestion() {
               </button>
             ),
           },
-          { key: "room_type", header: t('rooms.room_type'), sortable: true },
+          {
+            key: "room_type",
+            header: t('rooms.room_type'),
+            sortable: true,
+            render: (r) => r?.room_type_alias ?? r?.room_type_name ?? r?.room_type ?? '',
+          },
           {
             key: "status",
             header: t('common.status'),
