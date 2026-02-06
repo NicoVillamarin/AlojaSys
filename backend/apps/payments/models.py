@@ -348,32 +348,57 @@ class CancellationPolicy(models.Model):
         # Debug: imprimir valores calculados
         print(f"DEBUG CancellationPolicy: free_cancellation_seconds={free_cancellation_seconds}, partial_refund_seconds={partial_refund_seconds}, no_refund_seconds={no_refund_seconds}")
         
-        # Determinar el tipo de cancelación
-        # Lógica corregida: free_cancellation_time debe ser MAYOR que partial_refund_time
+        # Determinar el tipo de cancelación.
+        # IMPORTANTE: La API/Frontend esperan `cancellation_type`.
+        # Mantener también `type` para compatibilidad retroactiva.
+        # Lógica: free (más lejos) -> partial (penalidad) -> no_refund (sin devolución).
         if time_until_checkin >= free_cancellation_seconds:
-            print(f"DEBUG CancellationPolicy: Aplicando cancelación gratuita (time_until_checkin={time_until_checkin} >= free_cancellation_seconds={free_cancellation_seconds})")
+            print(
+                f"DEBUG CancellationPolicy: Aplicando cancelación gratuita "
+                f"(time_until_checkin={time_until_checkin} >= free_cancellation_seconds={free_cancellation_seconds})"
+            )
             return {
-                'type': 'free',
-                'fee_type': 'none',
-                'fee_value': 0,
-                'message': self.free_cancellation_message or f"Cancelación gratuita hasta {self.free_cancellation_time} {self.free_cancellation_unit} antes del check-in"
+                "cancellation_type": "free",
+                "type": "free",
+                "fee_type": "none",
+                "fee_value": 0,
+                "message": self.free_cancellation_message
+                or f"Cancelación gratuita hasta {self.free_cancellation_time} {self.free_cancellation_unit} antes del check-in",
             }
-        elif time_until_checkin >= partial_refund_seconds:
-            print(f"DEBUG CancellationPolicy: Aplicando cancelación parcial (time_until_checkin={time_until_checkin} >= partial_refund_seconds={partial_refund_seconds})")
+
+        if time_until_checkin >= partial_refund_seconds:
+            print(
+                f"DEBUG CancellationPolicy: Aplicando cancelación parcial "
+                f"(time_until_checkin={time_until_checkin} >= partial_refund_seconds={partial_refund_seconds})"
+            )
+            fee_type = str(self.cancellation_fee_type or "percentage")
+            fee_value = float(self.cancellation_fee_value or 0)
             return {
-                'type': 'partial',
-                'fee_type': self.cancellation_fee_type,
-                'fee_value': float(self.cancellation_fee_value),
-                'message': self.partial_cancellation_message or f"Cancelación con penalidad hasta {self.partial_refund_time} {self.partial_refund_unit} antes del check-in"
+                "cancellation_type": "partial",
+                "type": "partial",
+                "fee_type": fee_type,
+                "fee_value": fee_value,
+                # Para compatibilidad con cálculos antiguos
+                "penalty_percentage": fee_value if fee_type == "percentage" else 0,
+                "message": self.partial_cancellation_message
+                or f"Cancelación con penalidad hasta {self.partial_refund_time} {self.partial_refund_unit} antes del check-in",
             }
-        else:
-            print(f"DEBUG CancellationPolicy: Aplicando sin cancelación (time_until_checkin={time_until_checkin} < partial_refund_seconds={partial_refund_seconds})")
-            return {
-                'type': 'no_cancellation',
-                'fee_type': self.cancellation_fee_type,
-                'fee_value': float(self.cancellation_fee_value),
-                'message': self.no_cancellation_message or f"Sin cancelación después de {self.no_refund_time} {self.no_refund_unit} antes del check-in"
-            }
+
+        print(
+            f"DEBUG CancellationPolicy: Aplicando sin devolución "
+            f"(time_until_checkin={time_until_checkin} < partial_refund_seconds={partial_refund_seconds})"
+        )
+        fee_type = str(self.cancellation_fee_type or "percentage")
+        fee_value = float(self.cancellation_fee_value or 0)
+        return {
+            "cancellation_type": "no_refund",
+            "type": "no_refund",
+            "fee_type": fee_type,
+            "fee_value": fee_value,
+            "penalty_percentage": fee_value if fee_type == "percentage" else 0,
+            "message": self.no_cancellation_message
+            or f"Sin devolución después de {self.no_refund_time} {self.no_refund_unit} antes del check-in",
+        }
 
 
 class RefundPolicy(models.Model):

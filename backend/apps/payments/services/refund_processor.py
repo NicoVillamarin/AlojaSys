@@ -32,21 +32,8 @@ class RefundProcessor:
                 if not cancellation_policy:
                     cancellation_policy = reservation.applied_cancellation_policy
                 
-                if not cancellation_policy:
-                    return {
-                        'success': False,
-                        'error': 'No hay política de cancelación aplicada a esta reserva',
-                        'refund_amount': Decimal('0.00')
-                    }
-                
                 # 2. Obtener política de devolución del hotel
                 refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
-                if not refund_policy:
-                    return {
-                        'success': False,
-                        'error': 'No hay política de devolución configurada para este hotel',
-                        'refund_amount': Decimal('0.00')
-                    }
                 
                 # 3. Calcular reglas de cancelación y devolución
                 # Usar snapshot si está disponible, sino usar política actual
@@ -54,13 +41,33 @@ class RefundProcessor:
                 
                 if SnapshotCancellationCalculator.should_use_snapshot(reservation):
                     cancellation_rules = SnapshotCancellationCalculator.get_cancellation_rules_from_snapshot(reservation)
-                    if not cancellation_rules:
+                    if not cancellation_rules and cancellation_policy:
                         # Fallback a política actual si no se puede calcular desde snapshot
                         cancellation_rules = cancellation_policy.get_cancellation_rules(reservation.check_in)
                 else:
-                    cancellation_rules = cancellation_policy.get_cancellation_rules(reservation.check_in)
-                
-                refund_rules = refund_policy.get_refund_rules(reservation.check_in)
+                    cancellation_rules = cancellation_policy.get_cancellation_rules(reservation.check_in) if cancellation_policy else None
+
+                # Fallback seguro si no hay política configurada: permitir cancelar, pero NO devolver dinero automáticamente.
+                if not cancellation_rules:
+                    cancellation_rules = {
+                        'cancellation_type': 'no_refund',
+                        'type': 'no_refund',
+                        'fee_type': 'percentage',
+                        'fee_value': 100,
+                        'penalty_percentage': 100,
+                        'message': 'Sin política de cancelación configurada: se retiene lo pagado.'
+                    }
+
+                if refund_policy:
+                    refund_rules = refund_policy.get_refund_rules(reservation.check_in)
+                else:
+                    refund_rules = {
+                        'type': 'none',
+                        'refund_percentage': 0,
+                        'refund_method': 'original_payment',
+                        'processing_days': 0,
+                        'message': 'Sin política de devolución configurada: no se procesa devolución automática.'
+                    }
                 
                 # 3. Calcular monto total pagado
                 total_paid = RefundProcessor._calculate_total_paid(reservation)
@@ -154,18 +161,69 @@ class RefundProcessor:
         """
         Calcula la penalidad según las reglas de cancelación
         """
-        cancellation_type = cancellation_rules.get('cancellation_type', 'no_cancellation')
-        
+        # Normalizar tipo: hoy convivieron `cancellation_type` y `type`
+        cancellation_type = cancellation_rules.get('cancellation_type') or cancellation_rules.get('type') or 'no_refund'
+        if cancellation_type == 'no_cancellation':
+            cancellation_type = 'no_refund'
+
         if cancellation_type == 'free':
             return Decimal('0.00')
-        
-        if cancellation_type == 'partial':
-            penalty_percentage = cancellation_rules.get('penalty_percentage', 0)
-            penalty_amount = (total_paid * Decimal(penalty_percentage)) / Decimal('100')
-            return penalty_amount
-        
-        # Para 'no_cancellation' o cualquier otro caso, penalidad completa
-        return total_paid
+
+        # Soportar esquema nuevo (fee_type/fee_value) y viejo (penalty_percentage)
+        fee_type = cancellation_rules.get('fee_type')
+        fee_value = cancellation_rules.get('fee_value')
+
+        # Snapshot incluye `penalty` con `fee_type/fee_value`
+        if not fee_type and isinstance(cancellation_rules.get('penalty'), dict):
+            fee_type = cancellation_rules['penalty'].get('fee_type')
+            fee_value = cancellation_rules['penalty'].get('fee_value')
+
+        # Si no tenemos fee_type, usar esquema viejo
+        if not fee_type:
+            if cancellation_type == 'partial':
+                penalty_percentage = cancellation_rules.get('penalty_percentage', 0) or 0
+                penalty_amount = (total_paid * Decimal(str(penalty_percentage))) / Decimal('100')
+                return max(Decimal('0.00'), min(total_paid, penalty_amount))
+            return total_paid
+
+        fee_type = str(fee_type)
+        try:
+            fee_value_dec = Decimal(str(fee_value or 0))
+        except Exception:
+            fee_value_dec = Decimal('0')
+
+        penalty_amount = Decimal('0.00')
+
+        if fee_type == 'none':
+            penalty_amount = Decimal('0.00')
+        elif fee_type == 'percentage':
+            penalty_amount = (total_paid * fee_value_dec) / Decimal('100')
+        elif fee_type == 'fixed':
+            penalty_amount = fee_value_dec
+        elif fee_type == 'first_night':
+            try:
+                first_night = reservation.nights.order_by('date').values_list('total_night', flat=True).first()
+                if first_night is not None:
+                    penalty_amount = Decimal(str(first_night))
+                elif getattr(reservation, 'room', None) and getattr(reservation.room, 'base_price', None) is not None:
+                    penalty_amount = Decimal(str(reservation.room.base_price))
+                else:
+                    penalty_amount = total_paid
+            except Exception:
+                penalty_amount = total_paid
+        elif fee_type == 'nights_percentage':
+            try:
+                nights = max(0, (reservation.check_out - reservation.check_in).days)
+            except Exception:
+                nights = 0
+            penalty_amount = (total_paid * fee_value_dec) / Decimal('100') * Decimal(str(nights))
+        else:
+            # Fallback defensivo: retener lo pagado
+            penalty_amount = total_paid
+
+        # Nunca penalizar más de lo que el huésped pagó
+        penalty_amount = max(Decimal('0.00'), min(total_paid, penalty_amount))
+        return penalty_amount
     
     @staticmethod
     def _calculate_refund_amount(

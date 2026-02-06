@@ -485,6 +485,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             # Usar la política de cancelación aplicada a la reserva (histórica).
             # Fallback: si no existe (p.ej. reservas OTA importadas), resolver la vigente del hotel
             # para no bloquear el flujo de UI.
+            missing_cancellation_policy = False
             if not reservation.applied_cancellation_policy:
                 try:
                     from apps.payments.models import CancellationPolicy
@@ -495,18 +496,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 except Exception:
                     policy = None
                 if not reservation.applied_cancellation_policy:
-                    return Response({
-                        "error": "No hay política de cancelación configurada para este hotel"
-                    }, status=status.HTTP_404_NOT_FOUND)
+                    missing_cancellation_policy = True
             
             # Obtener política de devolución del hotel
             from apps.payments.models import RefundPolicy
             refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
-            
-            if not refund_policy:
-                return Response({
-                    "error": "No hay política de devolución configurada para este hotel"
-                }, status=status.HTTP_404_NOT_FOUND)
+            missing_refund_policy = refund_policy is None
             
             # Calcular tiempo hasta el check-in
             from datetime import datetime
@@ -515,19 +510,43 @@ class ReservationViewSet(viewsets.ModelViewSet):
             time_until_checkin = (check_in_date - now).total_seconds()
             
             # Obtener reglas de cancelación usando la política histórica
-            cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(check_in_date)
+            if reservation.applied_cancellation_policy:
+                cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(check_in_date)
+            else:
+                # Fallback seguro (no bloquear UI): sin política -> sin devolución y retener lo pagado.
+                cancellation_rules = {
+                    "cancellation_type": "no_refund",
+                    "type": "no_refund",
+                    "fee_type": "percentage",
+                    "fee_value": 100,
+                    "penalty_percentage": 100,
+                    "message": "Sin política de cancelación configurada: se retiene lo pagado.",
+                }
             
             # Obtener reglas de devolución
-            refund_rules = refund_policy.get_refund_rules(check_in_date)
+            if refund_policy:
+                refund_rules = refund_policy.get_refund_rules(check_in_date)
+            else:
+                refund_rules = {
+                    "type": "none",
+                    "refund_percentage": 0,
+                    "refund_method": "original_payment",
+                    "processing_days": 0,
+                    "message": "Sin política de devolución configurada: no se procesa devolución automática.",
+                }
             
             return Response({
                 "cancellation_rules": cancellation_rules,
                 "refund_rules": refund_rules,
+                "policies_missing": {
+                    "cancellation": missing_cancellation_policy,
+                    "refund": missing_refund_policy,
+                },
                 "applied_cancellation_policy": {
                     "id": reservation.applied_cancellation_policy.id,
                     "name": reservation.applied_cancellation_policy.name,
                     "applied_at": reservation.created_at.isoformat()
-                },
+                } if reservation.applied_cancellation_policy else None,
                 "reservation": {
                     "id": reservation.id,
                     "total_price": float(reservation.total_price),
@@ -600,6 +619,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         
         # Usar la política de cancelación aplicada a la reserva (histórica).
         # Fallback: si no existe (p.ej. reservas OTA importadas), resolver la vigente del hotel.
+        missing_cancellation_policy = False
         if not reservation.applied_cancellation_policy:
             try:
                 from apps.payments.models import CancellationPolicy
@@ -610,18 +630,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
             except Exception:
                 policy = None
             if not reservation.applied_cancellation_policy:
-                return Response({
-                    "detail": "No hay política de cancelación configurada para este hotel"
-                }, status=status.HTTP_400_BAD_REQUEST)
+                missing_cancellation_policy = True
         
         # Obtener política de devolución del hotel
         from apps.payments.models import RefundPolicy
         refund_policy = RefundPolicy.resolve_for_hotel(reservation.hotel)
-        
-        if not refund_policy:
-            return Response({
-                "detail": "No hay política de devolución configurada para este hotel"
-            }, status=status.HTTP_400_BAD_REQUEST)
+        missing_refund_policy = refund_policy is None
         
         # Calcular reglas de cancelación y devolución
         # Usar snapshot si está disponible, sino usar política actual
@@ -629,13 +643,33 @@ class ReservationViewSet(viewsets.ModelViewSet):
         
         if SnapshotCancellationCalculator.should_use_snapshot(reservation):
             cancellation_rules = SnapshotCancellationCalculator.get_cancellation_rules_from_snapshot(reservation)
-            if not cancellation_rules:
+            if not cancellation_rules and reservation.applied_cancellation_policy:
                 # Fallback a política actual si no se puede calcular desde snapshot
                 cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in)
         else:
-            cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in)
-        
-        refund_rules = refund_policy.get_refund_rules(reservation.check_in)
+            cancellation_rules = reservation.applied_cancellation_policy.get_cancellation_rules(reservation.check_in) if reservation.applied_cancellation_policy else None
+
+        # Fallback seguro si no hay política configurada: permitir cancelar, pero NO devolver dinero automáticamente.
+        if not cancellation_rules:
+            cancellation_rules = {
+                "cancellation_type": "no_refund",
+                "type": "no_refund",
+                "fee_type": "percentage",
+                "fee_value": 100,
+                "penalty_percentage": 100,
+                "message": "Sin política de cancelación configurada: se retiene lo pagado.",
+            }
+
+        if refund_policy:
+            refund_rules = refund_policy.get_refund_rules(reservation.check_in)
+        else:
+            refund_rules = {
+                "type": "none",
+                "refund_percentage": 0,
+                "refund_method": "original_payment",
+                "processing_days": 0,
+                "message": "Sin política de devolución configurada: no se procesa devolución automática.",
+            }
         
         # Calcular información financiera
         from apps.payments.services.refund_processor import RefundProcessor
@@ -655,11 +689,17 @@ class ReservationViewSet(viewsets.ModelViewSet):
         response_data = {
             "cancellation_rules": cancellation_rules,
             "refund_rules": refund_rules,
+            "policies_missing": {
+                "cancellation": missing_cancellation_policy,
+                "refund": missing_refund_policy,
+            },
             "financial_summary": {
                 "total_paid": float(total_paid),
                 "penalty_amount": float(penalty_amount),
                 "refund_amount": float(refund_amount),
-                "net_refund": float(refund_amount - penalty_amount)
+                # `refund_amount` ya es el monto neto a devolver (ya contempla penalidad según reglas).
+                # No restar nuevamente la penalidad aquí.
+                "net_refund": float(refund_amount)
             },
             "reservation": {
                 "id": reservation.id,

@@ -70,19 +70,26 @@ class SnapshotCancellationCalculator:
             message = snapshot.get('no_cancellation_message',
                 f"Sin devolución después de {snapshot.get('no_cancellation_time', 168)} {snapshot.get('no_cancellation_unit', 'hours')} antes del check-in")
         
-        # Calcular penalidad
-        penalty_info = SnapshotCancellationCalculator._calculate_penalty_from_snapshot(
-            snapshot, reservation
-        )
+        # Calcular penalidad (para UI/diagnóstico). El cálculo final se hace en RefundProcessor.
+        penalty_info = SnapshotCancellationCalculator._calculate_penalty_from_snapshot(snapshot, reservation)
+
+        fee_type = snapshot.get('fee_type', 'percentage')
+        fee_value = float(snapshot.get('fee_value', 10.0))
         
         return {
             'cancellation_type': cancellation_type,
+            # Compatibilidad retroactiva: algunos consumidores usaban `type`
+            'type': cancellation_type,
             'refund_percentage': refund_percentage,
             'message': message,
             'hours_until_checkin': hours_until_checkin,
             'free_cancellation_hours': free_cancellation_hours,
             'partial_refund_hours': partial_refund_hours,
             'no_refund_hours': no_refund_hours,
+            # Penalidad (inputs) para cálculos
+            'fee_type': fee_type,
+            'fee_value': fee_value,
+            'penalty_percentage': fee_value if fee_type == 'percentage' else 0,
             'penalty': penalty_info,
             'policy_info': {
                 'policy_id': snapshot.get('policy_id'),

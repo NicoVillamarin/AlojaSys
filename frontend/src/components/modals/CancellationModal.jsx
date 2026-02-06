@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import ModalLayout from 'src/layouts/ModalLayout'
 import Button from 'src/components/Button'
@@ -249,6 +249,18 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
     return cancellationData.financial_summary
   }
 
+  const financial = useMemo(() => {
+    const s = cancellationData?.financial_summary
+    if (!s) return null
+    const totalPaid = Number(s?.total_paid || 0)
+    const penalty = Number(s?.penalty_amount || 0)
+    const refund = Number(s?.refund_amount || 0)
+    const netRefund = Math.max(0, Number(s?.net_refund ?? refund ?? 0))
+    const showRefundChoice = netRefund > 0
+    const hotelKeeps = Math.max(0, penalty - refund)
+    return { totalPaid, penalty, refund, netRefund, showRefundChoice, hotelKeeps }
+  }, [cancellationData])
+
   const hasAutoRefund = () => {
     return cancellationRules?.applied_cancellation_policy?.auto_refund_on_cancel || false
   }
@@ -361,9 +373,9 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
               size="md"
               onClick={handleConfirmCancel}
               disabled={loading || cancelling || !cancellationReason.trim()}
-              aria-label="Cancelar y solicitar reembolso"
+              aria-label={financial?.showRefundChoice ? "Cancelar y solicitar reembolso" : "Cancelar reserva"}
             >
-              Cancelar y solicitar reembolso
+              {financial?.showRefundChoice ? "Cancelar y solicitar reembolso" : "Cancelar"}
             </Button>
             
             {getFinancialSummary()?.net_refund > 0 && (
@@ -503,18 +515,29 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6" role="region" aria-label="Resumen financiero de la cancelación">
                 <h5 className="font-semibold text-blue-900 mb-4 text-lg">Resumen Financiero</h5>
                 <div className="space-y-3">
+                  {(() => {
+                    const s = getFinancialSummary()
+                    const totalPaid = Number(s?.total_paid || 0)
+                    const penalty = Number(s?.penalty_amount || 0)
+                    const refund = Number(s?.refund_amount || 0)
+                    const netRefund = Math.max(0, Number(s?.net_refund ?? refund ?? 0))
+                    const hotelKeeps = Math.max(0, penalty - refund)
+                    const showRefundChoice = netRefund > 0
+
+                    return (
+                      <>
                   <div className="flex justify-between items-center">
                     <span className="text-blue-800" aria-label="Total pagado por el huésped">Total pagado:</span>
                     <span className="font-semibold text-blue-900 text-lg" aria-describedby="total-paid-amount">
-                      {formatCurrency(getFinancialSummary().total_paid)}
+                      {formatCurrency(totalPaid)}
                     </span>
                   </div>
                   
-                  {getFinancialSummary().penalty_amount > 0 && (
+                  {penalty > 0 && (
                     <div className="flex justify-between items-center text-red-600">
                       <span aria-label="Penalidad aplicada por cancelación">Penalidad por cancelación:</span>
                       <span className="font-semibold" aria-describedby="penalty-amount">
-                        -{formatCurrency(getFinancialSummary().penalty_amount)}
+                        -{formatCurrency(penalty)}
                       </span>
                     </div>
                   )}
@@ -522,7 +545,7 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
                   <div className="flex justify-between items-center text-green-600">
                     <span aria-label="Monto a devolver al huésped">Devolución:</span>
                     <span className="font-semibold" aria-describedby="refund-amount">
-                      +{formatCurrency(getFinancialSummary().refund_amount)}
+                      +{formatCurrency(refund)}
                     </span>
                   </div>
                   
@@ -530,56 +553,75 @@ const CancellationModal = ({ isOpen, onClose, reservation, onSuccess }) => {
                     <div className="flex justify-between items-center">
                       <span className="text-blue-900 font-semibold text-lg" aria-label="Total neto a devolver">Total a devolver:</span>
                       <span className="font-bold text-blue-900 text-xl" aria-describedby="net-refund-amount">
-                        {formatCurrency(getFinancialSummary().net_refund)}
+                        {formatCurrency(netRefund)}
                       </span>
                     </div>
                   </div>
 
-                  {/* Selección del método de reembolso */}
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="text-sm font-semibold text-blue-900 mb-3">Método de Reembolso</h4>
-                    <div className="space-y-3">
-                      <label className="flex items-center space-x-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="refundMethod"
-                          value="money"
-                          checked={refundMethod === 'money'}
-                          onChange={(e) => setRefundMethod(e.target.value)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                        />
-                        <div className="flex items-center space-x-2">
-                          <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                          </svg>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">Reembolso en Dinero</div>
-                            <div className="text-xs text-gray-500">Se devuelve el dinero al método de pago original</div>
-                          </div>
-                        </div>
-                      </label>
-                      
-                      <label className="flex items-center space-x-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="refundMethod"
-                          value="voucher"
-                          checked={refundMethod === 'voucher'}
-                          onChange={(e) => setRefundMethod(e.target.value)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                        />
-                        <div className="flex items-center space-x-2">
-                          <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                          </svg>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">Voucher de Crédito</div>
-                            <div className="text-xs text-gray-500">Se genera un voucher para usar en futuras reservas</div>
-                          </div>
-                        </div>
-                      </label>
+                  {/* Aviso cuando no hay nada para devolver */}
+                  {!showRefundChoice && (
+                    <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-900">
+                      <div className="font-semibold mb-1">No hay devolución</div>
+                      <div>
+                        El valor negativo no significa “devolver negativo”: significa que la <strong>penalidad</strong>{' '}
+                        ({formatCurrency(penalty)}) se <strong>retiene</strong> y queda a favor del hotel.
+                        {hotelKeeps > 0 ? (
+                          <> En este caso, el hotel retiene {formatCurrency(hotelKeeps)}.</>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Selección del método de reembolso (solo si hay monto a devolver) */}
+                  {showRefundChoice && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-3">Método de Reembolso</h4>
+                      <div className="space-y-3">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="refundMethod"
+                            value="money"
+                            checked={refundMethod === 'money'}
+                            onChange={(e) => setRefundMethod(e.target.value)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          />
+                          <div className="flex items-center space-x-2">
+                            <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">Reembolso en Dinero</div>
+                              <div className="text-xs text-gray-500">Se devuelve el dinero al método de pago original</div>
+                            </div>
+                          </div>
+                        </label>
+                        
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="refundMethod"
+                            value="voucher"
+                            checked={refundMethod === 'voucher'}
+                            onChange={(e) => setRefundMethod(e.target.value)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          />
+                          <div className="flex items-center space-x-2">
+                            <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                            </svg>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">Voucher de Crédito</div>
+                              <div className="text-xs text-gray-500">Se genera un voucher para usar en futuras reservas</div>
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             )}
