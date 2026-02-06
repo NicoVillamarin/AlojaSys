@@ -85,7 +85,8 @@ const PaymentPoliciesModal = ({ isOpen, onClose, isEdit = false, policy, onSucce
     }
 
     if (isEdit) {
-      updatePolicy({ id: policy.id, data })
+      // useUpdate espera { id, body }
+      updatePolicy({ id: policy.id, body: data })
     } else {
       createPolicy(data)
     }
