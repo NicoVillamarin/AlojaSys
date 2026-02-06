@@ -195,8 +195,8 @@ class RoomSerializer(serializers.ModelSerializer):
         active_status = ["confirmed", "check_in"]
         res = (obj.reservations
                .filter(check_in__lte=today, check_out__gt=today, status__in=active_status)
+               .select_related("created_by")
                .order_by("-status")
-               .values("id", "status", "guests_data", "check_in", "check_out")
                .first())
         
         # Si no hay reserva activa en el rango de fechas, verificar si hay una reserva en CHECK_IN
@@ -204,26 +204,28 @@ class RoomSerializer(serializers.ModelSerializer):
         if not res:
             res = (obj.reservations
                    .filter(status="check_in", check_in__lte=today)
+                   .select_related("created_by")
                    .order_by("-check_in")
-                   .values("id", "status", "guests_data", "check_in", "check_out")
                    .first())
         
         if res:
             guest_name = ""
-            if res.get('guests_data') and isinstance(res['guests_data'], list):
-                # Buscar el huésped principal
-                primary_guest = next((guest for guest in res['guests_data'] if guest.get('is_primary', False)), None)
-                if not primary_guest and res['guests_data']:
-                    # Si no hay huésped principal marcado, tomar el primero
-                    primary_guest = res['guests_data'][0]
-                guest_name = primary_guest.get('name', '') if primary_guest else ''
-            
+            guests_data = getattr(res, "guests_data", None)
+            if guests_data and isinstance(guests_data, list):
+                primary_guest = next((g for g in guests_data if isinstance(g, dict) and g.get("is_primary", False)), None)
+                if not primary_guest and guests_data:
+                    primary_guest = guests_data[0] if isinstance(guests_data[0], dict) else None
+                guest_name = (primary_guest.get("name", "") or "") if primary_guest else ""
+            created_by_name = ""
+            if res.created_by:
+                created_by_name = (res.created_by.get_full_name() or res.created_by.username or "").strip() or ""
             return {
-                "id": res['id'],
-                "status": res['status'],
+                "id": res.id,
+                "status": res.status,
                 "guest_name": guest_name,
-                "check_in": res['check_in'],
-                "check_out": res['check_out']
+                "check_in": res.check_in.isoformat() if hasattr(res.check_in, "isoformat") else str(res.check_in),
+                "check_out": res.check_out.isoformat() if hasattr(res.check_out, "isoformat") else str(res.check_out),
+                "created_by_name": created_by_name,
             }
         return None
 

@@ -27,6 +27,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     paid_by = serializers.CharField(read_only=True)
     overbooking_flag = serializers.BooleanField(read_only=True)
     pricing_currency_code = serializers.CharField(source="pricing_currency.code", read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
@@ -39,6 +40,7 @@ class ReservationSerializer(serializers.ModelSerializer):
             "promotion_code", "voucher_code", "applied_cancellation_policy", "applied_cancellation_policy_name",
             "price_source", "pricing_currency", "pricing_currency_code",
             "display_name", "created_at", "updated_at",
+            "created_by", "created_by_name",
         ]
         read_only_fields = [
             "id",
@@ -53,7 +55,14 @@ class ReservationSerializer(serializers.ModelSerializer):
             "display_name",
             "pricing_currency",
             "pricing_currency_code",
+            "created_by",
+            "created_by_name",
         ]
+
+    def get_created_by_name(self, obj):
+        if not obj.created_by:
+            return ""
+        return obj.created_by.get_full_name() or obj.created_by.username or ""
 
     @staticmethod
     def _infer_channel_label_from_guests_data(obj) -> str | None:
@@ -176,6 +185,9 @@ class ReservationSerializer(serializers.ModelSerializer):
                         instance.notes = ""
                     instance.notes += f"\n[OTA Check] {'; '.join(warnings)}"
             
+            request = self.context.get("request")
+            if request and getattr(request, "user", None) and request.user.is_authenticated:
+                instance.created_by = request.user
             instance.full_clean()
             instance.save()
             return instance

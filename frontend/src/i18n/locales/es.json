@@ -189,6 +189,7 @@
     "print_select_hotel": "Seleccioná un hotel para imprimir la lista de limpieza.",
     "print_no_dirty_rooms": "No hay habitaciones 'Para limpiar' para imprimir.",
     "print_has_reservation": "Reserva actual",
+    "responsible": "Responsable",
     "print_guests": "Huéspedes",
     "status_title": "Estado de Habitaciones",
     "status": {
@@ -863,6 +864,7 @@
       "table_headers": {
         "reservation": "Reserva",
         "guest": "Huésped",
+        "responsible": "Responsable",
         "hotel": "Hotel",
         "room": "Habitación",
         "channel": "Canal/Origen",

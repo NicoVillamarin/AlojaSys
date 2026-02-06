@@ -1736,6 +1736,17 @@ export default function ReservationsGestions() {
             render: (r) => <InvoiceStatus reservationId={r.id} />,
           },
           {
+            key: "created_by_name",
+            header: t("dashboard.reservations_management.table_headers.responsible", "Responsable"),
+            sortable: true,
+            accessor: (r) => r?.created_by_name ?? "",
+            render: (r) => (
+              <span className={r?.created_by_name ? "text-aloja-navy" : "text-gray-400"}>
+                {r?.created_by_name || "—"}
+              </span>
+            ),
+          },
+          {
             key: "actions",
             header: t(
               "dashboard.reservations_management.table_headers.actions"

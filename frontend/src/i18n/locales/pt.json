@@ -170,6 +170,7 @@
     "print_select_hotel": "Selecione um hotel para imprimir a lista de limpeza.",
     "print_no_dirty_rooms": "Não há quartos marcados como 'Para limpar' para imprimir.",
     "print_has_reservation": "Reserva atual",
+    "responsible": "Responsável",
     "print_guests": "Hóspedes",
     "status_title": "Status dos Quartos",
     "status": {
@@ -752,6 +753,7 @@
       "table_headers": {
         "reservation": "Reserva",
         "guest": "Hóspede",
+        "responsible": "Responsável",
         "hotel": "Hotel",
         "room": "Quarto",
         "check_in": "Check-in",

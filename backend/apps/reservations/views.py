@@ -286,7 +286,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                         "voucher_code": room_payload.get("voucher_code") or data.get("voucher_code"),
                         "group_code": group_code,
                     }
-                    res_serializer = ReservationSerializer(data=single_payload)
+                    res_serializer = ReservationSerializer(data=single_payload, context=self.get_serializer_context())
                     res_serializer.is_valid(raise_exception=True)
                     instance = res_serializer.save()
                     created_reservations.append(instance)

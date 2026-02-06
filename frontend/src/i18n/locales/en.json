@@ -178,6 +178,7 @@
     "print_select_hotel": "Select a hotel to print the cleaning list.",
     "print_no_dirty_rooms": "There are no rooms marked as 'To clean' to print.",
     "print_has_reservation": "Current reservation",
+    "responsible": "Responsible",
     "print_guests": "Guests",
     "status_title": "Room Status",
     "status": {
@@ -789,6 +790,7 @@
       "table_headers": {
         "reservation": "Reservation",
         "guest": "Guest",
+        "responsible": "Responsible",
         "hotel": "Hotel",
         "room": "Room",
         "check_in": "Check-in",
