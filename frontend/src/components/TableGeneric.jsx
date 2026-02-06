@@ -2,6 +2,9 @@ import PropTypes from "prop-types";
 import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import SpinnerData from "src/components/SpinnerData";
 
+/** Altura reservada: arriba (navbar, título, filtros) + abajo (botón "Cargar más", margen). Tabla más baja = sin scroll de página. */
+const VIEWPORT_OFFSET = 330;
+
 export default function TableGeneric({
   columns = [],
   data = [],
@@ -10,6 +13,8 @@ export default function TableGeneric({
   className = "",
   getRowId,
   defaultSort = null,
+  /** Si true, la tabla tiene altura máxima adaptativa al viewport y scroll interno (headers y scroll horizontal siempre visibles). */
+  adaptiveHeight = true,
 }) {
   const [sortState, setSortState] = useState(
     defaultSort ? { key: defaultSort.key, direction: defaultSort.direction } : { key: null, direction: null }
@@ -83,14 +88,8 @@ export default function TableGeneric({
     prevPositionsRef.current = new Map();
   });
 
-  return (
-    <div className={`bg-white rounded-xl shadow overflow-x-auto ${className}`}>
-      {isLoading ? (
-        <div className="p-6 flex items-center justify-center">
-          <SpinnerData />
-        </div>
-      ) : (
-        <table className="w-full text-sm border-separate border-spacing-0">
+  const tableContent = (
+    <table className="w-full text-sm border-separate border-spacing-0">
           <thead className="sticky top-0 bg-aloja-gray-100 backdrop-blur z-10">
             <tr className="text-left text-aloja-gray-800/70 border-b border-gray-200">
               {columns.map((col) => {
@@ -181,6 +180,28 @@ export default function TableGeneric({
             )}
           </tbody>
         </table>
+  );
+
+  return (
+    <div className={`bg-white rounded-xl shadow ${className}`}>
+      {isLoading ? (
+        <div className="p-6 flex items-center justify-center">
+          <SpinnerData />
+        </div>
+      ) : adaptiveHeight ? (
+        <div
+          className="overflow-auto rounded-xl"
+          style={{
+            maxHeight: `calc(100vh - ${VIEWPORT_OFFSET}px)`,
+            minHeight: 200,
+          }}
+        >
+          {tableContent}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          {tableContent}
+        </div>
       )}
     </div>
   );
@@ -206,6 +227,7 @@ TableGeneric.propTypes = {
     key: PropTypes.string.isRequired,
     direction: PropTypes.oneOf(['asc', 'desc']).isRequired,
   }),
+  adaptiveHeight: PropTypes.bool,
 };
 
 

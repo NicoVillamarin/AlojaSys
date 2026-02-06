@@ -79,6 +79,7 @@ export default function ReservationHistorical() {
       ID: r?.id ?? '',
       Reserva: r?.display_name ?? '',
       Huésped: r?.guest_name ?? '',
+      Responsable: r?.created_by_name ?? '',
       Hotel: r?.hotel_name ?? '',
       Habitación: r?.room_name ?? '',
       Canal: channel,
@@ -381,6 +382,7 @@ export default function ReservationHistorical() {
      </Filter>
 
       <TableGeneric
+        adaptiveHeight={true}
         isLoading={isPending}
         data={displayResults}
         getRowId={(r) => r.id}
@@ -446,6 +448,17 @@ export default function ReservationHistorical() {
               >
                 {r.guest_name || '—'}
               </button>
+            ),
+          },
+          {
+            key: 'created_by_name',
+            header: t('dashboard.reservations_management.table_headers.responsible', 'Responsable'),
+            sortable: true,
+            accessor: (r) => r?.created_by_name ?? '',
+            render: (r) => (
+              <span className={r?.created_by_name ? 'text-aloja-navy' : 'text-gray-400'}>
+                {r?.created_by_name || '—'}
+              </span>
             ),
           },
           { key: 'hotel_name', header: t('dashboard.reservations_management.table_headers.hotel'), sortable: true },
@@ -614,8 +627,12 @@ export default function ReservationHistorical() {
       />
 
       {hasNextPage && (
-        <div>
-          <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            className="px-5 py-2.5 rounded-lg bg-aloja-navy text-white font-medium shadow-sm hover:bg-aloja-navy/90 focus:ring-2 focus:ring-aloja-navy/30 focus:ring-offset-1 transition-colors"
+            onClick={() => fetchNextPage()}
+          >
             {t('common.load_more')}
           </button>
         </div>

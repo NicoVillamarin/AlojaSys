@@ -339,6 +339,7 @@ export default function HousekeepingHistorical() {
       </Filter>
 
       <TableGeneric
+        adaptiveHeight={true}
         isLoading={isPending}
         data={displayResults}
         getRowId={(r) => r.id}
@@ -437,8 +438,12 @@ export default function HousekeepingHistorical() {
       />
 
       {hasNextPage && (
-        <div className="mt-3">
-          <button className="px-3 py-2 rounded-md border" onClick={() => fetchNextPage()}>
+        <div className="flex justify-center pt-4">
+          <button
+            type="button"
+            className="px-5 py-2.5 rounded-lg bg-aloja-navy text-white font-medium shadow-sm hover:bg-aloja-navy/90 focus:ring-2 focus:ring-aloja-navy/30 focus:ring-offset-1 transition-colors"
+            onClick={() => fetchNextPage()}
+          >
             {t('common.load_more')}
           </button>
         </div>
