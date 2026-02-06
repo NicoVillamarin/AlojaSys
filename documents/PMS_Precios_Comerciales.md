@@ -100,15 +100,16 @@
 
 Valores aproximados **adicionales por hotel / mes**:
 
-| Módulo                               | Recargo (ARS aprox.) |
-|--------------------------------------|----------------------:|
-| AFIP / Facturación electrónica       | +10.000              |
-| Mercado Pago / Pagos avanzados       | +10.000              |
-| OTAs / Channel Manager               | +20.000              |
-| Chatbot WhatsApp (BYON)              | +5.000               |
-| Chatbot WhatsApp (número admin.)     | +10.000–15.000       |
-| Housekeeping avanzado                | +10.000              |
-| Conciliación / Cobros avanzados      | +10.000              |
+| Módulo                                    | Recargo (ARS aprox.) |
+|-------------------------------------------|----------------------:|
+| ARCA / Facturación electrónica            | +10.000              |
+| Mercado Pago / Pagos avanzados            | +10.000              |
+| OTAs / Channel Manager (Smoobu) ANEXO 1   | +15.000              |
+| Chatbot WhatsApp (BYON) ANEXO 2           | +5.000               |
+| Housekeeping avanzado                     | +10.000              |
+| Conciliación / Cobros avanzados           | +10.000              |
+
+**Chatbot WhatsApp (BYON):** El hotel aporta el número y la cuenta de WhatsApp Business API. AlojaSys realiza la integración, ayuda a configurar en Meta y en AlojaSys, y brinda soporte (incl. capacitación o ayuda para crear la cuenta si no la tiene). Los costos de Meta/proveedor no están incluidos en el abono. Ver ANEXO 2.
 
 ### 5.3 Ejemplo de armado Custom
 
@@ -125,7 +126,17 @@ Cálculo de referencia:
 
 ---
 
-## 6. Notas finales
+## 6. Anexos a módulos
+
+**ANEXO 1 – OTAs / Channel Manager (Smoobu)**  
+El valor correspondiente a la integración, configuración inicial y soporte técnico dentro de AlojaSys. El servicio de Channel Manager es provisto por Smoobu y requiere una cuenta activa contratada directamente por el cliente. Los costos y condiciones de Smoobu no están incluidos en el abono de AlojaSys.
+
+**ANEXO 2 – Chatbot WhatsApp (BYON)**  
+El valor correspondiente a la integración y soporte del chatbot dentro de AlojaSys. El cliente debe contar con una cuenta de WhatsApp Business API propia (el mismo staff de AlojaSys capacita y ayuda a crear la cuenta en Meta y a configurarla en AlojaSys si no la tiene). Los costos de uso, conversaciones y/o mensajes cobrados por WhatsApp (Meta) y/o el proveedor de la cuenta no están incluidos en el abono de AlojaSys.
+
+---
+
+## 7. Notas finales
 
 - Los precios aquí indicados son **de referencia** y pueden ajustarse según el contexto de cada cliente.  
 - Los planes se eligen principalmente por **funcionalidades** (módulos incluidos).  

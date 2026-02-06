@@ -8,6 +8,18 @@ from .models import RoomType
 
 class RoomViewSet(viewsets.ModelViewSet):
     serializer_class = RoomSerializer
+    # IMPORTANTE: el proyecto tiene paginación global (PAGE_SIZE=20).
+    # Para el recurso rooms queremos devolver TODO el listado (mapa de recepción, etc.).
+    pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        """
+        Listado SIN paginación (devuelve un array).
+        Esto evita que el front se quede con 20 habitaciones por PAGE_SIZE global.
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_queryset(self):
         qs = Room.objects.select_related("hotel", "base_currency", "secondary_currency").filter(is_active=True).order_by("floor", "name")

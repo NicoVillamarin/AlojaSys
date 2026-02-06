@@ -178,11 +178,6 @@ Incluye **todo lo del Plan Pro**, más:
   - Alertas inteligentes de overbooking y conflictos con OTAs.  
   - Reglas automáticas específicas por canal OTA.
 
-- **Opcional en este plan**  
-  - Modo “WhatsApp número administrado por AlojaSys”:  
-    - El hotel usa una cuenta/proveedor de WhatsApp gestionado por AlojaSys.  
-    - AlojaSys asume el costo directo del proveedor y lo refactura como servicio adicional.
-
 ### 4.2 Lo que NO incluye el Plan Premium
 
 - Desarrollo a medida de funcionalidades fuera del roadmap estándar (eso se cotiza como proyecto).
@@ -226,9 +221,7 @@ Incluye **todo lo del Plan Pro**, más:
   - **Políticas de cancelación / devoluciones avanzadas** (3.5 / 3.6).  
   - **Facturación electrónica AFIP** (3.13 / 3.14).  
   - **OTAs / Channel Manager** (3.16).  
-  - **Chatbot WhatsApp**:
-    - Modo BYON (hotel aporta proveedor).  
-    - Modo número administrado por AlojaSys.  
+  - **Chatbot WhatsApp (BYON)**: hotel aporta número y cuenta de WhatsApp Business API; AlojaSys integración, configuración en Meta y en AlojaSys, y soporte.  
   - **Housekeeping avanzado** (3.17).  
   - **Conciliación bancaria / cobros avanzados** (módulos 3.4.3 y relacionados).  
   - **Reportes / dashboards adicionales** (3.8 extendido).
@@ -253,7 +246,6 @@ En este plan, la política comercial es:
   - Mercado Pago / pagos avanzados: **+ USD 10 / mes**.  
   - OTAs / Channel Manager: **+ USD 20 / mes**.  
   - Chatbot WhatsApp (BYON): **+ USD 5 / mes**.  
-  - Chatbot WhatsApp (número administrado por AlojaSys): **+ USD 10–15 / mes** (según costos del proveedor).  
   - Housekeeping avanzado: **+ USD 10 / mes**.  
   - Conciliación bancaria / cobros avanzados: **+ USD 10 / mes**.
 
@@ -266,7 +258,6 @@ En este plan, la política comercial es:
 >   - Mercado Pago / pagos avanzados: ≈ **+ ARS 10.000 / mes**.  
 >   - OTAs / Channel Manager: ≈ **+ ARS 20.000 / mes**.  
 >   - Chatbot WhatsApp (BYON): ≈ **+ ARS 5.000 / mes**.  
->   - Chatbot WhatsApp (número administrado por AlojaSys): ≈ **+ ARS 10.000–15.000 / mes**.  
 >   - Housekeeping avanzado: ≈ **+ ARS 10.000 / mes**.  
 >   - Conciliación bancaria / cobros avanzados: ≈ **+ ARS 10.000 / mes**.
 
