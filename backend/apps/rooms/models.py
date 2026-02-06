@@ -55,7 +55,8 @@ class CleaningStatus(models.TextChoices):
 class Room(models.Model):
     name = models.CharField(max_length=255, unique=True)
     hotel = models.ForeignKey("core.Hotel", on_delete=models.CASCADE, related_name="rooms")
-    floor = models.IntegerField()
+    # Alfanumérico para permitir "PB", "1A", etc.
+    floor = models.CharField(max_length=20)
     room_type = models.CharField(
         max_length=50,
         default="single",

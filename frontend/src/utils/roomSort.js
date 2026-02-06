@@ -17,6 +17,28 @@ const extractFirstIntFromString = (value) => {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
+const getFloorSortInt = (floorValue) => {
+  if (floorValue == null) return 0;
+  // Si viene como número, usarlo directo
+  const direct = toFiniteInt(floorValue);
+  if (direct != null) return direct;
+
+  const s = String(floorValue).trim().toLowerCase();
+  if (!s) return 0;
+
+  // Casos comunes: Planta Baja
+  if (s === "pb" || s === "p.b" || s === "p.b." || s === "planta baja" || s === "plantabaja") {
+    return 0;
+  }
+
+  // Ej: "1A" -> 1
+  const embedded = extractFirstIntFromString(s);
+  if (embedded != null) return embedded;
+
+  // No numérico -> al final
+  return 9999;
+};
+
 export const getRoomNumberLike = (room) => {
   // Prioridad: campo number (si existe) → número embebido en name
   const direct = toFiniteInt(room?.number);
@@ -26,7 +48,7 @@ export const getRoomNumberLike = (room) => {
 
 export const getRoomSortKey = (room) => {
   // Orden por: piso → número → nombre → id
-  const floor = toFiniteInt(room?.floor) ?? 0;
+  const floor = getFloorSortInt(room?.floor);
   const num = getRoomNumberLike(room);
   const numKey = (num == null ? Number.MAX_SAFE_INTEGER : num);
   const nameKey = String(room?.name ?? "").toLowerCase();

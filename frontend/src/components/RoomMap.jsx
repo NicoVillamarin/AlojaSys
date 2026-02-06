@@ -3,6 +3,7 @@ import { parseISO, isSameDay } from 'date-fns';
 import CleaningIcon from 'src/assets/icons/CleaningIcon';
 import DirtIcon from 'src/assets/icons/DirtIcon';
 import { sortRooms } from 'src/utils/roomSort';
+import Switch from 'src/components/Switch';
 
 const DoorBadge = ({ children, className = '' }) => (
   <div
@@ -184,6 +185,64 @@ const RoomMap = ({
   };
 
   const sortedRooms = useMemo(() => sortRooms(rooms), [rooms]);
+
+  const floorGroups = useMemo(() => {
+    const normalize = (v) => String(v ?? '').trim();
+    const NO_FLOOR = '__no_floor__';
+    const byFloor = new Map();
+
+    for (const r of sortedRooms) {
+      const raw = normalize(r?.floor);
+      const key = raw ? raw : NO_FLOOR;
+      if (!byFloor.has(key)) byFloor.set(key, []);
+      byFloor.get(key).push(r);
+    }
+
+    const sortBucket = (key) => {
+      if (key === NO_FLOOR) return { t: 2, n: Number.POSITIVE_INFINITY, s: '' }; // al final
+      const num = Number(key);
+      if (!Number.isNaN(num)) return { t: 0, n: num, s: '' }; // numérico primero
+      return { t: 1, n: 0, s: key.toLowerCase() }; // luego texto
+    };
+
+    const keys = Array.from(byFloor.keys()).sort((a, b) => {
+      const A = sortBucket(a);
+      const B = sortBucket(b);
+      if (A.t !== B.t) return A.t - B.t;
+      if (A.t === 0) return A.n - B.n;
+      if (A.t === 1) return A.s.localeCompare(B.s, 'es', { numeric: true });
+      return 0;
+    });
+
+    return keys.map((key) => ({
+      key,
+      label: key === NO_FLOOR ? 'Sin piso' : `Piso ${key}`,
+      rooms: byFloor.get(key) || [],
+    }));
+  }, [sortedRooms]);
+
+  const shouldGroupByFloor = floorGroups.length > 1;
+
+  // Vista: normal (como siempre) o por pisos (accordion)
+  const [groupByFloorView, setGroupByFloorView] = useState(false);
+  useEffect(() => {
+    if (!shouldGroupByFloor && groupByFloorView) setGroupByFloorView(false);
+  }, [shouldGroupByFloor, groupByFloorView]);
+
+  const [openFloorKeys, setOpenFloorKeys] = useState(() => new Set());
+  useEffect(() => {
+    if (!groupByFloorView) return;
+    setOpenFloorKeys(new Set(floorGroups.map((g) => g.key))); // abierto por defecto
+  }, [groupByFloorView, floorGroups]);
+
+  const toggleFloor = (key) => {
+    setOpenFloorKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Limpiar timeout al desmontar
   useEffect(() => {
@@ -387,164 +446,232 @@ const RoomMap = ({
     );
   }
 
-  return (
-    <div className="relative">
-      {/* Flexbox de habitaciones moderno */}
-      <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-4 md:p-8 rounded-2xl shadow-inner">
-        <div className="flex flex-wrap gap-2 md:gap-4 justify-center relative z-10">
-          {sortedRooms.map((room) => {
-            const effectiveStatus = getEffectiveStatus(room);
-            const isHovered = hoveredRoom?.id === room.id;
-            const cleaning = isCleaning(room);
-            const dirty = isDirty(room);
-            const showCleaning = cleaning || effectiveStatus === 'cleaning';
-            const isMaintenance = effectiveStatus === 'maintenance';
-            const isBlocked = effectiveStatus === 'blocked' || effectiveStatus === 'out_of_service';
-            const isOccupied = effectiveStatus === 'occupied';
-            const isConfirmed = effectiveStatus === 'confirmed';
-            const isAvailable = effectiveStatus === 'available';
-            const showCleaningBadge = showCleaning && !isOccupied && !isConfirmed;
-            // Prioridad: si está "en limpieza", no mostrar "sucia"
-            const showDirtyBadge = dirty && !isOccupied && !isConfirmed && !showCleaningBadge;
+  const renderRoomTile = (room) => {
+    const effectiveStatus = getEffectiveStatus(room);
+    const cleaning = isCleaning(room);
+    const dirty = isDirty(room);
+    const showCleaning = cleaning || effectiveStatus === 'cleaning';
+    const isMaintenance = effectiveStatus === 'maintenance';
+    const isBlocked = effectiveStatus === 'blocked' || effectiveStatus === 'out_of_service';
+    const isOccupied = effectiveStatus === 'occupied';
+    const isConfirmed = effectiveStatus === 'confirmed';
+    const isAvailable = effectiveStatus === 'available';
+    const showCleaningBadge = showCleaning && !isOccupied && !isConfirmed;
+    // Prioridad: si está "en limpieza", no mostrar "sucia"
+    const showDirtyBadge = dirty && !isOccupied && !isConfirmed && !showCleaningBadge;
 
-            const plateText = room.name || room.number || `#${room.id}`;
-            const doorVariant = isAvailable ? 'open' : isConfirmed ? 'ajar' : 'closed';
-            const isSelected = effectiveSelectedIds.has(room.id);
+    const plateText = room.name || room.number || `#${room.id}`;
+    const doorVariant = isAvailable ? 'open' : isConfirmed ? 'ajar' : 'closed';
+    const isSelected = effectiveSelectedIds.has(room.id);
 
-            return (
-              <div
-                key={room.id}
-                className={[
-                  'group cursor-pointer transition-all duration-300',
-                  'relative',
-                  isSelected
-                    ? [
-                        // Selección sin línea: "tarjeta elevada" sobre el fondo
-                        // Queremos que resalte (con scale), pero sin que se note desalineado:
-                        // lo resolvemos centrando la puerta abajo (wrapper), no quitando el scale.
-                        'z-20 isolate rounded-2xl bg-white/90',
-                        'transform-gpu scale-[1.03]',
-                        // Sombra un poco más suave
-                        'shadow-[0_18px_55px_rgba(15,23,42,0.24)]',
-                        // Halo suave azul (difuminado), sin línea
-                        'before:content-[""] before:absolute before:inset-[-8px] before:rounded-[24px]',
-                        'before:bg-aloja-navy/16 before:blur-[14px] before:-z-10',
-                      ].join(' ')
-                    : '',
-                ].join(' ')}
-                onMouseEnter={() => handleMouseEnter(room)}
-                onMouseLeave={handleMouseLeave}
-                onClick={() =>
-                  onRoomClick &&
-                  onRoomClick({
-                    room,
-                    hotel: hotels.find((h) => h.id === selectedHotel),
-                    selectedHotel,
-                  })
-                }
-                onKeyDown={(e) => {
-                  if (!onRoomClick) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onRoomClick({
-                      room,
-                      hotel: hotels.find((h) => h.id === selectedHotel),
-                      selectedHotel,
-                    });
-                  }
-                }}
-                role={onRoomClick ? 'button' : undefined}
-                tabIndex={onRoomClick ? 0 : -1}
-                title={`${room.name || `Habitación #${room.number || room.id}`} - ${getEffectiveStatusLabel(room)}${cleaning ? ' (En limpieza)' : ''}`}
-              >
-                {/* Puerta (centrada dentro del tile) */}
-                <div className="flex justify-center">
-                  <div className="relative inline-block">
-                    <DoorVisual
-                      variant={doorVariant}
-                      toneClass={getDoorTone(room)}
-                      dimmed={isBlocked}
-                    />
+    return (
+      <div
+        key={room.id}
+        className={[
+          'group cursor-pointer transition-all duration-300',
+          'relative',
+          isSelected
+            ? [
+                'z-20 isolate rounded-2xl bg-white/90',
+                'transform-gpu scale-[1.03]',
+                'shadow-[0_18px_55px_rgba(15,23,42,0.24)]',
+                'before:content-[""] before:absolute before:inset-[-8px] before:rounded-[24px]',
+                'before:bg-aloja-navy/16 before:blur-[14px] before:-z-10',
+              ].join(' ')
+            : '',
+        ].join(' ')}
+        onMouseEnter={() => handleMouseEnter(room)}
+        onMouseLeave={handleMouseLeave}
+        onClick={() =>
+          onRoomClick &&
+          onRoomClick({
+            room,
+            hotel: hotels.find((h) => h.id === selectedHotel),
+            selectedHotel,
+          })
+        }
+        onKeyDown={(e) => {
+          if (!onRoomClick) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onRoomClick({
+              room,
+              hotel: hotels.find((h) => h.id === selectedHotel),
+              selectedHotel,
+            });
+          }
+        }}
+        role={onRoomClick ? 'button' : undefined}
+        tabIndex={onRoomClick ? 0 : -1}
+        title={`${room.name || `Habitación #${room.number || room.id}`} - ${getEffectiveStatusLabel(room)}${cleaning ? ' (En limpieza)' : ''}`}
+      >
+        {/* Puerta */}
+        <div className="flex justify-center">
+          <div className="relative inline-block">
+            <DoorVisual variant={doorVariant} toneClass={getDoorTone(room)} dimmed={isBlocked} />
 
-                  {/* Checkbox de selección: lo mostramos en la línea del nombre (abajo) para no tapar la puerta */}
-
-                  {/* Cintas de peligro (mantenimiento) */}
-                  {isMaintenance && (
-                    <div className="pointer-events-none absolute inset-0 z-10">
-                      <div className="absolute inset-0 rounded-xl md:rounded-2xl overflow-hidden">
-                        <div
-                          className="absolute -left-6 top-1/2 h-4 w-[140%] -translate-y-1/2 rotate-[-18deg] bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0.75)_0,rgba(0,0,0,0.75)_10px,rgba(250,204,21,0.95)_10px,rgba(250,204,21,0.95)_20px)] shadow"
-                          style={{ opacity: 0.95 }}
-                        />
-                        <div
-                          className="absolute -left-6 top-1/2 h-4 w-[140%] -translate-y-1/2 rotate-[18deg] bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0.75)_0,rgba(0,0,0,0.75)_10px,rgba(250,204,21,0.95)_10px,rgba(250,204,21,0.95)_20px)] shadow"
-                          style={{ opacity: 0.95 }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Badges */}
-                  {isOccupied && (
-                    <DoorBadge className="w-6 h-6 md:w-7 md:h-7 bg-white/90 text-slate-900 ring-1 ring-black/5">
-                      <IconLock className="w-4 h-4 md:w-4.5 md:h-4.5 text-slate-800" />
-                    </DoorBadge>
-                  )}
-                  {isConfirmed && (
-                    <DoorBadge className="w-6 h-6 md:w-7 md:h-7 bg-white/90 text-slate-900 ring-1 ring-black/5">
-                      <IconCheck className="w-4 h-4 md:w-4.5 md:h-4.5 text-blue-700" />
-                    </DoorBadge>
-                  )}
-                  {showCleaningBadge && (
-                    <DoorBadge
-                      className={[
-                        "w-6 h-6 md:w-7 md:h-7",
-                        // Resalte primary (azul) con gradiente
-                        "bg-gradient-to-br from-sky-500 to-sky-700 ring-1 ring-white/60",
-                        "shadow-[0_10px_24px_rgba(2,132,199,0.35)]",
-                      ].join(" ")}
-                    >
-                      <CleaningIcon size="16" className="text-white" />
-                    </DoorBadge>
-                  )}
-                  {showDirtyBadge && (
-                    <DoorBadge
-                      className={[
-                        "w-6 h-6 md:w-7 md:h-7",
-                        // Resalte warning (ámbar) con gradiente
-                        "bg-gradient-to-br from-amber-500 to-amber-600 ring-1 ring-white/60",
-                        "shadow-[0_10px_24px_rgba(245,158,11,0.38)]",
-                      ].join(" ")}
-                    >
-                      <DirtIcon size={18} className="text-white" />
-                    </DoorBadge>
-                  )}
-                  </div>
-                </div>
-
-                {/* Texto debajo (como antes) */}
-                <div className="mt-1.5 md:mt-2 flex flex-col items-center gap-0.5 select-none">
-                  <div className="text-[10px] md:text-xs font-semibold text-slate-800 inline-flex items-center gap-2">
-                    {(typeof onSelectedRoomIdsChange === 'function' || !selectedRoomIds) && (
-                      <input
-                        type="checkbox"
-                        aria-label="Seleccionar habitación"
-                        checked={isSelected}
-                        onChange={() => toggleSelected(room.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-3.5 h-3.5 accent-[#0A304A]"
-                      />
-                    )}
-                    <span>{plateText}</span>
-                  </div>
-                  <div className={`text-[10px] md:text-[11px] text-slate-600 text-center max-w-[110px] md:max-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis ${room?.cleaning_status === 'clean' ? 'px-3' : ''}`}>
-                    {getRoomStatusLine(room)}
-                  </div>
+            {/* Cintas de peligro (mantenimiento) */}
+            {isMaintenance && (
+              <div className="pointer-events-none absolute inset-0 z-10">
+                <div className="absolute inset-0 rounded-xl md:rounded-2xl overflow-hidden">
+                  <div
+                    className="absolute -left-6 top-1/2 h-4 w-[140%] -translate-y-1/2 rotate-[-18deg] bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0.75)_0,rgba(0,0,0,0.75)_10px,rgba(250,204,21,0.95)_10px,rgba(250,204,21,0.95)_20px)] shadow"
+                    style={{ opacity: 0.95 }}
+                  />
+                  <div
+                    className="absolute -left-6 top-1/2 h-4 w-[140%] -translate-y-1/2 rotate-[18deg] bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0.75)_0,rgba(0,0,0,0.75)_10px,rgba(250,204,21,0.95)_10px,rgba(250,204,21,0.95)_20px)] shadow"
+                    style={{ opacity: 0.95 }}
+                  />
                 </div>
               </div>
-            );
-          })}
+            )}
+
+            {/* Badges */}
+            {isOccupied && (
+              <DoorBadge className="w-6 h-6 md:w-7 md:h-7 bg-white/90 text-slate-900 ring-1 ring-black/5">
+                <IconLock className="w-4 h-4 md:w-4.5 md:h-4.5 text-slate-800" />
+              </DoorBadge>
+            )}
+            {isConfirmed && (
+              <DoorBadge className="w-6 h-6 md:w-7 md:h-7 bg-white/90 text-slate-900 ring-1 ring-black/5">
+                <IconCheck className="w-4 h-4 md:w-4.5 md:h-4.5 text-blue-700" />
+              </DoorBadge>
+            )}
+            {showCleaningBadge && (
+              <DoorBadge
+                className={[
+                  'w-6 h-6 md:w-7 md:h-7',
+                  'bg-gradient-to-br from-sky-500 to-sky-700 ring-1 ring-white/60',
+                  'shadow-[0_10px_24px_rgba(2,132,199,0.35)]',
+                ].join(' ')}
+              >
+                <CleaningIcon size="16" className="text-white" />
+              </DoorBadge>
+            )}
+            {showDirtyBadge && (
+              <DoorBadge
+                className={[
+                  'w-6 h-6 md:w-7 md:h-7',
+                  'bg-gradient-to-br from-amber-500 to-amber-600 ring-1 ring-white/60',
+                  'shadow-[0_10px_24px_rgba(245,158,11,0.38)]',
+                ].join(' ')}
+              >
+                <DirtIcon size={18} className="text-white" />
+              </DoorBadge>
+            )}
+          </div>
         </div>
+
+        {/* Texto debajo */}
+        <div className="mt-1.5 md:mt-2 flex flex-col items-center gap-0.5 select-none">
+          <div className="text-[10px] md:text-xs font-semibold text-slate-800 inline-flex items-center gap-2">
+            {(typeof onSelectedRoomIdsChange === 'function' || !selectedRoomIds) && (
+              <input
+                type="checkbox"
+                aria-label="Seleccionar habitación"
+                checked={isSelected}
+                onChange={() => toggleSelected(room.id)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-3.5 h-3.5 accent-[#0A304A]"
+              />
+            )}
+            <span>{plateText}</span>
+          </div>
+          <div
+            className={`text-[10px] md:text-[11px] text-slate-600 text-center max-w-[110px] md:max-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis ${room?.cleaning_status === 'clean' ? 'px-3' : ''}`}
+          >
+            {getRoomStatusLine(room)}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative">
+      {shouldGroupByFloor && (
+        <div className="mb-3 flex items-center justify-end">
+          <Switch
+            checked={groupByFloorView}
+            onChange={setGroupByFloorView}
+            label="Agrupar por piso"
+            description="Cambiar vista del mapa"
+            size="sm"
+          />
+        </div>
+      )}
+      {/* Flexbox de habitaciones moderno */}
+      <div className="bg-gradient-to-br from-slate-50 to-gray-100 p-4 md:p-8 rounded-2xl shadow-inner">
+        {groupByFloorView && shouldGroupByFloor ? (
+          <div className="w-full space-y-3 relative z-10">
+            {floorGroups.map((group) => {
+              const isOpen = openFloorKeys.has(group.key);
+              return (
+                <div
+                  key={group.key}
+                  className="rounded-2xl bg-white/60 ring-1 ring-black/5 shadow-sm overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleFloor(group.key)}
+                    className="w-full flex items-center justify-between gap-3 px-4 md:px-5 py-3 text-left hover:bg-white/70 transition-colors"
+                    aria-expanded={isOpen}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm md:text-base font-semibold text-slate-800 truncate">
+                        {group.label}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {group.rooms.length} habitación{group.rooms.length === 1 ? '' : 'es'}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-500">
+                        {isOpen ? 'Ocultar' : 'Mostrar'}
+                      </span>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className={[
+                          'w-5 h-5 text-slate-600 transition-transform duration-200',
+                          isOpen ? 'rotate-180' : 'rotate-0',
+                        ].join(' ')}
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M6 9l6 6 6-6"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  </button>
+
+                  <div
+                    className={[
+                      'grid transition-[grid-template-rows] duration-300 ease-in-out',
+                      isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+                    ].join(' ')}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="px-3 md:px-5 pb-4 pt-2 border-t border-black/5">
+                        <div className="flex flex-wrap gap-2 md:gap-4 justify-center">
+                          {group.rooms.map(renderRoomTile)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2 md:gap-4 justify-center relative z-10">
+            {sortedRooms.map(renderRoomTile)}
+          </div>
+        )}
       </div>
       
       {/* Tooltip moderno */}

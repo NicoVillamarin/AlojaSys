@@ -113,7 +113,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     base_currency_code: room?.base_currency_code ?? '',
     name: room?.name ?? '',
     number: room?.number ?? '',
-    floor: room?.floor ?? '',
+    floor: room?.floor != null ? String(room.floor) : '',
     room_type: room?.room_type ?? '',
     capacity: room?.capacity ?? '',
     max_capacity: room?.max_capacity ?? '',
@@ -136,7 +136,10 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
     hotel: Yup.string().required(t('rooms_modal.hotel_required')),
     name: Yup.string().required(t('rooms_modal.name_required')),
     number: Yup.string().required(t('rooms_modal.number_required')),
-    floor: Yup.string().required(t('rooms_modal.floor_required')),
+    floor: Yup.string()
+      .transform((v) => String(v ?? '').trim())
+      .max(20, t('rooms_modal.floor_max', 'El piso es demasiado largo.'))
+      .required(t('rooms_modal.floor_required')),
     room_type: Yup.string().required(t('rooms_modal.type_required')),
     capacity: Yup.number()
     .transform((v, o) => (o === '' ? undefined : v))
@@ -208,7 +211,8 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             hotel: values.hotel ? Number(values.hotel) : undefined,
             name: values.name || undefined,
             number: values.number !== '' ? Number(values.number) : undefined,
-            floor: values.floor !== '' ? Number(values.floor) : undefined,
+            // Alfanumérico (ej: "PB", "1A", "2B")
+            floor: values.floor ? String(values.floor).trim() : undefined,
             room_type: values.room_type || undefined,
             capacity: values.capacity ? Number(values.capacity) : undefined,
             max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
@@ -279,7 +283,7 @@ const RoomsModal = ({ isOpen, onClose, isEdit = false, room, onSuccess }) => {
             hotel: values.hotel ? Number(values.hotel) : undefined,
             name: values.name || undefined,
             number: values.number !== '' ? Number(values.number) : undefined,
-            floor: values.floor !== '' ? Number(values.floor) : undefined,
+            floor: values.floor ? String(values.floor).trim() : undefined,
             room_type: values.room_type || undefined,
             capacity: values.capacity ? Number(values.capacity) : undefined,
             max_capacity: values.max_capacity ? Number(values.max_capacity) : undefined,
