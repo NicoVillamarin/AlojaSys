@@ -198,25 +198,64 @@ const RoomMap = ({
       byFloor.get(key).push(r);
     }
 
+    const isPBKey = (key) => {
+      const s = String(key ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll('.', '');
+      return (
+        s === 'pb' ||
+        s === 'p b' ||
+        s === 'planta baja' ||
+        s === 'plantabaja' ||
+        s === '0'
+      );
+    };
+
+    const extractFirstInt = (value) => {
+      const m = String(value ?? '').match(/(\d+)/);
+      if (!m) return null;
+      const n = Number(m[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    };
+
+    const labelForFloorKey = (key) => {
+      if (key === NO_FLOOR) return 'Sin piso';
+      if (isPBKey(key)) return 'PB';
+      return `Piso ${key}`;
+    };
+
     const sortBucket = (key) => {
       if (key === NO_FLOOR) return { t: 2, n: Number.POSITIVE_INFINITY, s: '' }; // al final
+      if (isPBKey(key)) return { t: 0, n: -1, s: '' }; // PB / 0 arriba de todo
+
+      // numérico puro
       const num = Number(key);
-      if (!Number.isNaN(num)) return { t: 0, n: num, s: '' }; // numérico primero
-      return { t: 1, n: 0, s: key.toLowerCase() }; // luego texto
+      if (!Number.isNaN(num)) return { t: 0, n: num, s: String(key).toLowerCase() };
+
+      // alfanumérico con dígitos (ej: "1A" => 1)
+      const embedded = extractFirstInt(key);
+      if (embedded != null) return { t: 0, n: embedded, s: String(key).toLowerCase() };
+
+      // texto sin número: después de los numéricos
+      return { t: 1, n: 0, s: String(key).toLowerCase() }; // luego texto
     };
 
     const keys = Array.from(byFloor.keys()).sort((a, b) => {
       const A = sortBucket(a);
       const B = sortBucket(b);
       if (A.t !== B.t) return A.t - B.t;
-      if (A.t === 0) return A.n - B.n;
+      if (A.t === 0) {
+        if (A.n !== B.n) return A.n - B.n;
+        return (A.s || '').localeCompare(B.s || '', 'es', { numeric: true });
+      }
       if (A.t === 1) return A.s.localeCompare(B.s, 'es', { numeric: true });
       return 0;
     });
 
     return keys.map((key) => ({
       key,
-      label: key === NO_FLOOR ? 'Sin piso' : `Piso ${key}`,
+      label: labelForFloorKey(key),
       rooms: byFloor.get(key) || [],
     }));
   }, [sortedRooms]);

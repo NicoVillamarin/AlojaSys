@@ -46,10 +46,21 @@ export default function Rooms() {
     enabled: !!filters.hotel,
   });
 
+  const orderedResults = useMemo(() => {
+    const list = Array.isArray(results) ? results.slice() : [];
+    list.sort((a, b) =>
+      getRoomSortKey(a).localeCompare(getRoomSortKey(b), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      })
+    );
+    return list;
+  }, [results]);
+
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
-    if (!q) return results;
-    return (results || []).filter((r) => {
+    if (!q) return orderedResults;
+    return (orderedResults || []).filter((r) => {
       const idStr = String(r.id ?? "");
       const numberStr = String(r.number ?? "");
       const nameStr = String(r.name ?? "");

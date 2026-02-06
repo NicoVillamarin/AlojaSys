@@ -96,6 +96,17 @@ export default function RoomsGestion() {
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
 
+  const orderedResults = useMemo(() => {
+    const list = Array.isArray(results) ? results.slice() : [];
+    list.sort((a, b) =>
+      getRoomSortKey(a).localeCompare(getRoomSortKey(b), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      })
+    );
+    return list;
+  }, [results]);
+
   const onPrintDirtyRooms = async () => {
     const title = t(
       "rooms.print_cleaning_list_title",
@@ -482,8 +493,8 @@ export default function RoomsGestion() {
   // Filtrado en cliente para respuesta inmediata al escribir
   const displayResults = useMemo(() => {
     const q = (filters.search || "").trim().toLowerCase();
-    if (!q) return results;
-    return (results || []).filter((r) => {
+    if (!q) return orderedResults;
+    return (orderedResults || []).filter((r) => {
       const idStr = String(r.id ?? "");
       const numberStr = String(r.number ?? "");
       const nameStr = String(r.name ?? "");
@@ -497,7 +508,7 @@ export default function RoomsGestion() {
         statusStr.toLowerCase().includes(q)
       );
     });
-  }, [results, filters.search]);
+  }, [orderedResults, filters.search]);
 
   const selectedRooms = useMemo(() => {
     const ids = selectedRoomIds
